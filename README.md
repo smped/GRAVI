@@ -7,6 +7,8 @@ This is a `snakemake` workflow for:
 3. performing Differential Binding Analysis
 4. identifying TF motifs
 
+At least two IP targets are required as worflows for a single ChIP target are well established.
+
 ## Config Setup
 
 ### Samples
@@ -29,7 +31,7 @@ A possible structure is as follows:
 | sample2 | AR | E2  | 1 | input1 |
 ```
 
-It is currently assumed that bam files will be placed in `data/aligned/bam/**` where the value `**` represents each individual ChIP target.
+It is currently assumed that bam files will be placed in `data/aligned/bam/[target]` where the final directory is the individual ChIP target.
 Whilst the root directory can theoretically be changed via `config.yml`, it is not recommended.
 Bam files should be named as specified in the `sample` column, with the addition of the `.bam` suffix only.
 
