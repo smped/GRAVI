@@ -1,9 +1,11 @@
-# PDX_HCI-005_AR_ER_GATA3_ChIP
+# GRAVI: Gene Regulatory Analysis using Variable IP
 
-Combines two separate experiments for the PDX line HCI-005
+This is a `snakemake` workflow for:
 
-- AR & GATA3 ChIP, as performed by Leila Hosseinzadeh
-- ER & H3K27ac ChIP as used for the publication by [Hickey *et al*](https://www.nature.com/articles/s41591-020-01168-7)
+1. Performing sample QC
+2. calling ChIP peaks
+3. performing Differential Binding Analysis
+4. identifying TF motifs
 
 ## Config Setup
 
@@ -23,8 +25,8 @@ A possible structure is as follows:
 ```
 | sample | target | treat | passage | input |
 | ------ | ------ | ----- | ------- | ----- |
-| sample1 | H3K27ac | Veh | 1 | input1 |
-| sample2 | H3K27ac | E2  | 1 | input1 |
+| sample1 | AR | Veh | 1 | input1 |
+| sample2 | AR | E2  | 1 | input1 |
 ```
 
 It is currently assumed that bam files will be placed in `data/aligned/bam/**` where the value `**` represents each individual ChIP target.
