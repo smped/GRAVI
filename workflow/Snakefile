@@ -77,7 +77,7 @@ treats = list(set(df['treat']))
 bam_path = config['paths']['bam']
 bw_path = config['paths']['bigwig']
 macs2_path = config['paths']['macs2']
-ext_path = os.path.join("data", "external")
+# ext_path = os.path.join("data", "external")
 rmd_path = "analysis"
 ## This still needs to be changed internally in the RMD files
 annotation_path = os.path.join("output", "annotations")
@@ -88,14 +88,14 @@ annotation_path = os.path.join("output", "annotations")
 ## These are required input for multiple steps
 ucsc_build = get_ucsc_genome(config['genome']['build'])
 gtf = os.path.join(
-	ext_path,
+	annotation_path,
 	"gencode.v" + config['genome']['gencode'] + "lift" +
 	config['genome']['build'][-2:] +
 	".annotation.gtf.gz"
 )
-blacklist = os.path.join(ext_path, "blacklist.bed.gz")
-cytobands = os.path.join(ext_path, "cytoBand.txt.gz")
-chrom_sizes = os.path.join(ext_path, "chrom.sizes")
+blacklist = os.path.join(annotation_path, "blacklist.bed.gz")
+cytobands = os.path.join(annotation_path, "cytoBand.txt.gz")
+chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
 #####################
 ## Prepare Outputs ##
@@ -109,22 +109,10 @@ ALL_OUTPUTS = []
 ## These are dependent on H3K27Ac being a target. If so, promoters, enhancers
 ## and super-enhancers will be created. If not, only the tss regions will be
 ## created
-has_h3k27ac = "H3K27ac" in targets # NB Exact case only
 ALL_ANNOTATION = expand(
 	os.path.join(annotation_path, "{file}.rds"),
 	file = ['all_gr', 'trans_models', 'seqinfo', 'tss']
 )
-if has_h3k27ac:
-	## All other outputs are required as input for SE detection so keep
-	## Super-Enhancer output as separate elements of the output
-	ALL_OUTPUTS.extend([os.path.join(annotation_path, "SE.rds")])
-	ALL_OUTPUTS.extend([os.path.join(annotation_path, "SE.bed")])
-	ALL_ANNOTATION.extend(
-		expand(
-			os.path.join(annotation_path, "{file}"),
-			file = ['enhancers.bed', 'promoters.bed', 'feat_gr.rds']
-		)
-	)
 ALL_OUTPUTS.extend(ALL_ANNOTATION)
 
 #######################
@@ -134,8 +122,6 @@ HTML_OUT = expand(
 	os.path.join("docs", "{file}.html"),
 	file = ['annotation_setup']
 )
-if has_h3k27ac:
-	HTML_OUT.extend([os.path.join("docs", "rose.html")])
 
 ## Macs2 Summaries
 HTML_OUT.extend(
