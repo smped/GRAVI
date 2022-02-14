@@ -1,0 +1,737 @@
+```{r example, echo = FALSE, eval=FALSE}
+## This module requires the following to be set during preparation
+# target <- "AR"
+# threads <- 8
+```
+
+
+```{r packages}
+library(tidyverse)
+library(magrittr)
+library(rtracklayer)
+library(glue)
+library(pander)
+library(scales)
+library(plyranges)
+library(yaml)
+library(ngsReports)
+library(UpSetR)
+library(VennDiagram)
+library(cowplot)
+library(rlang)
+library(BiocParallel)
+library(Rsamtools)
+library(Biostrings)
+```
+
+```{r remotes, results = 'hide'}
+## Deal with github packages
+if (!"extraChIPs" %in% rownames(installed.packages()))
+  BiocManager::install("steveped/extraChIPs", ask = FALSE)
+stopifnot(library(extraChIPs, logical.return = TRUE))
+source(here::here("workflow", "scripts", "autoload.R"))
+```
+
+```{r options}
+panderOptions("big.mark", ",")
+panderOptions("missing", "")
+panderOptions("table.split.table", Inf)
+theme_set(
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+)
+register(MulticoreParam(workers = threads))
+```
+
+
+```{r config-paths}
+config <- read_yaml(
+  here::here("config", "config.yml")
+)
+bam_path <- here::here(config$paths$bam, target)
+stopifnot(dir.exists(bam_path))
+macs2_path <- here::here(config$paths$macs2, target)
+stopifnot(dir.exists(macs2_path))
+ext_path <- here::here("data", "external")
+stopifnot(dir.exists(ext_path))
+out_path <- here::here("output", target)
+if (!dir.exists(out_path)) dir.create(out_path)
+annotation_path <- here::here("output", "annotations")
+```
+
+```{r read-samples}
+samples <-read_tsv(file.path(out_path, "qc_samples.tsv"))
+treat_levels <- unique(samples$treat)
+if (!is.null(config$comparisons$contrasts)) {
+  ## Ensure levels respect those provided in contrasts
+  treat_levels <- config$comparisons$contrasts %>%
+    unlist() %>%
+    intersect(samples$treat) %>% 
+    unique()
+}
+rep_col <- setdiff(
+  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
+)
+samples <- samples %>%
+  unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
+  mutate(
+    treat = factor(treat, levels = treat_levels),
+    "{rep_col}" := as.factor(!!sym(rep_col))
+  )
+```
+
+
+```{r annotations}
+sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
+blacklist <-  file.path(ext_path, "blacklist.bed.gz") %>%
+  import.bed(seqinfo = sq) %>%
+  sort()
+feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) %>% 
+  select(feature)
+se_file <- file.path(annotation_path, "SE.rds")
+se <- GRanges()
+if (file.exists(se_file)) {
+  se <- read_rds(se_file) %>% 
+    granges() %>% 
+    mutate(feature = "SE")
+}
+genes_gr <- file.path(annotation_path, "all_gr.rds") %>% 
+  read_rds() %>% 
+  .[["gene"]]
+if (!is.null(config$external$rnaseq)) {
+  ## If RNA-Seq is provided
+  rnaseq <- read_tsv(here::here(config$external$rnaseq))
+  rna_col <- colnames(rnaseq)
+  sig_col <- str_detect(str_to_lower(rna_col), "fdr")
+  if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
+  sig_col <- rna_col[sig_col][1]
+  # Now split the transcript models by gene-level status from the RNA-Seq
+  genes_gr <- genes_gr %>%
+    mutate(
+      category =  case_when(
+        !gene_id %in% rnaseq$gene_id ~ "Undetected",
+        gene_id %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
+        gene_id %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
+        gene_id %in% rnaseq$gene_id ~ "Unchanged"
+      )
+    )
+}
+feat_gr <- feat_gr %>% 
+  filter_by_non_overlaps(se) %>% 
+  c(se) %>% 
+  c(
+    setdiff(genes_gr, ., ignore.strand = TRUE) %>% 
+      mutate(feature = "Gene Body")
+  ) %>% 
+  sort()
+```
+
+```{r set-colours}
+rmd_config <- read_yaml(
+  here::here("config", "rmarkdown.yml")
+)
+treat_cols <- unlist(rmd_config$colours$treat[treat_levels])
+qc_cols <- unlist(rmd_config$colours$qc)
+feat_col <- unlist(rmd_config$colours$features) %>% 
+  .[names(.) %in% feat_gr$feature] %>% 
+  c("Intergenic" = "grey")
+```
+
+```{r bfl}
+bfl <- bam_path %>%
+  file.path(glue("{samples$sample}.bam")) %>%
+  BamFileList() %>%
+  setNames(samples$sample)
+```
+
+```{r individual-peaks}
+individual_peaks <- file.path(
+  macs2_path, glue("{samples$sample}_peaks.narrowPeak")
+  ) %>%
+  importPeaks(seqinfo = sq, blacklist = blacklist) %>%
+  setNames(samples$sample)
+```
+
+
+```{r macs2-logs}
+macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
+  importNgsLogs() %>%
+  dplyr::select(
+    -contains("file"), -outputs, -n_reads, -alt_fragment_length
+  ) %>%
+  left_join(samples, by = c("name" = "sample")) %>%
+  mutate(
+    filtered_peaks = map_int(
+      name,
+      function(x) {
+        length(individual_peaks[[x]])
+      }
+    ),
+    prop_passed = filtered_peaks / paired_peaks
+  ) 
+n_reps <- macs2_logs %>% 
+  group_by(treat) %>%
+  summarise(n = sum(qc == "pass"))
+```
+
+## QC {.tabset}
+
+```{r macs2-logs-individual}
+emphasize.italics.rows(NULL)
+any_fail <- any(macs2_logs$qc == "fail")
+if (any_fail) emphasize.italics.rows(which(macs2_logs$qc == "fail"))
+macs2_logs %>%
+  mutate(
+    `% Passed` = percent(prop_passed, accuracy = 0.1)
+  ) %>%
+  dplyr::select(
+    sample = name, label,
+    ends_with("peaks"), `% Passed`,
+    reads = n_tags_treatment, read_length = tag_length,
+    fragment_length
+  ) %>%
+  rename_all(str_replace_all, pattern = "_", replacement = " ") %>%
+  rename_all(str_to_title) %>%
+  pander(
+    justify = "llrrrrrr",
+    caption = glue(
+      "*Summary of results for `macs2 callpeak` on individual {target} samples.",
+      "Paired peaks indicate the number of identified peaks __before__",
+      "applying any FDR threshold, whilst the filtered peaks indicate how many",
+      "were retained after applying the FDR threshold of",
+      "{percent(config$peaks$macs2$fdr)} during the peak calling process.",
+      ifelse(
+        any_fail,
+        glue(
+          "Samples shown in italics were marked (F) for exclusion from ",
+          "downstream analysis as they identified fewer than ",
+          "{percent(qc_prop)} of the peaks identified in the sample returning ",
+          "the maximum number of peaks."
+        ),
+        glue(
+          "No samples were identified as failing QC based on the number of ",
+          "peaks identified relative to the highest quality sample."
+        )
+      ),
+      "Any peaks passing the FDR cutoff, but which overlapped any black-listed",
+      "regions were additionally excluded. The fragment length as estimated by",
+      "`macs2 predictd` is given in the final column.",
+      case_when(
+        all(macs2_logs$paired_end) ~
+          "All input files contained paired-end reads.*",
+        all(!macs2_logs$paired_end) ~
+          "All input files contained single-end reads.*",
+        TRUE ~
+          "Input files were a mixture of paired and single-end reads*"
+      ),
+      .sep = " "
+    )
+  )
+```
+
+### Library Sizes
+
+```{r plot-macs2-libsize-individual, fig.height=6, fig.cap = glue("*Library sizes for each {target} sample. The horizontal line indicates the mean library size for each treatment group. Any samples marked for exclusion as described above will be indicated with an (F)*")}
+macs2_logs %>%
+  ggplot(
+    aes(label, n_tags_treatment, fill = qc)
+    ) +
+  geom_col(position = "dodge") +
+  geom_hline(
+    aes(yintercept = mn),
+    data = . %>%
+      group_by(treat) %>%
+      summarise(mn = mean(n_tags_treatment)),
+    linetype = 2,
+    col = "grey"
+  ) +
+  facet_grid(~treat, scales = "free_x", space = "free_x") +
+  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  scale_fill_manual(values = qc_cols) +
+  labs(
+    x = "Sample",
+    y = "Library Size",
+    fill = "QC"
+  ) +
+  ggtitle(
+    glue("{target}: Library Sizes")
+  )
+```
+
+### GC Content
+
+```{r set-yield-size}
+ys <- 5e5
+yieldSize(bfl) <- ys
+```
+
+
+```{r plot-gc-content, fig.height = 6, fig.cap = glue("*GC content for each bam file, taking the first {comma(ys)} alignments from each sample. QC status is based on the number of peaks identified (see table above)*")}
+bfl %>% 
+  bplapply(
+    function(x){
+      seq <- scanBam(x, param = ScanBamParam(what = "seq"))[[1]]$seq
+      freq <- letterFrequency(seq, letters = "GC") / width(seq)
+      list(freq[,1])
+    }
+  ) %>% 
+  as_tibble() %>% 
+  pivot_longer(
+    cols = everything(), 
+    names_to = "name",
+    values_to = "freq"
+    ) %>% 
+  left_join(macs2_logs) %>% 
+  unnest(freq) %>% 
+  ggplot(aes(label, freq, fill = qc)) +
+  geom_boxplot(alpha = 0.8) +
+  geom_hline(
+    aes(yintercept = med),
+    data = . %>% 
+      group_by(treat) %>% 
+      summarise(med = median(freq)),
+    linetype = 2,
+    colour = rgb(0.2, 0.2, 0.8)
+  ) +
+  facet_grid(~treat, scales = "free_x", space = "free_x") +
+  scale_y_continuous(labels = percent) +
+  scale_fill_manual(values = qc_cols) +
+  labs(
+    x = "Sample",
+    y = "GC content",
+    fill = "QC"
+  ) +
+  ggtitle(
+    glue("{target}: GC Content")
+  )
+```
+
+
+### Peaks Detected
+
+```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. Those which are discarded by macs2 are shown in transparent shades. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
+macs2_logs %>%
+  mutate(
+    Discarded = paired_peaks - filtered_peaks
+  ) %>%
+  dplyr::rename(Retained = filtered_peaks) %>%
+  pivot_longer(
+    cols = c("Retained", "Discarded"),
+    names_to = "Status",
+    values_to = "total"
+  ) %>%
+  ggplot(
+    aes(label, total, fill = qc, alpha = Status)
+    ) +
+  geom_col() +
+  geom_label(
+    aes(x = label, y = total, label = lab, colour = qc),
+    data = . %>%
+      dplyr::filter(Status == "Retained" & total > 0) %>%
+      mutate(
+        lab = comma(total, accuracy = 1),
+        total = total
+      ),
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) +
+  geom_hline(
+    aes(yintercept = min),
+    data = . %>%
+      dplyr::filter(Status == "Retained") %>% 
+      group_by(treat) %>%
+      summarise(min = config$peaks$qc$min_prop_peaks*max(total)),
+    linetype = 2,
+    col = "grey"
+  ) +
+  facet_grid(~treat, scales = "free_x", space = "free_x") +
+  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  scale_fill_manual(values = qc_cols) +
+  scale_colour_manual(values = qc_cols) +
+  scale_alpha_discrete(range = c(0.2, 1)) +
+  guides(alpha = "none") +
+  labs(
+    x = "Sample",
+    y = "Paired Peaks",
+    fill = "QC"
+  ) +
+  ggtitle(
+    glue("{target}: Number of Peaks")
+  )
+```
+
+### Cross Correlations
+
+```{r plot_correlation, fig.height=6, fig.cap = glue("*Cross Correlaton between alignments up to 1kb apart. The dashed, grey, vertical line is the fragment length estimated by `macs2 callpeak` for each sample. For speed, only the first 5 chromosomes were used for sample-specific estimates.*")}
+file.path(out_path, "cross_correlations.tsv") %>% 
+  read_tsv() %>% 
+  left_join(samples, by = "sample") %>% 
+  ggplot(aes(fl, correlation, colour = treat)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
+  geom_vline(
+    aes(xintercept = fragment_length),
+    data = macs2_logs,
+    colour = "grey40", linetype = 2
+  ) +
+  facet_grid(as.formula(paste("treat ~", rep_col))) +
+  scale_colour_manual(values = treat_cols[treat_levels]) +
+  scale_x_continuous(
+    breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
+  ) +
+  labs(
+    x = "Distance (bp)",
+    y = "Cross Correlation",
+    colour = "Treat"
+  )
+```
+
+
+### Reads In Peaks
+
+```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}).*")}
+samples$sample %>%
+  bplapply(
+    function(x) {
+      gr <- individual_peaks[[x]]
+      rip <- 0
+      if (length(gr) > 0) {
+        sbp <- ScanBamParam(which = gr)
+        rip <- sum(countBam(bfl[[x]], param = sbp)$records)
+      }
+      tibble(
+        name = x,
+        reads_in_peaks = rip
+      )
+    }
+  ) %>%
+  bind_rows() %>%
+  left_join(macs2_logs) %>%
+  mutate(
+    frip = reads_in_peaks / n_tags_treatment
+  ) %>%
+  ggplot(
+    aes(label, frip, fill = qc)
+  ) +
+  geom_col() +
+  facet_grid(~treat, scales = "free_x", space = "free") +
+  scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
+  scale_fill_manual(values = qc_cols) +
+  labs(
+    x = "Sample",
+    y = "Fraction of Reads In Peaks",
+    fill = "QC"
+  ) +
+  ggtitle(
+    glue("{target}: Fraction Of Reads In Peaks")
+  )
+```
+
+
+## Results
+
+```{r oracle-peaks}
+oracle_peaks <- treat_levels %>%
+  sapply(
+    function(x) {
+      gr <- file.path(macs2_path, glue("{x}_merged_peaks.narrowPeak")) %>%
+        importPeaks(seqinfo = sq, blacklist = blacklist) %>% 
+        unlist()
+      k <- dplyr::filter(n_reps, treat == x)$n * config$peaks$qc$min_prop_reps
+      if (k > 0) {
+        samp <- dplyr::filter(macs2_logs, treat == x, qc != "fail")$name
+        gr$n_reps <- countOverlaps(gr, individual_peaks[samp]) 
+        gr$keep <- gr$n_reps > k
+      } else {
+        gr <- GRanges(seqinfo = sq)
+      }
+      gr
+    },
+    simplify = FALSE
+  ) %>%
+  GRangesList() 
+consensus_peaks <- oracle_peaks %>%
+  unlist() %>%
+  subset(keep) %>%
+  GenomicRanges::reduce() %>%
+  setNames(as.character(.))
+```
+
+
+
+A set of treatment-specific *oracle peaks* was defined for each condition by taking the peaks defined by merging all samples from each treatment group.
+These were then compared to the individual replicates within each respective condition which passed the initial QC.
+Oracle peaks which overlapped a peak in more than `r percent(config$peaks$qc$min_prop_reps)` of the *individual replicates passing QC*, were retained.
+
+```{r tab-oracle-peak}
+oracle_peaks %>%
+  lapply(as.data.frame) %>%
+  lapply(list) %>%
+  as_tibble() %>%
+  pivot_longer(everything(), names_to = "treat", values_to = "data") %>%
+  mutate(
+    detected_peaks = map_int(data, nrow),
+    retained = data %>% lapply(dplyr::filter, keep) %>% map_int(nrow),
+    `% retained` = percent(retained / detected_peaks)
+  ) %>%
+  dplyr::select(treat, detected_peaks, retained, `% retained`) %>%
+  rename_all(str_replace_all, pattern = "_", replacement = " ") %>%
+  rename_all(str_to_title) %>%
+  pander(
+    justify = "lrrr",
+    caption = glue(
+      "Oracle peaks detected by merging samples within each treatment group.",
+      "Peaks were only retained if detected in at least",
+      "{percent(config$peaks$qc$min_prop_reps)} of the retained samples for each", "treatment group, as described above.",
+      .sep = " "
+    )
+  )
+```
+
+### Consensus Peaks
+
+In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic **consensus peaks** were defined.
+Ranges were the union of any overlapping ranges identified in one or more sets of oracle peaks.
+
+```{r plot-common-peaks, results = 'hide', fig.height=ifelse(length(treat_levels) <= 3, 8, 6), fig.width=6, fig.cap="*Number of consensus peaks that overlap the oracle peaks defined in each condition.*"}
+fig_path <- here::here("docs", "assets", target)
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
+fig_name <- glue("{target}_common_peaks.png")
+if (length(treat_levels) <= 3) {
+  vd <- oracle_peaks %>%
+    lapply(
+      function(x) {
+        names(subsetByOverlaps(consensus_peaks, x))
+      }
+    ) %>%
+    setNames(treat_levels) %>%
+    venn.diagram(
+      filename = file.path(fig_path, fig_name),
+      imagetype = "png",
+      units = "in",
+      height = 8, 
+      width = knitr::opts_chunk$get("fig.width"),
+      fill = treat_cols,
+      alpha = 0.3
+    )
+    file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
+}
+if (length(treat_levels) > 3) {
+  png(
+    filename = file.path(fig_path, fig_name),
+    units = "in",
+    height = 6,
+    width = knitr::opts_chunk$get("fig.width"),
+    res = 300
+  )
+  oracle_peaks %>%
+    lapply(
+      function(x) {
+        names(subsetByOverlaps(consensus_peaks, x))
+      }
+    ) %>%
+    setNames(treat_levels) %>%
+    fromList() %>%
+    upset(
+      sets = treat_levels,
+      keep.order = TRUE,
+      order.by = "freq",
+      sets.bar.color = treat_cols,
+      set_size.show = TRUE,
+      set_size.scale_max = nrow(.) * 1.2,
+      text.scale = 1.2
+    )
+    dev.off()
+}
+```
+
+![*Number of consensus peaks which overlap oracle peaks defined within each condition.*](`r glue("assets/{target}/{target}_common_peaks.png")`)
+
+### Regulatory Features
+
+```{r plot-feature-overlap, fig.height=6, fig.cap = "*Breakdown of consensus peaks and any features which they overlap. Intergenic peaks were defined as those which didn't overlap a transcribed region or promoter. Overlaps with a gene body included both the transcribed region and any defined promoter region.*"}
+consensus_peaks %>% 
+  mutate(
+    promoter = overlapsAny(., subset(feat_gr, feature == "Promoter")),
+    enhancer = overlapsAny(., subset(feat_gr, feature == "Enhancer")),
+    se = overlapsAny(., subset(feat_gr, feature == "SE")),
+    gene_body = overlapsAny(., genes_gr) | promoter,
+    intergenic = !gene_body & !promoter
+  ) %>% 
+  as_tibble() %>% 
+  pivot_longer(
+    cols = c("promoter", "enhancer", "se", "gene_body", "intergenic"),
+    names_to = "feature",
+    values_to = "overlap"
+  ) %>% 
+  dplyr::filter(overlap) %>% 
+  mutate(
+    feature = feature %>% 
+      str_replace_all("_", " ") %>% 
+      str_to_title() %>% 
+      str_replace_all("^Se$", "SE") %>% 
+      factor(levels = c("Promoter", "Enhancer", "SE", "Gene Body", "Intergenic")) %>% 
+      droplevels()
+  ) %>% 
+  split(f = .$feature) %>% 
+  lapply(pull, "range") %>% 
+  fromList() %>% 
+  upset(
+    sets = colnames(.),
+    keep.order = TRUE,
+    order.by = "freq",
+    set_size.show = TRUE,
+    set_size.scale_max = nrow(.),
+    sets.bar.color = feat_col[colnames(.)] 
+  )
+```
+
+```{r tab-feature-overlap}
+consensus_peaks %>% 
+  mutate(
+    promoter = overlapsAny(., subset(feat_gr, feature == "Promoter")),
+    enhancer = overlapsAny(., subset(feat_gr, feature == "Enhancer")),
+    se = overlapsAny(., subset(feat_gr, feature == "SE")),
+    gene_body = overlapsAny(., genes_gr) | promoter,
+    intergenic = !gene_body & !promoter
+  ) %>% 
+  as_tibble() %>% 
+  pivot_longer(
+    cols = contains("gen"),
+    names_to = "gene_region",
+    values_to = "overlap"
+  ) %>% 
+  dplyr::filter(overlap) %>% 
+  group_by(gene_region) %>% 
+  summarise(
+    total_peaks = dplyr::n(),
+    promoter = sum(promoter),
+    enhancer = sum(enhancer),
+    super_enhancer = sum(se),
+    other = total_peaks - promoter - enhancer - super_enhancer,
+    .groups = "drop"
+  ) %>% 
+  select_if(function(x){if(is.character(x)) return(TRUE); sum(x) > 0}) %>% 
+  bind_rows(
+    summarise_if(., is.numeric, sum)
+  ) %>% 
+  mutate(
+    gene_region = str_replace_na(gene_region, "Total") %>% 
+      str_replace_all("_", " ") %>% 
+      str_to_title()
+  ) %>% 
+  rename_all(str_replace_all, pattern = "_", replace = " ") %>% 
+  rename_all(str_to_title) %>% 
+  pander(
+    justify = paste(c("l", rep("r", ncol(.) - 1)), collapse = ""),
+    caption = glue(
+      "*Summary of the {comma(length(consensus_peaks))} consensus peaks ",
+      "defined by `macs2 callpeak` and associated features. ", 
+      "Any Enhancers and Super Enhancers are considered as distinct features. ",
+      "Intergenic regions are considered to be anything excluding a gene body ", 
+      "or promoter.*"
+    ),
+    emphasize.strong.rows = which(str_detect(.$`Gene Region`, "Total"))
+  )
+```
+
+
+`r ifelse(is.null(config$external$rnaseq), "", "### Gene Expression")`
+
+```{r tab-gene-expression, eval = !is.null(config$external$rnaseq), echo = !is.null(config$external$rnaseq)}
+consensus_peaks %>% 
+  join_nearest(select(genes_gr, category), distance = TRUE) %>% 
+  as_tibble() %>% 
+  mutate(
+    category = case_when(
+      distance > 1e5 ~ "No gene",
+      TRUE ~ category
+    )
+  ) %>% 
+  cbind(
+    vapply(
+      treat_levels, 
+      function(x) {
+        overlapsAny(consensus_peaks, oracle_peaks[[x]])
+      },
+      logical(length(consensus_peaks))
+    )
+  ) %>% 
+  pivot_longer(
+    cols = all_of(treat_levels), 
+    names_to = "treat", values_to = "overlap"
+  ) %>% 
+  group_by(treat, category) %>% 
+  summarise(n = sum(overlap), .groups = "drop") %>% 
+  arrange(desc(n)) %>% 
+  pivot_wider(
+    names_from = treat, values_from = n
+  ) %>% 
+  bind_rows(
+    summarise(., across(treat_levels, sum)) %>% 
+      mutate(category = "Total")
+  ) %>% 
+  mutate(
+    across(
+      all_of(treat_levels), 
+      function(x) {
+        case_when(
+          category == "Total" ~ comma(x),
+          x == 0 ~ "0 (0%)",
+          category != "Total" ~ as.character(
+            glue("{comma(x, 1)} ({percent( 2*x / sum(x), 0.1)})")
+          )
+        )
+      }
+    )
+  ) %>% 
+  dplyr::rename(`Gene Category` = category) %>% 
+  pander(
+    justify = c("left", rep("right", length(treat_levels))),
+    caption = paste(
+      "*Summary of consensus peaks to the nearest gene within 100kb.",
+      "The presence of an overlapping peak within each treatment group is also",
+      "shown.*"
+    ),
+    emphasize.strong.rows = nrow(.)
+  )
+```
+
+# Data Export
+
+
+```{r export}
+export(consensus_peaks, file.path(out_path, "consensus_peaks.bed"))
+oracle_peaks %>%
+  lapply(subset, keep) %>%
+  lapply(select, -keep) %>%
+  GRangesList() %>%
+  write_rds(
+    file.path(out_path, "oracle_peaks.rds"),
+    compress = "gz"
+  )
+all_out <- list(
+   file.path(out_path, "consensus_peaks.bed"),
+   file.path(out_path, "oracle_peaks.rds")
+) %>% 
+  lapply(
+    str_extract, 
+    pattern = paste0(basename(here::here()), ".+")
+  )
+```
+
+During this workflow the following files were exported:
+
+`r pander(all_out)`
+
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>

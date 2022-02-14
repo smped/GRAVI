@@ -1,0 +1,85 @@
+```{r assign-features}
+all_out <- c(
+  all_out,
+  features = file.path(annotation_path, "feat_gr.rds"),
+  enhancers = file.path(annotation_path, "enhancers.bed"),
+  promoters = file.path(annotation_path, "promoters.bed")
+)
+## NB: No filtering based on min-reps is used here
+## We want to be as inclusive as possible
+any_detected <- any(tss$detected) | any(tss$H3K4me3)
+gw <- 300
+feat_gr <- h3k27ac %>%
+  reduce(min.gapwidth = gw) %>%
+  filter_by_non_overlaps(blacklist) %>%
+  mutate(
+    feature = case_when(
+      any_detected & overlapsAny(., subset(tss, detected | H3K4me3)) ~ "Promoter",
+      !any_detected & overlapsAny(., tss) ~ "Promoter",
+      TRUE ~ "Enhancer"
+    )
+  ) %>% 
+  split(f = .$feature) %>% 
+  as.list()
+## Map to all genes & divide into detected/undetected later
+## This allows for repression to me included in mappings
+feat_gr$Promoter <-mapByFeature(
+  feat_gr$Promoter, tss, cols = c("gene_id", "gene_name"), gr2gene = 0
+)
+feat_gr$Enhancer <-mapByFeature(
+  feat_gr$Enhancer, tss, cols = c("gene_id", "gene_name"), gr2gene = 1e5
+)
+feat_gr <- feat_gr %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  sort() %>% 
+  setNames(NULL)
+write_rds(feat_gr, all_out$features, compress = "gz")
+subset(feat_gr, feature == "Enhancer") %>%
+  export.bed(all_out$enhancers)
+subset(feat_gr, feature == "Promoter") %>%
+  export.bed(all_out$promoters)
+```
+
+
+## Promoters and Enhancers
+
+The peaks obtained from `macs2 callpeak` using merged samples from each treatment group were merged to form a set of consensus peaks, excluding any which overlapped a blacklisted region.
+Any peaks within `r gw`bp were merged into a single peak, given the valleys commonly seen in H3K27ac signal around other transcription factors.
+
+
+#### Definition: {.text-danger}
+
+Active promoters were defined as consensus H3K27ac peaks which also overlapped a TSS region:
+
+a. from any *detected gene*, or 
+b. for which *H3K4me3 signal was observed*.
+
+If no genes were considered as detected by the above criteria, any overlap with an annotation-derived TSS was considered to be a promoter.
+    
+####
+
+This gave `r comma(sum(feat_gr$feature == "Promoter"))` **H3K27ac-derived promoter regions.**
+The `r comma(sum(feat_gr$feature == "Enhancer"))` H3K27ac peaks which were not considered as promoters by the above criteria were automatically **classifed as enhancers.**
+
+```{r feature-mapping-summary}
+feat_gr %>% 
+  as_tibble() %>% 
+  mutate(n = vapply(gene_id, length, integer(1))) %>% 
+  group_by(feature) %>% 
+  summarise(
+    Total = dplyr::n(),
+    `Mapped To Genes` = sum(n > 0),
+    Unmapped = Total - `Mapped To Genes`,
+    `Mean Mapped Genes` = mean(n)
+  ) %>% 
+  dplyr::rename_all(str_to_title) %>% 
+  pander(
+    caption = paste(
+      "Summary of promoters and enhancers as identified in this dataset.",
+      "Mapping statistics from feature to genes are also included."
+    ),
+    justify = "lrrrr"
+  )
+```
+

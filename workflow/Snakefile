@@ -1,0 +1,214 @@
+import pandas as pd
+import os
+import re
+import subprocess
+import urllib
+import sys
+import random
+
+configfile: "config/config.yml"
+
+## Figure out how to run check_yaml from here if possible
+## python scripts/check_yaml.py
+
+def get_ucsc_genome(x):
+	map = pd.Series(['hg19', 'hg38'], index = ['GRCh37', 'GRCh38'])
+	if not x in map.keys():
+		print("The only currently supported genome builds are:")
+		print(*map.keys(), sep = ' & ')
+		sys.exit(1)
+	else:
+		return(map[x])
+
+def check_git(x = "."):
+	is_installed = subprocess.run(
+    	['which', 'git'], universal_newlines=True, check=True,
+    	stdout=subprocess.PIPE
+	)
+	path = os.path.join(x, ".git")
+	repo_exists = os.path.isdir(path)
+	if is_installed and repo_exists:
+		ret_val = True
+		print(
+			"Viable git repository detected. Files will be added when created",
+			file = sys.stderr
+		)
+	else:
+		ret_val = False
+		print("No viable git repository detected", file = sys.stderr)
+	return(ret_val)
+
+
+# Define all contrasts
+# x will be config['comparisons']['contrasts']:
+def make_contrasts(x):
+	for comp in x:
+		ref = comp[0]
+		tgt_ref = set(df['target'][df['treat'] == ref])
+		treat = comp[1]
+		tgt_treat = set(df['target'][df['treat'] == treat])
+		comp_tgts = list(tgt_ref.intersection(tgt_treat))
+		ret_val = []
+		for t in comp_tgts:
+			ret_val.extend([t + "_" + ref + "_" + treat])
+		return(ret_val)
+
+
+
+
+###############################################################
+## Check whether Git is installed & the directory has a repo ##
+###############################################################
+git_add = check_git(".")
+
+####################
+## Define Samples ##
+####################
+df = pd.read_table(config['samples']['file'])
+
+## Now set all values as required
+samples = list(set(df['sample']))
+targets = list(set(df['target']))
+treats = list(set(df['treat']))
+
+###############
+## Key Paths ##
+###############
+bam_path = config['paths']['bam']
+bw_path = config['paths']['bigwig']
+macs2_path = config['paths']['macs2']
+ext_path = os.path.join("data", "external")
+rmd_path = "analysis"
+## This still needs to be changed internally in the RMD files
+annotation_path = os.path.join("output", "annotations")
+
+###############################
+## External Annotation Files ##
+###############################
+## These are required input for multiple steps
+ucsc_build = get_ucsc_genome(config['genome']['build'])
+gtf = os.path.join(
+	ext_path,
+	"gencode.v" + config['genome']['gencode'] + "lift" +
+	config['genome']['build'][-2:] +
+	".annotation.gtf.gz"
+)
+blacklist = os.path.join(ext_path, "blacklist.bed.gz")
+cytobands = os.path.join(ext_path, "cytoBand.txt.gz")
+chrom_sizes = os.path.join(ext_path, "chrom.sizes")
+
+#####################
+## Prepare Outputs ##
+#####################
+ALL_OUTPUTS = []
+
+#####################################
+## Annotations Defined in worfklow ##
+#####################################
+
+## These are dependent on H3K27Ac being a target. If so, promoters, enhancers
+## and super-enhancers will be created. If not, only the tss regions will be
+## created
+has_h3k27ac = "H3K27ac" in targets # NB Exact case only
+ALL_ANNOTATION = expand(
+	os.path.join(annotation_path, "{file}.rds"),
+	file = ['all_gr', 'trans_models', 'seqinfo', 'tss']
+)
+if has_h3k27ac:
+	## All other outputs are required as input for SE detection so keep
+	## Super-Enhancer output as separate elements of the output
+	ALL_OUTPUTS.extend([os.path.join(annotation_path, "SE.rds")])
+	ALL_OUTPUTS.extend([os.path.join(annotation_path, "SE.bed")])
+	ALL_ANNOTATION.extend(
+		expand(
+			os.path.join(annotation_path, "{file}"),
+			file = ['enhancers.bed', 'promoters.bed', 'feat_gr.rds']
+		)
+	)
+ALL_OUTPUTS.extend(ALL_ANNOTATION)
+
+#######################
+## Rmarkdown Outputs ##
+#######################
+HTML_OUT = expand(
+	os.path.join("docs", "{file}.html"),
+	file = ['annotation_setup']
+)
+if has_h3k27ac:
+	HTML_OUT.extend([os.path.join("docs", "rose.html")])
+
+## Macs2 Summaries
+HTML_OUT.extend(
+	expand(
+		os.path.join("docs", "{target}_macs2_summary.html"),
+		target = targets
+	)
+)
+
+## Differential Binding
+HTML_OUT.extend(
+	expand(
+		os.path.join("docs", "{cont}_differential_binding.html"),
+		cont = make_contrasts(config['comparisons']['contrasts'])
+	)
+)
+
+ALL_OUTPUTS.extend(HTML_OUT)
+## Keep the final index separate for easiers passing to other rules
+ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
+
+## Peaks generated from the Rmd files
+CONS_PEAKS = expand(
+	os.path.join("output", "{target}", "{file}"),
+	target = targets,
+	file = ['consensus_peaks.bed', 'oracle_peaks.rds']
+)
+ALL_OUTPUTS.extend(CONS_PEAKS)
+
+
+###########################
+## Peak Files from macs2 ##
+###########################
+indiv_pre = df[['target', 'sample']].apply(
+	lambda row: '/'.join(row.values.astype(str)), axis=1
+)
+INDIV_PEAKS = expand(
+	os.path.join(macs2_path, "{path}_peaks.narrowPeak"),
+	path = indiv_pre
+)
+ALL_OUTPUTS.extend(INDIV_PEAKS)
+merged_pre = set(
+	df[['target', 'treat']].apply(
+		lambda row: '/'.join(row.values.astype(str)), axis=1
+	)
+)
+MERGED_PEAKS = expand(
+	os.path.join(macs2_path, "{pre}_merged_peaks.narrowPeak"),
+	pre = merged_pre
+)
+ALL_OUTPUTS.extend(MERGED_PEAKS)
+
+
+##################
+## BigWig Files ##
+##################
+INDIV_BW = expand(
+	os.path.join(bw_path, "{path}_treat_pileup.bw"),
+	path = indiv_pre
+)
+ALL_OUTPUTS.extend(INDIV_BW)
+MERGED_BW = expand(
+	os.path.join(bw_path, "{path}_merged_treat_pileup.bw"),
+	path = merged_pre
+)
+ALL_OUTPUTS.extend(MERGED_BW)
+
+rule all:
+    input:
+        ALL_OUTPUTS
+
+include: "rules/samtools.smk"
+include: "rules/rmarkdown.smk"
+include: "rules/macs2.smk"
+include: "rules/annotations.smk"
+include: "rules/differential_binding.smk"

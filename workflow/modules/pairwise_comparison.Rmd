@@ -1,0 +1,1389 @@
+
+```{css, echo = FALSE}
+/* Taken from bootswatch sandstone */ 
+/* This should be applied to figure captions */
+/* which are rendered as a paragraph by knitr */
+/* This should also be able to be placed in all files intelligently */
+p.caption {
+  text-align: justify;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  color: #98978b;
+}
+```
+
+# Setup
+
+```{r packages}
+library(tidyverse)
+library(glue)
+library(pander)
+library(BiocParallel)
+library(yaml)
+library(plyranges)
+library(rtracklayer)
+library(Rsamtools)
+library(cowplot)
+library(csaw)
+library(edgeR)
+library(scales)
+library(magrittr)
+library(UpSetR)
+library(InteractionSet)
+library(ggside)
+library(DT)
+library(VennDiagram)
+library(vctrs)
+library(ggrepel)
+library(rlang)
+```
+
+```{r remotes, results = 'hide'}
+if (!"extraChIPs" %in% rownames(installed.packages()))
+  BiocManager::install("steveped/extraChIPs", ask = FALSE)
+
+stopifnot(library(extraChIPs, logical.return = TRUE))
+source(here::here("workflow", "scripts", "autoload.R"))
+```
+
+```{r options}
+panderOptions("big.mark", ",")
+panderOptions("missing", "")
+panderOptions("table.split.table", Inf)
+theme_set(
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+)
+```
+
+```{r set-bpparam}
+register(MulticoreParam(workers = threads))
+```
+
+```{r load-config}
+config <- read_yaml(
+	here::here("config", "config.yml")
+)
+samples <- here::here("output", targets, "qc_samples.tsv") %>% 
+  lapply(read_tsv) %>% 
+  bind_rows() %>% 
+  dplyr::filter(qc == "pass", treat %in% treat_levels) %>% 
+  unite(label, target, label, remove = FALSE) %>% 
+  mutate(
+    target = factor(target, levels = targets),
+    treat = factor(treat, levels = treat_levels)
+  ) %>% 
+  dplyr::select(-qc) %>% 
+  droplevels()
+stopifnot(nrow(samples) > 0)
+rep_col <- setdiff(
+  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
+)
+samples[[rep_col]] <- as.factor(samples[[rep_col]])
+fdr_alpha <- config$comparisons$fdr
+```
+
+```{r rmd-config}
+rmd_config <- read_yaml(here::here("config", "rmarkdown.yml"))
+treat_cols <- unlist(rmd_config$colours$treat)[c("Input", treat_levels)]
+```
+
+```{r set-paths}
+bam_path <- here::here(config$paths$bam)
+stopifnot(dir.exists(bam_path))
+ext_path <- here::here("data", "external")
+stopifnot(dir.exists(ext_path))
+annotation_path <- here::here("output", "annotations")
+stopifnot(dir.exists(annotation_path))
+bw_path <- here::here(config$paths$bigwig, targets) %>% 
+  setNames(targets) %>% 
+  as.list()
+res_path <- here::here("output", targets) %>% 
+  setNames(targets) %>% 
+  as.list()
+out_path <- here::here(
+  "output", "pairwise", paste(treat_levels, collapse = "_")
+)
+if (!dir.exists(out_path)) dir.create(out_path,recursive = TRUE)
+```
+
+
+```{r sq}
+sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
+blacklist <- here::here(ext_path, "blacklist.bed.gz") %>%
+  import.bed(seqinfo = sq) %>%
+  sort()
+```
+
+
+```{r load-annotations}
+bands_df <- here::here("data", "external", "cytoBand.txt.gz") %>%
+  read_tsv(col_names = c("chrom", "chromStart", "chromEnd", "name", "gieStain"))
+feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) 
+se_file <- file.path(annotation_path, "SE.rds")
+if (file.exists(se_file)) {
+  se <- read_rds(se_file) %>% 
+    mutate(feature = "SE") %>% 
+    select(feature, gene_id, gene_name)
+  feat_gr <- feat_gr %>% 
+    filter_by_non_overlaps(se) %>% 
+    c(se) %>% 
+    sort()
+}
+genes_gr <- file.path(annotation_path, "all_gr.rds") %>% 
+  read_rds() %>% 
+  .[["gene"]]
+trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
+  read_rds() 
+## Set up a default rnaseq object. This will be overwritten if any is supplied
+rnaseq <- list(
+  gene_id = character(), gene_name = character(), 
+  logFC = numeric(), fdr = numeric()
+) %>% 
+  as_tibble()
+if (!is.null(config$external$rnaseq)) {
+  ## If RNA-Seq is provided
+  rnaseq <- autoload(here::here(config$external$rnaseq))
+  stopifnot(all(c("gene_id", "gene_name") %in% colnames(rnaseq)))
+}
+rna_col <- colnames(rnaseq)
+sig_col <- str_detect(str_to_lower(rna_col), "fdr")
+if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
+sig_col <- rna_col[sig_col][1]
+gene_list <- list(
+  Up = dplyr::filter(rnaseq, logFC > 0, !!sym(sig_col) < 0.05)$gene_name,
+  Down = dplyr::filter(rnaseq, logFC < 0, !!sym(sig_col) < 0.05)$gene_name,
+  Unchanged = dplyr::filter(rnaseq, !!sym(sig_col) >= 0.05)$gene_name,
+  Undetected = setdiff(genes_gr$gene_name, rnaseq$gene_name)
+) %>% 
+  lapply(unique)
+trans_models <- lapply(gene_list, function(x){
+  subset(trans_models, symbol %in% x)
+}) %>% 
+  GRangesList() %>% 
+  .[vapply(., length, integer(1)) > 0]
+if (length(trans_models) == 1) trans_models <- unlist(trans_models)
+```
+
+
+```{r load-hic}
+hic <- GInteractions()
+if (!is.null(config$external$hic)) {
+  hic_path <- here::here(config$external$HiC)
+  stopifnot(file.exists(hic_path))
+  hic <- autoload(hic_path)
+}
+stopifnot(is(hic, "GInteractions"))
+seqinfo(hic) <- sq
+hic <- hic[!overlapsAny(hic, blacklist)]
+```
+
+# Combined Results
+
+## Overall Summaries {.tabset}
+
+
+```{r load-results}
+comp <- paste(treat_levels, collapse = "_")
+rds <- vapply(
+  res_path, file.path, character(1), 
+  glue("{comp}_differential_binding.rds")
+)
+stopifnot(all(file.exists(rds)))
+results <- lapply(rds, read_rds) %>% 
+  GRangesList()
+```
+
+```{r merge-results}
+results_se <- grlToSE(
+  results, 
+  assayCols = c("AveExpr", "logFC", "P.Value", "fdr_ihw", "status", "overlaps_ref"),
+  metaCols = c("regulatory_feature", "gene_region", "gene_id", "gene_name"), 
+  keyval = "fdr_ihw", by = "min"
+)
+assay(results_se, "status") <- apply(
+  assay(results_se, "status"),
+  MARGIN = 2, str_replace_na, replacement = "Undetected"
+) 
+rowData(results_se)$gene_region <- rowData(results_se)$gene_region %>% 
+  lapply(function(x){
+    ifelse("Gene Body" %in% x, "Gene Body", "Intergenic")
+  }) %>% 
+  unlist() %>% 
+  factor(levels = c("Gene Body", "Intergenic"))
+regs <- rowData(results_se)$regulatory_feature %>% 
+  .[[1]] %>% 
+  levels() %>% 
+  setdiff("None")
+rowData(results_se)$regulatory_feature <- rowData(results_se)$regulatory_feature %>%
+  lapply(as.character) %>% 
+  lapply(setdiff, "None") %>% 
+  lapply(factor, levels = c(regs, "None")) %>% 
+  as("CompressedList")
+ind <- vapply(rowData(results_se)$regulatory_feature, length, integer(1)) == 0
+rowData(results_se)$regulatory_feature[ind] <- factor("None", levels = c(regs, "None"))
+rowData(results_se)$detected_targets <- assay(results_se, "status") %>% 
+  as.data.frame() %>% 
+  mutate(
+    detected_targets = case_when(
+      !!sym(targets[[1]]) != "Undetected" & !!sym(targets[[2]]) != "Undetected" ~ 
+        paste(targets, collapse = " & "),
+      !!sym(targets[[2]]) == "Undetected" ~ paste(targets[[1]], "Only"),
+      !!sym(targets[[1]]) == "Undetected" ~ paste(targets[[2]], "Only"),
+    )
+  ) %>% 
+  pull(detected_targets)
+```
+
+Results from differential binding each of `r collapseGenes(targets, format = "")` were loaded.
+A set of consensus regions were defined by directly overlapping retained regions from each separate analysis.
+Any regions which were detected separately but which directly overlapped were merged into a combined consensus region.
+Those for which only one target was observed were retained with no changes.
+This gave a total of `r comma(nrow(results_se))` regions
+
+### Retained Windows
+
+```{r plot-venn, fig.width = 6, fig.cap = "Summary of regions where either target was considered to be found in the prior differential binding analysis.", results='asis'}
+grid.newpage()
+grid.draw(
+  targets %>% 
+    lapply(
+      function(x) {
+        which(assay(results_se[,x], "status") != "Undetected")
+      }
+    ) %>% 
+    setNames(targets) %>% 
+    venn.diagram(
+      filename = NULL,
+      fill = hcl.colors(2, "Cividis", alpha = 0.7),
+      cat.pos = c(160, 200)
+    )
+) 
+invisible(
+  file.remove(
+    list.files(here::here("."), pattern = "^Venn.+log$", full.names = TRUE)
+  )
+)
+```
+
+### Feature Summary
+
+```{r plot-feature-summary, fig.height=7, fig.cap = "Summary binding patterns by region. Total numbers for each combination of targets is given at the top of each bar, whilst inside each bar, the totals for each regulatory feature are also shown. Percentages within each combination of targets are also shown. Regulatory features are broken down by whether they lie within the transcribed region for a gene or not."}
+rowRanges(results_se) %>% 
+  select(regulatory_feature, gene_region, detected_targets) %>% 
+  as_tibble() %>% 
+  mutate_all(vec_proxy) %>% 
+  unnest(everything()) %>% 
+  group_by(detected_targets, gene_region,regulatory_feature) %>% 
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  arrange(desc(regulatory_feature)) %>% 
+  group_by(detected_targets, gene_region) %>% 
+  mutate(
+    y = cumsum(n),
+    prop = n / sum(n),
+    label = glue("{comma(n)} ({percent(prop, 0.1)})") %>% 
+      str_wrap(13)
+  ) %>% 
+  ungroup() %>% 
+  ggplot(aes(fct_rev(detected_targets), n, fill = regulatory_feature)) +
+  geom_col() +
+  geom_label(
+    aes(y = y - n/2, label = label),
+    data = . %>% 
+      dplyr::filter(n > 0.075*max(n)),
+    size = 2.8,
+    fill = rgb(1, 1, 1, 0.85)
+  ) +
+  geom_text(
+    aes(y = y + 0.03*(max(y)), label = comma(y)),
+    data = . %>% 
+      group_by(gene_region, detected_targets) %>% 
+      dplyr::filter(y == max(y)),
+    size = 3.2
+  ) +
+  facet_grid(. ~ gene_region) +
+  scale_fill_manual(
+    values = unlist(rmd_config$colours$features) %>% 
+      setNames(str_replace(names(.), "SE", "Super Enhancer")) %>% 
+      .[names(.) %in% regs] %>% 
+      c("None" = "grey90")
+  ) +
+  scale_y_continuous(labels = comma, expand = expansion(c(0, 0.05))) +
+  labs(
+    x = "Detected Targets", y = "Total",
+    fill = "Regulatory Feature"
+  )
+```
+
+### Summary Table
+
+```{r status-table}
+df <- assay(results_se, "status") %>% 
+  as.data.frame() %>% 
+  group_by(!!!syms(targets)) %>% 
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  arrange(desc(n)) %>% 
+  mutate(
+    "% {targets[[1]]} Sites" := case_when(
+      !!sym(targets[[1]]) != "Undetected" ~ 
+        n / sum(assay(results_se[,targets[[1]]], "status") != "Undetected")
+    ),
+    "% {targets[[2]]} Sites" := case_when(
+      !!sym(targets[[2]]) != "Undetected" ~ 
+        n / sum(assay(results_se[,targets[[2]]], "status") != "Undetected")
+    ),
+    across(
+      all_of(targets), factor, 
+      levels = unique(as.character(assay(results_se, "status")))
+    )
+  ) 
+cp <- htmltools::tags$caption(
+  glue(
+    "Summary of previously detected regions for both ",
+    collapseGenes(targets, format = ""),
+    ". Consensus regions were formed by taken any directly overlapping",
+    " regions from either target. ", comma(nrow(results_se)), 
+    " regions were found to have one or both of the targets showing signal.",
+    " Percentages for each target are based on the total number of regions",
+    " where detection was considered to have occurred for that specific",
+    " target."
+  )
+)
+df %>% 
+  dplyr::rename(Total = n) %>% 
+  datatable(
+    caption = cp,
+    rownames = FALSE, 
+    filter = "top", 
+    options = list(
+      paging = FALSE
+    )
+  ) %>% 
+  formatPercentage(str_subset(colnames(df), "%"), digits = 1) %>% 
+  formatRound("Total", digits = 0) %>% 
+  formatStyle(
+    ## Using Bootswatch Sandstone colours for teal:
+    ## https://github.com/thomaspark/bootswatch/blob/v5/dist/sandstone/_variables.scss
+    "Total", background = styleColorBar(c(0, sum(df$n)), "#20C997")
+  ) %>% 
+  formatStyle(
+    str_subset(colnames(df), "%"), 
+    background = styleColorBar(c(0, 1), "#20C997"),
+    
+  ) %>% 
+  formatStyle(
+    targets,
+    backgroundColor = styleEqual(
+      levels = names(rmd_config$colours$direction),
+      values = unlist(rmd_config$colours$direction)
+    )
+  )
+```
+
+### Average Signal
+
+```{r make-gene-labels}
+.makeGeneLabels <- function(names, .gene_list = gene_list, .width = 40) {
+  .gene_list <- lapply(.gene_list, intersect, names)
+  .gene_list <- .gene_list[map_int(.gene_list, length) > 0]
+  names(.gene_list) %>% 
+    lapply(
+      function(x) {
+        str_trunc(
+          paste0("\n", x, ": ", collapseGenes(.gene_list[[x]], format = "")),
+          width = .width
+        )
+      }
+    ) %>% 
+    unlist() %>% 
+    paste(collapse = "")
+}
+```
+
+
+```{r plot-aveexpr, fig.cap = glue("Comparison of average signal for both {targets[[1]]} and {targets[[2]]}. Regions where both were detected are shown as points, whilst density plots on the side show average signal for regions where either are found together or in isolation. The correlation between average signal for both targets is added in the bottom right corner. Any genes and features mapped are shown for the regions with the highest average signal for each target.")}
+rowData(results_se) %>% 
+  cbind(
+    assay(results_se, "AveExpr")
+  ) %>% 
+  as_tibble() %>%
+  mutate_all(vec_proxy) %>% 
+  mutate(range = as.character(rowRanges(results_se))) %>% 
+  ggplot(
+    aes_string(targets[[1]], targets[[2]])
+  ) +
+  geom_point(
+    data = . %>% 
+      dplyr::filter(
+        !str_detect(detected_targets, "Only")
+      ),
+    alpha = 0.7
+  ) +
+  geom_smooth(
+    se = FALSE, 
+    data = . %>% 
+      dplyr::filter(
+        !str_detect(detected_targets, "Only")
+      ),
+    method = "gam", formula = y ~ s(x, bs = "cs")
+  ) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_label_repel(
+    aes(label = label),
+    data = . %>%
+      dplyr::filter(!str_detect(detected_targets, "Only")) %>%
+      dplyr::filter(
+        .data[[targets[[1]]]] == max(.data[[targets[[1]]]], na.rm = TRUE) |
+        .data[[targets[[2]]]] == max(.data[[targets[[2]]]], na.rm = TRUE)
+      ) %>%
+      mutate(
+        regulatory_feature = vapply(
+          regulatory_feature, paste, character(1), collapse = ", "
+        ),
+        regulatory_feature = case_when(
+          regulatory_feature == "None" ~ as.character(gene_region),
+          regulatory_feature == "Promoter" ~ "Promoter",
+          TRUE ~ paste(regulatory_feature, glue("({gene_region})"))
+        ),
+        genes <- vapply(gene_name, .makeGeneLabels, character(1)),
+        label = glue("{range}\n{regulatory_feature}{genes}")
+      ),
+    size= 2.5,
+    fill = rgb(1, 1, 1, 0.8)
+  ) +
+  geom_text(
+    aes(x, y, label = label),
+    data = . %>% 
+      dplyr::filter(
+        !is.na(!!sym(targets[[1]])),
+        !is.na(!!sym(targets[[2]]))
+      ) %>% 
+      summarise(
+        x = max(!!sym(targets[[1]])) - 0.03*abs(diff(range(!!sym(targets[[1]])))),
+        y = min(!!sym(targets[[2]])) + 0.03*abs(diff(range(!!sym(targets[[2]])))),
+        rho = round(cor(!!sym(targets[[1]]), !!sym(targets[[2]])), 2)
+      ) %>% 
+      mutate(
+        label = sprintf("rho == %.2f", rho)
+      ),
+    parse = TRUE
+  ) +
+  geom_xsidedensity(
+    aes(fill = detected_targets),
+    data = . %>% 
+      dplyr::filter(detected_targets != glue("{targets[[2]]} Only")),
+    size = 1/3
+  ) +
+  scale_xsidey_continuous(expand = expansion(c(0, 0.05))) +
+  geom_ysidedensity(
+    aes(fill = detected_targets),
+    data = . %>% 
+      dplyr::filter(detected_targets != glue("{targets[[1]]} Only")),
+    size = 1/3
+  ) +
+  scale_ysidex_continuous(expand = expansion(c(0, 0.05))) +
+  scale_fill_manual(
+    values = hcl.colors(3, palette = "Viridis", alpha = 0.4, rev = TRUE)
+  ) +
+  labs(
+    x = glue("{targets[[1]]} (logCPM)"),
+    y = glue("{targets[[2]]} (logCPM)"),
+    fill = "Detected Targets"
+  ) +
+  theme(
+    ggside.panel.scale = 0.2,
+    legend.position = c(0.85, 0.85),
+    legend.justification = c(0, 0)
+  )
+```
+
+### Differential Binding
+
+```{r plot-logfc, fig.cap = glue("Comparison of average signal for both {targets[[1]]} and {targets[[2]]}. Regions where both were detected are shown as points, whilst density plots on the side show estimated logFC for regions where {targets[[1]]} and {targets[[2]]} are found, either together or in isolation. The regions with the most extreme change in signal are labelled for each target, along with genes and features these regions are mapped to. The correlation betwen estimated logFC for regions where both targets were detected is given in the bottom right corner.")}
+rowData(results_se) %>% 
+  cbind(
+    assay(results_se, "logFC")
+  ) %>% 
+  as_tibble() %>%
+  mutate_all(vec_proxy) %>% 
+  mutate(range = as.character(rowRanges(results_se))) %>% 
+  ggplot(
+    aes_string(targets[[1]], targets[[2]])
+  ) +
+  geom_point(
+    data = . %>% 
+      dplyr::filter(
+        !str_detect(detected_targets, "Only")
+      ),
+    alpha = 0.7
+  ) +
+  geom_smooth(
+    se = FALSE, 
+    data = . %>% 
+      dplyr::filter(
+        !str_detect(detected_targets, "Only")
+      ),
+    method = "gam", formula = y ~ s(x, bs = "cs")
+  ) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  geom_label_repel(
+    aes(label = label),
+    data = . %>% 
+      dplyr::filter(!str_detect(detected_targets, "Only")) %>% 
+      dplyr::filter(
+        .data[[targets[[1]]]] == max(.data[[targets[[1]]]], na.rm = TRUE) |
+          .data[[targets[[2]]]] == max(.data[[targets[[2]]]], na.rm = TRUE) |
+          .data[[targets[[1]]]] == min(.data[[targets[[1]]]], na.rm = TRUE) |
+          .data[[targets[[2]]]] == min(.data[[targets[[2]]]], na.rm = TRUE) 
+      ) %>% 
+      mutate(
+        regulatory_feature = vapply(
+          regulatory_feature, paste, character(1), collapse = ", "
+        ),
+        regulatory_feature = case_when(
+          regulatory_feature == "None" ~ as.character(gene_region),
+          regulatory_feature == "Promoter" ~ "Promoter",
+          TRUE ~ paste(regulatory_feature, glue("({gene_region})"))
+        ),
+        genes <- vapply(gene_name, .makeGeneLabels, character(1)),
+        label = glue("{range}\n{regulatory_feature}{genes}")
+      ),
+    size= 2.5,
+    fill = rgb(1, 1, 1, 0.8)
+  ) +
+  geom_text(
+    aes(x, y, label = label),
+    data = . %>% 
+      dplyr::filter(
+        !is.na(!!sym(targets[[1]])),
+        !is.na(!!sym(targets[[2]]))
+      ) %>% 
+      summarise(
+        x = max(!!sym(targets[[1]])) - 0.03*abs(diff(range(!!sym(targets[[1]])))),
+        y = min(!!sym(targets[[2]])) + 0.03*abs(diff(range(!!sym(targets[[2]])))),
+        rho = round(cor(!!sym(targets[[1]]), !!sym(targets[[2]])), 2)
+      ) %>% 
+      mutate(
+        label = sprintf("rho == %.2f", rho)
+      ),
+    parse = TRUE
+  ) +
+  geom_xsidedensity(
+    aes(fill = detected_targets),
+    data = . %>% 
+      dplyr::filter(detected_targets != glue("{targets[[2]]} Only")),
+    size = 1/3
+  ) +
+  scale_xsidey_continuous(expand = expansion(c(0, 0.05))) +
+  geom_ysidedensity(
+    aes(fill = detected_targets),
+    data = . %>% 
+      dplyr::filter(detected_targets != glue("{targets[[1]]} Only")),
+    size = 1/3
+  ) +
+  scale_ysidex_continuous(expand = expansion(c(0, 0.05))) +
+  scale_fill_manual(
+    values = hcl.colors(3, palette = "Viridis", alpha = 0.4, rev = TRUE)
+  ) +
+  labs(
+    x = glue("{targets[[1]]} (logFC)"),
+    y = glue("{targets[[2]]} (logFC)"),
+    fill = "Detected Targets"
+  ) +
+  theme(
+    ggside.panel.scale = 0.2,
+    legend.position = c(0.85, 0.85),
+    legend.justification = c(0, 0)
+  )
+```
+
+# Regions By Group {.tabset}
+
+```{r assign-groups}
+fdr_alpha2 <- 3*fdr_alpha
+rowData(results_se)$strict_group <- tibble(
+  range = as.character(rowRanges(results_se)),
+  id = seq_along(range),
+  logFC = assay(results_se, "logFC") %>% as.data.frame(),
+  fdr = assay(results_se, "fdr_ihw") %>% as.data.frame()
+) %>% 
+  pivot_longer(
+    all_of(c("logFC", "fdr"))
+  ) %>% 
+  unnest(value) %>% 
+  pivot_longer(
+    all_of(targets),
+    names_to = "target"
+  ) %>% 
+  pivot_wider(
+    names_from = "name",
+    values_from = "value"
+  ) %>% 
+  group_by(range, id) %>% 
+  mutate(
+    sig = case_when(
+      any(fdr < fdr_alpha) & fdr < fdr_alpha ~ TRUE,
+      TRUE ~ FALSE
+    )
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    direction = case_when(
+      is.na(logFC) ~ paste(target, "Undetected"),
+      !sig ~ paste(target, "Unchanged"),
+      sig & logFC > 0 ~ paste(target, "Up"),
+      sig & logFC < 0 ~ paste(target, "Down")
+    )
+  ) %>% 
+  group_by(id) %>% 
+  summarise(
+    group = paste(direction, collapse = " / "), .groups = "drop"
+  ) %>% 
+  pull(group)
+rowData(results_se)$extended_group <- tibble(
+  range = as.character(rowRanges(results_se)),
+  id = seq_along(range),
+  logFC = assay(results_se, "logFC") %>% as.data.frame(),
+  p = assay(results_se, "P.Value") %>% as.data.frame(),
+  fdr = assay(results_se, "fdr_ihw") %>% as.data.frame()
+) %>% 
+  pivot_longer(
+    all_of(c("logFC", "p", "fdr"))
+  ) %>% 
+  unnest(value) %>% 
+  pivot_longer(
+    all_of(targets),
+    names_to = "target"
+  ) %>% 
+  pivot_wider(
+    names_from = "name",
+    values_from = "value"
+  ) %>% 
+  group_by(range, id) %>% 
+  mutate(
+    sig = case_when(
+      any(fdr < fdr_alpha) & fdr < fdr_alpha2 ~ TRUE,
+      TRUE ~ FALSE
+    )
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    direction = case_when(
+      is.na(logFC) ~ paste(target, "Undetected"),
+      !sig ~ paste(target, "Unchanged"),
+      sig & logFC > 0 ~ paste(target, "Up"),
+      sig & logFC < 0 ~ paste(target, "Down")
+    )
+  ) %>% 
+  group_by(id) %>% 
+  summarise(
+    group = paste(direction, collapse = " / "), .groups = "drop"
+  ) %>% 
+  pull(group)
+sig_groups <- expand.grid(
+  paste(targets[[1]], c("Up", "Down", "Unchanged")), 
+  paste(targets[[2]], c("Up", "Down", "Unchanged"))
+  ) %>% 
+  dplyr::filter(str_detect(Var1, "Up|Down") | str_detect(Var2, "Up|Down")) %>% 
+  unite(groups, Var1, Var2, sep = " / ") %>% 
+  pull("groups")
+```
+
+Each region was first classified as belonging to a group based on the pattern of binding.
+Strict groups relied solely on an fdr being < `r percent(fdr_alpha)` in both individual comparisons.
+Regions were additionally classified into extended groups where an fdr < `r percent(fdr_alpha2)` was considered to be evidence of change for a given target, *only for regions where the more strict definition was satisfied by the other target*.
+This improves the classification of regions which *have already been identified as showing evidence of changed binding in at least one target*, and does not change the total number of regions where some changed binding was detected.
+A comparison of the two approaches is given as a summary table below.
+
+## Summary Table
+
+```{r tab-groups}
+rowData(results_se) %>% 
+  as_tibble() %>% 
+  dplyr::select(ends_with("group")) %>% 
+  pivot_longer(everything(), names_to = "method", values_to = "group") %>%
+  group_by(method, group) %>% 
+  tally() %>% 
+  pivot_wider(names_from = method, values_from = n) %>% 
+  arrange(desc(extended_group)) %>% 
+  mutate(
+    nett = extended_group - strict_group,
+    `% Of Total` = percent(extended_group / sum(extended_group))
+  ) %>% 
+  rename_all(str_to_title) %>% 
+  rename_all(str_replace, "_group", " FDR") %>% 
+  pander(
+    justify = "lrrrr",
+    caption = glue(
+      "Summary of changed binding patterns detected for both {targets[[1]]}",
+      " and {targets[[2]]}. The change in group sizes introduced by the",
+      " use of the extended FDR strategy is given as the Nett change. The",
+      " percentage of regions classified in each group using the extended",
+      " approach is also given. Groups where both targets were detected,",
+      " and at least one target showed evidence of changed binding, are ",
+      " highlighted in bold.",
+    ),
+    emphasize.strong.rows = which(
+      str_detect(.$Group, "(Up|Down)") & !str_detect(.$Group, "Undetected")
+    )
+  )
+```
+
+## Groups By logFC
+
+```{r plot-groups, fig.cap = glue("Comparison of estimated logFC for regions where both targets were detected and at least one target was changed. The regions with the most extreme combined estimates of change are labelled for each group. The grey dashed lines around each axis indicate the initial rejection region for H0 during differential binding analysis.")}
+rowRanges(results_se) %>% 
+  as_tibble() %>% 
+  bind_cols(
+    assay(results_se, "logFC") %>% 
+      as.data.frame()
+  ) %>% 
+  dplyr::filter(extended_group %in% sig_groups) %>% 
+  dplyr::select(
+    range, contains("reg"), starts_with("gene"), extended_group, all_of(targets)
+  ) %>% 
+  ggplot(
+    aes_string(targets[[1]], targets[[2]], colour = "extended_group")
+  ) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(-1, 1)*log2(config$comparisons$fc), linetype = 2,
+    colour = "grey70"
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(-1, 1)*log2(config$comparisons$fc), linetype = 2,
+    colour = "grey70"
+  ) +
+  geom_label_repel(
+    aes(label = label),
+    data = . %>% 
+      group_by(extended_group) %>% 
+      dplyr::filter(
+        abs(!!sym(targets[[1]])) + abs(!!sym(targets[[2]])) == max(
+          abs(!!sym(targets[[1]])) + abs(!!sym(targets[[2]]))
+        )
+      ) %>% 
+      ungroup() %>% 
+      mutate(
+        regulatory_feature = vapply(
+          regulatory_feature, paste, character(1), collapse = ", "
+        ),
+        regulatory_feature = case_when(
+          regulatory_feature == "None" ~ as.character(gene_region),
+          regulatory_feature == "Promoter" ~ "Promoter",
+          TRUE ~ paste(regulatory_feature, glue("({gene_region})"))
+        ),
+        genes <- vapply(gene_name, .makeGeneLabels, character(1)),
+        label = glue("{range}\n{regulatory_feature}{genes}")
+      ),
+    size = 3,
+    # colour = "black",
+    # alpha = 0.5,
+    fill = rgb(1, 1, 1, 0.8),
+    show.legend = FALSE
+  ) +
+  scale_colour_brewer(palette = "Paired") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(
+    x = glue("{targets[[1]]} (logFC)"),
+    y = glue("{targets[[2]]} (logFC)"),
+    colour = "Group"
+  )
+```
+
+## MA Plot: `r targets[[1]]`
+
+```{r, fig.cap = glue("MA plot for {targets[[1]]} showing the sites where both targets were detected, and at least one target was changed.")}
+ind <- rowData(results_se)$detected_targets == paste(targets, collapse = " & ")
+i <- targets[[1]]
+results_se[ind,] %>% 
+  rowRanges() %>% 
+  as_tibble() %>% 
+  mutate(
+    logCPM = assay(results_se[ind, i], "AveExpr")[,1],
+    logFC = assay(results_se[ind, i], "logFC")[,1]
+  ) %>% 
+  dplyr::filter(!str_detect(extended_group, "Un.+Un")) %>% 
+  ggplot(
+    aes(logCPM, logFC, colour = extended_group)
+  ) +
+  geom_point(alpha = 0.7)+
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(-1, 1)*log2(config$comparisons$fc), linetype = 2,
+    colour = "grey70"
+  ) +
+  geom_xsideboxplot(
+    aes(y = extended_group, fill = extended_group),
+    colour = "black",
+    show.legend = FALSE, orientation = "y"
+  ) +
+  scale_xsidey_discrete(labels = NULL, breaks = NULL) +
+  geom_ysideboxplot(
+    aes(x = extended_group, fill = extended_group),
+    colour = "black",
+    show.legend = FALSE, orientation = "x"
+  ) +
+  scale_ysidex_discrete(labels = NULL, breaks = NULL) +
+  scale_colour_brewer(palette = "Paired") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(
+    x = glue("logCPM ({i})"), y = glue("logFC ({i})"), colour = "Group"
+  ) +
+  theme(
+    ggside.panel.scale = 0.25
+    # legend.position = "bottom"
+  )
+```
+
+
+## MA Plot: `r targets[[2]]`
+
+```{r, fig.cap = glue("MA plot for {targets[[2]]} showing the sites where both targets were detected, and at least one target was changed.")}
+ind <- rowData(results_se)$detected_targets == paste(targets, collapse = " & ")
+i <- targets[[2]]
+results_se[ind,] %>% 
+  rowRanges() %>% 
+  as_tibble() %>% 
+  mutate(
+    logCPM = assay(results_se[ind, i], "AveExpr")[,1],
+    logFC = assay(results_se[ind, i], "logFC")[,1]
+  ) %>% 
+  dplyr::filter(!str_detect(extended_group, "Un.+Un")) %>% 
+  ggplot(
+    aes(logCPM, logFC, colour = extended_group)
+  ) +
+  geom_point(alpha = 0.7)+
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(-1, 1)*log2(config$comparisons$fc), linetype = 2,
+    colour = "grey70"
+  ) +
+  geom_xsideboxplot(
+    aes(y = extended_group, fill = extended_group),
+    colour = "black",
+    show.legend = FALSE, orientation = "y"
+  ) +
+  scale_xsidey_discrete(labels = NULL, breaks = NULL) +
+  geom_ysideboxplot(
+    aes(x = extended_group, fill = extended_group),
+    colour = "black",
+    show.legend = FALSE, orientation = "x"
+  ) +
+  scale_ysidex_discrete(labels = NULL, breaks = NULL) +
+  scale_colour_brewer(palette = "Paired") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(
+    x = glue("logCPM ({i})"), y = glue("logFC ({i})"), colour = "Group"
+  ) +
+  theme(
+    ggside.panel.scale = 0.25
+    # legend.position = "bottom"
+  )
+```
+
+
+
+## MA Plot: `r targets[[2]]`
+
+#
+
+## Individual Groups {.tabset}
+
+```{r group-tables}
+logfc_scale <- assay(results_se, "logFC") %>% 
+  abs() %>% 
+  max(na.rm = TRUE)
+all_tables <- lapply(
+  sig_groups,
+  function(x) {
+    se <- subset(results_se, extended_group == x)
+    df <- rowRanges(se) %>% 
+      as_tibble() %>% 
+      dplyr::select(range, contains("reg"), gene_name) %>% 
+      mutate_all(vec_proxy) %>% 
+      mutate(
+        regulatory_feature = vapply(
+          regulatory_feature, paste, character(1), collapse = ", "
+        )
+      ) %>% 
+      mutate(
+        logFC = assay(se, "logFC") %>% as.data.frame(),
+        FDR = assay(se, "fdr_ihw") %>% as.data.frame()
+      ) %>% 
+      pivot_longer(
+        cols = c("logFC", "FDR"),
+        values_to = "target"
+      ) %>% 
+      unnest(target) %>% 
+      pivot_longer(
+        all_of(targets),
+        names_to = "target"
+      ) %>% 
+      pivot_wider(
+        names_from = c("name", "target"),
+        values_from = "value", names_sep = " "
+      ) %>% 
+      bind_cols(
+        lapply(
+          .$gene_name,
+          function(x){
+            lapply(gene_list, intersect, x) %>% 
+              lapply(paste, collapse = ", ") %>% 
+              as_tibble()
+          }
+        ) %>% 
+          bind_rows()
+      ) %>% 
+      dplyr::select(-gene_name) %>% 
+      separate(
+        range, into = c("Chr", "Range"), sep = ":"
+      ) %>% 
+      mutate(
+        regulatory_feature = regulatory_feature %>% 
+          str_replace_all("None", "") %>% 
+          fct_infreq() %>% 
+          fct_collapse("Super Enhancer" = unique(str_subset(., "Super"))),
+        Chr = factor(Chr, levels = unique(str_sort(Chr, numeric = TRUE)))
+      ) %>% 
+      dplyr::rename(
+        Feature = regulatory_feature,
+        Region = gene_region
+      )
+    write_tsv(
+      df, 
+      file.path(
+        out_path, 
+        paste0(str_replace_all(x, "[ /]+", "_"), ".tsv")
+      )
+    )
+    export.bed(
+      granges(rowRanges(se)),
+      file.path(
+        out_path, 
+        paste0(str_replace_all(x, "[ /]+", "_"), ".bed")
+      )
+    )
+    if (nrow(df) > 0) {
+      cp <- htmltools::tags$caption(
+        glue(
+          "All {comma(nrow(se))} regions associated with the binding pattern ",
+          str_replace_all(x, "/", "and"),
+          ". Any genes associated with the region by previous mapping strategies",
+          " are presented by their status from any provided RNA Seq results.",
+          " To see all genes in the respective columns, hover over the cell of ",
+          "interest."
+        )
+      )
+      tbl <- df %>%
+        datatable(
+          caption = cp,
+          rownames = FALSE,
+          filter = "top",
+          plugins = "ellipsis",
+          options = list(
+            initComplete = htmlwidgets::JS(
+              "function(settings, json) {",
+              "$(this.api().table().container()).css({'font-size': '80%'});",
+              "}"
+            ),
+            columnDefs = list(
+              list(
+                targets = which(str_detect(colnames(df), "Un(changed|detected)")) - 1,
+                render = JS("$.fn.dataTable.render.ellipsis( 40 )")
+              ),
+              list(
+                targets = which(str_detect(colnames(df), "FDR")) - 1,
+                render = JS(
+                  "function(x) {
+                  if (typeof x == 'string') {
+                    out  = x;
+                  } else {
+                    if (x < 0.001) {
+                      out = Number.parseFloat(x).toExponential(2);
+                    } else {
+                      out = Number.parseFloat(x).toFixed(3);
+                    }
+                  }
+                  return out
+                }"
+                )
+              )
+            ) 
+          )
+        ) %>% 
+        formatRound(columns = str_subset(colnames(df), "logFC"), digits = 2) %>% 
+        formatStyle(
+          str_detect(colnames(df), "logFC"),
+          backgroundColor = styleInterval(
+            seq(-logfc_scale, logfc_scale, length.out = 100),
+            values = colorRampPalette(
+              c(
+                rmd_config$colours$direction$Down, "white", 
+                rmd_config$colours$direction$Up
+              )
+            )(101)
+          )
+        ) %>% 
+        formatStyle(
+          str_detect(colnames(df), "FDR"),
+          color = styleInterval(0.05, c("green", "black")), 
+          fontWeight = styleInterval(0.05, c("bold", "normal"))
+        )
+      htmltools::tagList(tbl)
+    } else {
+      paste("No ranges matched the criteria for", x)
+    }
+  }
+) %>% 
+  setNames(sig_groups)
+```
+
+### `r sig_groups[[1]]`
+
+`r ifelse(is.character(all_tables[[1]]), all_tables[[1]], "")`
+
+```{r tab-sig-groups1, echo = FALSE, eval = !is.character(all_tables[[1]])}
+all_tables[[1]]
+```
+
+### `r sig_groups[[2]]`
+
+`r ifelse(is.character(all_tables[[2]]), all_tables[[2]], "")`
+
+```{r tab-sig-groups2, echo = FALSE, eval = !is.character(all_tables[[2]])}
+all_tables[[2]]
+```
+
+### `r sig_groups[[3]]`
+
+`r ifelse(is.character(all_tables[[3]]), all_tables[[3]], "")`
+
+```{r tab-sig-groups3, echo = FALSE, eval = !is.character(all_tables[[3]])}
+all_tables[[3]]
+```
+
+### `r sig_groups[[4]]`
+
+`r ifelse(is.character(all_tables[[4]]), all_tables[[4]], "")`
+
+```{r tab-sig-groups4, echo = FALSE, eval = !is.character(all_tables[[4]])}
+all_tables[[4]]
+```
+
+### `r sig_groups[[5]]`
+
+`r ifelse(is.character(all_tables[[5]]), all_tables[[5]], "")`
+
+```{r tab-sig-groups5, echo = FALSE, eval = !is.character(all_tables[[5]])}
+all_tables[[5]]
+```
+
+### `r sig_groups[[6]]`
+
+`r ifelse(is.character(all_tables[[6]]), all_tables[[6]], "")`
+
+```{r tab-sig-groups6, echo = FALSE, eval = !is.character(all_tables[[6]])}
+all_tables[[6]]
+```
+
+### `r sig_groups[[7]]`
+
+`r ifelse(is.character(all_tables[[7]]), all_tables[[7]], "")`
+
+```{r tab-sig-groups7, echo = FALSE, eval = !is.character(all_tables[[7]])}
+all_tables[[7]]
+```
+
+### `r sig_groups[[8]]`
+
+`r ifelse(is.character(all_tables[[8]]), all_tables[[8]], "")`
+
+```{r tab-sig-groups8, echo = FALSE, eval = !is.character(all_tables[[8]])}
+all_tables[[8]]
+```
+
+
+# Genomic Plots
+
+```{r plot-annotations}
+feat_col <- rmd_config$colours$features %>% 
+  c(list(Peak = "#B3B3B3")) 
+line_col <- list2(
+  "{targets[[1]]}" := treat_cols[treat_levels],
+  "{targets[[2]]}" := treat_cols[treat_levels]
+  )
+y_lim <- here::here("data/bigwig/max_coverage.tsv") %>% 
+  read_tsv() %>% 
+  dplyr::filter(target %in% targets, treat %in% treat_levels) %>% 
+  group_by(target) %>% 
+  summarise(value = max(value)) %>% 
+  split(f = .$target) %>% 
+  lapply(pull, "value") %>% 
+  lapply(c, 0) %>% 
+  lapply(range)
+bwfl <- targets %>% 
+  sapply(
+    function(x){
+      file.path(
+        bw_path[[x]],
+        glue("{treat_levels}_merged_treat_pileup.bw")
+      ) %>% 
+        setNames(treat_levels)
+    },
+    simplify = FALSE
+  ) %>% 
+  lapply(BigWigFileList)
+annotation_grl <- results %>% 
+  lapply(
+    function(x) {
+      split(x, f = x$status) %>% 
+        lapply(granges) %>% 
+        GRangesList()
+    })
+```
+
+
+## `r sig_groups[[1]]` {.tabset}
+
+```{r i1}
+## These should really go into another module which makes 4 plots or 2 plots
+## depending on the group name and how many sites are found in the group
+## The module could simply be called 8 times, given that 8 groups will **always**
+## be defined
+## 
+## ALSO. Perhaps make the 4 plots by p-value instead of change!!!
+i <- 1
+```
+
+
+### Largest Change In `r targets[[1]]`
+
+```{r gr-sig-groups1-max1, echo = FALSE, eval = length(sig_groups) >= 1}
+gr <- results_se %>% 
+  subset(extended_group == sig_groups[[i]]) %>% 
+  rowRanges() %>% 
+  as_tibble() %>% 
+  bind_cols(
+    results_se %>% 
+      subset(extended_group == sig_groups[[i]]) %>% 
+      assay("logFC") %>% 
+      as.data.frame()
+  ) %>% 
+  arrange(desc(abs(!!sym(targets[[1]])))) %>% 
+  dplyr::slice(1) %>% 
+  pull(range) %>% 
+  GRanges(seqinfo = sq) %>% 
+  join_overlap_inner(rowRanges(results_se))
+rf <- collapseGenes(gr$regulatory_feature[[1]], format = " ") %>% 
+  str_trim()
+reg <- as.character(gr$gene_region)
+cp <- glue(
+  "This {width(gr)}bp region is the member of the {gr$extended_group} group ",
+  "showing the largest change in {targets[[1]]}. The region overlaps ",
+  case_when(
+    rf == "None" ~ "no known regulatory features",
+    rf == "Enhancer" ~ "an enhancer",
+    rf == "Promoter" ~ "a promoter",
+    rf == "Super Enhancer" ~ "a super-enhancer",
+    TRUE ~ paste(rf, " features")
+  ),
+  " and is ",
+  ifelse(reg == "Intergenic", "intergenic.", "within a gene body. "),
+  "Additionally, the region has been mapped to ", 
+  collapseGenes(gr$gene_name[[1]]), ".",
+  "Coloured boxes above each coverage track indicate the results from ",
+  "differential binding analysis for each target as conducted previously."
+)
+```
+
+```{r plot-sig-groups1-max1, fig.cap = cp}
+plotHFGC(
+  gr, zoom = 10,
+  hic = hic,
+  features = split(feat_gr, f = feat_gr$feature), featurecol = feat_col,
+  genes = trans_models, genecol = rmd_config$colours$direction,
+  coverage = bwfl, 
+  linecol = line_col,
+  annotation = annotation_grl, annotcol = rmd_config$colours$direction,
+  cytobands = bands_df,
+  rotation.title = 90,
+  collapseTranscripts = FALSE,
+  ylim = y_lim, fontsize = 10
+)
+```
+
+### Largest Change In `r targets[[2]]`
+
+```{r gr-sig-groups1-max2, echo = FALSE, eval = length(sig_groups) >= 1}
+gr <- results_se %>% 
+  subset(extended_group == sig_groups[[i]]) %>% 
+  rowRanges() %>% 
+  as_tibble() %>% 
+  bind_cols(
+    results_se %>% 
+      subset(extended_group == sig_groups[[i]]) %>% 
+      assay("logFC") %>% 
+      as.data.frame()
+  ) %>% 
+  arrange(desc(abs(!!sym(targets[[2]])))) %>% 
+  dplyr::slice(1) %>% 
+  pull(range) %>% 
+  GRanges(seqinfo = sq) %>% 
+  join_overlap_inner(rowRanges(results_se))
+rf <- collapseGenes(gr$regulatory_feature[[1]], format = " ") %>% 
+  str_trim()
+reg <- as.character(gr$gene_region)
+cp <- glue(
+  "This {width(gr)}bp region is the member of the {gr$extended_group} group ",
+  "showing the largest change in {targets[[2]]}. The region overlaps ",
+  case_when(
+    rf == "None" ~ "no known regulatory features",
+    rf == "Enhancer" ~ "an enhancer",
+    rf == "Promoter" ~ "a promoter",
+    rf == "Super Enhancer" ~ "a super-enhancer",
+    TRUE ~ paste(rf, " features")
+  ),
+  " and is ",
+  ifelse(reg == "Intergenic", "intergenic.", "within a gene body. "),
+  "Additionally, the region has been mapped to ", 
+  collapseGenes(gr$gene_name[[1]]), ".",
+    "Coloured boxes above each coverage track indicate the results from ",
+  "differential binding analysis for each target as conducted previously."
+)
+```
+
+```{r plot-sig-groups1-max2, fig.cap = cp}
+plotHFGC(
+  gr, zoom = 10,
+  hic = hic,
+  features = split(feat_gr, f = feat_gr$feature), featurecol = feat_col,
+  genes = trans_models, genecol = rmd_config$colours$direction,
+  coverage = bwfl, 
+  linecol = line_col,
+  annotation = annotation_grl, annotcol = rmd_config$colours$direction,
+  cytobands = bands_df,
+  rotation.title = 90,
+  collapseTranscripts = FALSE,
+  ylim = y_lim, fontsize = 10
+)
+```
+
+### Smallest Change In `r targets[[1]]`
+
+```{r gr-sig-groups1-min1, echo = FALSE, eval = length(sig_groups) >= 1}
+gr <- results_se %>% 
+  subset(extended_group == sig_groups[[i]]) %>% 
+  rowRanges() %>% 
+  as_tibble() %>% 
+  bind_cols(
+    results_se %>% 
+      subset(extended_group == sig_groups[[i]]) %>% 
+      assay("logFC") %>% 
+      as.data.frame()
+  ) %>% 
+  arrange(abs(!!sym(targets[[1]]))) %>% 
+  dplyr::slice(1) %>% 
+  pull(range) %>% 
+  GRanges(seqinfo = sq) %>% 
+  join_overlap_inner(rowRanges(results_se))
+rf <- collapseGenes(gr$regulatory_feature[[1]], format = " ") %>% 
+  str_trim()
+reg <- as.character(gr$gene_region)
+cp <- glue(
+  "This {width(gr)}bp region is the member of the {gr$extended_group} group ",
+  "showing the smallest change in {targets[[1]]}. The region overlaps ",
+  case_when(
+    rf == "None" ~ "no known regulatory features",
+    rf == "Enhancer" ~ "an enhancer",
+    rf == "Promoter" ~ "a promoter",
+    rf == "Super Enhancer" ~ "a super-enhancer",
+    TRUE ~ paste(rf, " features")
+  ),
+  " and is ",
+  ifelse(reg == "Intergenic", "intergenic.", "within a gene body. "),
+  "Additionally, the region has been mapped to ", 
+  collapseGenes(gr$gene_name[[1]]), ".",
+  "Coloured boxes above each coverage track indicate the results from ",
+  "differential binding analysis for each target as conducted previously."
+)
+```
+
+```{r plot-sig-groups1-min1, fig.cap = cp}
+plotHFGC(
+  gr, zoom = 10,
+  hic = hic,
+  features = split(feat_gr, f = feat_gr$feature), featurecol = feat_col,
+  genes = trans_models, genecol = rmd_config$colours$direction,
+  coverage = bwfl, 
+  linecol = line_col,
+  annotation = annotation_grl, annotcol = rmd_config$colours$direction,
+  cytobands = bands_df,
+  rotation.title = 90,
+  collapseTranscripts = FALSE,
+  ylim = y_lim,  fontsize = 10
+)
+```
+
+### Smallest Change In `r targets[[2]]`
+
+```{r gr-sig-groups1-min2, echo = FALSE, eval = length(sig_groups) >= 1}
+gr <- results_se %>% 
+  subset(extended_group == sig_groups[[i]]) %>% 
+  rowRanges() %>% 
+  as_tibble() %>% 
+  bind_cols(
+    results_se %>% 
+      subset(extended_group == sig_groups[[i]]) %>% 
+      assay("logFC") %>% 
+      as.data.frame()
+  ) %>% 
+  arrange(abs(!!sym(targets[[2]]))) %>% 
+  dplyr::slice(1) %>% 
+  pull(range) %>% 
+  GRanges(seqinfo = sq) %>% 
+  join_overlap_inner(rowRanges(results_se))
+rf <- collapseGenes(gr$regulatory_feature[[1]], format = " ") %>% 
+  str_trim()
+reg <- as.character(gr$gene_region)
+cp <- glue(
+  "This {width(gr)}bp region is the member of the {gr$extended_group} group ",
+  "showing the smallest change in {targets[[2]]}. The region overlaps ",
+  case_when(
+    rf == "None" ~ "no known regulatory features",
+    rf == "Enhancer" ~ "an enhancer",
+    rf == "Promoter" ~ "a promoter",
+    rf == "Super Enhancer" ~ "a super-enhancer",
+    TRUE ~ paste(rf, " features")
+  ),
+  " and is ",
+  ifelse(reg == "Intergenic", "intergenic.", "within a gene body. "),
+  "Additionally, the region has been mapped to ", 
+  collapseGenes(gr$gene_name[[1]]), ".",
+    "Coloured boxes above each coverage track indicate the results from ",
+  "differential binding analysis for each target as conducted previously."
+)
+```
+
+```{r plot-sig-groups1-min2, fig.cap = cp}
+plotHFGC(
+  gr, zoom = 10,
+  hic = hic,
+  features = split(feat_gr, f = feat_gr$feature), featurecol = feat_col,
+  genes = trans_models, genecol = rmd_config$colours$direction,
+  coverage = bwfl, 
+  linecol = line_col,
+  annotation = annotation_grl, annotcol = rmd_config$colours$direction,
+  cytobands = bands_df,
+  rotation.title = 90,
+  collapseTranscripts = FALSE,
+  ylim = y_lim, fontsize = 10
+)
+```
+

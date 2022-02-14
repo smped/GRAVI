@@ -1,0 +1,1627 @@
+
+```{r packages}
+library(tidyverse)
+library(glue)
+library(pander)
+library(BiocParallel)
+library(yaml)
+library(plyranges)
+library(rtracklayer)
+library(GenomeInfoDb)
+library(Rsamtools)
+library(cowplot)
+library(ngsReports)
+library(csaw)
+library(edgeR)
+library(scales)
+library(quantro)
+library(qsmooth)
+library(magrittr)
+library(statmod)
+library(IHW)
+library(ggrepel)
+library(rlang)
+library(UpSetR)
+library(ggside)
+library(InteractionSet)
+library(reactable)
+library(htmltools)
+library(DT)
+```
+
+```{r remotes, results = 'hide'}
+if (!"extraChIPs" %in% rownames(installed.packages()))
+  BiocManager::install("steveped/extraChIPs")
+stopifnot(library(extraChIPs, logical.return = TRUE))
+source(here::here("workflow", "scripts", "autoload.R"))
+```
+
+```{r options}
+panderOptions("big.mark", ",")
+panderOptions("missing", "")
+panderOptions("table.split.table", Inf)
+theme_set(
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+)
+```
+
+```{r set-bpparam}
+register(MulticoreParam(workers = threads))
+```
+
+```{r load-config}
+config <- read_yaml(
+	here::here("config", "config.yml")
+)
+samples <- here::here("output", target, "qc_samples.tsv") %>% 
+  read_tsv() %>% 
+  dplyr::filter(
+    qc == "pass",
+    treat %in% treat_levels
+  ) %>% 
+  mutate(treat = factor(treat, levels = treat_levels))
+stopifnot(nrow(samples) > 0)
+rep_col <- setdiff(
+  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
+)
+samples[[rep_col]] <- as.factor(samples[[rep_col]])
+fdr_alpha <- config$comparisons$fdr
+```
+
+```{r rmd-config}
+rmd_config <- read_yaml(
+  here::here("config", "rmarkdown.yml")
+)
+treat_cols <- unlist(rmd_config$colours$treat)[c("Input", treat_levels)]
+```
+
+```{r set-paths}
+bam_path <- here::here(config$paths$bam)
+stopifnot(dir.exists(bam_path))
+ext_path <- here::here("data", "external")
+stopifnot(dir.exists(ext_path))
+annotation_path <- here::here("output", "annotations")
+stopifnot(dir.exists(annotation_path))
+bw_path <- here::here(config$paths$bigwig, target)
+stopifnot(dir.exists(bw_path))
+out_path <- here::here("output", target)
+if (!dir.exists(out_path)) dir.create(out_path)
+```
+
+
+```{r sq}
+sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
+blacklist <- here::here(ext_path, "blacklist.bed.gz") %>%
+  import.bed(seqinfo = sq) %>%
+  sort()
+```
+
+
+```{r load-annotations}
+bands_df <- here::here("data", "external", "cytoBand.txt.gz") %>%
+  read_tsv(col_names = c("chrom", "chromStart", "chromEnd", "name", "gieStain"))
+feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) 
+se_file <- file.path(annotation_path, "SE.rds")
+if (file.exists(se_file)) {
+  se <- read_rds(se_file) %>% 
+    mutate(feature = "SE") %>% 
+    select(feature, gene_id, gene_name)
+  feat_gr <- feat_gr %>% 
+    filter_by_non_overlaps(se) %>% 
+    c(se) %>% 
+    sort()
+}
+genes_gr <- file.path(annotation_path, "all_gr.rds") %>% 
+  read_rds() %>% 
+  .[["gene"]]
+trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
+  read_rds() 
+if (!is.null(config$external$rnaseq)) {
+  ## If RNA-Seq is provided
+  rnaseq <- autoload(here::here(config$external$rnaseq))
+  rna_col <- colnames(rnaseq)
+  sig_col <- str_detect(str_to_lower(rna_col), "fdr")
+  if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
+  sig_col <- rna_col[sig_col][1]
+  # Now split the transcript models by gene-level status from the RNA-Seq
+  trans_models <- trans_models %>% mutate(
+    category =  case_when(
+      !gene %in% rnaseq$gene_id ~ "Undetected",
+      gene %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
+      gene %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
+      gene %in% rnaseq$gene_id ~ "Unchanged"
+    )
+  ) %>% 
+    split(f = .$category) %>% 
+    lapply(select, -category) %>% 
+    GRangesList() %>% 
+    .[vapply(., length, integer(1)) > 0]
+}
+```
+
+
+```{r load-hic}
+hic <- GInteractions()
+if (!is.null(config$external$hic)) {
+  hic_path <- here::here(config$external$HiC)
+  stopifnot(file.exists(hic_path))
+  hic <- autoload(hic_path)
+}
+stopifnot(is(hic, "GInteractions"))
+seqinfo(hic) <- sq
+hic <- hic[!overlapsAny(hic, blacklist)]
+```
+
+
+# Data Preparation
+
+```{r import-peaks}
+consensus_peaks <- here::here("output", target, "consensus_peaks.bed") %>%
+	import.bed(seqinfo = sq)
+```
+
+
+```{r bfl}
+bfl <- bam_path %>%
+  file.path(target, glue("{samples$sample}.bam")) %>%
+  c(
+    file.path(bam_path, "Input", glue("{unique(samples$input)}.bam"))
+  ) %>% 
+  BamFileList() %>%
+  setNames(c(samples$sample, unique(samples$input)))
+```
+
+
+```{r get-bfl-summary}
+ys <- 1000
+bfl_summary <- bfl %>%
+	bplapply(
+		function(x) {
+			yieldSize(x) <- ys
+			sbp <- ScanBamParam(what = c("qwidth", "mapq"))
+			open(x)
+			vals <- scanBam(x, param = sbp)[[1]]
+			close(x)
+			list(as_tibble(vals))
+		}
+	) %>% 
+	as_tibble() %>%
+	pivot_longer(everything(), names_to = "sample") %>%
+   	unnest(value) %>% 
+	pivot_longer(
+		cols = c("qwidth", "mapq"),
+		names_to = "stat",
+		values_to = "value"
+	) %>%
+	left_join(samples) %>% 
+	mutate(
+		across(
+			all_of(c("target", "label", "treat")),
+			str_replace_na, replacement = "Input"
+		),
+		treat = factor(treat, levels = c("Input", treat_levels)),
+		label = fct_inorder(label)
+	) %>% 
+	split(f = .$stat)
+anyDups <- bplapply(
+	bfl,
+	function(x) {
+		sbp <- ScanBamParam(
+			flag = scanBamFlag(isDuplicate = TRUE),
+			which = GRanges(sq)[which.min(seqlengths(sq))],
+			what = "qname"
+			)
+		length(scanBam(x, param = sbp)[[1]]$qname)  > 0
+	}
+) %>%
+  unlist()
+anyPE <- bplapply(
+	bfl,
+	function(x){
+		yieldSize(x) <- ys
+		open(x)
+		flag <- scanBam(x, param=ScanBamParam(what="flag"))[[1]]$flag
+		close(x)
+		any(bamFlagTest(flag, "isPaired"))
+	}
+) %>% 
+  unlist()
+```
+
+```{r plot-bfl-summary, echo = FALSE, eval = FALSE, fig.height=6, fig.cap = glue("*Summary of A) Read Length and B) MAPQ scores for all samples along with the input. Values were obtained by sampling the first {comma(ys)} alignments from each bam file.*")}
+a <- bfl_summary$qwidth %>%
+	ggplot(aes(label, value, fill = treat)) +
+	geom_boxplot(alpha = 0.8) +
+	scale_fill_manual(values = treat_cols) +
+	labs(
+		x = "Sample", y = "Read Length", fill = "Treatment"
+	)
+b <- bfl_summary$mapq %>%
+	ggplot(aes(label, value, fill = treat)) +
+	geom_boxplot(alpha = 0.8) +
+	scale_fill_manual(values = treat_cols) +
+	labs(
+		x = "Sample", y = "MAPQ", fill = "Treatment"
+	)
+plot_grid(
+	a + theme(legend.position = "none"),
+	b + theme(legend.position = "none"),
+	get_legend(a),
+	nrow = 1,
+	rel_widths = c(1, 1, 0.2),
+	labels = c("A", "B")
+)
+```
+
+Taking thefirst `r comma(ys)` alignments, a brief inspection of the Bam Files revealed:
+
+- Aligned read lengths ranged between `r glue_collapse(range(bfl_summary$qwidth$value), last = " and ")`. The median length was `r median(bfl_summary$qwidth$value)`.
+- MAPQ scores of aligned reads ranged between `r glue_collapse(range(bfl_summary$mapq$value), last = " and ")`. The median score was `r median(bfl_summary$mapq$value)`.
+- `r ifelse(any(anyDups), glue("Duplicate alignments were detected in ", glue_collapse(names(anyDups), sep = ", ", last = " & ")), "All bam files have been de-duplicated")`
+- `r case_when(!any(anyPE) ~ "All alignments were single-end", all(anyPE) ~ "All Alignments were paired-end", TRUE ~ "Bam files appear to be a mixture of single-end and paired-end samples")`
+
+
+## Sliding Window Counts
+
+```{r window-counts}
+macs2_merged_logs <- here::here(
+	"data", "macs2", target, glue("{treat_levels}_merged_callpeak.log")
+	) %>%
+	importNgsLogs()
+fl <- max(macs2_merged_logs$fragment_length)
+rp <- readParam(
+  pe = ifelse(any(anyPE), "both", "none"),
+  dedup = any(anyDups),
+  restrict = seqnames(sq),
+  discard = blacklist,
+)
+win_step <- 10*(1 + fl %/% 30)
+win_size <- 3*win_step
+window_counts <- windowCounts(
+  bam.files = bfl,
+  spacing = win_step,
+  width = win_size,
+  ext = fl,
+  filter = length(bfl) - 1,
+  param = rp,
+  BPPARAM = bpparam()
+)
+colData(window_counts) <- colData(window_counts)[c("bam.files", "totals", "ext", "rlen")] %>% 
+  as.data.frame() %>% 
+  mutate(sample = rownames(.)) %>% 
+  left_join(samples, by = "sample") %>% 
+  mutate(
+    treat = fct_explicit_na(treat, "Input"), 
+    target = str_replace_na(target, "Input")
+  ) %>% 
+  column_to_rownames("sample") %>% 
+  DataFrame()
+window_counts <- sortSeqlevels(window_counts)
+seqinfo(window_counts) <- sq
+```
+
+Using the estimated fragment length of `r fl` a set of genomic sliding windows were defined using a window size of `r win_size`bp, sliding in increments of `r win_step`bp.
+With the exclusion of black-listed regions, all alignments within each window were counted for each `r target`-associated sample, and all relevant input samples
+Any windows with fewer than `r length(bfl) - 1` alignments across all samples were discarded, leaving a total of `r comma(nrow(window_counts))` sliding windows, covering the majority of the reference genome.
+
+```{r filtered-counts}
+q <- config$comparisons$filter_q
+filtered_counts <- dualFilter(
+  x = window_counts[, samples$sample], 
+  bg = window_counts[, samples$input], 
+  ref = consensus_peaks,
+  q = q
+)
+colData(filtered_counts) <- droplevels(colData(filtered_counts)) 
+n_max <- min(5e4, nrow(filtered_counts))
+```
+
+A dual filtering strategy was used based on retaining `r percent(q, 0.1)` of windows overlapping the consensus peaks identified by `macs2 callpeak` on merged samples.
+This approach combined both 1) expression percentiles, and 2) signal strength in relation to the input sample.
+After filtering, `r comma(nrow(filtered_counts))` of the original `r comma(nrow(window_counts))` windows were retained for downstream analysis.
+Of these, `r comma(sum(rowData(filtered_counts)$overlaps_ref))` (`r percent(mean(rowData(filtered_counts)$overlaps_ref))`) overlapped one of the `r comma(length(consensus_peaks))` consensus peaks.
+From the perspective of the consensus peaks, `r percent(mean(overlapsAny(consensus_peaks, rowRanges(filtered_counts))))` were covered by at least one sliding window.
+
+`r ifelse(n_max == 5e4, "For subsequent density and RLE plots, a subsample of 50,000 points was used for speed.", "")`
+
+## Normalisation {.tabset}
+
+```{r qtest, results='asis'}
+qtest <- quantro(
+  assay(filtered_counts, "logCPM"),
+  groupFactor = filtered_counts$treat
+)
+pander(
+  anova(qtest), 
+  caption = paste(
+    "*Results from qtest suggesting that the two treatment groups are drawn from",
+    ifelse(
+      qtest@anova$`Pr(>F)`[[1]] < 0.05,
+      "different distributions.*",
+      "the same distribution.*"
+    )
+  )
+)
+```
+
+
+```{r add-qsmooth}
+qs <-qsmooth(
+  assay(filtered_counts, "logCPM"), group_factor = filtered_counts$treat
+)
+assay(filtered_counts, "qsmooth") <- qsmoothData(qs)
+```
+
+Smooth-Quantile normalisation was performed, grouping by treatment
+
+
+### QSmooth Weights
+
+```{r plot-qs-weights, fig.height = 6, fig.cap = "*Quantile-specific weights used by the Smooth-Quantile normalisation. Low weights indicate expression quantiles which appear to be more specific within a group, whilst higher weights indicate similarity between groups.*"}
+qsmoothPlotWeights(qs)
+```
+
+
+### Density Plot: Sliding Windows
+
+```{r plot-density-windows, fig.cap = "*Density plot for all windows prior to selection of those more likely to contain true signal.*"}
+plotAssayDensities(
+  window_counts, trans = "log1p", n_max = n_max, colour = "treat",
+  linetype = "target"
+) +
+  scale_colour_manual(values = treat_cols) + 
+  labs(
+    x = "log(counts + 1)", y = "Density", colour = "Treat", linetype = "Target"
+  )
+```
+
+### Density Plot: logCPM
+
+```{r plot-logcpm-densities, fig.cap = "*logCPM distributions for all retained windows prior to smooth quantile normalisation*"}
+filtered_counts %>% 
+  plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
+  scale_colour_manual(values = treat_cols[treat_levels]) +
+  labs(colour = "Treat")
+```
+
+### Density Plot: Normalised
+
+```{r plot-qsmooth-densities, fig.cap = "*SQ-normalised logCPM distributions for all retained windows.*"}
+filtered_counts %>% 
+  plotAssayDensities("qsmooth", colour = "treat", n_max = n_max) +
+  scale_colour_manual(values = treat_cols[treat_levels]) +
+  labs(
+    x = "Normalised logCPM", colour = "Treat"
+  )
+```
+
+### RLE: logCPM
+
+```{r plot-rle-logcpm, fig.height=6, fig.cap = glue("*RLE plot showing logCPM values prior to normalisation. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+filtered_counts %>% 
+  plotAssayRle(
+  "logCPM", fill = "treat", rle_group = "treat", x_col = "label", n_max = n_max
+) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_fill_manual(values = treat_cols[treat_levels]) +
+  labs(x = "Sample", fill = "Treat")
+```
+
+
+### RLE: Normalised
+
+```{r plot-rle-normalised, fig.height=6, fig.cap = glue("*RLE plot showing logCPM values after Smooth Quantile normalisation. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+filtered_counts %>% 
+  plotAssayRle(
+  "qsmooth", fill = "treat", rle_group = "treat", x_col = "label", n_max = n_max
+) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_fill_manual(values = treat_cols[treat_levels]) +
+  labs(x = "Sample", fill = "Treat")
+```
+
+
+### PCA
+
+```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for A) logCPM and B) SQ-Normalised logCPM*"}
+a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
+  scale_colour_manual(values = treat_cols[treat_levels])
+b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +
+  scale_colour_manual(values = treat_cols[treat_levels]) 
+plot_grid(
+  a + theme(legend.position = "none"), b + theme(legend.position = "none"), 
+  get_legend(b + labs(colour = "Treat")), rel_widths = c(1, 1, 0.2), 
+  nrow = 1, labels = c("A", "B")
+  )
+```
+
+
+
+# Differential Binding Analysis
+
+## Primary Analysis
+
+```{r run-voom}
+X <- model.matrix(~treat, data = colData(filtered_counts)) %>%
+  set_colnames(str_remove(colnames(.), "treat"))
+paired_cors <- block <- NULL
+if (config$comparisons$paired) {
+  block <- colData(filtered_counts)[[rep_col]]
+  set.seed(1e6)
+  ind <- sample.int(nrow(filtered_counts), n_max, replace = FALSE)
+  paired_cors <- duplicateCorrelation(
+    object = assay(filtered_counts, "qsmooth")[ind, ],
+    design = X,
+    block = block
+  )$consensus.correlation
+}
+v <- voomWeightsFromCPM(
+  cpm = assay(filtered_counts, "qsmooth"), 
+  design = X, 
+  lib.size = filtered_counts$totals,
+  block = block, correlation = paired_cors
+)
+colData(filtered_counts)$design <- v[["design"]]
+assay(filtered_counts, "voom") <- v[["weights"]] %>% 
+  set_colnames(colnames(v))
+```
+
+```{r fit}
+fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
+fit <- lmFit(
+  object = assay(filtered_counts, "qsmooth"),
+  design = colData(filtered_counts)$design,
+  block = block,
+  correlation = paired_cors,
+  weights = assay(filtered_counts, "voom")
+) %>%
+  treat(fc = fc)
+rowData(filtered_counts) <- rowData(filtered_counts) %>% 
+  cbind(
+    topTreat(fit, coef = treat_levels[2], sort.by = "none", number = nrow(fit))
+  )
+```
+
+
+```{r plot-voom, fig.height = 6, fig.cap = glue("*Relationship between observed binding intensity and variability between samples A) before and B) after using voom precision-weights.", ifelse(n_max == 5e4, " A subset of 50,000 points only is shown.", ""), "*")}
+plot_grid(
+  v$voom.xy[c("Amean", "y")] %>% 
+    as_tibble() %>% 
+    sample_n(n_max) %>% 
+    ggplot(aes(Amean, y)) +
+    geom_point(shape = ".") +
+    geom_smooth(
+      se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs"),
+      colour = "red", size = 1/3
+    ) +
+    labs(
+      x = "Average logCPM",
+      y = expression(sqrt("StDev")),
+      title = "pre-voom: Mean-variance trend"
+    ),
+  tibble(
+    Amean = fit$Amean,
+    y = sqrt(fit$sigma)
+  ) %>% 
+    sample_n(n_max) %>% 
+    ggplot(aes(Amean, y)) +
+    geom_point(shape = ".") +
+    geom_smooth(
+      se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs"),
+      colour = "red", size = 1/3
+    ) +
+    labs(
+      x = "Average logCPM",
+      y = expression(sqrt("StDev")),
+      title = "post-voom: Mean-variance trend"
+    ),
+  labels = c("A", "B")
+)
+```
+
+
+After SQ-normalisation of logCPM values, `voom` precision weights were estimated to enable fitting with conventional linear models.
+A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window.
+After fitting, hypothesis testing was performed testing:
+
+$$
+H_0: -\lambda < \mu < \lambda
+$$
+against
+$$
+H_A: |\mu| > \lambda
+$$
+where $\mu$ represents the true mean change in `r target` binding.
+The value $\lambda =$ `r round(log2(fc), 2)` was chosen as this corresponds to a `r percent(fc - 1)` change in detected signal on the log~2~ scale.
+
+
+```{r merged-results}
+merged_results <- mergeByCol(
+  filtered_counts, col = "AveExpr", merge_within = 2 * win_step
+) %>% 
+  mutate(
+    overlaps_ref = overlapsAny(., consensus_peaks),
+    direction = case_when(
+      n_up == 0 & n_down == 0 ~ "Unchanged",
+      n_up > n_down ~ "Up",
+      n_down > n_up ~ "Down",
+      n_up == n_down ~ "Ambiguous"
+    ) %>% 
+      factor(levels = c("Up", "Down", "Ambiguous", "Unchanged")) %>% 
+      droplevels()
+  ) 
+```
+
+After selection of the `r comma(nrow(filtered_counts))` sliding windows (`r win_size`bp), these were merged into `r comma(length(merged_results))` genomic regions with size ranging from `r glue_collapse(range(width(merged_results)), last = " to ")`bp, with the median width being `r median(width(merged_results))`bp.
+Representative estimates of differential binding (i.e. logFC) were taken from the sliding window with the *highest average signal* across all samples, within each set of windows to be merged.
+Similarly, p-values from the above tests were also selected from the same sliding window as representative of the merged region.
+The number of windows showing increased or decreased binding within each merged region were also included, by counting those within each set of windows with p-values lower than the selected window.
+FDR-adjustment was performed with `r comma(sum(merged_results$fdr < fdr_alpha))` regions (`r percent(mean(merged_results$fdr < fdr_alpha), accuracy = 0.1)`) showing significance, based on an FDR-adjusted p-value alone.
+
+```{r map-to-genes}
+merged_results <- merged_results %>% 
+  mapByFeature(
+    genes = genes_gr, 
+    prom = subset(feat_gr, feature == "Promoter"),
+    enh = subset(feat_gr, feature %in% c("Enhancer", "SE")),
+    gi = hic
+  ) %>% 
+  mutate(
+    regulatory_feature = case_when(
+      overlapsAny(., subset(feat_gr, feature == "Promoter")) ~ "Promoter",
+      overlapsAny(., subset(feat_gr, feature == "Enhancer")) ~ "Enhancer",
+      overlapsAny(., subset(feat_gr, feature == "SE")) ~ "Super Enhancer",
+      TRUE ~ "None"
+    ) %>% 
+      factor(levels = c("Promoter", "Enhancer", "Super Enhancer", "None")) %>% 
+      droplevels(),
+    gene_region = case_when(
+      overlapsAny(., genes_gr) ~ "Gene Body",
+      regulatory_feature == "Promoter" ~ "Gene Body",
+      TRUE ~ "Intergenic"
+    ) %>% 
+      factor(levels = c("Gene Body", "Intergenic")) %>% 
+      droplevels()
+  )
+```
+
+In addition to statistical analysis, the regions produced by merging windows were mapped to all annotated genes using existing mappings obtained for promoters and enhancers, as well as any super-enhancers or long-range interactions if identified previously.
+Regions are also annotated to 'gene regions', with a `Gene Body` defined as any transcribed region, along with any H3K27ac defined region which overlaps a TSS, i.e. a promoter.
+Any region not overlapping a gene body under this definition was considered intergenic.
+Intronic/Exonic structure of any transcript was not incorporated.
+
+## Independent Hypothesis Weighting {.tabset}
+
+```{r ihw}
+other_targets <- here::here(config$samples$file) %>% 
+  read_tsv() %>% 
+  pull("target") %>% 
+  unique() %>% 
+  setdiff(target)
+ihw_discrete <- case_when(
+  any(config$comparisons$ihw %in% other_targets) ~ TRUE,
+  any(config$comparisons$ihw %in% c("logCPM", "AveExpr", "width")) ~ FALSE
+)
+if (!is.null(config$comparisons$ihw)) {
+  if (ihw_discrete) {
+    other_consensus <- config$comparisons$ihw %>% 
+      intersect(other_targets) %>% 
+      sapply(
+        function(x) {
+          here::here("output", x, "consensus_peaks.bed") %>%
+            import.bed(seqinfo = sq)
+        },
+        simplify = FALSE
+      )
+    ihw_groups <- lapply(other_consensus, function(x){
+      overlapsAny(merged_results, x)
+    }) %>% 
+      as_tibble %>% 
+      mutate(range = as.character(merged_results)) %>% 
+      pivot_longer(
+        cols = all_of(names(other_consensus)),
+        names_to = "other",
+        values_to = "overlap"
+      ) %>% 
+      dplyr::filter(overlap) %>% 
+      group_by(range) %>% 
+      summarise(group = paste(paste0(other, "+"), collapse = " ")) %>% 
+      mutate(
+        group = fct_infreq(group) %>% 
+          fct_lump_min(min = 1e3)
+      ) %>% 
+      right_join(
+        tibble(range = as.character(merged_results)), by = "range"
+      ) %>% 
+      mutate(
+        group = fct_explicit_na(group, na_level = "No Overlap")
+      )%>% 
+      with(
+        GRanges(range, group = group, seqinfo = sq)
+      ) %>% 
+      sort()
+    stopifnot(granges(ihw_groups) == granges(merged_results))
+    merged_results$ihw_covariate <- ihw_groups$group
+  } else {
+    if (any(config$comparisons$ihw %in% c("logCPM", "AveExpr"))) {
+      merged_results$ihw_covariate <- merged_results[["AveExpr"]]
+    } else {
+      if (config$comparisons$ihw == "width") {
+        merged_results$ihw_covariate <- width(merged_results)
+      } 
+    }
+  }
+}
+ihw <- ihw(
+  pvalues = merged_results$P.Value,
+  covariates = merged_results$ihw_covariate,
+  alpha <- fdr_alpha,
+  covariate_type = ifelse(ihw_discrete, "nominal", "ordinal")
+)
+merged_results <- merged_results %>% 
+  mutate(
+    fdr_ihw = adj_pvalues(ihw),
+    status = case_when(
+      fdr_ihw < fdr_alpha ~ as.character(direction),
+      fdr_ihw >= fdr_alpha ~ "Unchanged"
+    ) %>% 
+      factor(levels = c(levels(direction), "Unchanged")) %>% 
+      droplevels()
+  ) 
+```
+
+Independent Hypothesis Weighting was then used to provide a more powerful FDR estimate using `r ifelse(ihw_discrete, paste(glue_collapse(intersect(config$comparisons$ihw, other_targets), sep = ", ", last= " & "), "binding"), config$comparisons$ihw)` as a covariate.
+`r ifelse(ihw_discrete, "The presence within each merged region of *any macs2-derived consensus peak* (i.e. under any treatment) from these additional ChIP targets was used to bin regions into groups, which were in turn collapsed until the smallest group contained > 1000 regions.", "")`
+`r ifelse(ihw_discrete, glue("This gave {length(levels(ihw_groups$group))} groups using these covariates."), glue())`
+
+
+`r ifelse(ihw_discrete, "### IHW Covariates", "")`
+
+```{r plot-summarise-covariate, eval = ihw_discrete, echo = ihw_discrete, fig.height=5, fig.cap = glue("*Summary of shared binding patterns between all regions identified as containing {target} signal. Groups will be collapsed from right to left until the smallest group contains > 1000 regions.*")}
+other_consensus %>% 
+  lapply(function(x){which(overlapsAny(merged_results, x))}) %>% 
+  c(list2("{target}" := seq_along(merged_results))) %>% 
+  fromList() %>% 
+  upset(
+    order.by = "freq",
+    set_size.show = TRUE,
+    set_size.scale_max = 1.2*nrow(.)
+  )
+```
+
+### P-Values by Covariate
+
+```{r plot-ihw-pvals, fig.cap = paste("*Comparison of p-values with the selected IHW variable.", ifelse(ihw_discrete, "Groups are automatically selected to ensure at 1000 points are present in every group.*", "The horizontal line indicates a raw p-value of 0.01.*"))}
+if (ihw_discrete) {
+  p <- merged_results %>% 
+    as_tibble() %>% 
+    ggplot(aes(P.Value, stat(density))) +
+    geom_histogram(colour = "black", fill = "grey50", bins = 100) +
+    facet_wrap(~ihw_covariate) 
+  pb <- ggplot_build(p) # Get the y limits for each facet panel
+  y_max <- tibble(
+    ihw_covariate = pb$layout$layout$ihw_covariate,
+    y = map_dbl(pb$layout$panel_scales_y, function(x){max(x$range$range)})
+  )
+  p +
+    geom_text(
+      aes(0.85, 0.9 * y, label = label),
+      data = . %>%
+        group_by(ihw_covariate) %>%
+        summarise(
+          n = dplyr::n(),
+          .groups = "drop"
+        ) %>%
+        mutate(label = glue("{comma(n)}\nWindows")) %>% 
+        left_join(y_max)
+    ) +
+    labs(y = "Density")
+}
+if (!ihw_discrete) {
+  merged_results %>% 
+    as_tibble() %>% 
+    mutate(rank = rank(ihw_covariate) / nrow(.)) %>% 
+    ggplot(aes(rank, -log10(P.Value))) +
+    geom_bin2d(bins = 150, drop = TRUE) +
+    geom_hline(yintercept = 2) +
+    scale_x_continuous(label = percent, expand = expansion(c(0.02, 0.02))) +
+    scale_fill_viridis_c(option = "cividis", trans = "log10") +
+    labs(
+      x = glue("{config$comparisons$ihw} Percentile"),
+      fill = "Count"
+    )
+}
+```
+
+### IHW Weights
+
+```{r plot-ihw-weights, fig.cap = "*Weights used for FDR estimation for each fold and group. In the case of a continuous variable, data is broken in suitably sized percentiles to form groups.*"}
+plot(ihw) +
+  geom_hline(yintercept = 1) +
+  labs(
+    x = ifelse(ihw_discrete, "Fold", str_to_title(config$comparisons$ihw)),
+    y = "Weight"
+  )
+```
+
+### FDR Comparison
+
+```{r plot-ihw-fdr, fig.cap = glue("*Comparison of raw and weighted p-values. Blue lines indicate the FDR threshold of {fdr_alpha} for each set of p-values. Any points in the upper-right quadrant would be considered as significant under both approaches. Points in the lower-right quadrant would no longer be significant under IHW, whilst those in the upper-left gain significance under IHW.*")}
+ihw %>% 
+  as.data.frame() %>% 
+  ggplot(
+    aes(-log10(pvalue), -log10(weighted_pvalue), colour = fold)
+  ) +
+  geom_point(size = 0.4) +
+  geom_hline(
+    aes(yintercept = -log10(weighted_pvalue)),
+    data = . %>% 
+      dplyr::select(-group) %>% 
+      dplyr::filter(adj_pvalue < fdr_alpha) %>% 
+      dplyr::filter(weighted_pvalue == max(weighted_pvalue)),
+    linetype = 2, colour = "blue"
+  ) +
+  geom_vline(
+    aes(xintercept = -log10(pvalue)),
+    data =. %>% 
+      dplyr::filter(p.adjust(pvalue, "fdr") < fdr_alpha) %>% 
+      dplyr::filter(pvalue == max(pvalue)) %>% 
+      dplyr::select(-group),
+    linetype = 2, colour = "blue"
+  ) +
+  facet_wrap(~group, scales = "free") +
+  coord_cartesian(xlim = c(0, 5), ylim = c(0, 5)) +
+  labs(
+    x = expression(-log[10](p)),
+    y = expression(-log[10](p[IHW]))
+  )
+```
+
+
+# Results 
+
+## Summary Plots {.tabset}
+
+```{r labeller}
+facet_labeller <- as_labeller(
+  c(
+    c(
+      `TRUE` = "Consensus Peak",
+      `FALSE` = "No Consensus Peak"
+    ),
+    structure(treat_levels, names = treat_levels),
+    c(
+      Up = glue("Increased {target} Binding"),
+      Down = glue("Decreased {target} Binding")
+    ),
+    c(
+      "promoter" = "Promoter",
+      "enhancer" = "Enhancer",
+      "se" = "Super Enhancer",
+      "gene_body" = "Gene Body",
+      "intergenic" = "Intergenic"
+    )
+  )
+)
+```
+
+```{r make-heatmaps}
+profile_width <- ifelse(target == "H3K27ac", 20e3, 5e3)
+n_bins <- 100
+bwfl <- file.path(bw_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
+  BigWigFileList() %>% 
+  setNames(treat_levels) 
+sig_ranges <- merged_results %>% 
+  filter(fdr_ihw < fdr_alpha) %>% 
+  split(f = .$direction) %>% 
+  .[vapply(., length, integer(1)) > 0]
+sig_profiles <- bplapply(
+  sig_ranges, 
+  function(x) getProfileData(
+    bwfl, x, upstream = profile_width / 2, bins = n_bins
+  ),
+  BPPARAM = MulticoreParam(length(sig_ranges))
+)
+profile_heatmaps <- sig_profiles %>% 
+  lapply(
+    plotProfileHeatmap,
+    profileCol = "profile_data", 
+    facetY = "overlaps_ref",
+    colour = "name",
+    linetype = "overlaps_ref",
+    xLab = "Distance from Centre (bp)",
+    fillLab = "CPM",
+    labeller = facet_labeller
+  ) 
+fill_range <- profile_heatmaps %>% 
+  lapply(function(x) x$data[,"score"]) %>% 
+  unlist() %>%
+  range()
+sidey_range <- profile_heatmaps %>% 
+  lapply(function(x) x$layers[[3]]$data$y) %>% 
+  unlist() %>% 
+  range()
+profile_heatmaps <- profile_heatmaps %>% 
+  lapply(function(x) {
+    x + 
+      scale_fill_viridis_c(
+        option = "inferno", direction = -1, limits = fill_range
+      ) +
+      scale_xsidey_continuous(limits = sidey_range) +
+      scale_colour_manual(values = treat_cols[treat_levels]) +
+      scale_linetype_manual(values = c("TRUE" = 1, "FALSE" = 2)) +
+      labs(
+        x = "Distance from Centre (bp)",
+        fill = "CPM", linetype = "Consensus\nPeak\nOverlap",
+        colour = "Treat"
+      )
+  })
+```
+
+
+### MA Plot
+
+```{r plot-ma, fig.cap = glue("*MA plot showing the status of each window under consideration. The two most extreme regions are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. As with the table above, any regions which overlap a consensus peak are labelled as such.*")}
+merged_results %>% 
+  as_tibble() %>% 
+  arrange(range) %>% 
+  ggplot(aes(AveExpr, logFC)) +
+  geom_point(aes(colour = status), alpha = 0.5) +
+  geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
+  geom_hline(yintercept = 0) +
+  geom_label_repel(
+    aes(y = 1.1*logFC, label = annot, colour = status),
+    data= . %>%
+      dplyr::filter(logFC == max(logFC) | logFC == min(logFC)) %>% 
+      mutate(
+        gene_name = gene_name %>% 
+          lapply(paste, collapse = ", ") %>% 
+          unlist() %>% 
+          str_replace("^NA$", "") %>% 
+          str_wrap(width = 40),
+        range = ifelse(gene_name == "", range, paste0(range, "\n")),
+        annot = glue("{range}{gene_name}")
+      ),
+    fill = rgb(1, 1, 1, 0.2),
+    size = 3,
+    show.legend = FALSE
+  ) +
+  scale_colour_manual(
+    values = unlist(rmd_config$colours$direction)[levels(merged_results$status)]
+  ) +
+  labs(
+    x = "Ave Signal (logCPM)",
+    colour = "Status"
+  ) 
+```
+
+
+### Volcano Plot
+
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} binding. Regions overlapping a consensus peak are coloured separately to thos which are not. The two most significant regions are labelled along with any genes these regions are mapped to.*")}
+merged_results %>% 
+  as_tibble() %>% 
+  ggplot(aes(logFC, -log10(P.Value))) +
+  geom_point(aes(colour = status), alpha = 0.6) +
+  geom_label_repel(
+    aes(label = annot, colour = status),
+    data= . %>%
+      arrange(P.Value) %>% 
+      dplyr::slice(1:2) %>% 
+      mutate(
+        gene_name = gene_name %>% 
+          lapply(paste, collapse = ", ") %>% 
+          unlist() %>% 
+          str_replace("^NA$", "") %>% 
+          str_wrap(width = 40),
+        range = ifelse(gene_name == "", range, paste0(range, "\n")),
+        annot = glue("{range}{gene_name}")
+      ),
+    fill = rgb(1, 1, 1, 0.2),
+    size = 3,
+    show.legend = FALSE
+  ) +
+  scale_colour_manual(
+    values = unlist(rmd_config$colours$direction)[levels(merged_results$status)]
+  ) +
+  labs(
+    x = "logFC",
+    y = expression(paste(-log[10], "p")),
+    colour = "Status"
+  )
+```
+
+`r ifelse("Up" %in% names(profile_heatmaps), "### Heatmaps: Up\n", "")`
+
+```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of increased {target} binding in the {treat_levels[[2]]} group, separated by those which did or did not overlap a consensus peak. A total of {comma(length(sig_ranges[['Up']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Up)/1.5e3 + 6)}
+profile_heatmaps$Up
+```
+
+
+`r ifelse("Down" %in% names(profile_heatmaps), "### Heatmaps: Down\n", "")`
+
+```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of decreased {target} binding in the {treat_levels[[2]]} group, separated by those which did or did not overlap a consensus peak. A total of {comma(length(sig_ranges[['Down']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Down)/1.5e3 + 6)}
+profile_heatmaps$Down
+```
+
+### Results By Chromosome
+
+```{r plot-res-by-chromosome, fig.cap = "*Results for differential binding separated by chromosome*"}
+merged_results %>% 
+  select(overlaps_ref, status) %>% 
+  as.data.frame() %>% 
+  mutate(status = str_remove(as.character(status), " \\+ Ref Peak")) %>% 
+  ggplot(aes(seqnames, fill = status, alpha = overlaps_ref)) +
+  geom_bar() +
+  facet_grid(status~., scales = "free_y") +
+  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  scale_fill_manual(
+    values = unlist(rmd_config$colours$direction)[c("Up", "Down", "Unchanged")]
+  ) +
+  scale_alpha_manual(values = c(0.5, 1)) +
+  labs(
+    x = "Chromosome", y = "Number of Windows", 
+    fill = "Status", alpha = "Macs2 Peak"
+  )
+```
+
+
+### P Values By Feature
+
+```{r plot-p-by-feature, fig.height = 6, fig.cap = "*Distribution of raw p-values separated by feature*"}
+p <- merged_results %>% 
+  as_tibble() %>% 
+  dplyr::select(range, P.Value, regulatory_feature, gene_region) %>% 
+  ggplot(aes(P.Value, stat(density))) + 
+  geom_histogram(bins = 101, fill = "grey70", colour = "black") + 
+  facet_grid(gene_region ~ regulatory_feature) +
+  labs(x = "P Value", y = "Density")
+ylim <- layer_scales(p)$y$range$range
+p + 
+  geom_text(
+    aes(0.85, 0.9*max(ylim), label = label),
+    data = p$data %>% 
+      group_by(regulatory_feature, gene_region, .groups = "drop") %>% 
+      summarise(label = glue("{comma(dplyr::n())}\nregions"))
+  ) 
+```
+
+## Result Tables {.tabset}
+
+### Overall Summary
+
+
+```{r tab-results-summary}
+df <- merged_results %>% 
+  as_tibble() %>% 
+  group_by(overlaps_ref) %>% 
+  summarise(
+    Unchanged = sum(fdr_ihw >= fdr_alpha),
+    Up = sum(fdr_ihw <= fdr_alpha & logFC > 0),
+    Down = sum(fdr_ihw <= fdr_alpha & logFC < 0),
+    `IHW Gained` = sum(fdr_ihw < fdr_alpha & fdr >= fdr_alpha),
+    `IHW Lost` = sum(fdr_ihw > fdr_alpha & fdr < fdr_alpha),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    Changed = Up + Down,
+    `IHW Nett` = `IHW Gained` - `IHW Lost`
+  ) %>% 
+  dplyr::select(
+    `Overlaps Consensus` = overlaps_ref, Unchanged, Changed, Up, Down, starts_with("IHW")
+  ) %>% 
+  bind_rows(
+    summarise(
+      ., across(-contains("Overlap"), sum)
+    )
+  ) %>%
+  mutate(
+    `Overlaps Consensus` = str_replace_na(`Overlaps Consensus`, "Total"),
+    `IHW (Gained/Lost)` = glue(
+      "{ifelse(`IHW Nett` > 0, '+', '')}{`IHW Nett`} ",
+      "({`IHW Gained`}/{`IHW Lost`})"
+    ),
+    `% Changed` = Changed / (Changed + Unchanged)
+  ) %>% 
+  dplyr::select(
+    `Overlaps Consensus`, Unchanged, Changed, `% Changed`, Up, Down, 
+    `IHW (Gained/Lost)`
+  )
+df %>% 
+  datatable(
+    caption = glue(
+      "Summary of all {comma(length(merged_results))} regions retained after ",
+      "filtering and merging of sliding windows. Regions which overlap a ",
+      "macs2 consensus peak are indicated in the first column. ",
+      "The impact of the IHW step is also given as an overall summary. ",
+      "Colour bars are drawn relative to the total number of regions."
+    ),
+    rownames = TRUE,
+    options = list(
+      searching = FALSE, info = FALSE, paging = FALSE, ordering = FALSE,
+      columnDefs = list(list(visible = F, targets = 0))
+    )
+  ) %>% 
+  formatStyle(
+    'Up',
+    background = styleColorBar(c(0, length(merged_results)), rmd_config$colours$direction$Up),
+    backgroundSize = '100% 90%',
+    backgroundPosition = 'center'
+  ) %>% 
+  formatStyle(
+    'Down',
+    background = styleColorBar(c(0,  length(merged_results)), rmd_config$colours$direction$Down),
+    backgroundSize = '100% 90%',
+    backgroundPosition = 'center'
+  ) %>% 
+  formatPercentage('% Changed', digits = 1) %>% 
+  formatStyle(
+    "% Changed",
+    background = styleColorBar(c(0, 1), rmd_config$colours$direction$Undetected)
+  ) %>% 
+  formatRound(c("Unchanged", "Changed"), digits = 0) %>% 
+  formatStyle(0, target = "row", fontWeight = styleEqual(nrow(df), "bold"))
+```
+
+### Summary By Feature
+
+```{r tab-features}
+df <- merged_results %>% 
+  as_tibble() %>% 
+  dplyr::select(
+    range, logFC, fdr_ihw, regulatory_feature, gene_region
+  ) %>% 
+  group_by(gene_region, regulatory_feature) %>% 
+  summarise(
+    `Total Overlapping`  = dplyr::n(),
+    Unchanged = sum(fdr_ihw >= fdr_alpha),
+    Changed = sum(fdr_ihw < fdr_alpha),
+    `% Changed` = Changed / `Total Overlapping`,
+    Up = sum(fdr_ihw < fdr_alpha & logFC > 0),
+    Down = sum(fdr_ihw < fdr_alpha & logFC < 0),
+    .groups = "drop"
+  ) %>% 
+  rename_all(str_replace_all, pattern = "_", replacement = " ") %>% 
+  rename_all(str_to_title)
+df %>% 
+  datatable(
+    caption = glue(
+      "Summary of results for all merged regions partitioned by feature ",
+      "where {target} was detected as showing changed binding. ",
+      "Regions may overlap more than one feature."
+    ),
+    options = list(
+      searching = FALSE, info = FALSE, paging = FALSE, 
+      columnDefs = list(list(visible = F, targets = 0))
+    )
+  ) %>% 
+  formatStyle(
+    'Up',
+    background = styleColorBar(
+      c(0, sum(merged_results$fdr_ihw < fdr_alpha)), 
+      color = rmd_config$colours$direction$Up
+    ),
+    backgroundSize = '100% 90%',
+    backgroundPosition = 'center'
+  ) %>% 
+  formatStyle(
+    'Down',
+    background = styleColorBar(
+      c(0, sum(merged_results$fdr_ihw < fdr_alpha)), 
+      color = rmd_config$colours$direction$Down
+    ),
+    backgroundSize = '100% 90%',
+    backgroundPosition = 'center'
+  ) %>% 
+  formatStyle(
+    "% Changed",
+    background = styleColorBar(c(0, 1), rmd_config$colours$direction$Undetected)
+  ) %>% 
+  formatStyle(
+    "Total Overlapping",
+    background = styleColorBar(
+      data = c(0, length(merged_results)), 
+      color = rmd_config$colours$direction$Undetected
+    )
+  ) %>% 
+  formatPercentage('% Changed', digits = 1)
+```
+
+
+### Most Highly Ranked
+
+```{r tab-highy-ranked}
+show_n <- 200
+merged_results %>% 
+  arrange(P.Value) %>% 
+  dplyr::slice(seq_len(max(nrow(.), show_n))) %>% 
+  select(
+    AveExpr, logFC, FDR = fdr_ihw, overlaps_ref, Genes = gene_name,
+    regulatory_feature, gene_region
+  ) %>% 
+  as_tibble() %>% 
+  mutate(
+    Genes = vctrs::vec_proxy(Genes) %>% 
+      vapply(paste, character(1), collapse = ", ") %>% 
+      str_replace("^NA$", "")
+  ) %>% 
+  arrange(FDR) %>% 
+  separate(range, into = c("Chrom", "Region"), sep = ":") %>% 
+  mutate(
+    Chrom = factor(Chrom, levels = str_sort(unique(Chrom), numeric = TRUE))
+  ) %>% 
+  dplyr::rename(
+    "Ave Signal (logCPM)" = AveExpr,
+    `Consensus Peak` = overlaps_ref,
+    `Regulatory Feature` = regulatory_feature,
+    `Gene Region` = gene_region
+  ) %>% 
+  datatable(
+    rownames = FALSE, 
+    filter = "top", 
+    caption = glue(
+      "Most highly ranked {nrow(.)} regions for changed {target} binding in ",
+      "response to {treat_levels[[2]]} treatment. FDR values are IHW-adjusted ",
+      "and any regulatory features are shown for which each region overlaps. ",
+      "Any genes mapped to the region are shown."
+    )
+  ) %>% 
+  formatRound(columns = c("Ave Signal (logCPM)", "logFC")) %>% 
+  formatSignif("FDR", 3)
+```
+
+
+## Inspection of Top-Ranked Regions {.tabset}
+
+```{r reset-bwfl}
+results_grl <- merged_results %>% 
+  mutate(group = str_remove(status, " \\+ Ref Peak")) %>% 
+  split(f = .$group) %>% 
+  lapply(granges) %>% 
+  GRangesList()
+feat_gr <- c(feat_gr, mutate(granges(consensus_peaks), feature = "Peak"))
+feat_col <- rmd_config$colours$features %>% 
+  c(list(Peak = "#B3B3B3")) 
+bwfl <- file.path(bw_path, glue("{samples$sample}_treat_pileup.bw")) %>% 
+  BigWigFileList() %>% 
+  setNames(samples$label)
+```
+
+```{r makeCaption}
+makeCaption <- function(
+  .gr, .genes = genes_gr, .features = feat_gr, .target = target, 
+  .trt = treat_levels[[2]]
+  ) {
+  nearest_gene <- .gr %>% 
+    granges() %>% 
+    join_nearest(.genes, distance= TRUE) %>% 
+    select(gene_name, distance) 
+  mapped_genes <- .gr$gene_name[[1]] %>% 
+    str_replace_na() %>% 
+    str_subset("^NA$", negate = TRUE) %>% 
+    collapseGenes(format = "")
+  feat_ol <- subsetByOverlaps(.features, .gr) %>% 
+    as_tibble() %>% 
+    subset(feature != "Peak") %>% 
+    distinct(feature)
+  wd <- width(.gr)
+  dir <- case_when(
+    .gr$direction == "Up" ~ "increased",
+    .gr$direction == "Down" ~ "decreased",
+    .gr$direction == "Unchanged" ~ "unchanged"
+  )
+  cp <- c(
+    glue(
+      "*The {wd}bp region showing {dir} {.target} binding in response to ", 
+      "{.trt} treatment (FDR = {sprintf('%.2e', gr$fdr_ihw)}). ",
+      "Features include any possible overlaps with Promoters, Enhancers, ",
+      "Super-Enhancers or Macs2 Peaks (shown in grey). ",
+      "Narrow bars directly above the coverage tracks indicate differential ",
+      "binding status for each retained region in the above analysis."
+    ),
+    ifelse(
+      gr$overlaps_ref,
+      paste(
+        "A consensus peak overlapping this region was identified by",
+        "`macs2 callpeak` when using merged samples."
+      ),
+      "No consensus peak was identified using `macs2 callpeak`."
+    ),
+    ifelse(
+      nearest_gene$distance == 0, 
+      glue("The gene {nearest_gene$gene_name} directly overlaps the range."), 
+      glue("{nearest_gene$gene_name} is {round(nearest_gene$distance/1e3, 1)} kb away.")
+    ),
+    ifelse(
+      length(mapped_genes) > 0,
+      paste0(
+        "Using a more complete mapping strategy, the genes mapped to this region were ",
+        mapped_genes, "."),
+      ""
+    ),
+    ifelse(
+      length(feat_ol$feature) == 0,
+      "There is no direct overlap with any defined regulatory features.*",
+      case_when(
+        feat_ol$feature == "Enhancer" ~ 
+          "This region directly overlaps an Enhancer.*",
+        feat_ol$feature == "SE" ~ 
+          "This region directly overlaps a Super-Enhancer.*",
+        feat_ol$feature == "Promoter" ~ 
+          "This region directly overlaps a Promoter.*"
+      )
+    )
+  )
+  cp <- paste(cp, collapse = " ")
+  gsub(" +", " ", cp)
+}
+```
+
+**A guide to all colours used for subsequent plots is given below**
+
+```{r colour-guides}
+treat_guide <- rmd_config$colours$treat %>% 
+  .[names(.) %in% treat_levels] %>% 
+  as_tibble() %>% 
+  reactable(
+    fullWidth = FALSE,
+    columns = sapply(
+      names(.), 
+      function(x) {
+        colDef(
+          style = list(
+            background = rmd_config$colours$treat[[x]],
+            color = rmd_config$colours$treat[[x]]
+          ),
+          minWidth = 100
+        )      
+      },
+      simplify = FALSE
+    )
+  )
+feat_guide <- feat_col %>% 
+  .[names(.) %in% feat_gr$feature] %>% 
+  as_tibble() %>% 
+  reactable(
+    fullWidth = FALSE,
+    columns = sapply(
+      names(.), 
+      function(x) {
+        colDef(
+          style = list(
+            background = feat_col[[x]],
+            color = feat_col[[x]]
+          ),
+          minWidth = 100
+        )      
+      },
+      simplify = FALSE
+    )
+  )
+dir_guide <- rmd_config$colours$direction %>% 
+  as_tibble() %>% 
+  reactable(
+    fullWidth = FALSE,
+    columns = sapply(
+      names(.), 
+      function(x) {
+        colDef(
+          style = list(
+            background = rmd_config$colours$direction[[x]],
+            color = rmd_config$colours$direction[[x]]
+          ),
+          minWidth = 100
+        )      
+      },
+      simplify = FALSE
+    )
+  )
+div(
+  class = "colour-key",
+  div(
+    class = "colours-treat", 
+    em("Guide to colours used for treatments in individual coverage tracks")
+  ),
+  treat_guide,
+  div(
+    class = "colours-feat", 
+    em("Guide to colours used for features in anotation tracks")
+  ),
+  feat_guide,
+  div(
+    class = "colours-dir", 
+    em(
+      paste(
+        "Guide to colours used to indicate direction. These are used to colour",
+        "exons of genes indicating differnential expression, detection or lack",
+        "of change. The same colour scheme is used to denote any changed",
+        "windows for the annotation of coverage plots."
+        )
+    )
+  ),
+  dir_guide
+)
+```
+
+
+### Most Highly Ranked Increase
+
+```{r gr_lowest_up_p}
+gr <- merged_results %>% 
+  filter(logFC > 0) %>% 
+  filter(P.Value == min(P.Value))
+```
+
+```{r plot_gr_lowest_up_p, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+### Most Highly Ranked Decrease
+
+```{r gr_lowest_down_p}
+gr <- merged_results %>% 
+  filter(logFC < 0) %>% 
+  filter(P.Value == min(P.Value))
+```
+
+```{r plot_gr_lowest_down_p, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+### Changed Region With Highest Signal
+
+```{r gr_highest_signal}
+gr <- merged_results %>% 
+  filter(fdr_ihw < fdr_alpha) %>% 
+  filter(AveExpr == max(AveExpr))
+```
+
+`r ifelse(length(gr) == 0, "No region was considered as significantly changed", "")`
+
+```{r plot_gr_highest_signal, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+### Most Extreme Increase
+
+```{r gr_largest_up}
+gr <- merged_results %>% 
+  filter(fdr_ihw < fdr_alpha) %>% 
+  filter(logFC == max(logFC))
+```
+
+`r ifelse(length(gr) == 0, "No region was considered as significantly changed", "")`
+
+```{r plot_gr_largest_up, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+### Most Extreme Decrease
+
+```{r gr_largest_down}
+gr <- merged_results %>% 
+  filter(fdr_ihw < fdr_alpha) %>% 
+  filter(logFC == min(logFC))
+```
+
+`r ifelse(length(gr) == 0, "No region was considered as significantly changed", "")`
+
+```{r plot_gr_largest_down, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+### Weakest Signal (No Consensus Peak)
+
+```{r gr_weakest_nonref}
+gr <- merged_results %>% 
+  filter(fdr_ihw < fdr_alpha & !overlaps_ref) %>% 
+  filter(AveExpr == min(AveExpr))
+```
+
+`r ifelse(length(gr) == 0, "No region was considered as significantly changed without any consensus peak overlap", "")`
+
+```{r plot_gr_weakest_nonref, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+### Strongest Signal (No Consensus Peak)
+
+```{r gr_strongest_nonref}
+gr <- merged_results %>% 
+  filter(fdr_ihw < fdr_alpha & !overlaps_ref) %>% 
+  filter(AveExpr == max(AveExpr))
+```
+
+`r ifelse(length(gr) == 0, "No region was considered as significantly changed without any consensus peak overlap", "")`
+
+```{r plot_gr_strongest_nonref, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
+y_max <-  bwfl %>% 
+  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
+  GRangesList() %>%
+  unlist() %>%
+  as_tibble() %>% 
+  pull(score) %>% 
+  max()
+plotHFGC(
+  gr, 
+  features = split(feat_gr, f = feat_gr$feature),
+  genes = trans_models,
+  coverage = bwfl, 
+  annotation = results_grl, annotcol = rmd_config$colours$direction,
+  coverage_type = "l", 
+  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  featurecol = feat_col,
+  genecol = rmd_config$colours$direction,
+  cytobands = bands_df, 
+  zoom = 10, fontsize = 10, rotation.title = 90,
+  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+)
+```
+
+# Data Export
+
+```{r data-export, results='hide'}
+all_out <- list(
+  results = file.path(
+    out_path, 
+    glue("{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.rds")
+  ),
+  windows  = file.path(
+    out_path,
+    glue("{treat_levels[[1]]}_{treat_levels[[2]]}_filtered_windows.rds")
+  ),
+  up_regions = file.path(
+    out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_up.bed")
+  ),
+  down_regions = file.path(
+    out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_down.bed")
+  )
+)
+write_rds(merged_results, all_out$results, compress = "gz")
+write_rds(filtered_counts, all_out$windows, compress = "gz")
+file.create(all_out$up_regions)
+if (length(sig_ranges$Up) > 0) 
+  export.bed(granges(sig_ranges$Up), all_out$up_regions)
+file.create(all_out$down_regions)
+if (length(sig_ranges$Down) > 0) 
+  export.bed(granges(sig_ranges$Down), all_out$down_regions)
+```
+
+During this workflow, the following files were exported:
+
+`r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
+
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>
