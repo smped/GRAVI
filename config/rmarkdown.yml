@@ -1,0 +1,56 @@
+## The following are passed to the .Rprofile file using knitr::opts_chunk$set
+## for consistent behavious across all Rmarkdown files
+knitr_opts:
+  echo: TRUE
+  message: FALSE
+  warning: FALSE
+  dev: ["png", "pdf"]
+  fig.align: "center"
+  fig.width: 10
+  fig.height: 8
+
+## Passed to rmarkdown_site via  _site.yml
+## This is passed in turn to rmarkdown::render_site()
+## The LHS of the navbar is auto-generated. The rest will be added to _site.yml
+rmarkdown_site:
+  name: "PDX HCI-005 ChIP-Seq"
+  output_dir: "../docs"
+  navbar:
+    title: "PDX HCI-005 ChIP-Seq"
+    right:
+      - icon: fa-github
+        href: "https://github.com/DRMCRL/PDX_HCI-005_AR_ER_GATA3_ChIP"
+  output:
+    html_document:
+      toc: yes
+      toc_float: yes
+      code_folding: hide
+      self_contained: false
+      theme: sandstone
+      highlight: textmate
+      includes:
+        after_body: footer.html
+
+## Plot colours propogated through all markdown documents for
+## consistency. Treat colours must match all treatments specified in config.yml
+## with the addition of a colour for input/control samples
+colours:
+  qc:
+    pass: "#0571B0"
+    fail: "#CA0020"
+  treat:
+    Input: "#33333380"
+    Veh: "#4D4D4D"
+    DHT: "#C53270"
+    E2: "#611163"
+    E2+DHT: "#F69422"
+  features:
+    Promoter: "#FF4500"
+    Enhancer: "#FFFF00"
+    SE: "#FFC34D"
+    Gene Body: "#008000"
+  direction:
+    Up: "#CA0020"
+    Down: "#0571B0"
+    Unchanged: "#7F7F7F"
+    Undetected: "#E5E5E5"

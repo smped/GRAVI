@@ -1,0 +1,67 @@
+## Add relevant sample information here.
+## The fields are essentially fixed, although multiple treatments can be
+## included
+samples:
+  file: "config/samples.tsv"
+  # file: "config/test_samples.tsv"
+
+paths:
+  bam: "data/aligned/bam"
+  bigwig: "data/bigwig"
+  macs2: "data/macs2"
+
+## These will be applied to **all** targets containing both levels specified in
+## the contrasts field. The first provided level will be considered as the
+## baseline/control/reference.
+## Fields provided in the ihw field will be used to apply the IHW procedure
+## to FDR-adjustment. Can only be one of the targets, or one of the fields:
+## width or logCPM, representing peak width or average signal.
+## If alternate targets are provided, these will be applied as given but
+## consecutively removed to ensure all groups contain > 1000 peaks/windows
+## Targets will be dropped in the reverse order as provided. Clearly, for a
+## given target, presence absence of that target will NOT be applied
+comparisons:
+  fc: 1.2
+  fdr: 0.05
+  paired: false
+  filter_q: 0.95
+  contrasts:
+    - ["Veh", "DHT"]
+  ihw: ["AR", "ER", "GATA3", "H3K27ac"]
+
+
+## Currently, this workflow assumes alignments are provided as bam files
+## Metadata is set to be obtained from gencode. This may need changing later.
+## Please use GRCh37/38 for the build argument. hg19/38 will be detected from
+## these
+genome:
+  build: "GRCh37"
+  gencode: "33"
+
+## Additional data to be incorporated. Fields are fixed.
+## HiC data should be a single rds file prepared independently of this workflow
+external:
+  rnaseq: "data/external/PDX_HCI-005_Veh_DHT_Sarm_RNASeq.tsv"
+  H3K4me3:
+  H3K27ac:
+  HiC:
+
+peaks:
+  ## Settings for macs2 callpeak
+  macs2:
+    gsize: "hs"
+    fdr: 0.05
+    keep_duplicates: "all"
+  qc:
+    ## Any sample retaining fewer than *min_prop_peaks* relative to the sample
+    ## with the maximal number of retained peaks, will be considered as failing
+    ## QC. This will ensure samples will be retained in the absence of signal,
+    ## but discarded with an experimental failure
+    ## When determining oracle peaks, require peaks to be detected in more than
+    ## *min_prop_reps* of the replicates, after excluding failed replicates
+    ## using min_prop_peaks. Higher values are more applicable for cell lines
+    ## (e.g. >0.5) whilst PDX/organoid lines may need lower values (e.g. 0.3)
+    ## given the difficulty of working with solid tissue
+    min_prop_peaks: 0.1
+    min_prop_reps: 0.3
+
