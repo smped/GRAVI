@@ -64,7 +64,7 @@ out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-blacklist <-  here::here("data", "external", "blacklist.bed.gz") %>%
+blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
 

@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Annotation Setup</title>
+
+<script src="site_libs/header-attrs-2.11/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/sandstone.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<script src="site_libs/navigation-1.1/codefolding.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.tab('show');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">GRAVI</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">
+    <span class="fa fa-home"></span>
+     
+    Home
+  </a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Annotations
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="annotation_setup.html">Genome and Transcriptome Annotations</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    MACS2 Peak Calling
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="AR_macs2_summary.html">AR</a>
+    </li>
+    <li>
+      <a href="ER_macs2_summary.html">ER</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Differential Binding
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li class="dropdown-submenu">
+      <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">DHT Vs. Veh</a>
+      <ul class="dropdown-menu" role="menu">
+        <li>
+          <a href="AR_Veh_DHT_differential_binding.html">AR</a>
+        </li>
+        <li>
+          <a href="ER_Veh_DHT_differential_binding.html">ER</a>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/steveped/GRAVI">
+    <span class="fa fa-github"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+<div class="btn-group pull-right float-right">
+<button type="button" class="btn btn-default btn-xs btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu dropdown-menu-right" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">Annotation Setup</h1>
+<h4 class="date">16 February, 2022</h4>
+
+</div>
+
+
+<pre class="r"><code>library(tidyverse)
+library(magrittr)
+library(rtracklayer)
+library(glue)
+library(pander)
+library(scales)
+library(plyranges)
+library(yaml)
+library(Rsamtools)</code></pre>
+<pre class="r"><code>## Deal with github packages
+# BiocManager::install(&quot;steveped/extraChIPs&quot;, ask = FALSE)
+
+stopifnot(library(extraChIPs, logical.return = TRUE))</code></pre>
+<pre class="r"><code>panderOptions(&quot;big.mark&quot;, &quot;,&quot;)
+panderOptions(&quot;missing&quot;, &quot;&quot;)
+panderOptions(&quot;table.split.table&quot;, Inf)
+theme_set(
+  theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+)</code></pre>
+<pre class="r"><code>config &lt;- read_yaml(here::here(&quot;config&quot;, &quot;config.yml&quot;))</code></pre>
+<pre class="r"><code>treat_levels &lt;- config$comparisons$contrasts %&gt;% 
+  unlist() %&gt;% 
+  unique()
+samples &lt;- here::here(config$samples$file) %&gt;%
+  read_tsv() %&gt;% 
+  mutate(
+    treat = factor(treat, levels = unique(c(treat_levels, treat))),
+    target = as.factor(target)
+  )
+treat_levels &lt;- levels(samples$treat)</code></pre>
+<pre class="r"><code>annotation_path &lt;- here::here(&quot;output&quot;, &quot;annotations&quot;)
+if (!dir.exists(annotation_path)) dir.create(annotation_path, recursive = TRUE)
+all_out &lt;- list(
+  gtf  = file.path(annotation_path, &quot;all_gr.rds&quot;),
+  transcript_models = file.path(annotation_path, &quot;trans_models.rds&quot;),
+  tss = file.path(annotation_path, &quot;tss.rds&quot;),
+  colours  = file.path(annotation_path, &quot;colours.rds&quot;)
+)</code></pre>
+<div id="genome-annotations" class="section level1">
+<h1>Genome Annotations</h1>
+<p>Before analysing any datasets, annotations for the genome and transcriptome need to be defined.</p>
+<div id="genome-description" class="section level2">
+<h2>Genome Description</h2>
+<pre class="r"><code>sq &lt;- samples %&gt;% 
+  mutate(
+    path = here::here(config$paths$bam, target, glue(&quot;{sample}.bam&quot;))
+  ) %&gt;% 
+  .[[&quot;path&quot;]] %&gt;% 
+  BamFileList() %&gt;% 
+  seqinfo() %&gt;% 
+  sortSeqlevels() %&gt;% 
+  as.data.frame() %&gt;% 
+  .[rownames(.) %in% paste0(&quot;chr&quot;, c(1:22, &quot;X&quot;, &quot;Y&quot;)),] %&gt;%  # This covers mouse &amp; rat
+  mutate(
+    isCircular = FALSE,
+    genome = config$genome$build
+  ) %&gt;% 
+  as(&quot;Seqinfo&quot;)
+write_rds(sq, file.path(annotation_path, &quot;seqinfo.rds&quot;))
+sq %&gt;% 
+  as.data.frame() %&gt;% 
+  rownames_to_column(&quot;seqnames&quot;) %&gt;% 
+  dplyr::select(seqnames, seqlengths) %&gt;% 
+  write_tsv(
+    here::here(annotation_path, &quot;chrom.sizes&quot;), col_names = FALSE
+  )</code></pre>
+<p>As the foundation for all annotation objects, the description of the underlying genome is required as a <code>Seqinfo</code> object. For this analysis, both the mitochondrial genome and scaffolds were excluded, giving only the autosomes and sex chromosomes. This <code>Seqinfo</code> will is added to all objects requiring information about the underlying genome, such as a <code>GenomicRanges</code> object.</p>
+</div>
+<div id="blacklisted-regions" class="section level2">
+<h2>Blacklisted Regions</h2>
+<pre class="r"><code>blacklist &lt;- file.path(annotation_path, &quot;blacklist.bed.gz&quot;) %&gt;%
+  import.bed(seqinfo = sq) %&gt;%
+  sort()</code></pre>
+<pre class="r"><code>blacklist %&gt;% 
+  group_by(name) %&gt;% 
+  summarise(
+    n = n(),
+    p = percent(sum(width)/ sum(seqlengths(sq))),
+    kb = sum(width) / 1e3,
+    min = min(width) / 1e3,
+    median = median(width) / 1e3,
+    max = max(width) / 1e3
+  ) %&gt;% 
+  as.data.frame() %&gt;% 
+  as_tibble() %&gt;% 
+  dplyr::rename_all(str_to_title) %&gt;% 
+  dplyr::rename(
+    Type = Name, 
+    `Nbr Regions` = N,
+    `% Genome` = P, 
+    `Total (kb)` = Kb,
+    `Min (kb)` = Min,
+    `Median (kb)` = Median,
+    `Max (kb)` = Max
+  ) %&gt;% 
+  pander(
+    caption = glue(
+      &quot;Summary of genomic regions excluded in the blacklist. &quot;,
+      &quot;The default set of blacklisted regions was used, as obtained from &quot;,
+      &quot;https://github.com/Boyle-Lab/Blacklist (ENCODE)&quot;
+    ),
+    justify = &quot;lrrrrrr&quot;
+  )</code></pre>
+<table>
+<caption>Summary of genomic regions excluded in the blacklist. The default set of blacklisted regions was used, as obtained from <a href="https://github.com/Boyle-Lab/Blacklist" class="uri">https://github.com/Boyle-Lab/Blacklist</a> (ENCODE)</caption>
+<colgroup>
+<col width="22%" />
+<col width="14%" />
+<col width="11%" />
+<col width="13%" />
+<col width="11%" />
+<col width="14%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Type</th>
+<th align="right">Nbr Regions</th>
+<th align="right">% Genome</th>
+<th align="right">Total (kb)</th>
+<th align="right">Min (kb)</th>
+<th align="right">Median (kb)</th>
+<th align="right">Max (kb)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">High Signal Region</td>
+<td align="right">583</td>
+<td align="right">8.7%</td>
+<td align="right">269,778</td>
+<td align="right">1.1</td>
+<td align="right">13.4</td>
+<td align="right">30,590</td>
+</tr>
+<tr class="even">
+<td align="left">Low Mappability</td>
+<td align="right">251</td>
+<td align="right">0.2%</td>
+<td align="right">5,192</td>
+<td align="right">1.4</td>
+<td align="right">5.8</td>
+<td align="right">361.7</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="gene-and-transcript-annotations" class="section level1">
+<h1>Gene and Transcript Annotations</h1>
+<pre class="r"><code>gtf &lt;- glue(
+  &quot;{annotation_path}/&quot;,
+  &quot;gencode.v&quot;, config$genome$gencode, &quot;lift&quot;, 
+  str_extract(config$genome$build, &#39;[0-9]+$&#39;),
+  &quot;.annotation.gtf.gz&quot;
+  )</code></pre>
+<pre class="r"><code>reqd_cols &lt;- c(
+  &quot;type&quot;,
+  &quot;gene_id&quot;, &quot;gene_type&quot;, &quot;gene_name&quot;,
+  &quot;transcript_id&quot;, &quot;transcript_type&quot;, &quot;transcript_name&quot;,
+  &quot;exon_id&quot;
+)
+all_gr &lt;- gtf %&gt;%
+  import.gff(
+    which = GRanges(sq),
+    feature.type = c(&quot;gene&quot;, &quot;transcript&quot;, &quot;exon&quot;)
+  ) %&gt;%
+  select(all_of(reqd_cols)) %&gt;%
+  mutate(
+    gene_id = str_remove_all(gene_id, &quot;\\..+$&quot;),
+    transcript_id = str_remove_all(transcript_id, &quot;\\..+$&quot;),
+    exon_id = str_remove_all(exon_id, &quot;\\..+$&quot;),
+  ) %&gt;%
+  sort() %&gt;%
+  subset(seqnames %in% seqlevels(sq)) %&gt;% 
+  keepSeqlevels(seqlevels(sq)) %&gt;% 
+  split(f = .$type)
+seqinfo(all_gr) &lt;- sq
+write_rds(all_gr, all_out$gtf, compress = &quot;gz&quot;)</code></pre>
+<ul>
+<li>The complete set of genes, transcripts and exons was loaded from the supplied <code>gtf</code>, excluding mitochondrial features.</li>
+<li>The previously generated <code>Seqinfo</code> was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects</li>
+<li>Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (<em>type</em>, <em>gene_id</em>, <em>gene_type</em>, <em>gene_name</em>, <em>transcript_id</em>, <em>transcript_type</em>, <em>transcript_name</em> and <em>exon_id</em>) retained.</li>
+<li>This master set of annotations was exported as an <code>rds</code> file for simple import into subsequent steps of the analysis</li>
+</ul>
+<p>In total this object contained annotations for 62,449 genes, 229,655 transcripts and 1,379,777 exons.</p>
+<pre class="r"><code>trans_models &lt;- all_gr$exon %&gt;% 
+  as.data.frame() %&gt;% 
+  as_tibble() %&gt;% 
+  group_by(transcript_id) %&gt;% 
+  mutate(exon = paste0(transcript_id, &quot;_&quot;, seq_along(transcript_id))) %&gt;% 
+  makeGRangesFromDataFrame(keep.extra.columns = TRUE) %&gt;% 
+  mutate(feature = as.character(type)) %&gt;%  
+  select(type, gene = gene_id, exon, transcript = transcript_id, symbol = gene_name) %&gt;% 
+  sort() %&gt;% 
+  setNames(.$transcript) %&gt;% 
+  set_genome_info(
+    genome = genome(sq),
+    seqnames = seqlevels(sq),
+    seqlengths = seqlengths(sq),
+    is_circular = isCircular(sq)
+  )
+write_rds(trans_models, all_out$transcript_models, compress = &quot;gz&quot;)</code></pre>
+<p>Visualisation using the Bioconductor package <code>Gviz</code> also requires a specific <code>GRanges</code> structure for gene and transcript models to be displayed. This object was formed here, so they too could be simply imported during all visualisation stages.</p>
+</div>
+<div id="regulatory-features" class="section level1">
+<h1>Regulatory Features</h1>
+<div id="tss-regions" class="section level2 tabset">
+<h2 class="tabset">TSS Regions</h2>
+<pre class="r"><code>tss &lt;- suppressWarnings(
+  all_gr$transcript %&gt;% 
+    promoters(upstream = 1500, downstream = 500) %&gt;% 
+    trim()  # This will tidy up any out-of-range issues for chrM
+) %&gt;% 
+  select(transcript_type, transcript_id, gene_id, gene_name)
+rna_path &lt;- here::here(config$external$rnaseq)
+rnaseq &lt;- tibble(gene_id = character())
+if (!is.null(rna_path)) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, &quot;tsv$&quot;)) rnaseq &lt;- read_tsv(rna_path)
+  if (str_detect(rna_path, &quot;csv$&quot;)) rnaseq &lt;- read_csv(rna_path)
+}
+ids &lt;- rnaseq %&gt;% 
+  dplyr::select(ends_with(&quot;id&quot;)) %&gt;% 
+  unlist() %&gt;% 
+  unique()
+tss &lt;- tss %&gt;% 
+  mutate(
+    detected = gene_id %in% ids | transcript_id %in% ids,
+    blacklisted = overlapsAny(., blacklist)
+  )
+write_rds(tss, all_out$tss, compress = &quot;gz&quot;)</code></pre>
+<p>TSS regions were defined as those within -1500/+500bp of a transcription start site, excluding those which overlapped a blacklisted region. If an RNA-Seq dataset was supplied, these were restricted to those from detected genes (or transcripts) as provided. This process defined 229,655 TSS regions from the original set of 229,488 transcripts as defined by the complete set of annotations. These TSS regions were associated with 62,400 of the 62,449 annotated genes.</p>
+<ul>
+<li>5,690 annotation-derived TSS overlapped blacklisted regions and no ChIP target information will be incorporated for these regions</li>
+<li>132,535 came from genes/transcripts considered as detected</li>
+</ul>
+<div id="detected-and-blacklisted" class="section level3">
+<h3>Detected and Blacklisted</h3>
+<pre class="r"><code>.fixRNACase &lt;- function(x) {
+  x &lt;- str_to_lower(x)
+  str_replace_all(x, &quot;rna$&quot;, &quot;RNA&quot;)
+}
+tss %&gt;% 
+  subset(blacklisted &amp; detected) %&gt;% 
+  mcols() %&gt;% 
+  as_tibble() %&gt;% 
+  mutate(
+    transcript_type = transcript_type %&gt;% 
+      fct_lump_prop(5e-3, other_level = &quot;other&quot;) %&gt;% 
+      fct_relabel(str_replace_all, pattern= &quot;_&quot;, replacement = &quot; &quot;) %&gt;% 
+      fct_relabel(str_to_title) %&gt;% 
+      fct_relabel(str_replace_all, pattern = &quot;Tec&quot;, &quot;TEC&quot;) %&gt;% 
+      fct_relabel(str_replace_all, pattern = &quot;(.+)rna&quot;, replacement = .fixRNACase) 
+  ) %&gt;% 
+  group_by(transcript_type) %&gt;% 
+  summarise(
+    n_transcripts = length(unique(transcript_id)),
+    n_genes = length(unique(gene_id))
+  ) %&gt;% 
+  arrange(desc(n_transcripts)) %&gt;% 
+  rename_all(str_replace_all, pattern = &quot;_&quot;, replacement = &quot; &quot;) %&gt;% 
+  rename_all(str_to_title) %&gt;% 
+  pander(
+    justify = &quot;lrr&quot;,
+    caption = glue(
+      &quot;Breakdown of detected transcripts which have also been blacklisted. &quot;,
+      &quot;Blacklisted regions overlapped &quot;,
+      &quot;{length(unique(mcols(subset(tss, blacklisted))$transcript_id))} &quot;,
+      &quot;transcripts from &quot;,
+      &quot;{length(unique(mcols(subset(tss, blacklisted))$gene_id))} genes.&quot;
+    )
+  )</code></pre>
+<table style="width:72%;">
+<caption>Breakdown of detected transcripts which have also been blacklisted. Blacklisted regions overlapped 5658 transcripts from 2622 genes.</caption>
+<colgroup>
+<col width="36%" />
+<col width="22%" />
+<col width="13%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Transcript Type</th>
+<th align="right">N Transcripts</th>
+<th align="right">N Genes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Protein Coding</td>
+<td align="right">538</td>
+<td align="right">156</td>
+</tr>
+<tr class="even">
+<td align="left">lncRNA</td>
+<td align="right">420</td>
+<td align="right">38</td>
+</tr>
+<tr class="odd">
+<td align="left">Processed Transcript</td>
+<td align="right">409</td>
+<td align="right">133</td>
+</tr>
+<tr class="even">
+<td align="left">Retained Intron</td>
+<td align="right">229</td>
+<td align="right">81</td>
+</tr>
+<tr class="odd">
+<td align="left">Nonsense Mediated Decay</td>
+<td align="right">141</td>
+<td align="right">63</td>
+</tr>
+<tr class="even">
+<td align="left">Transcribed Unprocessed Pseudogene</td>
+<td align="right">42</td>
+<td align="right">42</td>
+</tr>
+<tr class="odd">
+<td align="left">Processed Pseudogene</td>
+<td align="right">41</td>
+<td align="right">39</td>
+</tr>
+<tr class="even">
+<td align="left">Unprocessed Pseudogene</td>
+<td align="right">35</td>
+<td align="right">34</td>
+</tr>
+<tr class="odd">
+<td align="left">lincRNA</td>
+<td align="right">30</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td align="left">Other</td>
+<td align="right">17</td>
+<td align="right">14</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="detected-and-not-blacklisted" class="section level3">
+<h3>Detected and Not Blacklisted</h3>
+<pre class="r"><code>tss %&gt;% 
+  subset(detected &amp; !blacklisted) %&gt;% 
+  mcols() %&gt;% 
+  as_tibble() %&gt;% 
+  mutate(
+    transcript_type = transcript_type %&gt;% 
+      fct_lump_prop(5e-3, other_level = &quot;other&quot;) %&gt;% 
+      fct_relabel(str_replace_all, pattern= &quot;_&quot;, replacement = &quot; &quot;) %&gt;% 
+      fct_relabel(str_to_title) %&gt;% 
+      fct_relabel(str_replace_all, pattern = &quot;Tec&quot;, &quot;TEC&quot;) %&gt;% 
+      fct_relabel(str_replace_all, pattern = &quot;(.+)rna&quot;, replacement = .fixRNACase) 
+  ) %&gt;% 
+  group_by(transcript_type) %&gt;% 
+  summarise(
+    n_transcripts = length(unique(transcript_id)),
+    n_genes = length(unique(gene_id))
+  ) %&gt;% 
+  arrange(desc(n_transcripts)) %&gt;% 
+  rename_all(str_replace_all, pattern = &quot;_&quot;, replacement = &quot; &quot;) %&gt;% 
+  rename_all(str_to_title) %&gt;% 
+  pander(
+    justify = &quot;lrr&quot;,
+    caption = glue(
+      &quot;Breakdown of detected transcripts which were not blacklisted. &quot;
+    )
+  )</code></pre>
+<table style="width:72%;">
+<caption>Breakdown of detected transcripts which were not blacklisted.</caption>
+<colgroup>
+<col width="36%" />
+<col width="22%" />
+<col width="13%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">Transcript Type</th>
+<th align="right">N Transcripts</th>
+<th align="right">N Genes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Protein Coding</td>
+<td align="right">63,362</td>
+<td align="right">12,509</td>
+</tr>
+<tr class="even">
+<td align="left">Retained Intron</td>
+<td align="right">23,997</td>
+<td align="right">7,503</td>
+</tr>
+<tr class="odd">
+<td align="left">Processed Transcript</td>
+<td align="right">21,266</td>
+<td align="right">7,998</td>
+</tr>
+<tr class="even">
+<td align="left">Nonsense Mediated Decay</td>
+<td align="right">12,799</td>
+<td align="right">5,494</td>
+</tr>
+<tr class="odd">
+<td align="left">lncRNA</td>
+<td align="right">7,375</td>
+<td align="right">937</td>
+</tr>
+<tr class="even">
+<td align="left">Processed Pseudogene</td>
+<td align="right">1,147</td>
+<td align="right">1,147</td>
+</tr>
+<tr class="odd">
+<td align="left">Other</td>
+<td align="right">604</td>
+<td align="right">568</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="colour-schemes" class="section level1 tabset">
+<h1 class="tabset">Colour Schemes</h1>
+<pre class="r"><code>col_config &lt;- here::here(&quot;config&quot;, &quot;rmarkdown.yml&quot;) %&gt;%
+  read_yaml() %&gt;% 
+  .[[&quot;colours&quot;]]
+
+## qc_colours need to have `Pass` and `Fail`
+missing_qc_cols &lt;- setdiff(c(&quot;pass&quot;, &quot;fail&quot;), names(col_config$qc))
+if (&quot;pass&quot; %in% missing_qc_cols) col_config$qc$pass &lt;- &quot;#0571B0&quot; # Blue
+if (&quot;fail&quot; %in% missing_qc_cols) col_config$qc$fail &lt;- &quot;#CA0020&quot; # Red
+col_config$qc &lt;- col_config$qc[c(&quot;pass&quot;, &quot;fail&quot;)]
+
+## The colours specified as treat_colours should contain all treat_levels + Input
+## If Input is missing, set to #33333380 (&#39;grey20&#39; + alpha = 50)
+## This should be a standard chunk for all workflows
+missing_treat_cols &lt;- setdiff(
+  c(&quot;Input&quot;, treat_levels), names(col_config$treat)
+)
+if (length(missing_treat_cols) &gt; 0) {
+  if (&quot;Input&quot; %in% missing_treat_cols) 
+    col_config$treat$Input &lt;- &quot;#33333380&quot;
+  ## Automatically sample from the viridis palette if no colour is assigned
+  col_config$treat[setdiff(missing_treat_cols, &quot;Input&quot;)] &lt;- hcl.colors(
+    length(setdiff(missing_treat_cols, &quot;Input&quot;))
+  )
+}
+
+## Direction colours always need up, down, unchanged &amp; undetected
+missing_dir_cols &lt;- setdiff(
+  c(&quot;up&quot;, &quot;down&quot;, &quot;unchanged&quot;, &quot;undetected&quot;), names(col_config$direction)
+)
+if (length(missing_dir_cols) &gt; 0){
+  def_dir_cols &lt;- c(
+    up = &quot;#CA0020&quot;, down = &quot;#0571B0&quot;, 
+    unchanged = &quot;#7F7F7F&quot;, undetected = &quot;#E5E5E5&quot;
+  )
+  col_config$direction[missing_dir_cols] &lt;- def_dir_cols[missing_dir_cols]
+}</code></pre>
+<pre class="r"><code>features &lt;- suppressWarnings(
+  here::here(config$external$features) %&gt;% 
+    import.gff(genome = sq) %&gt;% 
+    sort()
+)
+stopifnot(&quot;feature&quot; %in% colnames(mcols(features)))
+feat_col &lt;- col_config$features
+feat_levels &lt;- unique(features$feature)
+missing_feat_col &lt;- setdiff(feat_levels, names(feat_col))
+if (length(missing_feat_col) &gt; 0) {
+  n &lt;- length(missing_feat_col)
+  feat_col[missing_feat_col] &lt;- hcl.colors(max(9, n), &quot;Spectral&quot;)[seq_len(n)]
+}
+col_config$features &lt;- feat_col</code></pre>
+<pre class="r"><code>.plotScheme &lt;- function(x, xlab = &quot;&quot;, ylab = &quot;&quot;) {
+  x %&gt;% 
+    as_tibble() %&gt;% 
+    pivot_longer(cols = everything()) %&gt;% 
+    ggplot(
+      aes(name, 1, fill = name)
+    ) +
+    geom_raster() +
+    scale_fill_manual(values = unlist(x)) +
+    scale_x_discrete(expand = expansion(c(0, 0))) +
+    scale_y_continuous(expand = expansion(c(0, 0))) +
+    labs(x = xlab, y = ylab) +
+    guides(fill = &quot;none&quot;) +
+    theme(
+      axis.text.y = element_blank(),  
+      axis.ticks.y = element_blank()
+    )
+}</code></pre>
+<p>Colours were checked where provided and any missing colours were automatically assigned. These colour schemes are shown below and will be propagated through all workflows. To change any colours, simply add them to <code>config/rmarkdown.yml</code>.</p>
+<div id="qc" class="section level2">
+<h2>QC</h2>
+<pre class="r"><code>col_config$qc %&gt;% 
+  .plotScheme(xlab = &quot;QC Category&quot;) </code></pre>
+<p><img src="annotation_setup_files/figure-html/plot-qc-1.png" width="384" style="display: block; margin: auto;" /></p>
+</div>
+<div id="treatment-groups" class="section level2">
+<h2>Treatment Groups</h2>
+<pre class="r"><code>col_config$treat %&gt;% 
+  .plotScheme(xlab = &quot;Treatment&quot;)</code></pre>
+<p><img src="annotation_setup_files/figure-html/plot-treat-1.png" width="480" style="display: block; margin: auto;" /></p>
+</div>
+<div id="features" class="section level2">
+<h2>Features</h2>
+<pre class="r"><code>feat_col %&gt;% 
+  .plotScheme(xlab = &quot;Feature&quot;)</code></pre>
+<p><img src="annotation_setup_files/figure-html/plot-feat-1.png" width="576" style="display: block; margin: auto;" /></p>
+</div>
+<div id="direction" class="section level2">
+<h2>Direction</h2>
+<pre class="r"><code>col_config$direction %&gt;% 
+  .plotScheme(xlab = &quot;Direction&quot;)</code></pre>
+<p><img src="annotation_setup_files/figure-html/plot-dir-1.png" width="576" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="data-export" class="section level1">
+<h1>Data Export</h1>
+<pre class="r"><code>write_rds(col_config, all_out$colours)</code></pre>
+<p>During this workflow, the following files were exported:</p>
+<ul>
+<li><strong>gtf</strong>: GRAVI/output/annotations/all_gr.rds</li>
+<li><strong>transcript_models</strong>: GRAVI/output/annotations/trans_models.rds</li>
+<li><strong>tss</strong>: GRAVI/output/annotations/tss.rds</li>
+<li><strong>colours</strong>: GRAVI/output/annotations/colours.rds</li>
+</ul>
+<!-- end of list -->
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+<p><strong>R version 4.1.1 (2021-08-10)</strong></p>
+<p><strong>Platform:</strong> x86_64-conda-linux-gnu (64-bit)</p>
+<p><strong>locale:</strong> <em>LC_CTYPE=en_AU.UTF-8</em>, <em>LC_NUMERIC=C</em>, <em>LC_TIME=en_AU.UTF-8</em>, <em>LC_COLLATE=en_AU.UTF-8</em>, <em>LC_MONETARY=en_AU.UTF-8</em>, <em>LC_MESSAGES=en_AU.UTF-8</em>, <em>LC_PAPER=en_AU.UTF-8</em>, <em>LC_NAME=C</em>, <em>LC_ADDRESS=C</em>, <em>LC_TELEPHONE=C</em>, <em>LC_MEASUREMENT=en_AU.UTF-8</em> and <em>LC_IDENTIFICATION=C</em></p>
+<p><strong>attached base packages:</strong> <em>parallel</em>, <em>stats4</em>, <em>stats</em>, <em>graphics</em>, <em>grDevices</em>, <em>utils</em>, <em>datasets</em>, <em>methods</em> and <em>base</em></p>
+<p><strong>other attached packages:</strong> <em>extraChIPs(v.0.99.6)</em>, <em>SummarizedExperiment(v.1.22.0)</em>, <em>Biobase(v.2.52.0)</em>, <em>MatrixGenerics(v.1.4.3)</em>, <em>matrixStats(v.0.61.0)</em>, <em>Rsamtools(v.2.8.0)</em>, <em>Biostrings(v.2.60.2)</em>, <em>XVector(v.0.32.0)</em>, <em>yaml(v.2.2.2)</em>, <em>plyranges(v.1.12.1)</em>, <em>scales(v.1.1.1)</em>, <em>pander(v.0.6.4)</em>, <em>glue(v.1.6.1)</em>, <em>rtracklayer(v.1.52.1)</em>, <em>GenomicRanges(v.1.44.0)</em>, <em>GenomeInfoDb(v.1.28.4)</em>, <em>IRanges(v.2.26.0)</em>, <em>S4Vectors(v.0.30.2)</em>, <em>BiocGenerics(v.0.38.0)</em>, <em>magrittr(v.2.0.2)</em>, <em>forcats(v.0.5.1)</em>, <em>stringr(v.1.4.0)</em>, <em>dplyr(v.1.0.8)</em>, <em>purrr(v.0.3.4)</em>, <em>readr(v.2.1.2)</em>, <em>tidyr(v.1.2.0)</em>, <em>tibble(v.3.1.6)</em>, <em>ggplot2(v.3.3.5)</em> and <em>tidyverse(v.1.3.1)</em></p>
+<p><strong>loaded via a namespace (and not attached):</strong> <em>utf8(v.1.2.2)</em>, <em>tidyselect(v.1.1.1)</em>, <em>RSQLite(v.2.2.9)</em>, <em>AnnotationDbi(v.1.54.1)</em>, <em>htmlwidgets(v.1.5.4)</em>, <em>grid(v.4.1.1)</em>, <em>BiocParallel(v.1.26.2)</em>, <em>munsell(v.0.5.0)</em>, <em>codetools(v.0.2-18)</em>, <em>withr(v.2.4.3)</em>, <em>colorspace(v.2.0-2)</em>, <em>filelock(v.1.0.2)</em>, <em>highr(v.0.9)</em>, <em>knitr(v.1.37)</em>, <em>rstudioapi(v.0.13)</em>, <em>ggside(v.0.2.0)</em>, <em>labeling(v.0.4.2)</em>, <em>GenomeInfoDbData(v.1.2.6)</em>, <em>bit64(v.4.0.5)</em>, <em>farver(v.2.1.0)</em>, <em>rprojroot(v.2.0.2)</em>, <em>vctrs(v.0.3.8)</em>, <em>generics(v.0.1.2)</em>, <em>xfun(v.0.29)</em>, <em>biovizBase(v.1.40.0)</em>, <em>csaw(v.1.26.0)</em>, <em>BiocFileCache(v.2.0.0)</em>, <em>R6(v.2.5.1)</em>, <em>doParallel(v.1.0.17)</em>, <em>clue(v.0.3-60)</em>, <em>locfit(v.1.5-9.4)</em>, <em>AnnotationFilter(v.1.16.0)</em>, <em>bitops(v.1.0-7)</em>, <em>cachem(v.1.0.6)</em>, <em>DelayedArray(v.0.18.0)</em>, <em>assertthat(v.0.2.1)</em>, <em>BiocIO(v.1.2.0)</em>, <em>vroom(v.1.5.7)</em>, <em>nnet(v.7.3-17)</em>, <em>gtable(v.0.3.0)</em>, <em>Cairo(v.1.5-12.2)</em>, <em>ensembldb(v.2.16.4)</em>, <em>rlang(v.1.0.1)</em>, <em>GlobalOptions(v.0.1.2)</em>, <em>splines(v.4.1.1)</em>, <em>lazyeval(v.0.2.2)</em>, <em>dichromat(v.2.0-0)</em>, <em>broom(v.0.7.12)</em>, <em>checkmate(v.2.0.0)</em>, <em>modelr(v.0.1.8)</em>, <em>GenomicFeatures(v.1.44.2)</em>, <em>backports(v.1.4.1)</em>, <em>Hmisc(v.4.6-0)</em>, <em>EnrichedHeatmap(v.1.22.0)</em>, <em>tools(v.4.1.1)</em>, <em>ellipsis(v.0.3.2)</em>, <em>jquerylib(v.0.1.4)</em>, <em>RColorBrewer(v.1.1-2)</em>, <em>Rcpp(v.1.0.8)</em>, <em>base64enc(v.0.1-3)</em>, <em>progress(v.1.2.2)</em>, <em>zlibbioc(v.1.38.0)</em>, <em>RCurl(v.1.98-1.6)</em>, <em>prettyunits(v.1.1.1)</em>, <em>rpart(v.4.1.16)</em>, <em>GetoptLong(v.1.0.5)</em>, <em>haven(v.2.4.3)</em>, <em>ggrepel(v.0.9.1)</em>, <em>cluster(v.2.1.2)</em>, <em>fs(v.1.5.2)</em>, <em>here(v.1.0.1)</em>, <em>data.table(v.1.14.2)</em>, <em>circlize(v.0.4.14)</em>, <em>reprex(v.2.0.1)</em>, <em>ProtGenerics(v.1.24.0)</em>, <em>hms(v.1.1.1)</em>, <em>evaluate(v.0.14)</em>, <em>XML(v.3.99-0.8)</em>, <em>jpeg(v.0.1-9)</em>, <em>readxl(v.1.3.1)</em>, <em>gridExtra(v.2.3)</em>, <em>shape(v.1.4.6)</em>, <em>compiler(v.4.1.1)</em>, <em>biomaRt(v.2.48.3)</em>, <em>crayon(v.1.5.0)</em>, <em>htmltools(v.0.5.2)</em>, <em>tzdb(v.0.2.0)</em>, <em>Formula(v.1.2-4)</em>, <em>lubridate(v.1.8.0)</em>, <em>DBI(v.1.1.2)</em>, <em>dbplyr(v.2.1.1)</em>, <em>ComplexHeatmap(v.2.8.0)</em>, <em>GenomicInteractions(v.1.26.0)</em>, <em>rappdirs(v.0.3.3)</em>, <em>Matrix(v.1.4-0)</em>, <em>cli(v.3.2.0)</em>, <em>Gviz(v.1.36.2)</em>, <em>metapod(v.1.0.0)</em>, <em>igraph(v.1.2.11)</em>, <em>pkgconfig(v.2.0.3)</em>, <em>GenomicAlignments(v.1.28.0)</em>, <em>foreign(v.0.8-82)</em>, <em>xml2(v.1.3.3)</em>, <em>InteractionSet(v.1.20.0)</em>, <em>foreach(v.1.5.2)</em>, <em>bslib(v.0.3.1)</em>, <em>rvest(v.1.0.2)</em>, <em>VariantAnnotation(v.1.38.0)</em>, <em>digest(v.0.6.29)</em>, <em>rmarkdown(v.2.11)</em>, <em>cellranger(v.1.1.0)</em>, <em>htmlTable(v.2.4.0)</em>, <em>edgeR(v.3.34.1)</em>, <em>restfulr(v.0.0.13)</em>, <em>curl(v.4.3.2)</em>, <em>rjson(v.0.2.21)</em>, <em>lifecycle(v.1.0.1)</em>, <em>jsonlite(v.1.7.3)</em>, <em>limma(v.3.48.3)</em>, <em>BSgenome(v.1.60.0)</em>, <em>fansi(v.1.0.2)</em>, <em>pillar(v.1.7.0)</em>, <em>lattice(v.0.20-45)</em>, <em>KEGGREST(v.1.32.0)</em>, <em>fastmap(v.1.1.0)</em>, <em>httr(v.1.4.2)</em>, <em>survival(v.3.2-13)</em>, <em>png(v.0.1-7)</em>, <em>iterators(v.1.0.14)</em>, <em>bit(v.4.0.4)</em>, <em>stringi(v.1.7.6)</em>, <em>sass(v.0.4.0)</em>, <em>blob(v.1.2.2)</em>, <em>latticeExtra(v.0.6-29)</em> and <em>memoise(v.2.0.1)</em></p>
+</div>
+</div>
+
+<div class="footer">
+  Workflow developed by:<br>
+  Dr Stephen Pederson<br>
+  Dame Roma Mitchell Cancer Research Laboratories<br>
+  Adelaide Medical School, University of Adelaide, SA, Australia
+</div>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

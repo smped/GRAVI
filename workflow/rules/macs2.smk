@@ -265,17 +265,35 @@ rule bedgraph_to_bigwig:
 rule get_coverage_summary:
 	input: rules.bedgraph_to_bigwig.output.bigwig
 	output: os.path.join(bw_path, "{target}", "{sample}_treat_pileup.summary")
-	params: "workflow/scripts/get_bigwig_summary.R"
+	params: 
+		script = "workflow/scripts/get_bigwig_summary.R",
+		git = git_add,
+		interval = random.uniform(0, 1),
+		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	log: "workflow/logs/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
 	shell:
 		"""
-		## Create the generic markdown
+		## Create the summary tsv
 		Rscript --vanilla \
-			{params} \
+			{params.script} \
 			{input} \
 			{output} &>> {log}
+
+		if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output}
+		fi
 		"""
 
 rule build_macs2_summary:

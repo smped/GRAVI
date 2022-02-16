@@ -84,6 +84,7 @@ sq <- samples %>%
   seqinfo() %>% 
   sortSeqlevels() %>% 
   as.data.frame() %>% 
+  .[rownames(.) %in% paste0("chr", c(1:22, "X", "Y")),] %>%  # This covers mouse & rat
   mutate(
     isCircular = FALSE,
     genome = config$genome$build
@@ -191,8 +192,6 @@ write_rds(all_gr, all_out$gtf, compress = "gz")
 
 In total this object contained annotations for `r comma(length(all_gr$gene))` genes, `r comma(length(all_gr$transcript))` transcripts and `r comma(length(all_gr$exon))` exons.
 
-## Transcript Models
-
 ```{r trans-models}
 trans_models <- all_gr$exon %>% 
   as.data.frame() %>% 
@@ -213,11 +212,12 @@ trans_models <- all_gr$exon %>%
 write_rds(trans_models, all_out$transcript_models, compress = "gz")
 ```
 
-Visualisation using the Bioconductor package `Gviz` requires specific structures for gene and transcript models to be displayed and these were formed once, so they too could be simply imported during all visualisation stages.
+Visualisation using the Bioconductor package `Gviz` also requires a specific `GRanges` structure for gene and transcript models to be displayed.
+This object was formed here, so they too could be simply imported during all visualisation stages.
 
 # Regulatory Features
 
-## TSS Regions
+## TSS Regions {.tabset}
 
 ```{r define-tss}
 tss <- suppressWarnings(
@@ -226,7 +226,7 @@ tss <- suppressWarnings(
     trim()  # This will tidy up any out-of-range issues for chrM
 ) %>% 
   select(transcript_type, transcript_id, gene_id, gene_name)
-rna_path <- config$external$rnaseq
+rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
 if (!is.null(rna_path)) {
   stopifnot(file.exists(rna_path))
@@ -250,12 +250,10 @@ If an RNA-Seq dataset was supplied, these were restricted to those from detected
 This process defined `r comma(length(tss))` TSS regions from the original set of `r comma(length(unique(mcols(all_gr$transcript)$transcript_id)))` transcripts as defined by the complete set of annotations.
 These TSS regions were associated with `r comma(length(unique(mcols(tss)$gene_id)))` of the `r comma(length(all_gr$gene))` annotated genes.
 
-Annotation-derived transcription start sites (TSS) were simply defined as the regions +500/-1500nt of a transcript.
-Of the `r comma(length(tss))` regions:
-
 - `r comma(sum(tss$blacklisted))` annotation-derived TSS overlapped blacklisted regions and no ChIP target information will be incorporated for these regions
 `r ifelse(any(tss$detected), glue("- {comma(sum(tss$detected))} came from genes/transcripts considered as detected"), "")`
 
+`r ifelse(any(mcols(tss)$detected), "### Detected and Blacklisted")`
 
 ```{r tab-blacklisted-detected, eval = any(mcols(tss)$detected), echo = any(mcols(tss)$detected)}
 .fixRNACase <- function(x) {
@@ -293,6 +291,8 @@ tss %>%
     )
   )
 ```
+
+`r ifelse(any(mcols(tss)$detected), "### Detected and Not Blacklisted")`
 
 ```{r tab-detected, eval = any(mcols(tss)$detected), echo = any(mcols(tss)$detected)}
 tss %>% 
@@ -414,7 +414,7 @@ col_config$qc %>%
   .plotScheme(xlab = "QC Category") 
 ```
 
-## Tratment Groups
+## Treatment Groups
 
 ```{r plot-treat, fig.height=3, fig.width=2 + length(col_config$treat)}
 col_config$treat %>% 

@@ -1,5 +1,14 @@
 # To-Do List
 
+## Features
+
+- Compare to standard features: 
+    + Distance to TSS
+    + Overlaps with 1st Intron, Other Intron, Exon, Promoter, 3kb > Upstream > 1.5kb, Downstream <3kb, Intergenic
+- Also compare with provided features in gtf as a separate comparison!
+
+## Motifs
+
 - Include motif enrichment as part of the standard workflow
 - Include pathway enrichment
 

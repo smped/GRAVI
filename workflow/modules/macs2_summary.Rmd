@@ -29,7 +29,7 @@ library(Biostrings)
 if (!"extraChIPs" %in% rownames(installed.packages()))
   BiocManager::install("steveped/extraChIPs", ask = FALSE)
 stopifnot(library(extraChIPs, logical.return = TRUE))
-source(here::here("workflow", "scripts", "autoload.R"))
+# source(here::here("workflow", "scripts", "autoload.R"))
 ```
 
 ```{r options}
@@ -85,7 +85,7 @@ samples <- samples %>%
 
 ```{r annotations}
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-blacklist <-  file.path(ext_path, "blacklist.bed.gz") %>%
+blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
 feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) %>% 
