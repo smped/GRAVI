@@ -59,6 +59,10 @@ stopifnot(dir.exists(ext_path))
 out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 annotation_path <- here::here("output", "annotations")
+colours <- read_rds(
+  file.path(annotation_path, "colours.rds")
+) %>% 
+  lapply(unlist)
 ```
 
 ```{r read-samples}
@@ -88,18 +92,20 @@ sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
-feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) %>% 
-  select(feature)
-se_file <- file.path(annotation_path, "SE.rds")
-se <- GRanges()
-if (file.exists(se_file)) {
-  se <- read_rds(se_file) %>% 
-    granges() %>% 
-    mutate(feature = "SE")
-}
-genes_gr <- file.path(annotation_path, "all_gr.rds") %>% 
-  read_rds() %>% 
-  .[["gene"]]
+# feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) %>% 
+  # select(feature)
+# se_file <- file.path(annotation_path, "SE.rds")
+# se <- GRanges()
+# if (file.exists(se_file)) {
+#   se <- read_rds(se_file) %>% 
+#     granges() %>% 
+#     mutate(feature = "SE")
+# }
+all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
+  read_rds()
+genes_gr <- all_gr$gene
+intron_gr <- genes_gr %>% 
+  setdiff(all_gr$exon) 
 if (!is.null(config$external$rnaseq)) {
   ## If RNA-Seq is provided
   rnaseq <- read_tsv(here::here(config$external$rnaseq))
@@ -126,17 +132,6 @@ feat_gr <- feat_gr %>%
       mutate(feature = "Gene Body")
   ) %>% 
   sort()
-```
-
-```{r set-colours}
-rmd_config <- read_yaml(
-  here::here("config", "rmarkdown.yml")
-)
-treat_cols <- unlist(rmd_config$colours$treat[treat_levels])
-qc_cols <- unlist(rmd_config$colours$qc)
-feat_col <- unlist(rmd_config$colours$features) %>% 
-  .[names(.) %in% feat_gr$feature] %>% 
-  c("Intergenic" = "grey")
 ```
 
 ```{r bfl}
@@ -249,7 +244,7 @@ macs2_logs %>%
   ) +
   facet_grid(~treat, scales = "free_x", space = "free_x") +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values = qc_cols) +
+  scale_fill_manual(values = colours$qc) +
   labs(
     x = "Sample",
     y = "Library Size",
@@ -297,7 +292,7 @@ bfl %>%
   ) +
   facet_grid(~treat, scales = "free_x", space = "free_x") +
   scale_y_continuous(labels = percent) +
-  scale_fill_manual(values = qc_cols) +
+  scale_fill_manual(values = colours$qc) +
   labs(
     x = "Sample",
     y = "GC content",
@@ -348,8 +343,8 @@ macs2_logs %>%
   ) +
   facet_grid(~treat, scales = "free_x", space = "free_x") +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values = qc_cols) +
-  scale_colour_manual(values = qc_cols) +
+  scale_fill_manual(values = colours$qc) +
+  scale_colour_manual(values = colours$qc) +
   scale_alpha_discrete(range = c(0.2, 1)) +
   guides(alpha = "none") +
   labs(
@@ -377,7 +372,7 @@ file.path(out_path, "cross_correlations.tsv") %>%
     colour = "grey40", linetype = 2
   ) +
   facet_grid(as.formula(paste("treat ~", rep_col))) +
-  scale_colour_manual(values = treat_cols[treat_levels]) +
+  scale_colour_manual(values = colours$treat[treat_levels]) +
   scale_x_continuous(
     breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
   ) +
@@ -418,7 +413,7 @@ samples$sample %>%
   geom_col() +
   facet_grid(~treat, scales = "free_x", space = "free") +
   scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-  scale_fill_manual(values = qc_cols) +
+  scale_fill_manual(values = colours$qc) +
   labs(
     x = "Sample",
     y = "Fraction of Reads In Peaks",
@@ -513,7 +508,7 @@ if (length(treat_levels) <= 3) {
       units = "in",
       height = 8, 
       width = knitr::opts_chunk$get("fig.width"),
-      fill = treat_cols,
+      fill = colours$treat[treat_levels],
       alpha = 0.3
     )
     file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
@@ -538,7 +533,7 @@ if (length(treat_levels) > 3) {
       sets = treat_levels,
       keep.order = TRUE,
       order.by = "freq",
-      sets.bar.color = treat_cols,
+      sets.bar.color = colours$treat[treat_levels],
       set_size.show = TRUE,
       set_size.scale_max = nrow(.) * 1.2,
       text.scale = 1.2
@@ -549,9 +544,63 @@ if (length(treat_levels) > 3) {
 
 ![*Number of consensus peaks which overlap oracle peaks defined within each condition.*](`r glue("assets/{target}/{target}_common_peaks.png")`)
 
+### Distance to TSS 
+
+```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = "Distances from the centre of the consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The range is restricted to +/-100kb around the TSS in both cases"}
+tss <- resize(all_gr$transcript, width = 1) %>% 
+  setNames(.$transcript_id)
+a <- consensus_peaks %>% 
+  join_nearest(tss) %>% 
+  mutate(
+    tss_start = start(tss[transcript_id]),
+    d = start + width/2 - tss_start
+  ) %>% 
+  mcols() %>% 
+  as.data.frame() %>%
+  ggplot(aes(d / 1e3)) +
+  geom_density() +
+  coord_cartesian(xlim = c(-100, 100)) +
+  labs(
+    x = "Distance to TSS (kb)",
+    y = "Density"
+  )
+b <- consensus_peaks %>% 
+  join_nearest(tss) %>% 
+  mutate(
+    tss_start = start(tss[transcript_id]),
+    d = start + width/2 - tss_start
+  ) %>%
+  as.data.frame() %>% 
+  select(d) %>% 
+  arrange(abs(d)) %>% 
+  mutate(
+    q = seq_along(d) / nrow(.)
+  ) %>% 
+  ggplot(aes(abs(d) / 1e3, q)) +
+  geom_line() +
+  coord_cartesian(xlim = c(0, 100)) +
+  labs(
+    x = "Distance to TSS (kb)",
+    y = "Quantile"
+  ) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
+  scale_x_continuous(breaks = seq(0, 100, by = 20))
+plot_grid(a, b, labels = c("A", "B"))
+```
+
+
+
+
+
 ### Regulatory Features
 
 ```{r plot-feature-overlap, fig.height=6, fig.cap = "*Breakdown of consensus peaks and any features which they overlap. Intergenic peaks were defined as those which didn't overlap a transcribed region or promoter. Overlaps with a gene body included both the transcribed region and any defined promoter region.*"}
+## Let's define these as:
+## Promoter: 1) <2kb around TSS, 2) <5kb upstream
+## Gene Body: 1) Exon; 2) 1st Intron; 3) Other Intron
+## Intergenic: 1) 5-10kb; 2) 10-100kb; 3) Distal
+
+
 consensus_peaks %>% 
   mutate(
     promoter = overlapsAny(., subset(feat_gr, feature == "Promoter")),
