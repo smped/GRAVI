@@ -262,6 +262,22 @@ rule bedgraph_to_bigwig:
 		rm -rf $TEMPDIR
 		"""
 
+rule get_coverage_summary:
+	input: rules.bedgraph_to_bigwig.output.bigwig
+	output: os.path.join(bw_path, "{target}", "{sample}_treat_pileup.summary")
+	params: "workflow/scripts/get_bigwig_summary.R"
+	conda: "../envs/rmarkdown.yml"
+	log: "workflow/logs/get_coverage_summary/{target}/{sample}.log"
+	threads: 1
+	shell:
+		"""
+		## Create the generic markdown
+		Rscript --vanilla \
+			{params} \
+			{input} \
+			{output} &>> {log}
+		"""
+
 rule build_macs2_summary:
 	input:
 		annotations = ALL_ANNOTATION,

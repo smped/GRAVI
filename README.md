@@ -55,7 +55,7 @@ Firstly, setup the required conda environments
 ```
 snakemake \
 	--use-conda \
-	--conda-prefix '/home/steveped/miniconda3/envs/' \
+	--conda-prefix '/home/steveped/mambaforge/envs/' \
 	--conda-create-envs-only \
 	--cores 1
 ```

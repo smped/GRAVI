@@ -38,11 +38,12 @@ genome:
   gencode: "33"
 
 ## Additional data to be incorporated. Fields are fixed.
+## Features shoould be provided as a gtf
 ## HiC data should be a single rds file prepared independently of this workflow
+## Change this to a bedpe
 external:
   rnaseq: "data/external/PDX_HCI-005_Veh_DHT_Sarm_RNASeq.tsv"
-  H3K4me3:
-  H3K27ac:
+  features: "data/external/h3k27ac_features.gtf"
   HiC:
 
 peaks:

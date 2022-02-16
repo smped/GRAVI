@@ -1,0 +1,459 @@
+---
+title: "Annotation Setup"
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r set-knitr-opts, echo=FALSE, child = '../workflow/modules/setup_chunk.Rmd'}
+```
+
+```{r packages}
+library(tidyverse)
+library(magrittr)
+library(rtracklayer)
+library(glue)
+library(pander)
+library(scales)
+library(plyranges)
+library(yaml)
+library(Rsamtools)
+```
+
+```{r remotes, results='hide'}
+## Deal with github packages
+# BiocManager::install("steveped/extraChIPs", ask = FALSE)
+
+stopifnot(library(extraChIPs, logical.return = TRUE))
+```
+
+```{r options}
+panderOptions("big.mark", ",")
+panderOptions("missing", "")
+panderOptions("table.split.table", Inf)
+theme_set(
+  theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+)
+```
+
+
+```{r config}
+config <- read_yaml(here::here("config", "config.yml"))
+```
+
+```{r treat_levels}
+treat_levels <- config$comparisons$contrasts %>% 
+  unlist() %>% 
+  unique()
+samples <- here::here(config$samples$file) %>%
+  read_tsv() %>% 
+  mutate(
+    treat = factor(treat, levels = unique(c(treat_levels, treat))),
+    target = as.factor(target)
+  )
+treat_levels <- levels(samples$treat)
+```
+
+
+```{r annotation-path}
+annotation_path <- here::here("output", "annotations")
+if (!dir.exists(annotation_path)) dir.create(annotation_path, recursive = TRUE)
+all_out <- list(
+  gtf  = file.path(annotation_path, "all_gr.rds"),
+  transcript_models = file.path(annotation_path, "trans_models.rds"),
+  tss = file.path(annotation_path, "tss.rds"),
+  colours  = file.path(annotation_path, "colours.rds")
+)
+```
+
+
+# Genome Annotations
+
+Before analysing any datasets, annotations for the genome and transcriptome need to be defined.
+
+## Genome Description
+
+```{r sq}
+sq <- samples %>% 
+  mutate(
+    path = here::here(config$paths$bam, target, glue("{sample}.bam"))
+  ) %>% 
+  .[["path"]] %>% 
+  BamFileList() %>% 
+  seqinfo() %>% 
+  sortSeqlevels() %>% 
+  as.data.frame() %>% 
+  mutate(
+    isCircular = FALSE,
+    genome = config$genome$build
+  ) %>% 
+  as("Seqinfo")
+write_rds(sq, file.path(annotation_path, "seqinfo.rds"))
+sq %>% 
+  as.data.frame() %>% 
+  rownames_to_column("seqnames") %>% 
+  dplyr::select(seqnames, seqlengths) %>% 
+  write_tsv(
+    here::here(annotation_path, "chrom.sizes"), col_names = FALSE
+  )
+```
+
+As the foundation for all annotation objects, the description of the underlying genome is required as a `Seqinfo` object.
+For this analysis, both the mitochondrial genome and scaffolds were excluded, giving only the autosomes and sex chromosomes.
+This `Seqinfo` will is added to all objects requiring information about the underlying genome, such as a `GenomicRanges` object.
+
+## Blacklisted Regions
+
+```{r blacklist}
+blacklist <- file.path(annotation_path, "blacklist.bed.gz") %>%
+  import.bed(seqinfo = sq) %>%
+  sort()
+```
+
+```{r tab-blacklist}
+blacklist %>% 
+  group_by(name) %>% 
+  summarise(
+    n = n(),
+    p = percent(sum(width)/ sum(seqlengths(sq))),
+    kb = sum(width) / 1e3,
+    min = min(width) / 1e3,
+    median = median(width) / 1e3,
+    max = max(width) / 1e3
+  ) %>% 
+  as.data.frame() %>% 
+  as_tibble() %>% 
+  dplyr::rename_all(str_to_title) %>% 
+  dplyr::rename(
+    Type = Name, 
+    `Nbr Regions` = N,
+    `% Genome` = P, 
+    `Total (kb)` = Kb,
+    `Min (kb)` = Min,
+    `Median (kb)` = Median,
+    `Max (kb)` = Max
+  ) %>% 
+  pander(
+    caption = glue(
+      "Summary of genomic regions excluded in the blacklist. ",
+      "The default set of blacklisted regions was used, as obtained from ",
+      "https://github.com/Boyle-Lab/Blacklist (ENCODE)"
+    ),
+    justify = "lrrrrrr"
+  )
+```
+
+
+
+# Gene and Transcript Annotations
+
+```{r load-gtf}
+gtf <- glue(
+  "{annotation_path}/",
+  "gencode.v", config$genome$gencode, "lift", 
+  str_extract(config$genome$build, '[0-9]+$'),
+  ".annotation.gtf.gz"
+  )
+```
+
+```{r all-gr}
+reqd_cols <- c(
+  "type",
+  "gene_id", "gene_type", "gene_name",
+  "transcript_id", "transcript_type", "transcript_name",
+  "exon_id"
+)
+all_gr <- gtf %>%
+  import.gff(
+    which = GRanges(sq),
+    feature.type = c("gene", "transcript", "exon")
+  ) %>%
+  select(all_of(reqd_cols)) %>%
+  mutate(
+    gene_id = str_remove_all(gene_id, "\\..+$"),
+    transcript_id = str_remove_all(transcript_id, "\\..+$"),
+    exon_id = str_remove_all(exon_id, "\\..+$"),
+  ) %>%
+  sort() %>%
+  subset(seqnames %in% seqlevels(sq)) %>% 
+  keepSeqlevels(seqlevels(sq)) %>% 
+  split(f = .$type)
+seqinfo(all_gr) <- sq
+write_rds(all_gr, all_out$gtf, compress = "gz")
+```
+
+
+- The complete set of genes, transcripts and exons was loaded from the supplied `gtf`, excluding mitochondrial features.
+- The previously generated `Seqinfo` was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects
+- Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(all_gr$gene)))`) retained.
+- This master set of annotations was exported as an `rds` file for simple import into subsequent steps of the analysis
+
+In total this object contained annotations for `r comma(length(all_gr$gene))` genes, `r comma(length(all_gr$transcript))` transcripts and `r comma(length(all_gr$exon))` exons.
+
+## Transcript Models
+
+```{r trans-models}
+trans_models <- all_gr$exon %>% 
+  as.data.frame() %>% 
+  as_tibble() %>% 
+  group_by(transcript_id) %>% 
+  mutate(exon = paste0(transcript_id, "_", seq_along(transcript_id))) %>% 
+  makeGRangesFromDataFrame(keep.extra.columns = TRUE) %>% 
+  mutate(feature = as.character(type)) %>%  
+  select(type, gene = gene_id, exon, transcript = transcript_id, symbol = gene_name) %>% 
+  sort() %>% 
+  setNames(.$transcript) %>% 
+  set_genome_info(
+    genome = genome(sq),
+    seqnames = seqlevels(sq),
+    seqlengths = seqlengths(sq),
+    is_circular = isCircular(sq)
+  )
+write_rds(trans_models, all_out$transcript_models, compress = "gz")
+```
+
+Visualisation using the Bioconductor package `Gviz` requires specific structures for gene and transcript models to be displayed and these were formed once, so they too could be simply imported during all visualisation stages.
+
+# Regulatory Features
+
+## TSS Regions
+
+```{r define-tss}
+tss <- suppressWarnings(
+  all_gr$transcript %>% 
+    promoters(upstream = 1500, downstream = 500) %>% 
+    trim()  # This will tidy up any out-of-range issues for chrM
+) %>% 
+  select(transcript_type, transcript_id, gene_id, gene_name)
+rna_path <- config$external$rnaseq
+rnaseq <- tibble(gene_id = character())
+if (!is.null(rna_path)) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
+  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
+}
+ids <- rnaseq %>% 
+  dplyr::select(ends_with("id")) %>% 
+  unlist() %>% 
+  unique()
+tss <- tss %>% 
+  mutate(
+    detected = gene_id %in% ids | transcript_id %in% ids,
+    blacklisted = overlapsAny(., blacklist)
+  )
+write_rds(tss, all_out$tss, compress = "gz")
+```
+
+TSS regions were defined as those within -1500/+500bp of a transcription start site, excluding those which overlapped a blacklisted region.
+If an RNA-Seq dataset was supplied, these were restricted to those from detected genes (or transcripts) as provided.
+This process defined `r comma(length(tss))` TSS regions from the original set of `r comma(length(unique(mcols(all_gr$transcript)$transcript_id)))` transcripts as defined by the complete set of annotations.
+These TSS regions were associated with `r comma(length(unique(mcols(tss)$gene_id)))` of the `r comma(length(all_gr$gene))` annotated genes.
+
+Annotation-derived transcription start sites (TSS) were simply defined as the regions +500/-1500nt of a transcript.
+Of the `r comma(length(tss))` regions:
+
+- `r comma(sum(tss$blacklisted))` annotation-derived TSS overlapped blacklisted regions and no ChIP target information will be incorporated for these regions
+`r ifelse(any(tss$detected), glue("- {comma(sum(tss$detected))} came from genes/transcripts considered as detected"), "")`
+
+
+```{r tab-blacklisted-detected, eval = any(mcols(tss)$detected), echo = any(mcols(tss)$detected)}
+.fixRNACase <- function(x) {
+  x <- str_to_lower(x)
+  str_replace_all(x, "rna$", "RNA")
+}
+tss %>% 
+  subset(blacklisted & detected) %>% 
+  mcols() %>% 
+  as_tibble() %>% 
+  mutate(
+    transcript_type = transcript_type %>% 
+      fct_lump_prop(5e-3, other_level = "other") %>% 
+      fct_relabel(str_replace_all, pattern= "_", replacement = " ") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relabel(str_replace_all, pattern = "Tec", "TEC") %>% 
+      fct_relabel(str_replace_all, pattern = "(.+)rna", replacement = .fixRNACase) 
+  ) %>% 
+  group_by(transcript_type) %>% 
+  summarise(
+    n_transcripts = length(unique(transcript_id)),
+    n_genes = length(unique(gene_id))
+  ) %>% 
+  arrange(desc(n_transcripts)) %>% 
+  rename_all(str_replace_all, pattern = "_", replacement = " ") %>% 
+  rename_all(str_to_title) %>% 
+  pander(
+    justify = "lrr",
+    caption = glue(
+      "Breakdown of detected transcripts which have also been blacklisted. ",
+      "Blacklisted regions overlapped ",
+      "{length(unique(mcols(subset(tss, blacklisted))$transcript_id))} ",
+      "transcripts from ",
+      "{length(unique(mcols(subset(tss, blacklisted))$gene_id))} genes."
+    )
+  )
+```
+
+```{r tab-detected, eval = any(mcols(tss)$detected), echo = any(mcols(tss)$detected)}
+tss %>% 
+  subset(detected & !blacklisted) %>% 
+  mcols() %>% 
+  as_tibble() %>% 
+  mutate(
+    transcript_type = transcript_type %>% 
+      fct_lump_prop(5e-3, other_level = "other") %>% 
+      fct_relabel(str_replace_all, pattern= "_", replacement = " ") %>% 
+      fct_relabel(str_to_title) %>% 
+      fct_relabel(str_replace_all, pattern = "Tec", "TEC") %>% 
+      fct_relabel(str_replace_all, pattern = "(.+)rna", replacement = .fixRNACase) 
+  ) %>% 
+  group_by(transcript_type) %>% 
+  summarise(
+    n_transcripts = length(unique(transcript_id)),
+    n_genes = length(unique(gene_id))
+  ) %>% 
+  arrange(desc(n_transcripts)) %>% 
+  rename_all(str_replace_all, pattern = "_", replacement = " ") %>% 
+  rename_all(str_to_title) %>% 
+  pander(
+    justify = "lrr",
+    caption = glue(
+      "Breakdown of detected transcripts which were not blacklisted. "
+    )
+  )
+```
+
+# Colour Schemes {.tabset}
+
+```{r set_colours}
+col_config <- here::here("config", "rmarkdown.yml") %>%
+  read_yaml() %>% 
+  .[["colours"]]
+
+## qc_colours need to have `Pass` and `Fail`
+missing_qc_cols <- setdiff(c("pass", "fail"), names(col_config$qc))
+if ("pass" %in% missing_qc_cols) col_config$qc$pass <- "#0571B0" # Blue
+if ("fail" %in% missing_qc_cols) col_config$qc$fail <- "#CA0020" # Red
+col_config$qc <- col_config$qc[c("pass", "fail")]
+
+## The colours specified as treat_colours should contain all treat_levels + Input
+## If Input is missing, set to #33333380 ('grey20' + alpha = 50)
+## This should be a standard chunk for all workflows
+missing_treat_cols <- setdiff(
+  c("Input", treat_levels), names(col_config$treat)
+)
+if (length(missing_treat_cols) > 0) {
+  if ("Input" %in% missing_treat_cols) 
+    col_config$treat$Input <- "#33333380"
+  ## Automatically sample from the viridis palette if no colour is assigned
+  col_config$treat[setdiff(missing_treat_cols, "Input")] <- hcl.colors(
+    length(setdiff(missing_treat_cols, "Input"))
+  )
+}
+
+## Direction colours always need up, down, unchanged & undetected
+missing_dir_cols <- setdiff(
+  c("up", "down", "unchanged", "undetected"), names(col_config$direction)
+)
+if (length(missing_dir_cols) > 0){
+  def_dir_cols <- c(
+    up = "#CA0020", down = "#0571B0", 
+    unchanged = "#7F7F7F", undetected = "#E5E5E5"
+  )
+  col_config$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
+}
+```
+
+```{r feat-col}
+features <- suppressWarnings(
+  here::here(config$external$features) %>% 
+    import.gff(genome = sq) %>% 
+    sort()
+)
+stopifnot("feature" %in% colnames(mcols(features)))
+feat_col <- col_config$features
+feat_levels <- unique(features$feature)
+missing_feat_col <- setdiff(feat_levels, names(feat_col))
+if (length(missing_feat_col) > 0) {
+  n <- length(missing_feat_col)
+  feat_col[missing_feat_col] <- hcl.colors(max(9, n), "Spectral")[seq_len(n)]
+}
+col_config$features <- feat_col
+```
+
+
+```{r plot-scheme}
+.plotScheme <- function(x, xlab = "", ylab = "") {
+  x %>% 
+    as_tibble() %>% 
+    pivot_longer(cols = everything()) %>% 
+    ggplot(
+      aes(name, 1, fill = name)
+    ) +
+    geom_raster() +
+    scale_fill_manual(values = unlist(x)) +
+    scale_x_discrete(expand = expansion(c(0, 0))) +
+    scale_y_continuous(expand = expansion(c(0, 0))) +
+    labs(x = xlab, y = ylab) +
+    guides(fill = "none") +
+    theme(
+      axis.text.y = element_blank(),  
+      axis.ticks.y = element_blank()
+    )
+}
+```
+
+Colours were checked where provided and any missing colours were automatically assigned.
+These colour schemes are shown below and will be propagated through all workflows.
+To change any colours, simply add them to `config/rmarkdown.yml`.
+
+## QC
+
+```{r plot-qc, fig.height=3, fig.width=2 + length(col_config$qc)}
+col_config$qc %>% 
+  .plotScheme(xlab = "QC Category") 
+```
+
+## Tratment Groups
+
+```{r plot-treat, fig.height=3, fig.width=2 + length(col_config$treat)}
+col_config$treat %>% 
+  .plotScheme(xlab = "Treatment")
+```
+
+## Features
+
+```{r plot-feat, fig.height=3, fig.width=2 + length(col_config$features)}
+feat_col %>% 
+  .plotScheme(xlab = "Feature")
+```
+
+## Direction
+
+```{r plot-dir, fig.height=3, fig.width=2 + length(col_config$direction)}
+col_config$direction %>% 
+  .plotScheme(xlab = "Direction")
+```
+
+
+# Data Export
+
+```{r export-colours}
+write_rds(col_config, all_out$colours)
+```
+
+
+During this workflow, the following files were exported:
+
+`r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
+
+
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>

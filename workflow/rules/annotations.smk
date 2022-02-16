@@ -79,10 +79,6 @@ rule setup_annotations:
 	input:
 		bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = indiv_pre),
 		blacklist = blacklist,
-		bigwig = expand(
-			os.path.join(bw_path, "{path}_merged_treat_pileup.bw"),
-			path = merged_pre
-		),
 		config = "config/config.yml",
 		gtf = gtf,
 		pkgs = rules.install_packages.output,
@@ -96,8 +92,7 @@ rule setup_annotations:
 		html = "docs/annotation_setup.html",
 		fig_path = directory(
 			os.path.join("docs", "annotation_setup_files", "figure-html")
-		),
-		coverage = os.path.join(bw_path, "max_coverage.tsv")
+		)
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
