@@ -238,6 +238,14 @@ if (!is.null(rna_path)) {
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
 }
 if (!file.exists(all_out$gene_features)) {
+  gene_features <- list(
+    tss = resize(all_gr$transcript, width = 1),
+    promoters = promoters(all_gr$transcript, upstream = 2e3, downstream = 2e3),
+    upstream = all_gr$transcript %>% 
+      promoters(upstream = 5e3, downstream = 0) %>% 
+      resize(width = 3e3, fix = "start"),
+    exons = all_gr$exon
+  )
   ## This is a very slow process. Currently takes ~10 mins using 18 cores
   red_exons <- all_gr$exon %>% 
     splitAsList(f = .$gene_id) %>% 
@@ -263,8 +271,10 @@ if (!file.exists(all_out$gene_features)) {
     unnest(value) %>% 
     mutate(first = ifelse(strand == "+", 1, n))
   stopifnot(all(first_index$gene_id == names(introns)))
-  first_intron <- mcmapply(
-    function(x, y) x[y], 
+  gene_features$first_intron <- mcmapply(
+    function(x, y) {
+      setdiff(x[y], c(gene_features$promoters, gene_features$upstream))
+    },
     introns, 
     first_index$first,
     mc.cores = n_cores
@@ -273,8 +283,10 @@ if (!file.exists(all_out$gene_features)) {
     unlist() %>% 
     names_to_column("gene_id") %>% 
     sort()
-  other_introns <- mcmapply(
-    function(x, y) x[-y], 
+  gene_features$other_intron <- mcmapply(
+    function(x, y) {
+      setdiff(x[-y], c(gene_features$promoters, gene_features$upstream))
+    }, 
     introns, first_index$first,
     mc.cores = n_cores
   ) %>% 
@@ -282,17 +294,9 @@ if (!file.exists(all_out$gene_features)) {
     unlist() %>% 
     names_to_column("gene_id") %>% 
     sort()
-  gene_features <- list(
-    tss = resize(all_gr$transcript, width = 1),
-    promoters = promoters(all_gr$transcript, upstream = 2e3, downstream = 2e3),
-    upstream = all_gr$transcript %>% 
-      promoters(upstream = 5e3, downstream = 0) %>% 
-      resize(width = 3e3, fix = "start"),
-    exons = all_gr$exon,
-    first_intron = first_intron,
-    other_intron = other_introns
-  )  %>% 
-    lapply(mutate, detected = gene_id %in% rnaseq$gene_id)
+  gene_features <- lapply(
+    gene_features, mutate, detected = gene_id %in% rnaseq$gene_id
+  )
   tx_cols <- c("tx_id", "transcript_id")
   if (any(tx_cols %in% colnames(rnaseq))) {
     y <- intersect(tx_cols, colnames(rnaseq))[1]
@@ -321,6 +325,8 @@ Gene/Transcript-centric features were defined as:
 
 Introns were defined across genes such that these represented the candidate intronic sequences never included in a transcript.
 As such, genes containing any unspliced transcripts were unable to have any introns defined.
+Intronic regions were additionally restricted such that *any regions which overlapped with a promoter or upstream region from an alternate TSS were not included as intronic.*
+This ensures that any binding sites which overlap are truly overlapping an intronic region and not simply having their functional role misclassified as an artefact of annotation.
 
 - `r comma(length(gene_features$first_intron))` first introns were defined for genes with > 1 exon.
 - `r comma(length(gene_features$other_intron))` remaining introns were defined across the set of `r comma(length(unique(gene_features$other_intron$gene_id)))` genes containing more than one intron.
