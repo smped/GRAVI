@@ -263,37 +263,31 @@ This object was formed here, so they too could be simply imported during all vis
 ## Gene-Centric Features
 
 ```{r gene-features}
-rna_path <- here::here(config$external$rnaseq)
-rnaseq <- tibble(gene_id = character())
-if (!is.null(rna_path)) {
-  stopifnot(file.exists(rna_path))
-  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
-  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
-  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-}
 ## Setup the features as a hierarchy, where higher-level features take precedence
 ## Features can be merged within a category if they overlap
 ## 1. Promoters (+/-2kb)
 ## 2. Upstream promoter (2-5kb, but not overlapping another)
 ## 3. Introns
 ## 4. Exons (other gene body)
-
+prom <- list(up = 1500, down = 500, distal = 5e3)
 if (!file.exists(all_out$gene_features)) {
   gene_features <- list(
-    tss = resize(all_gr$transcript, width = 1) %>% 
+    tss = all_gr$transcript %>% 
+      resize(width = 1) %>% 
+      reduceMC() %>% 
       mutate(type = "tss"),
     promoters = all_gr$transcript %>% 
       promoters(
-        upstream = 1500, downstream = 500
+        upstream = prom$up, downstream = prom$down
       ) %>% 
-      reduceMC() %>% 
+      reduceMC(ignore.strand = TRUE) %>% 
       mutate(type = "promoter")
   )
-  gene_features$upstream <- gene_features$promoters %>% 
-    promoters(upstream = 3.5e3, downstream = 0) %>% 
-    setdiffMC(gene_features$promoters) %>% 
+  gene_features$upstream <- all_gr$transcript %>% 
+    promoters(upstream = prom$distal, downstream = 0)  %>% 
+    setdiffMC(gene_features$promoters, ignore.strand = TRUE) %>% 
     reduceMC() %>% 
-    mutate(type = "upstream")
+    mutate(type = glue("upstream (<{prom$distal/1e3}kb)"))
   ## Some of these will possibly extend into other genes.
   ## The only real solution is to cut any sections from the upstream ranges
   ## which overlap other genes, whilst retaining those ranges which are internal
@@ -304,36 +298,217 @@ if (!file.exists(all_out$gene_features)) {
     bplapply(
       function(x) {
         gr <- subset(all_gr$gene, !gene_id %in% unlist(x$gene_id))
-        setdiffMC(x, gr)
+        setdiffMC(x, gr, ignore.strand = TRUE)
       }
     ) %>% 
     GRangesList() %>% 
     unlist() %>% 
     setNames(c())
-  gene_features$introns <- all_gr$gene %>% 
+  gene_features$exons <- all_gr$exon %>% 
+    unstrand() %>% 
+    reduceMC() %>% 
     setdiffMC(
-      GRangesList(
-        all_gr$exon,
-        gene_features$promoters,
-        gene_features$upstream
-      ) %>% 
-        unlist()
-    ) %>% 
-    mutate(type = "intron")
-  gene_features$exons <- all_gr$gene %>% 
-    setdiffMC(
-      GRangesList(
-        gene_features[c("promoters", "upstream", "introns")]
-      ) %>% 
-        unlist()
+      lapply(gene_features, granges) %>% 
+        GRangesList() %>% 
+        unlist
     ) %>% 
     mutate(type = "exon")
+  gene_features$introns <- all_gr$gene %>% 
+    unstrand() %>% 
+    setdiffMC(
+      lapply(gene_features, granges) %>% 
+        GRangesList() %>% 
+        unlist()
+    ) %>% 
+    reduceMC() %>% 
+    mutate(type = "intron")
+  gene_features$distal <- sq %>% 
+  GRanges() %>% 
+  setdiff(
+    suppressWarnings(
+      all_gr$gene %>% 
+        resize(width  = width(.) + 2e4, fix = 'center') %>% 
+        trim() %>% 
+        unstrand()
+    ) 
+  ) %>% 
+    mutate(type = "intergenic (>10kb)")
+  gene_features$proximal <- setdiff(
+    GRanges(sq),
+    lapply(gene_features, granges) %>% 
+      GRangesList() %>% 
+      unlist()
+  ) %>% 
+    mutate(type = "intergenic (<10kb)")
   write_rds(gene_features, all_out$gene_features, compress = "gz")
 } else {
   gene_features <- read_rds(all_out$gene_features)
 }
-## Need to add in rnaseq at this point  
 
+## Make a pie chart based on genomic width & number of regions
+gene_features %>% 
+  lapply(
+    function(x){
+      tibble(n = length(x), width = sum(width(x)), type = unique(x$type))
+    }
+  ) %>%
+  bind_rows() %>% 
+  dplyr::filter(type != "tss") %>% 
+  mutate(
+    width = width / 1e6,
+    mn = width/n,
+    type = str_to_title(type) %>% fct_inorder(),
+    p = width / sum(width)
+  ) %>% 
+  arrange(desc(type)) %>% 
+  mutate(
+    y = cumsum(width) - 0.5*width
+  ) %>% 
+  ggplot(aes(1, width, fill = type)) +
+  geom_bar(width = 1, stat = "identity") +
+  geom_label(
+    aes(y = y, label = percent(p, 0.1)), 
+    size=5, fill = "white", alpha = 0.5
+  ) +
+  coord_polar("y", start = 0) +
+  scale_fill_viridis_d(direction = -1, alpha = 0.8) +
+  labs(fill = "Feature") +
+  theme_void()
+```
+
+```{r}
+gr <- subset(all_gr$gene, gene_name == "GATA3") %>% 
+  resize(width = width(.) + 2e4, fix = 'center') %>% 
+  unstrand()
+ft <- gene_features %>% 
+  lapply(subsetByOverlaps, gr) 
+ft$intergenic <- all_gr$gene %>%
+  unstrand() %>% 
+  subsetByOverlaps(gr) %>%
+  resize(width = width(.) + 2e4, fix = 'center') %>%
+  reduce() %>% 
+  setdiff(
+    lapply(ft, granges) %>%
+      GRangesList() %>%
+      unlist() %>% 
+      unstrand()
+  ) %>%
+  mutate(type = "Intergenic (<10kb)")
+ft$distal <- all_gr$gene %>%
+  unstrand() %>% 
+  subsetByOverlaps(gr) %>%
+  resize(width = width(.) + 2.5e4, fix = 'center') %>%
+  reduce() %>% 
+  setdiff(
+    lapply(ft, granges) %>%
+      GRangesList() %>%
+      unlist() %>% 
+      unstrand()
+  ) %>%
+  mutate(type = "Intergenic (>10kb)")
+df <- list(
+  all_gr$transcript %>% 
+    subsetByOverlaps(gr) %>% 
+    as.data.frame(),
+  all_gr$exon %>% 
+    subsetByOverlaps(gr) %>% 
+    as.data.frame()
+) %>% 
+  bind_rows() %>% 
+  as_tibble() %>% 
+  mutate(
+    transcript_name = as.factor(transcript_name)
+  )
+df %>% 
+  ggplot(aes(x = start, y = as.integer(transcript_name))) +
+  geom_rect(
+    aes(
+      xmin = start, xmax = end,
+      ymin =  0, ymax =  Inf,
+      fill = type
+    ),
+    data = lapply(ft, select, type) %>%
+      GRangesList() %>%
+      unlist() %>%
+      setNames(c()) %>%
+      as.data.frame() %>% 
+      dplyr::filter(type != "tss") %>% 
+      mutate(
+        type = str_to_title(type) %>% 
+          fct_inorder() 
+      ),
+    inherit.aes = FALSE,
+    alpha = 0.6
+  ) +
+  geom_segment(
+    aes(
+      x = start, xend = end, 
+      y = as.integer(transcript_name),
+      yend = as.integer(transcript_name)
+    ),
+    data = . %>% 
+      dplyr::filter(type == "transcript")
+  ) +
+  geom_segment(
+    aes(
+      x = mid, xend = mid_offset, 
+      y = as.integer(transcript_name),
+      yend = as.integer(transcript_name)
+    ),
+    data = all_gr$transcript %>% 
+      subsetByOverlaps(gr) %>% 
+      select(transcript_name) %>% 
+      setdiffMC(all_gr$exon) %>%
+      as.data.frame() %>% 
+      mutate(transcript_name = vctrs::vec_proxy(transcript_name)) %>% 
+      unnest(transcript_name) %>% 
+      dplyr::filter(width > 600) %>% 
+      mutate(
+        mid = end - 0.5*width,
+        mid_offset = ifelse(strand == "+", mid + 50, mid - 50),
+        transcript_name = factor(transcript_name, levels = levels(df$transcript_name))
+      ),
+    arrow = arrow(angle = 40, length = unit(0.015, "npc"))
+  ) +
+  geom_rect(
+    aes(
+      xmin = start, xmax = end, 
+      ymin = as.integer(transcript_name) - 0.2, 
+      ymax = as.integer(transcript_name) + 0.2
+    ),
+    data = . %>% 
+      dplyr::filter(type == "exon"),
+    fill = "blue"
+  ) +
+  scale_x_continuous(
+    labels = comma, expand = expansion(c(0, 0))
+  ) +
+  scale_y_continuous(
+    breaks = seq_along(levels(df$transcript_name)),
+    labels = levels(df$transcript_name),
+    expand = expansion(c(-0.05, 0.05))
+  ) +
+  scale_fill_viridis_d(direction = -1, drop = FALSE) +
+  labs(
+    x = "BP", y = "Transcript", fill = "Feature"
+  ) +
+  theme(
+    panel.grid = element_blank()
+  )
+```
+
+
+
+```{r gene-features}
+## Need to add in rnaseq at this point  
+rna_path <- here::here(config$external$rnaseq)
+rnaseq <- tibble(gene_id = character())
+if (!is.null(rna_path)) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
+  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
+  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+}
   
 #   gene_features <- lapply(
 #     gene_features, mutate, detected = gene_id %in% rnaseq$gene_id
