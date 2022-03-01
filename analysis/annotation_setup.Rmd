@@ -340,6 +340,24 @@ if (!file.exists(all_out$gene_features)) {
       unlist()
   ) %>% 
     mutate(type = "intergenic (<10kb)")
+  ## Remove any columns which are just NA
+  gene_features <- gene_features %>% 
+    lapply(
+      function(x) {
+        keep <- vapply(
+          mcols(x),
+          function(y) {
+            if (!is(y, "list_OR_List")) {
+              if (all(is.na(y))) return(FALSE)
+            }
+            return(TRUE)
+          },
+          logical(1)
+        )
+        mcols(x) <- mcols(x)[keep]
+        x
+      }
+    )
   write_rds(gene_features, all_out$gene_features, compress = "gz")
 } else {
   gene_features <- read_rds(all_out$gene_features)
