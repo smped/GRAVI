@@ -260,7 +260,7 @@ if (!file.exists(all_out$transcript_models)) {
 Visualisation using the Bioconductor package `Gviz` also requires a specific `GRanges` structure for gene and transcript models to be displayed.
 This object was formed here, so they too could be simply imported during all visualisation stages.
 
-## Gene-Centric Features
+## Gene-Centric Features {.tabset}
 
 ```{r gene-features}
 ## Setup the features as a hierarchy, where higher-level features take precedence
@@ -308,7 +308,7 @@ if (!file.exists(all_out$gene_features)) {
     unstrand() %>% 
     reduceMC() %>% 
     setdiffMC(
-      lapply(gene_features, granges) %>% 
+      lapply(gene_features[c("promoters", "upstream")], granges) %>% 
         GRangesList() %>% 
         unlist
     ) %>% 
@@ -323,15 +323,15 @@ if (!file.exists(all_out$gene_features)) {
     reduceMC() %>% 
     mutate(type = "intron")
   gene_features$distal <- sq %>% 
-  GRanges() %>% 
-  setdiff(
-    suppressWarnings(
-      all_gr$gene %>% 
-        resize(width  = width(.) + 2e4, fix = 'center') %>% 
-        trim() %>% 
-        unstrand()
-    ) 
-  ) %>% 
+    GRanges() %>% 
+    setdiff(
+      suppressWarnings(
+        all_gr$gene %>% 
+          resize(width  = width(.) + 2e4, fix = 'center') %>% 
+          trim() %>% 
+          unstrand()
+      ) 
+    ) %>% 
     mutate(type = "intergenic (>10kb)")
   gene_features$proximal <- setdiff(
     GRanges(sq),
@@ -358,12 +358,72 @@ if (!file.exists(all_out$gene_features)) {
         x
       }
     )
+  ## Change the order of the two intragenic features for easier setting of 
+  ## factor-levels
+  o <- c(
+    "tss", "promoters", "upstream", "exons", "introns", "proximal",  "distal"
+  )
+  gene_features <- gene_features[o]
   write_rds(gene_features, all_out$gene_features, compress = "gz")
 } else {
   gene_features <- read_rds(all_out$gene_features)
 }
+```
 
-## Make a pie chart based on genomic width & number of regions
+Using the provided GTF, **unique** gene and transcript-centric features were defined as:
+
+1. Transcriptional Start Sites
+2. Promoters
+3. Upstream 
+4. Exons
+5. Introns
+6. Intergenic regions within 10kb of a gene
+7. Intergenic regions >10kb from any defined genes
+
+With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, unstranded manner.
+
+- *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from thesame TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
+- *Promoters* were first defined for all individual transcripts as the region `r glue("+{prom$up}/-{prom$down}")`bp around each TSS.
+Overlapping regions were merged to create a single promoter region for all transcripts within that genomic region.
+- *Upstream promoters* were then defined as the region extending `r glue(prom$distal/1e3)`kb upstream from a TSS, but excluding any region already defined as a promoter through the previous merging step.
+Any ranges within these which overlapped other genes were removed.
+- *Exons* and *Introns* were considered to be any exon or intron, not previously included in one of the above regions.
+- *Intergenic* regions were defined as those within 10kb (excluding upstream promoters) or those >10kb from any gene
+
+```{r tab-features}
+gene_features %>% 
+  lapply(
+    function(x){
+      tibble(n = length(x), width = sum(width(x)), type = unique(x$type))
+    }
+  ) %>%
+  bind_rows() %>% 
+  mutate(
+    width = width / 1e6,
+    mn = round(1e3*width/n, 1),
+    type = str_to_title(type) %>% 
+      str_replace_all("Tss", "TSS") %>% 
+      fct_inorder(),
+    `% Genome` = percent(width / sum(width), 0.1),
+    ## Convert to characters for printing
+    width = sprintf("%.1f", width),
+    mn = sprintf("%.1f", mn)
+  ) %>% 
+  rename_all(str_to_title) %>% 
+  dplyr::select(
+    Type, N, `Total Width (Mb)` = Width,
+    `Average Width (Kb)` = Mn, `% Genome`
+  ) %>% 
+  pander(
+    justify = "lrrrr",
+    caption = "Summary of unique features defined above"
+  )
+```
+
+
+### Summary
+
+```{r pie-gene-features, fig.height=8, fig.width=8, fig.cap = "Summary of gene-derived features using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation."}
 gene_features %>% 
   lapply(
     function(x){
@@ -376,7 +436,8 @@ gene_features %>%
     width = width / 1e6,
     mn = width/n,
     type = str_to_title(type) %>% fct_inorder(),
-    p = width / sum(width)
+    p = width / sum(width),
+    lab = glue("{percent(p, 0.1)}")
   ) %>% 
   arrange(desc(type)) %>% 
   mutate(
@@ -385,8 +446,9 @@ gene_features %>%
   ggplot(aes(1, width, fill = type)) +
   geom_bar(width = 1, stat = "identity") +
   geom_label(
-    aes(y = y, label = percent(p, 0.1)), 
-    size=5, fill = "white", alpha = 0.5
+    aes(x = 1, y = y, label = lab), 
+    size=4, fill = "white", alpha = 0.5,
+    nudge_x = 0.1
   ) +
   coord_polar("y", start = 0) +
   scale_fill_viridis_d(direction = -1, alpha = 0.8) +
@@ -394,36 +456,24 @@ gene_features %>%
   theme_void()
 ```
 
-```{r}
-gr <- subset(all_gr$gene, gene_name == "GATA3") %>% 
-  resize(width = width(.) + 2e4, fix = 'center') %>% 
+### Example
+
+```{r example-id}
+id <- sort(all_gr$gene$gene_id)[[1]]
+```
+
+
+```{r plot-example, fig.cap = paste("12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.")}
+gr <- subset(all_gr$gene, gene_id == id) %>% 
+  resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
 ft <- gene_features %>% 
-  lapply(subsetByOverlaps, gr) 
-ft$intergenic <- all_gr$gene %>%
-  unstrand() %>% 
-  subsetByOverlaps(gr) %>%
-  resize(width = width(.) + 2e4, fix = 'center') %>%
-  reduce() %>% 
-  setdiff(
-    lapply(ft, granges) %>%
-      GRangesList() %>%
-      unlist() %>% 
-      unstrand()
-  ) %>%
-  mutate(type = "Intergenic (<10kb)")
-ft$distal <- all_gr$gene %>%
-  unstrand() %>% 
-  subsetByOverlaps(gr) %>%
-  resize(width = width(.) + 2.5e4, fix = 'center') %>%
-  reduce() %>% 
-  setdiff(
-    lapply(ft, granges) %>%
-      GRangesList() %>%
-      unlist() %>% 
-      unstrand()
-  ) %>%
-  mutate(type = "Intergenic (>10kb)")
+  lapply(subsetByOverlaps, gr) %>% 
+  lapply(select, type) %>% 
+  lapply(intersectMC, gr) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  setNames(c())
 df <- list(
   all_gr$transcript %>% 
     subsetByOverlaps(gr) %>% 
@@ -445,10 +495,7 @@ df %>%
       ymin =  0, ymax =  Inf,
       fill = type
     ),
-    data = lapply(ft, select, type) %>%
-      GRangesList() %>%
-      unlist() %>%
-      setNames(c()) %>%
+    data = ft %>%
       as.data.frame() %>% 
       dplyr::filter(type != "tss") %>% 
       mutate(
@@ -496,8 +543,9 @@ df %>%
     ),
     data = . %>% 
       dplyr::filter(type == "exon"),
-    fill = "blue"
+    fill = "blue", colour = "blue"
   ) +
+  coord_cartesian(xlim = c(start(gr), end(gr))) +
   scale_x_continuous(
     labels = comma, expand = expansion(c(0, 0))
   ) +
@@ -508,7 +556,7 @@ df %>%
   ) +
   scale_fill_viridis_d(direction = -1, drop = FALSE) +
   labs(
-    x = "BP", y = "Transcript", fill = "Feature"
+    x = as.character(seqnames(gr)), y = "Transcript", fill = "Feature"
   ) +
   theme(
     panel.grid = element_blank()
@@ -517,7 +565,7 @@ df %>%
 
 
 
-```{r gene-features}
+```{r add-rna-seq}
 ## Need to add in rnaseq at this point  
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
@@ -541,66 +589,9 @@ if (!is.null(rna_path)) {
 #   }
 ```
 
-Gene/Transcript-centric features were defined as:
 
-1. The TSS 
-2. Promoters (+/- 2kb from the TSS)
-3. Upstream (2-5kb upstream)
-4. Exons
-5. First Introns
-6. Other Introns
 
-- TSS, Promoter and Upstream regions were defined in a transcript-centric manner, yielding multiple regions for `r comma(table(gene_features$tss$gene_id) %>% .[. > 1] %>% length())` genes.
-- `r comma(length(gene_features$exons))` exons were again defined in a transcript-centric manner for `r comma(length(unique(gene_features$exons$transcript_id)))` transcripts of `r comma(length(unique(gene_features$exons$gene_id)))` genes.
-
-Introns were defined across genes such that these represented the candidate intronic sequences never included in a transcript.
-As such, genes containing any unspliced transcripts were unable to have any introns defined.
-Intronic regions were additionally restricted such that *any regions which overlapped with a promoter or upstream region from an alternate TSS were not included as intronic.*
-This ensures that any binding sites which overlap are truly overlapping an intronic region and not simply having their functional role misclassified as an artefact of annotation.
-
-- `r comma(length(gene_features$first_intron))` first introns were defined for genes with > 1 exon.
-- `r comma(length(gene_features$other_intron))` remaining introns were defined across the set of `r comma(length(unique(gene_features$other_intron$gene_id)))` genes containing more than one intron.
-
-If RNA-Seq data was provided, transcripts were considered as detected if the transcript id was included as the column `r glue_collapse(tx_cols, sep = ", ", last = " or ")`.
-This data was applied to all transcript-level features (TSS, Promoters, Upstream, Exons).
-If no transcript ids were provided in this dataset, genes were considered as expressed if the gene_id was found in a column of the same name.
-No genes or transcripts were considered as detected if no RNA-Seq data was provided.
-
-As a consequence of the approach taken using transcript-level information, many genomic regions were assigned to multiple categories.
-For example, an upstream promoter for a specific transcript may also be classified as an intron at the gene level.
-Alternate TSSs for multiple transcripts may also overlap exons, promoters etc for other transcripts.
-As such, *pie-charts will not be drawn in subsequent analyses* as is commonly seen elsewhere.
-
-```{r tab-gene-features}
-gene_features %>% 
-  lapply(
-    function(x) {
-      tibble(
-        genes = length(unique(x$gene_id)), 
-        n_features = length(x), 
-        n_detected = sum(x$detected),
-        `% detected` = percent(mean(x$detected)),
-        blacklisted = sum(overlapsAny(x, blacklist)),
-        `% blacklisted` = percent(blacklisted / n_features, accuracy = 0.1)
-      )
-    }
-  ) %>% 
-  lapply(list) %>% 
-  as_tibble() %>% 
-  pivot_longer(cols = everything(), names_to = "feature") %>% 
-  unnest(value) %>% 
-  mutate(feature = str_sep_to_title(feature)) %>% 
-  rename_all(str_sep_to_title) %>% 
-  pander(
-    justify = "lrrrrrr",
-    caption = glue(
-      "Summary of features defined from annotations for {config$genome$build} ",
-      "using Genocide release {config$genome$gencode}."
-    )
-  )
-```
-
-# Additional Features
+# External Features
 
 ```{r external-features}
 feat_path <- here::here(config$external$features)
@@ -613,48 +604,36 @@ if (!is.null(feat_path)) {
   mcols(external_features) <- cbind(
     mcols(external_features),
     gene_features %>% 
-      lapply(function(x) overlapsAny(external_features, x)) %>% 
+      lapply(function(x) overlapsProp(external_features, x)) %>% 
       as("DataFrame")
   )
-  external_features <- external_features %>% 
-    join_nearest(granges(all_gr$gene), distance = TRUE) %>% 
-    mutate(
-      within_10kb = distance <= 10e3 & distance > 5e3, 
-      within_100kb = distance > 10e3 & distance <= 100e3, 
-      distal_intergenic = distance > 100e3
-    ) %>% 
-    select(-distance)
 }
 ```
 
-`r ifelse(is.null(external_features), "No additional features were supplied.", "Additional features were compared to the gene-centric annotations.")`
+`r ifelse(is.null(external_features), "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "Comparison of additional features with gene-centric annotations."}
-regions <- c(
-  "tss", "promoters", "upstream", "exons", "first_intron", "other_intron", 
-  "within_10kb", "within_100kb", "distal_intergenic"
-)
+```{r plot-feature-by-region, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the ranges provided as external annotations which overlap the gene-centric features defined previously."}
+regions <- vapply(gene_features, function(x){unique(x$type)}, character(1))
 external_features %>% 
+  mutate(w = width) %>% 
   mcols() %>% 
   as.data.frame() %>% 
   as_tibble() %>% 
+  dplyr::mutate(
+    across(.cols = all_of(names(regions)), function(x) x*w)
+  ) %>% 
   group_by(feature) %>% 
   summarise(
-    across(all_of(regions), mean)
+    across(all_of(c(names(regions), "w")), sum)
   ) %>% 
-  pivot_longer(cols = all_of(regions), names_to = "region", values_to = "p") %>% 
-  dplyr::filter(p > 0) %>% 
+  pivot_longer(cols = all_of(names(regions)), names_to = "region", values_to = "total") %>% 
+  dplyr::filter(total > 0) %>% 
   mutate(
-    region = case_when(
-      str_detect(region, "within") ~ str_replace_all(region, "within_(.+)", "Intergenic (within \\1)"),
-      str_detect(region, "distal") ~ "Intergenic (distal)",
-      str_detect(region, "intron") ~ str_replace_all(region, "(.+)_intron", "Intron (\\1)"),
-      str_detect(region, "exon") ~ "Exon",
-      str_detect(region, "tss") ~ "TSS",
-      str_detect(region, "promoter") ~ "Promoter (+/- 2kb)",
-      str_detect(region, "upstream") ~ "Promoter Upstream (< 5kb)"
-    ),
-    Feature = str_sep_to_title(feature)
+    region = regions[region] %>% 
+      str_to_title() %>% 
+      str_replace_all("Tss", "TSS"),
+    p = total / w,
+    Feature = str_sep_to_title(feature),
   ) %>% 
   ggplot(
     aes(fct_rev(region), p, fill = feature)
@@ -668,7 +647,7 @@ external_features %>%
   coord_flip() +
   facet_grid(Feature~., scales = "free_y", space = "free") +
   scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-  scale_fill_manual(values = feat_col) + # These are defined later. Needs to be fixed
+  # scale_fill_manual(values = feat_col) + # These are defined later. Needs to be fixed
   guides(fill = "none") +
   labs(x = "", y = "")
 ```
@@ -677,6 +656,7 @@ external_features %>%
 ## Now just restrict the genes to be the detected genes
 ## Also might need to consider the external_features as mutually exclusive,
 ## i.e. should enhancers be excluded if considered as super-enhancers
+## USE ALPHA TO INDICATE DETECTED/UNDETECTED & REPLICATE THE ABOVE PLOT
 external_features <- external_features %>% 
   select(-any_of(regions))
 mcols(external_features) <- cbind(
