@@ -1,6 +1,6 @@
 rule differential_binding:
 	input:
-		annotations = ALL_ANNOTATION,
+		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(
 			os.path.join(bam_path, "{{target}}", "{sample}.{suffix}"),
 			sample = df['sample'][

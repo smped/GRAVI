@@ -298,7 +298,7 @@ rule get_coverage_summary:
 
 rule build_macs2_summary:
 	input:
-		annotations = ALL_ANNOTATION,
+		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(
 			os.path.join(bam_path, "{{target}}", "{sample}.{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),

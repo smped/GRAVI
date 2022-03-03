@@ -81,14 +81,14 @@ rule setup_annotations:
 		blacklist = blacklist,
 		config = "config/config.yml",
 		gtf = gtf,
+		rmd = "workflow/modules/annotation_setup.Rmd",
 		pkgs = rules.install_packages.output,
-		rnaseq = config['external']['rnaseq'],
 		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output,
-		rmd = os.path.join(rmd_path, "annotation_setup.Rmd")
+		yaml = rules.create_site_yaml.output
 	output:
-		annotations = ALL_ANNOTATION,
+		annotations = ALL_RDS,
 		chrom_sizes = chrom_sizes,
+		rmd = os.path.join(rmd_path, "annotation_setup.Rmd"),
 		html = "docs/annotation_setup.html",
 		fig_path = directory(
 			os.path.join("docs", "annotation_setup_files", "figure-html")
@@ -102,7 +102,8 @@ rule setup_annotations:
 	log: "workflow/logs/rmarkdown/annotation_setup.log"
 	shell:
 		"""
-		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
+		cp {input.rmd} {output.rmd}
+		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
 
 		if [[ {params.git} == "True" ]]; then
 			TRIES={params.tries}

@@ -1,6 +1,6 @@
 rule pairwise_comparisons:
 	input:
-		annotations = ALL_ANNOTATION,
+		annotations = ALL_RDS,
 		config = "config/config.yml",
 		pkgs = rules.install_packages.output,
 		r = "workflow/scripts/create_pairwise_comparison.R",

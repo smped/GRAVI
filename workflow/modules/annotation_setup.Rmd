@@ -61,7 +61,8 @@ str_sep_to_title <- function(x, sep = "_", replacement = " ") {
     guides(fill = "none") +
     theme(
       axis.text.y = element_blank(),  
-      axis.ticks.y = element_blank()
+      axis.ticks.y = element_blank(),
+      panel.grid = element_blank()
     )
 }
 ```
@@ -131,8 +132,8 @@ sq %>%
 ```
 
 As the foundation for all annotation objects, the description of the underlying genome is required as a `Seqinfo` object.
-For this analysis, both the mitochondrial genome and scaffolds were excluded, giving only the autosomes and the X chromosome.
-This `Seqinfo` will is added to all objects requiring information about the underlying genome, such as a `GenomicRanges` object.
+For this analysis, both the mitochondrial genome and scaffolds were excluded, giving only the autosomes and the X/Y chromosomes.
+This `Seqinfo` object is added to all subsequent objects requiring information about the underlying genome, such as a `GenomicRanges` object.
 
 ## Blacklisted Regions {.tabset}
 
@@ -179,7 +180,7 @@ blacklist %>%
 
 ### Breakdown
 
-```{r plot-blacklist, fig.height = 6, fig.cap = "Breakdown of blacklisted regions by chromosome"}
+```{r plot-blacklist, fig.height = 7, fig.cap = "Breakdown of blacklisted regions by chromosome"}
 blacklist %>% 
   as.data.frame() %>% 
   as_tibble() %>%
@@ -446,7 +447,7 @@ if (!file.exists(all_out$gene_regions)) {
 }
 region_cols <- c(
   "black", 
-  hcl.colors(length(gene_regions) - 1, rev = TRUE, alpha = 0.7)
+  hcl.colors(length(gene_regions) - 1, rev = TRUE, alpha = 0.8)
 )
 names(region_cols) <- gene_regions %>% 
   lapply(select, type) %>% 
@@ -466,7 +467,7 @@ Using the provided GTF, **unique** gene and transcript-centric features were def
 
 With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, unstranded manner.
 
-- *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from thesame TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
+- *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from the same TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
 - *Promoters* were first defined for all individual transcripts as the region `r glue("+{prom$up}/-{prom$down}")`bp around each TSS.
 Overlapping regions were merged to create a single promoter region for all transcripts within that genomic region.
 - *Upstream promoters* were then defined as the region extending `r glue(prom$distal/1e3)`kb upstream from a TSS, but excluding any region already defined as a promoter through the previous merging step.
@@ -554,7 +555,7 @@ id <- sort(all_gr$gene$gene_id)[[1]]
 ```
 
 
-```{r plot-example, fig.cap = paste("12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.")}
+```{r plot-example, fig.height=7, fig.cap = paste("12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.")}
 gr <- subset(all_gr$gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
@@ -593,7 +594,8 @@ df %>%
         type = str_to_title(type) %>% 
           fct_inorder() 
       ),
-    inherit.aes = FALSE
+    inherit.aes = FALSE,
+    alpha = 0.7
   ) +
   geom_segment(
     aes(
@@ -701,7 +703,7 @@ col_config$features <- feat_col
 
 `r ifelse(is.null(external_features), "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the external features which overlap the gene-centric regions defined previously. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours."}
+```{r plot-feature-by-region, fig.height = 7, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the ranges provided as external features which overlap the gene-centric regions defined previously. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours."}
 regions <- vapply(gene_regions, function(x){unique(x$type)}, character(1))
 suppressWarnings(
   external_features %>% 
@@ -804,7 +806,7 @@ write_rds(col_config, all_out$colours)
 
 
 Colours were checked where provided and any missing colours were automatically assigned.
-These colour schemes are shown below and will be propagated through all workflows.
+These colour schemes are shown below and will be propagated through all steps of the workflow.
 To change any colours, simply add them to `config/rmarkdown.yml`.
 
 ## QC

@@ -109,11 +109,11 @@ ALL_OUTPUTS = []
 ## These are dependent on H3K27Ac being a target. If so, promoters, enhancers
 ## and super-enhancers will be created. If not, only the tss regions will be
 ## created
-ALL_ANNOTATION = expand(
+ALL_RDS = expand(
 	os.path.join(annotation_path, "{file}.rds"),
-	file = ['all_gr', 'colours', 'trans_models', 'seqinfo', 'tss']
+	file = ['all_gr', 'colours', 'gene_regions', 'seqinfo', 'trans_models','tss']
 )
-ALL_OUTPUTS.extend(ALL_ANNOTATION)
+ALL_OUTPUTS.extend(ALL_RDS)
 
 #######################
 ## Rmarkdown Outputs ##
