@@ -504,13 +504,13 @@ gene_regions %>%
   ) %>% 
   pander(
     justify = "lrrrr",
-    caption = "Summary of unique features defined above"
+    caption = "Summary of unique gene-centric regions defined above"
   )
 ```
 
 ### Summary
 
-```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "Summary of gene-derived regions using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation."}
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "Summary of gene-cetric regions using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation."}
 gene_regions %>% 
   lapply(
     function(x){
@@ -701,7 +701,7 @@ col_config$features <- feat_col
 
 `r ifelse(is.null(external_features), "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the ranges provided as external annotations which overlap the gene-centric features defined previously."}
+```{r plot-feature-by-region, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the external features which overlap the gene-centric regions defined previously. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours."}
 regions <- vapply(gene_regions, function(x){unique(x$type)}, character(1))
 suppressWarnings(
   external_features %>% 
