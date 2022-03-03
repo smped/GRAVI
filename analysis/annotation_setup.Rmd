@@ -38,15 +38,40 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 n_cores <- max(detectCores() - 2, 2)
+```
+
+```{r extra-funs}
 str_sep_to_title <- function(x, sep = "_", replacement = " ") {
   str_replace_all(x, sep, replacement) %>% 
     str_to_title()
+}
+.plotScheme <- function(x, xlab = "", ylab = "") {
+  x %>% 
+    as_tibble() %>% 
+    pivot_longer(cols = everything()) %>% 
+    mutate(name = factor(name, levels = names(x))) %>% 
+    ggplot(
+      aes(name, 1, fill = name)
+    ) +
+    geom_raster() +
+    scale_fill_manual(values = unlist(x)) +
+    scale_x_discrete(expand = expansion(c(0, 0))) +
+    scale_y_continuous(expand = expansion(c(0, 0))) +
+    labs(x = xlab, y = ylab) +
+    guides(fill = "none") +
+    theme(
+      axis.text.y = element_blank(),  
+      axis.ticks.y = element_blank()
+    )
 }
 ```
 
 
 ```{r config}
 config <- read_yaml(here::here("config", "config.yml"))
+col_config <- here::here("config", "rmarkdown.yml") %>%
+  read_yaml() %>% 
+  .[["colours"]]
 ```
 
 ```{r treat_levels}
@@ -62,7 +87,6 @@ samples <- here::here(config$samples$file) %>%
 treat_levels <- levels(samples$treat)
 ```
 
-
 ```{r annotation-path}
 annotation_path <- here::here("output", "annotations")
 if (!dir.exists(annotation_path)) dir.create(annotation_path, recursive = TRUE)
@@ -71,11 +95,10 @@ all_out <- list(
   chrom_sizes = file.path(annotation_path, "chrom.sizes"),
   gtf  = file.path(annotation_path, "all_gr.rds"),
   transcript_models = file.path(annotation_path, "trans_models.rds"),
-  gene_features = file.path(annotation_path, "gene_features.rds"),
+  gene_regions = file.path(annotation_path, "gene_regions.rds"),
   colours  = file.path(annotation_path, "colours.rds")
 )
 ```
-
 
 # Genome Annotations
 
@@ -197,6 +220,7 @@ gtf <- glue(
   str_extract(config$genome$build, '[0-9]+$'),
   ".annotation.gtf.gz"
   )
+## This will set the import to fail using the `all_of()` step below
 reqd_cols <- c(
   "type",
   "gene_id", "gene_type", "gene_name",
@@ -260,9 +284,30 @@ if (!file.exists(all_out$transcript_models)) {
 Visualisation using the Bioconductor package `Gviz` also requires a specific `GRanges` structure for gene and transcript models to be displayed.
 This object was formed here, so they too could be simply imported during all visualisation stages.
 
-## Gene-Centric Features {.tabset}
+## Gene-Centric Regions {.tabset}
 
-```{r gene-features}
+```{r load-rna}
+## This defines the RNA-Seq data as an empty tibble with the column gene_id
+## If no data is provided, this will equate to no genes being considered as 
+## detected.
+## If RNA-seq data is provided, transcript ids will be used to determine
+## detection, defaulting to gene ids if the transcript id is not provided in
+## the RNA-Seq data
+rna_path <- here::here(config$external$rnaseq)
+rnaseq <- tibble(gene_id = character())
+if (!is.null(rna_path)) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
+  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
+  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+}
+tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
+rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
+rna_col <- c(tx_col, "gene_id")[[1]]
+```
+
+
+```{r gene-regions}
 ## Setup the features as a hierarchy, where higher-level features take precedence
 ## Features can be merged within a category if they overlap
 ## 1. Promoters (+/-2kb)
@@ -270,30 +315,42 @@ This object was formed here, so they too could be simply imported during all vis
 ## 3. Introns
 ## 4. Exons (other gene body)
 prom <- list(up = 1500, down = 500, distal = 5e3)
-if (!file.exists(all_out$gene_features)) {
-  gene_features <- list(
+if (!file.exists(all_out$gene_regions)) {
+  gene_regions <- list(
     tss = all_gr$transcript %>% 
       resize(width = 1) %>% 
+      mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>% 
       reduceMC() %>% 
-      mutate(type = "tss"),
+      mutate(
+        type = "tss",
+        detected = vapply(detected, any, logical(1))
+      ),
     promoters = all_gr$transcript %>% 
       promoters(
         upstream = prom$up, downstream = prom$down
       ) %>% 
+      mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>% 
       reduceMC(ignore.strand = TRUE) %>% 
-      mutate(type = "promoter")
+      mutate(
+        type = "promoter",
+        detected = vapply(detected, any, logical(1))
+      )
   )
-  gene_features$upstream <- all_gr$transcript %>% 
+  gene_regions$upstream <- all_gr$transcript %>% 
     promoters(upstream = prom$distal, downstream = 0)  %>% 
-    setdiffMC(gene_features$promoters, ignore.strand = TRUE) %>% 
+    mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>% 
+    setdiffMC(gene_regions$promoters, ignore.strand = TRUE) %>% 
     reduceMC() %>% 
-    mutate(type = glue("upstream (<{prom$distal/1e3}kb)"))
+    mutate(
+      type = glue("upstream (<{prom$distal/1e3}kb)"),
+      detected = vapply(detected, any, logical(1))
+    )
   ## Some of these will possibly extend into other genes.
   ## The only real solution is to cut any sections from the upstream ranges
   ## which overlap other genes, whilst retaining those ranges which are internal
   ## to the gene-of-origin. The only viable way to do that is to manually exclude 
   ## the gene-of-origin then take the setdiff. This will take an hour or two
-  gene_features$upstream <- gene_features$upstream %>%
+  gene_regions$upstream <- gene_regions$upstream %>%
     split(f = seq_along(.)) %>%
     bplapply(
       function(x) {
@@ -304,25 +361,36 @@ if (!file.exists(all_out$gene_features)) {
     GRangesList() %>% 
     unlist() %>% 
     setNames(c())
-  gene_features$exons <- all_gr$exon %>% 
+  gene_regions$exons <- all_gr$exon %>% 
+    mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>% 
     unstrand() %>% 
     reduceMC() %>% 
     setdiffMC(
-      lapply(gene_features[c("promoters", "upstream")], granges) %>% 
+      lapply(gene_regions[c("promoters", "upstream")], granges) %>% 
         GRangesList() %>% 
         unlist
     ) %>% 
-    mutate(type = "exon")
-  gene_features$introns <- all_gr$gene %>% 
+    mutate(
+      type = "exon",
+      detected = vapply(detected, any, logical(1))
+    )
+  gene_regions$introns <- all_gr$gene %>% 
+    ## Here, we can only revert to gene-level detection
+    mutate(
+      detected = gene_id %in% unlist(subset(gene_regions$promoters, detected)$gene_id)
+    ) %>% 
     unstrand() %>% 
     setdiffMC(
-      lapply(gene_features, granges) %>% 
+      lapply(gene_regions[c("promoters", "upstream", "exons")], granges) %>% 
         GRangesList() %>% 
         unlist()
     ) %>% 
     reduceMC() %>% 
-    mutate(type = "intron")
-  gene_features$distal <- sq %>% 
+    mutate(
+      type = "intron",
+      detected = vapply(detected, any, logical(1))
+    )
+  gene_regions$distal <- sq %>% 
     GRanges() %>% 
     setdiff(
       suppressWarnings(
@@ -332,16 +400,24 @@ if (!file.exists(all_out$gene_features)) {
           unstrand()
       ) 
     ) %>% 
-    mutate(type = "intergenic (>10kb)")
-  gene_features$proximal <- setdiff(
+    mutate(
+      type = "intergenic (>10kb)",
+      detected = NA
+    )
+  gene_regions$proximal <- setdiff(
     GRanges(sq),
-    lapply(gene_features, granges) %>% 
+    lapply(gene_regions, granges) %>% 
       GRangesList() %>% 
       unlist()
   ) %>% 
-    mutate(type = "intergenic (<10kb)")
+    join_nearest(all_gr$gene) %>% 
+    mutate(
+      type = "intergenic (<10kb)",
+      ## Here, we can only revert to gene-level detection
+      detected = gene_id %in% unlist(subset(gene_regions$promoters, detected)$gene_id)
+    )
   ## Remove any columns which are just NA
-  gene_features <- gene_features %>% 
+  gene_regions <- gene_regions %>% 
     lapply(
       function(x) {
         keep <- vapply(
@@ -363,11 +439,19 @@ if (!file.exists(all_out$gene_features)) {
   o <- c(
     "tss", "promoters", "upstream", "exons", "introns", "proximal",  "distal"
   )
-  gene_features <- gene_features[o]
-  write_rds(gene_features, all_out$gene_features, compress = "gz")
+  gene_regions <- gene_regions[o]
+  write_rds(gene_regions, all_out$gene_regions, compress = "gz")
 } else {
-  gene_features <- read_rds(all_out$gene_features)
+  gene_regions <- read_rds(all_out$gene_regions)
 }
+region_cols <- c(
+  "black", 
+  hcl.colors(length(gene_regions) - 1, rev = TRUE, alpha = 0.7)
+)
+names(region_cols) <- gene_regions %>% 
+  lapply(select, type) %>% 
+  vapply(function(x) unique(x$type), character(1))
+col_config$regions <- as.list(region_cols)
 ```
 
 Using the provided GTF, **unique** gene and transcript-centric features were defined as:
@@ -390,11 +474,15 @@ Any ranges within these which overlapped other genes were removed.
 - *Exons* and *Introns* were considered to be any exon or intron, not previously included in one of the above regions.
 - *Intergenic* regions were defined as those within 10kb (excluding upstream promoters) or those >10kb from any gene
 
-```{r tab-features}
-gene_features %>% 
+```{r tab-regions}
+gene_regions %>% 
   lapply(
     function(x){
-      tibble(n = length(x), width = sum(width(x)), type = unique(x$type))
+      tibble(
+        n = length(x),
+        width = sum(width(x)), 
+        type = unique(x$type)
+      )
     }
   ) %>%
   bind_rows() %>% 
@@ -420,11 +508,10 @@ gene_features %>%
   )
 ```
 
-
 ### Summary
 
-```{r pie-gene-features, fig.height=8, fig.width=8, fig.cap = "Summary of gene-derived features using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation."}
-gene_features %>% 
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "Summary of gene-derived regions using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation."}
+gene_regions %>% 
   lapply(
     function(x){
       tibble(n = length(x), width = sum(width(x)), type = unique(x$type))
@@ -451,7 +538,11 @@ gene_features %>%
     nudge_x = 0.1
   ) +
   coord_polar("y", start = 0) +
-  scale_fill_viridis_d(direction = -1, alpha = 0.8) +
+  scale_fill_manual(
+    values = region_cols %>% 
+      setNames(str_to_title(names(.))) %>% 
+      .[names(.) != "Tss"]
+  ) + 
   labs(fill = "Feature") +
   theme_void()
 ```
@@ -467,7 +558,7 @@ id <- sort(all_gr$gene$gene_id)[[1]]
 gr <- subset(all_gr$gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
-ft <- gene_features %>% 
+ft <- gene_regions %>% 
   lapply(subsetByOverlaps, gr) %>% 
   lapply(select, type) %>% 
   lapply(intersectMC, gr) %>% 
@@ -502,8 +593,7 @@ df %>%
         type = str_to_title(type) %>% 
           fct_inorder() 
       ),
-    inherit.aes = FALSE,
-    alpha = 0.6
+    inherit.aes = FALSE
   ) +
   geom_segment(
     aes(
@@ -554,7 +644,11 @@ df %>%
     labels = levels(df$transcript_name),
     expand = expansion(c(-0.05, 0.05))
   ) +
-  scale_fill_viridis_d(direction = -1, drop = FALSE) +
+  scale_fill_manual(
+    values = region_cols %>% 
+      setNames(str_to_title(names(.))) %>% 
+      .[names(.) != "Tss"]
+  ) + 
   labs(
     x = as.character(seqnames(gr)), y = "Transcript", fill = "Feature"
   ) +
@@ -564,38 +658,11 @@ df %>%
 ```
 
 
-
-```{r add-rna-seq}
-## Need to add in rnaseq at this point  
-rna_path <- here::here(config$external$rnaseq)
-rnaseq <- tibble(gene_id = character())
-if (!is.null(rna_path)) {
-  stopifnot(file.exists(rna_path))
-  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
-  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
-  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-}
-  
-#   gene_features <- lapply(
-#     gene_features, mutate, detected = gene_id %in% rnaseq$gene_id
-#   )
-#   tx_cols <- c("tx_id", "transcript_id")
-#   if (any(tx_cols %in% colnames(rnaseq))) {
-#     y <- intersect(tx_cols, colnames(rnaseq))[1]
-#     gene_features$tss$detected <- gene_features$tss$transcript_id %in% rnaseq[[y]]
-#     gene_features$promoters$detected <- gene_features$promoters$transcript_id %in% rnaseq[[y]]
-#     gene_features$upstream$detected <- gene_features$upstream$transcript_id %in% rnaseq[[y]]
-#     gene_features$exons$detected <- gene_features$exons$transcript_id %in% rnaseq[[y]]
-#   }
-```
-
-
-
 # External Features
 
 ```{r external-features}
 feat_path <- here::here(config$external$features)
-external_features <- c()
+external_features <- list(features = c())
 if (!is.null(feat_path)) {
   stopifnot(file.exists(feat_path))
   external_features <- suppressWarnings(
@@ -603,123 +670,102 @@ if (!is.null(feat_path)) {
   )
   mcols(external_features) <- cbind(
     mcols(external_features),
-    gene_features %>% 
+    gene_regions %>% 
       lapply(function(x) overlapsProp(external_features, x)) %>% 
-      as("DataFrame")
+      as("DataFrame"),
+    gene_regions %>% 
+      lapply(
+        function(x) overlapsProp(external_features, subset(x, detected))
+      ) %>% 
+      as("DataFrame") %>% 
+      setNames(paste0(names(.), "_detected"))
   )
+  keep_cols <- !vapply(
+    mcols(external_features), function(x) all(is.na(x)), logical(1)
+  )
+  mcols(external_features) <- mcols(external_features)[keep_cols]
 }
 ```
+
+```{r feat-col}
+feat_col <- col_config$features
+feat_levels <- unique(external_features$feature)
+missing_feat_col <- setdiff(feat_levels, names(feat_col))
+if (length(missing_feat_col) > 0) {
+  n <- length(missing_feat_col)
+  feat_col[missing_feat_col] <- hcl.colors(max(9, n), "Spectral")[seq_len(n)]
+}
+col_config$features <- feat_col
+```
+
 
 `r ifelse(is.null(external_features), "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
 ```{r plot-feature-by-region, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the ranges provided as external annotations which overlap the gene-centric features defined previously."}
-regions <- vapply(gene_features, function(x){unique(x$type)}, character(1))
-external_features %>% 
-  mutate(w = width) %>% 
-  mcols() %>% 
-  as.data.frame() %>% 
-  as_tibble() %>% 
-  dplyr::mutate(
-    across(.cols = all_of(names(regions)), function(x) x*w)
-  ) %>% 
-  group_by(feature) %>% 
-  summarise(
-    across(all_of(c(names(regions), "w")), sum)
-  ) %>% 
-  pivot_longer(cols = all_of(names(regions)), names_to = "region", values_to = "total") %>% 
-  dplyr::filter(total > 0) %>% 
-  mutate(
-    region = regions[region] %>% 
-      str_to_title() %>% 
-      str_replace_all("Tss", "TSS"),
-    p = total / w,
-    Feature = str_sep_to_title(feature),
-  ) %>% 
-  ggplot(
-    aes(fct_rev(region), p, fill = feature)
-  ) +
-  geom_col() +
-  geom_label(
-    aes(label = percent(p, accuracy = 1)),
-    alpha = 0.5,
-    nudge_y = 0.03
-  ) +
-  coord_flip() +
-  facet_grid(Feature~., scales = "free_y", space = "free") +
-  scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-  # scale_fill_manual(values = feat_col) + # These are defined later. Needs to be fixed
-  guides(fill = "none") +
-  labs(x = "", y = "")
-```
-
-```{r}
-## Now just restrict the genes to be the detected genes
-## Also might need to consider the external_features as mutually exclusive,
-## i.e. should enhancers be excluded if considered as super-enhancers
-## USE ALPHA TO INDICATE DETECTED/UNDETECTED & REPLICATE THE ABOVE PLOT
-external_features <- external_features %>% 
-  select(-any_of(regions))
-mcols(external_features) <- cbind(
-    mcols(external_features),
-    gene_features %>% 
-      lapply(function(x) overlapsAny(external_features, subset(x, detected))) %>% 
-      as("DataFrame")
-  )
-external_features <- external_features %>% 
-    join_nearest(granges(subset(all_gr$gene, gene_id %in% rnaseq$gene_id)), distance = TRUE) %>% 
-    mutate(
-      within_10kb = distance <= 10e3 & distance > 5e3, 
-      within_100kb = distance > 10e3 & distance <= 100e3, 
-      distal_intergenic = distance > 100e3
+regions <- vapply(gene_regions, function(x){unique(x$type)}, character(1))
+suppressWarnings(
+  external_features %>% 
+    mutate(w = width) %>% 
+    mcols() %>% 
+    as.data.frame() %>% 
+    as_tibble() %>% 
+    pivot_longer(
+      cols = c(all_of(names(regions)), ends_with("detected")),
+      names_to = "region", values_to = "prop"
     ) %>% 
-    select(-distance)
-external_features %>% 
-  mcols() %>% 
-  as.data.frame() %>% 
-  as_tibble() %>% 
-  group_by(feature) %>% 
-  summarise(
-    across(all_of(regions), mean)
-  ) %>% 
-  pivot_longer(cols = all_of(regions), names_to = "region", values_to = "p") %>% 
-  dplyr::filter(p > 0) %>% 
-  mutate(
-    region = case_when(
-      str_detect(region, "within") ~ str_replace_all(region, "within_(.+)", "Intergenic (within \\1)"),
-      str_detect(region, "distal") ~ "Intergenic (distal)",
-      str_detect(region, "intron") ~ str_replace_all(region, "(.+)_intron", "Intron (\\1)"),
-      str_detect(region, "exon") ~ "Exon",
-      str_detect(region, "tss") ~ "TSS",
-      str_detect(region, "promoter") ~ "Promoter (+/- 2kb)",
-      str_detect(region, "upstream") ~ "Promoter Upstream (< 5kb)"
-    ),
-    Feature = str_sep_to_title(feature)
-  ) %>% 
-  ggplot(
-    aes(fct_rev(region), p, fill = feature)
-  ) +
-  geom_col() +
-  geom_label(
-    aes(label = percent(p, accuracy = 1)),
-    alpha = 0.5,
-    nudge_y = 0.03
-  ) +
-  coord_flip() +
-  facet_grid(Feature~., scales = "free_y", space = "free") +
-  scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-  scale_fill_manual(values = feat_col) + # These are defined later. Needs to be fixed
-  guides(fill = "none") +
-  labs(x = "", y = "")
+    dplyr::filter(!str_detect(region, "tss")) %>% 
+    group_by(feature, region) %>% 
+    summarise(ol = sum(prop*w/1e6), .groups = "drop") %>% 
+    mutate(
+      detected = str_detect(region, "detected"),
+      region = str_remove_all(region, "_detected")
+    ) %>% 
+    pivot_wider(names_from = "detected", values_from = ol) %>% 
+    mutate(`FALSE` = `FALSE` - `TRUE`) %>% 
+    pivot_longer(
+      cols = all_of(c("TRUE", "FALSE")),
+      names_to = "detected",
+      values_to = "ol"
+    ) %>% 
+    left_join(
+      external_features %>%
+        group_by(feature) %>% 
+        summarise(w = sum(width/1e6)) %>%
+        as_tibble(),
+      by = "feature"
+    ) %>% 
+    mutate(
+      p = ol / w,
+      Feature = str_sep_to_title(feature) %>% 
+        paste("(External)", sep = "\n"),
+      region = str_to_title(regions[region]) %>% 
+        factor(levels = str_to_title(regions))
+    ) %>% 
+    ggplot(
+      aes(fct_rev(region), p, fill = feature, alpha = detected)
+    ) +
+    geom_col(colour = "grey80") +
+    geom_label(
+      aes(label = percent(p, accuracy = 1)),
+      data = . %>% 
+        group_by(region, feature, Feature) %>% 
+        summarise(p = sum(p), .groups = "drop"),
+      alpha = 0.5,
+      nudge_y = 0.03
+    ) +
+    coord_flip() +
+    facet_grid(Feature~., scales = "free_y", space = "free") +
+    scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
+    scale_alpha_discrete(range = c(0.4, 1)) +
+    scale_fill_manual(values = feat_col) +
+    labs(x = "", y = "") +
+    theme(legend.position = "none")
+)
 ```
-
-
 
 # Colour Schemes {.tabset}
 
 ```{r set_colours}
-col_config <- here::here("config", "rmarkdown.yml") %>%
-  read_yaml() %>% 
-  .[["colours"]]
 
 ## qc_colours need to have `Pass` and `Fail`
 missing_qc_cols <- setdiff(c("pass", "fail"), names(col_config$qc))
@@ -753,46 +799,9 @@ if (length(missing_dir_cols) > 0){
   )
   col_config$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
+write_rds(col_config, all_out$colours)
 ```
 
-```{r feat-col}
-features <- suppressWarnings(
-  here::here(config$external$features) %>% 
-    import.gff(genome = sq) %>% 
-    sort()
-)
-stopifnot("feature" %in% colnames(mcols(features)))
-feat_col <- col_config$features
-feat_levels <- unique(features$feature)
-missing_feat_col <- setdiff(feat_levels, names(feat_col))
-if (length(missing_feat_col) > 0) {
-  n <- length(missing_feat_col)
-  feat_col[missing_feat_col] <- hcl.colors(max(9, n), "Spectral")[seq_len(n)]
-}
-col_config$features <- feat_col
-```
-
-
-```{r plot-scheme}
-.plotScheme <- function(x, xlab = "", ylab = "") {
-  x %>% 
-    as_tibble() %>% 
-    pivot_longer(cols = everything()) %>% 
-    ggplot(
-      aes(name, 1, fill = name)
-    ) +
-    geom_raster() +
-    scale_fill_manual(values = unlist(x)) +
-    scale_x_discrete(expand = expansion(c(0, 0))) +
-    scale_y_continuous(expand = expansion(c(0, 0))) +
-    labs(x = xlab, y = ylab) +
-    guides(fill = "none") +
-    theme(
-      axis.text.y = element_blank(),  
-      axis.ticks.y = element_blank()
-    )
-}
-```
 
 Colours were checked where provided and any missing colours were automatically assigned.
 These colour schemes are shown below and will be propagated through all workflows.
@@ -812,6 +821,14 @@ col_config$treat %>%
   .plotScheme(xlab = "Treatment")
 ```
 
+## Regions
+
+```{r plot-regions, fig.height=3, fig.width=2 + length(col_config$regions)}
+col_config$regions %>% 
+  .plotScheme(xlab = "Regions")
+```
+
+
 ## Features
 
 ```{r plot-feat, fig.height=3, fig.width=2 + length(col_config$features)}
@@ -826,18 +843,11 @@ col_config$direction %>%
   .plotScheme(xlab = "Direction")
 ```
 
-
 # Data Export
-
-```{r export-colours}
-write_rds(col_config, all_out$colours)
-```
-
 
 During this workflow, the following files were exported:
 
 `r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
-
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
 <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
