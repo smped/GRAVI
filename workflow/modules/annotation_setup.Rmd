@@ -170,9 +170,9 @@ blacklist %>%
   ) %>% 
   pander(
     caption = glue(
-      "Summary of genomic regions excluded in the blacklist. ",
+      "*Summary of genomic regions excluded in the blacklist. ",
       "The default set of blacklisted regions was used, as obtained from ",
-      "https://github.com/Boyle-Lab/Blacklist (ENCODE)"
+      "https://github.com/Boyle-Lab/Blacklist (ENCODE)*"
     ),
     justify = "lrrrrrr"
   )
@@ -180,7 +180,7 @@ blacklist %>%
 
 ### Breakdown
 
-```{r plot-blacklist, fig.height = 7, fig.cap = "Breakdown of blacklisted regions by chromosome"}
+```{r plot-blacklist, fig.height = 7, fig.cap = "*Breakdown of blacklisted regions by chromosome*"}
 blacklist %>% 
   as.data.frame() %>% 
   as_tibble() %>%
@@ -445,13 +445,16 @@ if (!file.exists(all_out$gene_regions)) {
 } else {
   gene_regions <- read_rds(all_out$gene_regions)
 }
-region_cols <- c(
-  "black", 
-  hcl.colors(length(gene_regions) - 1, rev = TRUE, alpha = 0.8)
-)
-names(region_cols) <- gene_regions %>% 
-  lapply(select, type) %>% 
-  vapply(function(x) unique(x$type), character(1))
+regions <- vapply(gene_regions, function(x){unique(x$type)}, character(1))
+region_cols <- col_config$regions
+region_levels <- names(gene_regions)
+missing_region_col <- setdiff(region_levels, names(region_cols))
+if (length(missing_region_col) > 0) {
+  n <- length(missing_region_col)
+  feat_col[missing_feat_col] <- hcl.colors(
+    length(gene_regions) - 1, rev = TRUE, alpha = 0.8
+  )[seq_len(n)]
+}
 col_config$regions <- as.list(region_cols)
 ```
 
@@ -505,13 +508,13 @@ gene_regions %>%
   ) %>% 
   pander(
     justify = "lrrrr",
-    caption = "Summary of unique gene-centric regions defined above"
+    caption = "*Summary of unique gene-centric regions defined above*"
   )
 ```
 
 ### Summary
 
-```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "Summary of gene-cetric regions using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation."}
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-cetric regions using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation.*"}
 gene_regions %>% 
   lapply(
     function(x){
@@ -541,10 +544,13 @@ gene_regions %>%
   coord_polar("y", start = 0) +
   scale_fill_manual(
     values = region_cols %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) != "Tss"]
-  ) + 
-  labs(fill = "Feature") +
+      setNames(
+        regions[names(.)] %>% 
+          str_to_title()
+      ) %>% 
+      .[setdiff(names(.), "Tss")]
+  ) +
+  labs(fill = "Region") +
   theme_void()
 ```
 
@@ -555,7 +561,7 @@ id <- sort(all_gr$gene$gene_id)[[1]]
 ```
 
 
-```{r plot-example, fig.height=7, fig.cap = paste("12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.")}
+```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
 gr <- subset(all_gr$gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
@@ -648,8 +654,11 @@ df %>%
   ) +
   scale_fill_manual(
     values = region_cols %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) != "Tss"]
+      setNames(
+        regions[names(.)] %>% 
+          str_to_title()
+      ) %>% 
+      .[setdiff(names(.), "Tss")]
   ) + 
   labs(
     x = as.character(seqnames(gr)), y = "Transcript", fill = "Feature"
@@ -703,8 +712,7 @@ col_config$features <- feat_col
 
 `r ifelse(is.null(external_features), "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "The proportion of the ranges provided as external features which overlap the gene-centric regions defined previously. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours."}
-regions <- vapply(gene_regions, function(x){unique(x$type)}, character(1))
+```{r plot-feature-by-region, fig.height = 7, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = "*The proportion of the ranges provided as external features which overlap the gene-centric regions defined previously. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours.*"}
 suppressWarnings(
   external_features %>% 
     mutate(w = width) %>% 
@@ -738,8 +746,9 @@ suppressWarnings(
     ) %>% 
     mutate(
       p = ol / w,
-      Feature = str_sep_to_title(feature) %>% 
-        paste("(External)", sep = "\n"),
+      Feature = factor(feature, levels = names(feat_col)) %>% 
+        fct_relabel(str_sep_to_title) %>% 
+        fct_relabel(function(x) paste(x, "(External)", sep = "\n")),
       region = str_to_title(regions[region]) %>% 
         factor(levels = str_to_title(regions))
     ) %>% 
@@ -764,6 +773,33 @@ suppressWarnings(
     theme(legend.position = "none")
 )
 ```
+
+```{r tab-features, eval = !is.null(external_features), echo = !is.null(external_features)}
+external_features %>% 
+  group_by(feature) %>% 
+  summarise(
+    N = n(),
+    Width = sum(width/1e3)
+  ) %>% 
+  as.data.frame() %>% 
+  mutate(
+    feature = factor(feature, levels = names(feat_col)) %>% 
+      fct_relabel(str_sep_to_title)
+  ) %>% 
+  arrange(feature) %>%
+  dplyr::rename(
+    Feature = feature,
+    `Width (kb)` = Width
+  ) %>% 
+  pander(
+    justify = "lrr",
+    caption = paste(
+      "*Summary of external features provided. All peaks and windows will be", 
+      "compared to these throughout the workflow*"
+    )
+  )
+```
+
 
 # Colour Schemes {.tabset}
 

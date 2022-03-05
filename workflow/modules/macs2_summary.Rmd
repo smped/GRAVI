@@ -1,7 +1,7 @@
 ```{r example, echo = FALSE, eval=FALSE}
 ## This module requires the following to be set during preparation
 # target <- "AR"
-# threads <- 8
+# threads <- 6
 ```
 
 
@@ -43,6 +43,10 @@ theme_set(
   )
 )
 register(MulticoreParam(workers = threads))
+str_sep_to_title <- function(x, sep = "_", replacement = " ") {
+  str_replace_all(x, sep, replacement) %>% 
+    str_to_title()
+}
 ```
 
 
@@ -92,46 +96,41 @@ sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
-# feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) %>% 
-  # select(feature)
-# se_file <- file.path(annotation_path, "SE.rds")
-# se <- GRanges()
-# if (file.exists(se_file)) {
-#   se <- read_rds(se_file) %>% 
-#     granges() %>% 
-#     mutate(feature = "SE")
-# }
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
-genes_gr <- all_gr$gene
-intron_gr <- genes_gr %>% 
-  setdiff(all_gr$exon) 
-if (!is.null(config$external$rnaseq)) {
-  ## If RNA-Seq is provided
-  rnaseq <- read_tsv(here::here(config$external$rnaseq))
-  rna_col <- colnames(rnaseq)
-  sig_col <- str_detect(str_to_lower(rna_col), "fdr")
-  if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
-  sig_col <- rna_col[sig_col][1]
-  # Now split the transcript models by gene-level status from the RNA-Seq
-  genes_gr <- genes_gr %>%
-    mutate(
-      category =  case_when(
-        !gene_id %in% rnaseq$gene_id ~ "Undetected",
-        gene_id %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
-        gene_id %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
-        gene_id %in% rnaseq$gene_id ~ "Unchanged"
-      )
-    )
+gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
+external_features <- c()
+if (!is.null(config$external$features)) {
+  external_features <- suppressWarnings(
+    import.gff(config$external$features, genome = sq)
+  )
+  keep_cols <- !vapply(
+    mcols(external_features), function(x) all(is.na(x)), logical(1)
+  )
 }
-feat_gr <- feat_gr %>% 
-  filter_by_non_overlaps(se) %>% 
-  c(se) %>% 
-  c(
-    setdiff(genes_gr, ., ignore.strand = TRUE) %>% 
-      mutate(feature = "Gene Body")
-  ) %>% 
-  sort()
+
+if (!is.null(config$external$rnaseq)) {
+  ## Maybe just use the detected column defined during the annotation_setup Rmd
+  ## If RNA-Seq is provided
+  # rnaseq <- read_tsv(here::here(config$external$rnaseq))
+  # rna_col <- colnames(rnaseq)
+  # sig_col <- str_detect(str_to_lower(rna_col), "fdr")
+  # if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
+  # sig_col <- rna_col[sig_col][1]
+  # # Now split the transcript models by gene-level status from the RNA-Seq
+  # genes_gr <- genes_gr %>%
+  #   mutate(
+  #     category =  case_when(
+  #       !gene_id %in% rnaseq$gene_id ~ "Undetected",
+  #       gene_id %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
+  #       gene_id %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
+  #       gene_id %in% rnaseq$gene_id ~ "Unchanged"
+  #     )
+  #   )
+}
+any_detected <- gene_regions %>% 
+  vapply(function(x) any(x$detected), logical(1)) %>% 
+  any()
 ```
 
 ```{r bfl}
@@ -425,7 +424,7 @@ samples$sample %>%
 ```
 
 
-## Results
+## Results {.tabset}
 
 ```{r oracle-peaks}
 oracle_peaks <- treat_levels %>%
@@ -546,15 +545,12 @@ if (length(treat_levels) > 3) {
 
 ### Distance to TSS 
 
-```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = "Distances from the centre of the consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The range is restricted to +/-100kb around the TSS in both cases"}
-tss <- resize(all_gr$transcript, width = 1) %>% 
-  setNames(.$transcript_id)
+```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. {comma(sum(overlapsAny(consensus_peaks, gene_regions$tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, gene_regions$tss)), 0.1)}) directly overlapped a TSS.*")}
 a <- consensus_peaks %>% 
-  join_nearest(tss) %>% 
-  mutate(
-    tss_start = start(tss[transcript_id]),
-    d = start + width/2 - tss_start
+  join_nearest(
+    mutate(gene_regions$tss, tss = start)
   ) %>% 
+  mutate(d = start + width/2 - tss) %>% 
   mcols() %>% 
   as.data.frame() %>%
   ggplot(aes(d / 1e3)) +
@@ -565,11 +561,10 @@ a <- consensus_peaks %>%
     y = "Density"
   )
 b <- consensus_peaks %>% 
-  join_nearest(tss) %>% 
-  mutate(
-    tss_start = start(tss[transcript_id]),
-    d = start + width/2 - tss_start
-  ) %>%
+  join_nearest(
+    mutate(gene_regions$tss, tss = start)
+  ) %>% 
+  mutate(d = start + width/2 - tss) %>%
   as.data.frame() %>% 
   select(d) %>% 
   arrange(abs(d)) %>% 
@@ -590,163 +585,171 @@ plot_grid(a, b, labels = c("A", "B"))
 
 
 
+### Gene-Centric Regions
 
-
-### Regulatory Features
-
-```{r plot-feature-overlap, fig.height=6, fig.cap = "*Breakdown of consensus peaks and any features which they overlap. Intergenic peaks were defined as those which didn't overlap a transcribed region or promoter. Overlaps with a gene body included both the transcribed region and any defined promoter region.*"}
-## Let's define these as:
-## Promoter: 1) <2kb around TSS, 2) <5kb upstream
-## Gene Body: 1) Exon; 2) 1st Intron; 3) Other Intron
-## Intergenic: 1) 5-10kb; 2) 10-100kb; 3) Distal
-
-
-consensus_peaks %>% 
-  mutate(
-    promoter = overlapsAny(., subset(feat_gr, feature == "Promoter")),
-    enhancer = overlapsAny(., subset(feat_gr, feature == "Enhancer")),
-    se = overlapsAny(., subset(feat_gr, feature == "SE")),
-    gene_body = overlapsAny(., genes_gr) | promoter,
-    intergenic = !gene_body & !promoter
+```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap gene-centric features.*")}
+regions <- vapply(gene_regions, function(x) unique(x$type), character(1))
+gene_regions %>% 
+  .[setdiff(names(.), "tss")] %>% 
+  lapply(
+    function(x) overlapsProp(consensus_peaks, x)
   ) %>% 
   as_tibble() %>% 
+  mutate(width = width(consensus_peaks)) %>% 
   pivot_longer(
-    cols = c("promoter", "enhancer", "se", "gene_body", "intergenic"),
-    names_to = "feature",
+    cols = any_of(names(regions)),
+    names_to = "region",
     values_to = "overlap"
   ) %>% 
-  dplyr::filter(overlap) %>% 
+  dplyr::filter(overlap > 0) %>% 
+  mutate(bp = width * overlap) %>% 
+  group_by(region) %>% 
+  summarise(bp = sum(bp), .groups = 'drop') %>% 
   mutate(
-    feature = feature %>% 
-      str_replace_all("_", " ") %>% 
-      str_to_title() %>% 
-      str_replace_all("^Se$", "SE") %>% 
-      factor(levels = c("Promoter", "Enhancer", "SE", "Gene Body", "Intergenic")) %>% 
-      droplevels()
+    p = bp / sum(width(consensus_peaks)),
+    region = regions[region] %>% 
+      factor(levels = regions) %>% 
+      fct_relabel(str_to_title),
+    lab = percent(p, 0.1)
   ) %>% 
-  split(f = .$feature) %>% 
-  lapply(pull, "range") %>% 
-  fromList() %>% 
-  upset(
-    sets = colnames(.),
-    keep.order = TRUE,
-    order.by = "freq",
-    set_size.show = TRUE,
-    set_size.scale_max = nrow(.),
-    sets.bar.color = feat_col[colnames(.)] 
-  )
+  arrange(desc(region)) %>% 
+  mutate(y = cumsum(p) - 0.5*p) %>% 
+  ggplot(aes(1, p, fill = region)) +
+  geom_bar(width = 1, stat = "identity") +
+  geom_label(
+    aes(x = 1, y = y, label = lab),
+    size=4, fill = "white", alpha = 0.5,
+    nudge_x = 0.1
+  ) +
+  coord_polar("y", start = 0) +
+  scale_fill_manual(
+    values = colours$regions %>%
+      setNames(str_to_title(regions[names(.)])) %>% 
+    .[setdiff(names(.), "Tss")]
+  ) +
+  labs(fill = "Region") +
+  theme_void()
 ```
 
-```{r tab-feature-overlap}
-consensus_peaks %>% 
-  mutate(
-    promoter = overlapsAny(., subset(feat_gr, feature == "Promoter")),
-    enhancer = overlapsAny(., subset(feat_gr, feature == "Enhancer")),
-    se = overlapsAny(., subset(feat_gr, feature == "SE")),
-    gene_body = overlapsAny(., genes_gr) | promoter,
-    intergenic = !gene_body & !promoter
-  ) %>% 
-  as_tibble() %>% 
-  pivot_longer(
-    cols = contains("gen"),
-    names_to = "gene_region",
-    values_to = "overlap"
-  ) %>% 
-  dplyr::filter(overlap) %>% 
-  group_by(gene_region) %>% 
-  summarise(
-    total_peaks = dplyr::n(),
-    promoter = sum(promoter),
-    enhancer = sum(enhancer),
-    super_enhancer = sum(se),
-    other = total_peaks - promoter - enhancer - super_enhancer,
-    .groups = "drop"
-  ) %>% 
-  select_if(function(x){if(is.character(x)) return(TRUE); sum(x) > 0}) %>% 
-  bind_rows(
-    summarise_if(., is.numeric, sum)
-  ) %>% 
-  mutate(
-    gene_region = str_replace_na(gene_region, "Total") %>% 
-      str_replace_all("_", " ") %>% 
-      str_to_title()
-  ) %>% 
-  rename_all(str_replace_all, pattern = "_", replace = " ") %>% 
-  rename_all(str_to_title) %>% 
-  pander(
-    justify = paste(c("l", rep("r", ncol(.) - 1)), collapse = ""),
-    caption = glue(
-      "*Summary of the {comma(length(consensus_peaks))} consensus peaks ",
-      "defined by `macs2 callpeak` and associated features. ", 
-      "Any Enhancers and Super Enhancers are considered as distinct features. ",
-      "Intergenic regions are considered to be anything excluding a gene body ", 
-      "or promoter.*"
-    ),
-    emphasize.strong.rows = which(str_detect(.$`Gene Region`, "Total"))
-  )
-```
+`r ifelse(any_detected, "", "### Detected Genes")`
 
-
-`r ifelse(is.null(config$external$rnaseq), "", "### Gene Expression")`
-
-```{r tab-gene-expression, eval = !is.null(config$external$rnaseq), echo = !is.null(config$external$rnaseq)}
-consensus_peaks %>% 
-  join_nearest(select(genes_gr, category), distance = TRUE) %>% 
-  as_tibble() %>% 
-  mutate(
-    category = case_when(
-      distance > 1e5 ~ "No gene",
-      TRUE ~ category
-    )
-  ) %>% 
-  cbind(
-    vapply(
-      treat_levels, 
+```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition.*"}
+suppressWarnings( # Turn off the discrete alpha warning
+  gene_regions %>% 
+    .[setdiff(names(.), "tss")] %>% 
+    lapply(
       function(x) {
-        overlapsAny(consensus_peaks, oracle_peaks[[x]])
-      },
-      logical(length(consensus_peaks))
-    )
-  ) %>% 
-  pivot_longer(
-    cols = all_of(treat_levels), 
-    names_to = "treat", values_to = "overlap"
-  ) %>% 
-  group_by(treat, category) %>% 
-  summarise(n = sum(overlap), .groups = "drop") %>% 
-  arrange(desc(n)) %>% 
-  pivot_wider(
-    names_from = treat, values_from = n
-  ) %>% 
-  bind_rows(
-    summarise(., across(treat_levels, sum)) %>% 
-      mutate(category = "Total")
-  ) %>% 
-  mutate(
-    across(
-      all_of(treat_levels), 
-      function(x) {
-        case_when(
-          category == "Total" ~ comma(x),
-          x == 0 ~ "0 (0%)",
-          category != "Total" ~ as.character(
-            glue("{comma(x, 1)} ({percent( 2*x / sum(x), 0.1)})")
+        list(
+          tibble(
+            width = width(consensus_peaks),
+            all = overlapsProp(consensus_peaks, x),
+            detected = overlapsProp(consensus_peaks, subset(x, detected))
           )
         )
       }
+    ) %>% 
+    as_tibble() %>% 
+    pivot_longer(everything(), names_to = "region") %>% 
+    unnest(everything()) %>% 
+    mutate(
+      undetected = (all - detected) * width,
+      detected = detected*width
+    ) %>% 
+    group_by(region) %>% 
+    summarise(
+      detected = sum(detected),
+      undetected = sum(undetected),
+      .groups = "drop"
+    ) %>% 
+    pivot_longer(contains("detected"), names_to = "status", values_to = "total") %>% 
+    mutate(
+      p = total / sum(width(consensus_peaks)),
+      region = regions[region] %>% 
+        str_to_title() %>% 
+        factor(levels = str_to_title(regions)),
+      status = as.factor(str_to_title(status))
+    ) %>% 
+    ggplot(
+      aes(region, total/1e3, fill = region, alpha = fct_rev(status))
+    ) +
+    geom_col() +
+    geom_label(
+      aes(y = y / 1e3, label = percent(p, 0.1)),
+      data = . %>% 
+        dplyr::filter(total > 0) %>% 
+        group_by(region) %>% 
+        mutate(y = cumsum(total) - 0.5*total),
+      fill = "white",
+      alpha= 0.5,
+      size = 3.2
+    ) +
+    scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+    scale_fill_manual(
+      values = colours$regions %>% 
+        .[names(.) != "tss"] %>% 
+        setNames(regions[names(.)] %>% str_to_title())
+    ) +
+    scale_alpha_discrete(range = c(0.5, 1)) +
+    labs(
+      x = "Region",
+      y = "Total Overlap (kb)"
+    ) +
+    theme(
+      legend.position = "none"
+    )
+)
+```
+
+`r if(is.null(external_features), "", "### External Features")`
+
+```{r plot-feature-overlap, eval = !is.null(external_features), echo = !is.null(external_features), fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features.*")}
+external_features %>% 
+  splitAsList(.$feature) %>% 
+  lapply(
+    function(x) overlapsProp(consensus_peaks, x)
+  ) %>% 
+  as_tibble() %>% 
+  mutate(width = width(consensus_peaks)) %>% 
+  pivot_longer(
+    cols = all_of(unique(external_features$feature)),
+    names_to = "feature",
+    values_to = "overlap"
+  ) %>% 
+  dplyr::filter(overlap > 0) %>% 
+  mutate(bp = width * overlap) %>% 
+  group_by(feature) %>% 
+  summarise(bp = sum(bp), .groups = 'drop') %>% 
+  mutate(
+    p = bp / sum(width(consensus_peaks)),
+    feature = factor(feature, levels = names(colours$features)) %>% 
+      fct_relabel(str_sep_to_title)
+  ) %>% 
+  bind_rows(
+    tibble(
+      feature = "No Feature",
+      p = 1 - sum(.$p)
     )
   ) %>% 
-  dplyr::rename(`Gene Category` = category) %>% 
-  pander(
-    justify = c("left", rep("right", length(treat_levels))),
-    caption = paste(
-      "*Summary of consensus peaks to the nearest gene within 100kb.",
-      "The presence of an overlapping peak within each treatment group is also",
-      "shown.*"
-    ),
-    emphasize.strong.rows = nrow(.)
-  )
+  arrange(desc(feature)) %>% 
+  mutate(
+    y = cumsum(p) - 0.5*p,
+    lab = percent(p, 0.1)
+  ) %>% 
+  ggplot(aes(1, p, fill = feature)) +
+  geom_bar(width = 1, stat = "identity") +
+  geom_label(
+    aes(x = 1, y = y, label = lab),
+    size=4, fill = "white", alpha = 0.5,
+    nudge_x = 0.1
+  ) +
+  coord_polar("y", start = 0) +
+  scale_fill_manual(
+    values = setNames(colours$features, str_sep_to_title(names(colours$features)))
+  ) +
+  labs(fill = "Feature") +
+  theme_void()
 ```
+
 
 # Data Export
 
