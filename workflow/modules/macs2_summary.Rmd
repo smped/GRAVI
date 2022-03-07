@@ -22,6 +22,7 @@ library(rlang)
 library(BiocParallel)
 library(Rsamtools)
 library(Biostrings)
+library(ggside)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -752,6 +753,7 @@ external_features %>%
 
 
 ```{r}
+source(here::here("workflow/scripts/geom_sidelabel.R"))
 gene_regions %>% 
   lapply(select, type) %>% 
   GRangesList() %>% 
@@ -768,9 +770,11 @@ gene_regions %>%
   group_by(type, feature) %>% 
   summarise(bp = sum(bp), .groups = "drop") %>% 
   mutate(
-    type = factor(type, levels = regions),
+    type = factor(type, levels = regions) %>% 
+      fct_relabel(str_sep_to_title),
     feature = str_replace_na(feature, "no_feature") %>% 
-      factor(levels = names(colours$features)),
+      factor(levels = names(colours$features)) %>% 
+      fct_relabel(str_sep_to_title),
     p = bp / sum(width(consensus_peaks))
   ) %>% 
   ggplot(
@@ -778,12 +782,57 @@ gene_regions %>%
   ) +
   geom_point() +
   geom_label(size = 4) +
+  geom_xsidecol(
+    aes(type, p, fill = type),
+    inherit.aes = FALSE,
+    data = . %>% 
+      group_by(type) %>% 
+      summarise(p = sum(p))
+  ) +
+  geom_xsidelabel(
+    aes(type, p + 0.05, label = percent(p, 0.1)),
+    data = . %>%
+      group_by(type) %>%
+      summarise(p = sum(p)),
+    inherit.aes = FALSE
+  ) +
+  geom_ysidecol(
+    aes(p, feature, fill = feature),
+    inherit.aes = FALSE,
+    data = . %>% 
+      group_by(feature) %>% 
+      summarise(p = sum(p))
+  ) +
+  geom_ysidelabel(
+    aes(0.05, feature, label = percent(p, 0.1)),
+    data = . %>% 
+      group_by(feature) %>% 
+      summarise(p = sum(p)),
+    inherit.aes = FALSE,
+    alpha = 0.7
+  ) +
   scale_size_continuous(range = c(0, 50)) +
+  scale_xsidey_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
+  scale_ysidex_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
+  scale_fill_manual(
+    values = colours$regions %>% 
+      setNames(str_sep_to_title(regions[names(.)])) %>% 
+      .[names(.) != "Tss"] %>% 
+      c(
+        colours$features %>% 
+          setNames(str_sep_to_title(names(.)))
+      )
+  ) +
   coord_equal() +
+  labs(
+    x = "Gene-Centric Region",
+    y = "External Feature"
+  ) +
   theme(
-    legend.position = "none"
+    legend.position = "none",
+    ggside.panel.scale = 0.25
   )
-## Now add barplots on the side axes using ggside!!
+## Try fix those colour clashes for promoters
 ```
 
 
