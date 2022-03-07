@@ -1,6 +1,6 @@
 ```{r example, echo = FALSE, eval=FALSE}
 ## This module requires the following to be set during preparation
-# target <- "AR"
+# target <- "ER"
 # threads <- 6
 ```
 
@@ -505,7 +505,7 @@ if (length(treat_levels) <= 3) {
       filename = file.path(fig_path, fig_name),
       imagetype = "png",
       units = "in",
-      height = 8, 
+      height = 8,
       width = knitr::opts_chunk$get("fig.width"),
       fill = colours$treat[treat_levels],
       alpha = 0.3
@@ -748,6 +748,42 @@ external_features %>%
   ) +
   labs(fill = "Feature") +
   theme_void()
+```
+
+
+```{r}
+gene_regions %>% 
+  lapply(select, type) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  subset(type != "tss") %>% 
+  sort() %>% 
+  setNames(c()) %>% 
+  partitionRanges(select(external_features, feature)) %>% 
+  mutate(p = overlapsProp(., consensus_peaks)) %>% 
+  subset(p > 0) %>% 
+  mutate(bp = p * width) %>% 
+  mcols() %>% 
+  as_tibble() %>% 
+  group_by(type, feature) %>% 
+  summarise(bp = sum(bp), .groups = "drop") %>% 
+  mutate(
+    type = factor(type, levels = regions),
+    feature = str_replace_na(feature, "no_feature") %>% 
+      factor(levels = names(colours$features)),
+    p = bp / sum(width(consensus_peaks))
+  ) %>% 
+  ggplot(
+    aes(type, feature, size = bp/1e6, alpha = bp/1e6, label = percent(p, 0.1))
+  ) +
+  geom_point() +
+  geom_label(size = 4) +
+  scale_size_continuous(range = c(0, 50)) +
+  coord_equal() +
+  theme(
+    legend.position = "none"
+  )
+## Now add barplots on the side axes using ggside!!
 ```
 
 
