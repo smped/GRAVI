@@ -1,6 +1,6 @@
 ```{r example, echo = FALSE, eval=FALSE}
 ## This module requires the following to be set during preparation
-# target <- "ER"
+# target <- "AR"
 # threads <- 6
 ```
 
@@ -48,6 +48,9 @@ str_sep_to_title <- function(x, sep = "_", replacement = " ") {
   str_replace_all(x, sep, replacement) %>% 
     str_to_title()
 }
+## This has been pushed to the main repo of ggside, but is not yet
+## incorporated into the packge. The functions are geom_*sidelabel
+source(here::here("workflow/scripts/geom_sidelabel.R"))
 ```
 
 
@@ -307,54 +310,56 @@ bfl %>%
 ### Peaks Detected
 
 ```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. Those which are discarded by macs2 are shown in transparent shades. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
-macs2_logs %>%
-  mutate(
-    Discarded = paired_peaks - filtered_peaks
-  ) %>%
-  dplyr::rename(Retained = filtered_peaks) %>%
-  pivot_longer(
-    cols = c("Retained", "Discarded"),
-    names_to = "Status",
-    values_to = "total"
-  ) %>%
-  ggplot(
-    aes(label, total, fill = qc, alpha = Status)
+suppressWarnings(
+  macs2_logs %>%
+    mutate(
+      Discarded = paired_peaks - filtered_peaks
+    ) %>%
+    dplyr::rename(Retained = filtered_peaks) %>%
+    pivot_longer(
+      cols = c("Retained", "Discarded"),
+      names_to = "Status",
+      values_to = "total"
+    ) %>%
+    ggplot(
+      aes(label, total, fill = qc, alpha = Status)
     ) +
-  geom_col() +
-  geom_label(
-    aes(x = label, y = total, label = lab, colour = qc),
-    data = . %>%
-      dplyr::filter(Status == "Retained" & total > 0) %>%
-      mutate(
-        lab = comma(total, accuracy = 1),
-        total = total
-      ),
-    inherit.aes = FALSE,
-    show.legend = FALSE
-  ) +
-  geom_hline(
-    aes(yintercept = min),
-    data = . %>%
-      dplyr::filter(Status == "Retained") %>% 
-      group_by(treat) %>%
-      summarise(min = config$peaks$qc$min_prop_peaks*max(total)),
-    linetype = 2,
-    col = "grey"
-  ) +
-  facet_grid(~treat, scales = "free_x", space = "free_x") +
-  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values = colours$qc) +
-  scale_colour_manual(values = colours$qc) +
-  scale_alpha_discrete(range = c(0.2, 1)) +
-  guides(alpha = "none") +
-  labs(
-    x = "Sample",
-    y = "Paired Peaks",
-    fill = "QC"
-  ) +
-  ggtitle(
-    glue("{target}: Number of Peaks")
-  )
+    geom_col() +
+    geom_label(
+      aes(x = label, y = total, label = lab, colour = qc),
+      data = . %>%
+        dplyr::filter(Status == "Retained" & total > 0) %>%
+        mutate(
+          lab = comma(total, accuracy = 1),
+          total = total
+        ),
+      inherit.aes = FALSE,
+      show.legend = FALSE
+    ) +
+    geom_hline(
+      aes(yintercept = min),
+      data = . %>%
+        dplyr::filter(Status == "Retained") %>% 
+        group_by(treat) %>%
+        summarise(min = config$peaks$qc$min_prop_peaks*max(total)),
+      linetype = 2,
+      col = "grey"
+    ) +
+    facet_grid(~treat, scales = "free_x", space = "free_x") +
+    scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+    scale_fill_manual(values = colours$qc) +
+    scale_colour_manual(values = colours$qc) +
+    scale_alpha_discrete(range = c(0.2, 1)) +
+    guides(alpha = "none") +
+    labs(
+      x = "Sample",
+      y = "Paired Peaks",
+      fill = "QC"
+    ) +
+    ggtitle(
+      glue("{target}: Number of Peaks")
+    )
+)
 ```
 
 ### Cross Correlations
@@ -589,7 +594,7 @@ plot_grid(a, b, labels = c("A", "B"))
 ### Gene-Centric Regions
 
 ```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap gene-centric features.*")}
-regions <- vapply(gene_regions, function(x) unique(x$type), character(1))
+regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 gene_regions %>% 
   .[setdiff(names(.), "tss")] %>% 
   lapply(
@@ -609,8 +614,7 @@ gene_regions %>%
   mutate(
     p = bp / sum(width(consensus_peaks)),
     region = regions[region] %>% 
-      factor(levels = regions) %>% 
-      fct_relabel(str_to_title),
+      factor(levels = regions),
     lab = percent(p, 0.1)
   ) %>% 
   arrange(desc(region)) %>% 
@@ -625,8 +629,8 @@ gene_regions %>%
   coord_polar("y", start = 0) +
   scale_fill_manual(
     values = colours$regions %>%
-      setNames(str_to_title(regions[names(.)])) %>% 
-    .[setdiff(names(.), "Tss")]
+      setNames(regions[names(.)]) %>%
+    .[setdiff(names(.), "TSS")]
   ) +
   labs(fill = "Region") +
   theme_void()
@@ -665,9 +669,7 @@ suppressWarnings( # Turn off the discrete alpha warning
     pivot_longer(contains("detected"), names_to = "status", values_to = "total") %>% 
     mutate(
       p = total / sum(width(consensus_peaks)),
-      region = regions[region] %>% 
-        str_to_title() %>% 
-        factor(levels = str_to_title(regions)),
+      region = factor(regions[region], levels = regions),
       status = as.factor(str_to_title(status))
     ) %>% 
     ggplot(
@@ -686,9 +688,9 @@ suppressWarnings( # Turn off the discrete alpha warning
     ) +
     scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
     scale_fill_manual(
-      values = colours$regions %>% 
-        .[names(.) != "tss"] %>% 
-        setNames(regions[names(.)] %>% str_to_title())
+      values = colours$regions %>%
+        setNames(regions[names(.)]) %>%
+        .[setdiff(names(.), "TSS")]
     ) +
     scale_alpha_discrete(range = c(0.5, 1)) +
     labs(
@@ -747,92 +749,92 @@ external_features %>%
   scale_fill_manual(
     values = setNames(colours$features, str_sep_to_title(names(colours$features)))
   ) +
-  labs(fill = "Feature") +
+  labs(fill = "External Feature") +
   theme_void()
 ```
 
+`r if(is.null(external_features), "", "### External Features And Gene-Centric Regions")`
 
-```{r}
-source(here::here("workflow/scripts/geom_sidelabel.R"))
-gene_regions %>% 
-  lapply(select, type) %>% 
-  GRangesList() %>% 
-  unlist() %>% 
-  subset(type != "tss") %>% 
-  sort() %>% 
-  setNames(c()) %>% 
-  partitionRanges(select(external_features, feature)) %>% 
-  mutate(p = overlapsProp(., consensus_peaks)) %>% 
-  subset(p > 0) %>% 
-  mutate(bp = p * width) %>% 
-  mcols() %>% 
-  as_tibble() %>% 
-  group_by(type, feature) %>% 
-  summarise(bp = sum(bp), .groups = "drop") %>% 
-  mutate(
-    type = factor(type, levels = regions) %>% 
-      fct_relabel(str_sep_to_title),
-    feature = str_replace_na(feature, "no_feature") %>% 
-      factor(levels = names(colours$features)) %>% 
-      fct_relabel(str_sep_to_title),
-    p = bp / sum(width(consensus_peaks))
-  ) %>% 
-  ggplot(
-    aes(type, feature, size = bp/1e6, alpha = bp/1e6, label = percent(p, 0.1))
-  ) +
-  geom_point() +
-  geom_label(size = 4) +
-  geom_xsidecol(
-    aes(type, p, fill = type),
-    inherit.aes = FALSE,
-    data = . %>% 
-      group_by(type) %>% 
-      summarise(p = sum(p))
-  ) +
-  geom_xsidelabel(
-    aes(type, p + 0.05, label = percent(p, 0.1)),
-    data = . %>%
-      group_by(type) %>%
-      summarise(p = sum(p)),
-    inherit.aes = FALSE
-  ) +
-  geom_ysidecol(
-    aes(p, feature, fill = feature),
-    inherit.aes = FALSE,
-    data = . %>% 
-      group_by(feature) %>% 
-      summarise(p = sum(p))
-  ) +
-  geom_ysidelabel(
-    aes(0.05, feature, label = percent(p, 0.1)),
-    data = . %>% 
-      group_by(feature) %>% 
-      summarise(p = sum(p)),
-    inherit.aes = FALSE,
-    alpha = 0.7
-  ) +
-  scale_size_continuous(range = c(0, 50)) +
-  scale_xsidey_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
-  scale_ysidex_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
-  scale_fill_manual(
-    values = colours$regions %>% 
-      setNames(str_sep_to_title(regions[names(.)])) %>% 
-      .[names(.) != "Tss"] %>% 
-      c(
-        colours$features %>% 
-          setNames(str_sep_to_title(names(.)))
-      )
-  ) +
-  coord_equal() +
-  labs(
-    x = "Gene-Centric Region",
-    y = "External Feature"
-  ) +
-  theme(
-    legend.position = "none",
-    ggside.panel.scale = 0.25
-  )
-## Try fix those colour clashes for promoters
+```{r plot-feature-region-overlap, eval = !is.null(external_features), echo = !is.null(external_features), fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features and gene-centric regions. Percentages in each panel sum to 100.*")}
+suppressWarnings(
+  gene_regions %>% 
+    lapply(select, region) %>% 
+    GRangesList() %>% 
+    unlist() %>% 
+    subset(region != "TSS") %>% 
+    sort() %>% 
+    setNames(c()) %>% 
+    partitionRanges(select(external_features, feature)) %>% 
+    mutate(p = overlapsProp(., consensus_peaks)) %>% 
+    subset(p > 0) %>% 
+    mutate(bp = p * width) %>% 
+    mcols() %>% 
+    as_tibble() %>% 
+    group_by(region, feature) %>% 
+    summarise(bp = sum(bp), .groups = "drop") %>% 
+    mutate(
+      region = factor(region, levels = regions),
+      feature = str_replace_na(feature, "no_feature") %>% 
+        factor(levels = names(colours$features)) %>% 
+        fct_relabel(str_sep_to_title),
+      p = bp / sum(width(consensus_peaks))
+    ) %>% 
+    ggplot(
+      aes(region, feature, size = bp/1e6, alpha = bp/1e6, label = percent(p, 0.1))
+    ) +
+    geom_point(colour = "darkblue") +
+    geom_label(size = 4) +
+    geom_xsidecol(
+      aes(region, p, fill = region),
+      inherit.aes = FALSE,
+      data = . %>% 
+        group_by(region) %>% 
+        summarise(p = sum(p))
+    ) +
+    geom_xsidelabel(
+      aes(region, p + 0.12*max(p), label = percent(p, 0.1)),
+      data = . %>%
+        group_by(region) %>%
+        summarise(p = sum(p)),
+      inherit.aes = FALSE
+    ) +
+    geom_ysidecol(
+      aes(p, feature, fill = feature),
+      inherit.aes = FALSE,
+      data = . %>% 
+        group_by(feature) %>% 
+        summarise(p = sum(p))
+    ) +
+    geom_ysidelabel(
+      aes(max(p)*0.15, feature, label = percent(p, 0.1)),
+      data = . %>% 
+        group_by(feature) %>% 
+        summarise(p = sum(p)),
+      inherit.aes = FALSE,
+      alpha = 0.7
+    ) +
+    scale_size_continuous(range = c(0, 50)) +
+    scale_xsidey_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
+    scale_ysidex_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
+    scale_fill_manual(
+      values =  colours$regions %>%
+        setNames(regions[names(.)]) %>%
+        .[setdiff(names(.), "TSS")] %>% 
+        c(
+          colours$features %>% 
+            setNames(str_sep_to_title(names(.)))
+        )
+    ) +
+    coord_equal() +
+    labs(
+      x = "Gene-Centric Region",
+      y = "External Feature"
+    ) +
+    theme(
+      legend.position = "none",
+      ggside.panel.scale = 0.25
+    )
+)
 ```
 
 
