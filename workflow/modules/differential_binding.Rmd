@@ -1,3 +1,8 @@
+```{r example, echo = FALSE, eval=FALSE}
+## This module requires the following to be set during preparation
+# target <- "ER"
+# threads <- 6
+```
 
 ```{r packages}
 library(tidyverse)
@@ -46,13 +51,14 @@ theme_set(
     plot.title = element_text(hjust = 0.5)
   )
 )
-```
-
-```{r set-bpparam}
 register(MulticoreParam(workers = threads))
 ```
 
 ```{r load-config}
+colours <- read_rds(
+  here::here("output", "annotations", "colours.rds")
+) %>% 
+  lapply(unlist)
 config <- read_yaml(
 	here::here("config", "config.yml")
 )
@@ -60,22 +66,18 @@ samples <- here::here("output", target, "qc_samples.tsv") %>%
   read_tsv() %>% 
   dplyr::filter(
     qc == "pass",
-    treat %in% treat_levels
+    treat %in% names(colours$treat)
   ) %>% 
-  mutate(treat = factor(treat, levels = treat_levels))
+  mutate(treat = factor(treat, levels = names(colours$treat))) %>% 
+  droplevels()
 stopifnot(nrow(samples) > 0)
+treat_levels <- levels(samples$treat)
+treat_cols <- colours$treat[treat_levels]
 rep_col <- setdiff(
   colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
 )
 samples[[rep_col]] <- as.factor(samples[[rep_col]])
 fdr_alpha <- config$comparisons$fdr
-```
-
-```{r rmd-config}
-rmd_config <- read_yaml(
-  here::here("config", "rmarkdown.yml")
-)
-treat_cols <- unlist(rmd_config$colours$treat)[c("Input", treat_levels)]
 ```
 
 ```{r set-paths}
@@ -92,54 +94,63 @@ if (!dir.exists(out_path)) dir.create(out_path)
 ```
 
 
-```{r sq}
+```{r load-annotations}
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-blacklist <- here::here(ext_path, "blacklist.bed.gz") %>%
+blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
-```
 
+bands_df <- config$genome$build %>% 
+  str_to_lower() %>% 
+  paste0(".cytobands") %>% 
+  get()
+stopifnot(
+  colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
+)
 
-```{r load-annotations}
-bands_df <- here::here("data", "external", "cytoBand.txt.gz") %>%
-  read_tsv(col_names = c("chrom", "chromStart", "chromEnd", "name", "gieStain"))
-feat_gr <- read_rds(file.path(annotation_path, "feat_gr.rds")) 
-se_file <- file.path(annotation_path, "SE.rds")
-if (file.exists(se_file)) {
-  se <- read_rds(se_file) %>% 
-    mutate(feature = "SE") %>% 
-    select(feature, gene_id, gene_name)
-  feat_gr <- feat_gr %>% 
-    filter_by_non_overlaps(se) %>% 
-    c(se) %>% 
-    sort()
-}
 genes_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds() %>% 
   .[["gene"]]
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
-if (!is.null(config$external$rnaseq)) {
-  ## If RNA-Seq is provided
-  rnaseq <- autoload(here::here(config$external$rnaseq))
-  rna_col <- colnames(rnaseq)
-  sig_col <- str_detect(str_to_lower(rna_col), "fdr")
-  if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
-  sig_col <- rna_col[sig_col][1]
-  # Now split the transcript models by gene-level status from the RNA-Seq
-  trans_models <- trans_models %>% mutate(
-    category =  case_when(
-      !gene %in% rnaseq$gene_id ~ "Undetected",
-      gene %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
-      gene %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
-      gene %in% rnaseq$gene_id ~ "Unchanged"
-    )
-  ) %>% 
-    split(f = .$category) %>% 
-    lapply(select, -category) %>% 
-    GRangesList() %>% 
-    .[vapply(., length, integer(1)) > 0]
+
+external_features <- c()
+if (!is.null(config$external$features)) {
+  external_features <- suppressWarnings(
+    import.gff(config$external$features, genome = sq)
+  )
+  keep_cols <- !vapply(
+    mcols(external_features), function(x) all(is.na(x)), logical(1)
+  )
+  mcols(external_features) <- mcols(external_features)[keep_cols]
 }
+gene_regions <- file.path(annotation_path, "gene_regions.rds") %>% 
+  read_rds()
+any_detected <- gene_regions %>% 
+  vapply(function(x) any(x$detected), logical(1)) %>% 
+  any()
+
+# if (!is.null(config$external$rnaseq)) {
+  # ## If RNA-Seq is provided
+  # rnaseq <- autoload(here::here(config$external$rnaseq))
+  # rna_col <- colnames(rnaseq)
+  # sig_col <- str_detect(str_to_lower(rna_col), "fdr")
+  # if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
+  # sig_col <- rna_col[sig_col][1]
+  # # Now split the transcript models by gene-level status from the RNA-Seq
+  # trans_models <- trans_models %>% mutate(
+  #   category =  case_when(
+  #     !gene %in% rnaseq$gene_id ~ "Undetected",
+  #     gene %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
+  #     gene %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
+  #     gene %in% rnaseq$gene_id ~ "Unchanged"
+  #   )
+  # ) %>% 
+  #   split(f = .$category) %>% 
+  #   lapply(select, -category) %>% 
+  #   GRangesList() %>% 
+  #   .[vapply(., length, integer(1)) > 0]
+# }
 ```
 
 
@@ -231,30 +242,6 @@ anyPE <- bplapply(
   unlist()
 ```
 
-```{r plot-bfl-summary, echo = FALSE, eval = FALSE, fig.height=6, fig.cap = glue("*Summary of A) Read Length and B) MAPQ scores for all samples along with the input. Values were obtained by sampling the first {comma(ys)} alignments from each bam file.*")}
-a <- bfl_summary$qwidth %>%
-	ggplot(aes(label, value, fill = treat)) +
-	geom_boxplot(alpha = 0.8) +
-	scale_fill_manual(values = treat_cols) +
-	labs(
-		x = "Sample", y = "Read Length", fill = "Treatment"
-	)
-b <- bfl_summary$mapq %>%
-	ggplot(aes(label, value, fill = treat)) +
-	geom_boxplot(alpha = 0.8) +
-	scale_fill_manual(values = treat_cols) +
-	labs(
-		x = "Sample", y = "MAPQ", fill = "Treatment"
-	)
-plot_grid(
-	a + theme(legend.position = "none"),
-	b + theme(legend.position = "none"),
-	get_legend(a),
-	nrow = 1,
-	rel_widths = c(1, 1, 0.2),
-	labels = c("A", "B")
-)
-```
 
 Taking thefirst `r comma(ys)` alignments, a brief inspection of the Bam Files revealed:
 
@@ -441,7 +428,6 @@ plot_grid(
 ```
 
 
-
 # Differential Binding Analysis
 
 ## Primary Analysis
@@ -464,6 +450,7 @@ v <- voomWeightsFromCPM(
   cpm = assay(filtered_counts, "qsmooth"), 
   design = X, 
   lib.size = filtered_counts$totals,
+  # lib.size = filtered_counts$totals*2^sf,
   block = block, correlation = paired_cors
 )
 colData(filtered_counts)$design <- v[["design"]]
@@ -564,11 +551,14 @@ The number of windows showing increased or decreased binding within each merged 
 FDR-adjustment was performed with `r comma(sum(merged_results$fdr < fdr_alpha))` regions (`r percent(mean(merged_results$fdr < fdr_alpha), accuracy = 0.1)`) showing significance, based on an FDR-adjusted p-value alone.
 
 ```{r map-to-genes}
+#####################################
+## Need to revisit mapByFeature!!! ##
+#####################################
 merged_results <- merged_results %>% 
   mapByFeature(
     genes = genes_gr, 
-    prom = subset(feat_gr, feature == "Promoter"),
-    enh = subset(feat_gr, feature %in% c("Enhancer", "SE")),
+    prom = gene_regions$promoters,
+    # enh = subset(feat_gr, feature %in% c("Enhancer", "SE")),
     gi = hic
   ) %>% 
   mutate(

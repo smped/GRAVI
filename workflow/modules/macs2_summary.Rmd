@@ -102,7 +102,6 @@ blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   sort()
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
-gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 external_features <- c()
 if (!is.null(config$external$features)) {
   external_features <- suppressWarnings(
@@ -111,27 +110,9 @@ if (!is.null(config$external$features)) {
   keep_cols <- !vapply(
     mcols(external_features), function(x) all(is.na(x)), logical(1)
   )
+  mcols(external_features) <- mcols(external_features)[keep_cols]
 }
-
-if (!is.null(config$external$rnaseq)) {
-  ## Maybe just use the detected column defined during the annotation_setup Rmd
-  ## If RNA-Seq is provided
-  # rnaseq <- read_tsv(here::here(config$external$rnaseq))
-  # rna_col <- colnames(rnaseq)
-  # sig_col <- str_detect(str_to_lower(rna_col), "fdr")
-  # if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
-  # sig_col <- rna_col[sig_col][1]
-  # # Now split the transcript models by gene-level status from the RNA-Seq
-  # genes_gr <- genes_gr %>%
-  #   mutate(
-  #     category =  case_when(
-  #       !gene_id %in% rnaseq$gene_id ~ "Undetected",
-  #       gene_id %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
-  #       gene_id %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
-  #       gene_id %in% rnaseq$gene_id ~ "Unchanged"
-  #     )
-  #   )
-}
+gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 any_detected <- gene_regions %>% 
   vapply(function(x) any(x$detected), logical(1)) %>% 
   any()
