@@ -12,13 +12,11 @@ paths:
 ## These will be applied to **all** targets containing both levels specified in
 ## the contrasts field. The first provided level will be considered as the
 ## baseline/control/reference.
-## Fields provided in the ihw field will be used to apply the IHW procedure
-## to FDR-adjustment. Can only be one of the targets, or one of the fields:
-## width or logCPM, representing peak width or average signal.
-## If alternate targets are provided, these will be applied as given but
-## consecutively removed to ensure all groups contain > 1000 peaks/windows
-## Targets will be dropped in the reverse order as provided. Clearly, for a
-## given target, presence absence of that target will NOT be applied
+## Fields provided in the ihw field can only be blank ("") or one of:
+## "targets": Will use all other ChIP targets in the samples file
+## "regions": Will use Genomic Regions as defined during the annotation setup
+## "features": Will use any ranges provided as external features (below)
+## This will be used for obtaining an IHW-adjusted FDR.
 comparisons:
   fc: 1.2
   fdr: 0.05
@@ -26,7 +24,7 @@ comparisons:
   filter_q: 0.95
   contrasts:
     - ["Veh", "DHT"]
-  ihw: ["AR", "ER"]
+  ihw: "features"
 
 
 ## Currently, this workflow assumes alignments are provided as bam files
@@ -44,7 +42,7 @@ genome:
 external:
   rnaseq: "data/external/PDX_HCI-005_Veh_DHT_Sarm_RNASeq.tsv"
   features: "data/external/h3k27ac_features.gtf"
-  HiC:
+  hic:
 
 peaks:
   ## Settings for macs2 callpeak

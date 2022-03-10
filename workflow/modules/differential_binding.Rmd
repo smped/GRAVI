@@ -52,6 +52,13 @@ theme_set(
   )
 )
 register(MulticoreParam(workers = threads))
+str_sep_to_title <- function(x, sep = "_", replacement = " ", exclude = c()) {
+  out <- x
+  out[!x %in% exclude] <- out[!x %in% exclude] %>% 
+    str_replace_all(sep, replacement) %>% 
+    str_to_title()
+  out
+}
 ```
 
 ```{r load-config}
@@ -114,7 +121,7 @@ genes_gr <- file.path(annotation_path, "all_gr.rds") %>%
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
 
-external_features <- c()
+external_features <- GRanges(seqinfo = sq)
 if (!is.null(config$external$features)) {
   external_features <- suppressWarnings(
     import.gff(config$external$features, genome = sq)
@@ -126,31 +133,22 @@ if (!is.null(config$external$features)) {
 }
 gene_regions <- file.path(annotation_path, "gene_regions.rds") %>% 
   read_rds()
+regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 any_detected <- gene_regions %>% 
   vapply(function(x) any(x$detected), logical(1)) %>% 
   any()
 
-# if (!is.null(config$external$rnaseq)) {
-  # ## If RNA-Seq is provided
-  # rnaseq <- autoload(here::here(config$external$rnaseq))
-  # rna_col <- colnames(rnaseq)
-  # sig_col <- str_detect(str_to_lower(rna_col), "fdr")
-  # if (!any(sig_col)) sig_col <- str_detect(str_to_lower(rna_col), "p.val|pval")
-  # sig_col <- rna_col[sig_col][1]
-  # # Now split the transcript models by gene-level status from the RNA-Seq
-  # trans_models <- trans_models %>% mutate(
-  #   category =  case_when(
-  #     !gene %in% rnaseq$gene_id ~ "Undetected",
-  #     gene %in% subset(rnaseq, logFC > 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Up",
-  #     gene %in% subset(rnaseq, logFC < 0 & !!sym(sig_col) < 0.05)$gene_id ~ "Down",
-  #     gene %in% rnaseq$gene_id ~ "Unchanged"
-  #   )
-  # ) %>% 
-  #   split(f = .$category) %>% 
-  #   lapply(select, -category) %>% 
-  #   GRangesList() %>% 
-  #   .[vapply(., length, integer(1)) > 0]
-# }
+rna_path <- here::here(config$external$rnaseq)
+rnaseq <- tibble(gene_id = character())
+if (!is.null(rna_path)) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
+  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
+  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+}
+tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
+rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
+rna_col <- c(tx_col, "gene_id")[[1]]
 ```
 
 
@@ -432,9 +430,10 @@ plot_grid(
 
 ## Primary Analysis
 
-```{r run-voom}
+```{r fit-model}
 X <- model.matrix(~treat, data = colData(filtered_counts)) %>%
   set_colnames(str_remove(colnames(.), "treat"))
+colData(filtered_counts)$design <- X
 paired_cors <- block <- NULL
 if (config$comparisons$paired) {
   block <- colData(filtered_counts)[[rep_col]]
@@ -446,74 +445,24 @@ if (config$comparisons$paired) {
     block = block
   )$consensus.correlation
 }
-v <- voomWeightsFromCPM(
-  cpm = assay(filtered_counts, "qsmooth"), 
-  design = X, 
-  lib.size = filtered_counts$totals,
-  # lib.size = filtered_counts$totals*2^sf,
-  block = block, correlation = paired_cors
-)
-colData(filtered_counts)$design <- v[["design"]]
-assay(filtered_counts, "voom") <- v[["weights"]] %>% 
-  set_colnames(colnames(v))
-```
-
-```{r fit}
 fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
-fit <- lmFit(
-  object = assay(filtered_counts, "qsmooth"),
-  design = colData(filtered_counts)$design,
-  block = block,
-  correlation = paired_cors,
-  weights = assay(filtered_counts, "voom")
-) %>%
-  treat(fc = fc)
+fit <- assay(filtered_counts, "qsmooth") %>% 
+  lmFit(design = X, block = block, correlation = paired_cors) %>% 
+  treat(fc = fc, trend = TRUE, robust = FALSE) 
+res_cols <- c("logFC", "AveExpr", "t", "P.Value", "fdr")
 rowData(filtered_counts) <- rowData(filtered_counts) %>% 
+  .[!colnames(.) %in% res_cols] %>% 
   cbind(
-    topTreat(fit, coef = treat_levels[2], sort.by = "none", number = nrow(fit))
+    fit %>% 
+      topTable(sort.by = "none", number = Inf) %>% 
+      DataFrame() %>% 
+      setNames(res_cols)
   )
 ```
 
 
-```{r plot-voom, fig.height = 6, fig.cap = glue("*Relationship between observed binding intensity and variability between samples A) before and B) after using voom precision-weights.", ifelse(n_max == 5e4, " A subset of 50,000 points only is shown.", ""), "*")}
-plot_grid(
-  v$voom.xy[c("Amean", "y")] %>% 
-    as_tibble() %>% 
-    sample_n(n_max) %>% 
-    ggplot(aes(Amean, y)) +
-    geom_point(shape = ".") +
-    geom_smooth(
-      se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs"),
-      colour = "red", size = 1/3
-    ) +
-    labs(
-      x = "Average logCPM",
-      y = expression(sqrt("StDev")),
-      title = "pre-voom: Mean-variance trend"
-    ),
-  tibble(
-    Amean = fit$Amean,
-    y = sqrt(fit$sigma)
-  ) %>% 
-    sample_n(n_max) %>% 
-    ggplot(aes(Amean, y)) +
-    geom_point(shape = ".") +
-    geom_smooth(
-      se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs"),
-      colour = "red", size = 1/3
-    ) +
-    labs(
-      x = "Average logCPM",
-      y = expression(sqrt("StDev")),
-      title = "post-voom: Mean-variance trend"
-    ),
-  labels = c("A", "B")
-)
-```
-
-
-After SQ-normalisation of logCPM values, `voom` precision weights were estimated to enable fitting with conventional linear models.
-A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window.
+After SQ-normalisation of logCPM values, the `limma-trend` method was applied to all retained windows.
+A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, incorporating a trended prior-variance.
 After fitting, hypothesis testing was performed testing:
 
 $$
@@ -525,6 +474,7 @@ H_A: |\mu| > \lambda
 $$
 where $\mu$ represents the true mean change in `r target` binding.
 The value $\lambda =$ `r round(log2(fc), 2)` was chosen as this corresponds to a `r percent(fc - 1)` change in detected signal on the log~2~ scale.
+This is the `treat` methodology as developed by McCarthy & Smyth, and p-values were obtained for each initial window, before merging adjoining windows.
 
 
 ```{r merged-results}
@@ -550,228 +500,85 @@ Similarly, p-values from the above tests were also selected from the same slidin
 The number of windows showing increased or decreased binding within each merged region were also included, by counting those within each set of windows with p-values lower than the selected window.
 FDR-adjustment was performed with `r comma(sum(merged_results$fdr < fdr_alpha))` regions (`r percent(mean(merged_results$fdr < fdr_alpha), accuracy = 0.1)`) showing significance, based on an FDR-adjusted p-value alone.
 
-```{r map-to-genes}
-#####################################
-## Need to revisit mapByFeature!!! ##
-#####################################
-merged_results <- merged_results %>% 
-  mapByFeature(
-    genes = genes_gr, 
-    prom = gene_regions$promoters,
-    # enh = subset(feat_gr, feature %in% c("Enhancer", "SE")),
-    gi = hic
-  ) %>% 
-  mutate(
-    regulatory_feature = case_when(
-      overlapsAny(., subset(feat_gr, feature == "Promoter")) ~ "Promoter",
-      overlapsAny(., subset(feat_gr, feature == "Enhancer")) ~ "Enhancer",
-      overlapsAny(., subset(feat_gr, feature == "SE")) ~ "Super Enhancer",
-      TRUE ~ "None"
-    ) %>% 
-      factor(levels = c("Promoter", "Enhancer", "Super Enhancer", "None")) %>% 
-      droplevels(),
-    gene_region = case_when(
-      overlapsAny(., genes_gr) ~ "Gene Body",
-      regulatory_feature == "Promoter" ~ "Gene Body",
-      TRUE ~ "Intergenic"
-    ) %>% 
-      factor(levels = c("Gene Body", "Intergenic")) %>% 
-      droplevels()
-  )
-```
-
-In addition to statistical analysis, the regions produced by merging windows were mapped to all annotated genes using existing mappings obtained for promoters and enhancers, as well as any super-enhancers or long-range interactions if identified previously.
-Regions are also annotated to 'gene regions', with a `Gene Body` defined as any transcribed region, along with any H3K27ac defined region which overlaps a TSS, i.e. a promoter.
-Any region not overlapping a gene body under this definition was considered intergenic.
-Intronic/Exonic structure of any transcript was not incorporated.
-
 ## Independent Hypothesis Weighting {.tabset}
 
-```{r ihw}
-other_targets <- here::here(config$samples$file) %>% 
-  read_tsv() %>% 
-  pull("target") %>% 
-  unique() %>% 
-  setdiff(target)
-ihw_discrete <- case_when(
-  any(config$comparisons$ihw %in% other_targets) ~ TRUE,
-  any(config$comparisons$ihw %in% c("logCPM", "AveExpr", "width")) ~ FALSE
+```{r set-ihw}
+ihw_opts <- c("regions", "features", "targets")
+ihw_method <- c(
+  intersect(str_to_lower(config$comparisons$ihw), ihw_opts), "none"
 )
-if (!is.null(config$comparisons$ihw)) {
-  if (ihw_discrete) {
-    other_consensus <- config$comparisons$ihw %>% 
-      intersect(other_targets) %>% 
-      sapply(
-        function(x) {
-          here::here("output", x, "consensus_peaks.bed") %>%
-            import.bed(seqinfo = sq)
-        },
-        simplify = FALSE
-      )
-    ihw_groups <- lapply(other_consensus, function(x){
-      overlapsAny(merged_results, x)
-    }) %>% 
-      as_tibble %>% 
-      mutate(range = as.character(merged_results)) %>% 
-      pivot_longer(
-        cols = all_of(names(other_consensus)),
-        names_to = "other",
-        values_to = "overlap"
-      ) %>% 
-      dplyr::filter(overlap) %>% 
-      group_by(range) %>% 
-      summarise(group = paste(paste0(other, "+"), collapse = " ")) %>% 
-      mutate(
-        group = fct_infreq(group) %>% 
-          fct_lump_min(min = 1e3)
-      ) %>% 
-      right_join(
-        tibble(range = as.character(merged_results)), by = "range"
-      ) %>% 
-      mutate(
-        group = fct_explicit_na(group, na_level = "No Overlap")
-      )%>% 
-      with(
-        GRanges(range, group = group, seqinfo = sq)
-      ) %>% 
-      sort()
-    stopifnot(granges(ihw_groups) == granges(merged_results))
-    merged_results$ihw_covariate <- ihw_groups$group
-  } else {
-    if (any(config$comparisons$ihw %in% c("logCPM", "AveExpr"))) {
-      merged_results$ihw_covariate <- merged_results[["AveExpr"]]
-    } else {
-      if (config$comparisons$ihw == "width") {
-        merged_results$ihw_covariate <- width(merged_results)
-      } 
-    }
-  }
-}
-ihw <- ihw(
-  pvalues = merged_results$P.Value,
-  covariates = merged_results$ihw_covariate,
-  alpha <- fdr_alpha,
-  covariate_type = ifelse(ihw_discrete, "nominal", "ordinal")
-)
-merged_results <- merged_results %>% 
-  mutate(
-    fdr_ihw = adj_pvalues(ihw),
-    status = case_when(
-      fdr_ihw < fdr_alpha ~ as.character(direction),
-      fdr_ihw >= fdr_alpha ~ "Unchanged"
-    ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) %>% 
-      droplevels()
+ihw_method <- ihw_method[[1]]
+fdr_column <- "fdr" # The default should ihw not proceed
+```
+
+`r ifelse(ihw_method == "none", "No independent Hypothesis Weighting was specified", "")`
+
+```{r ihw-regions, eval = ihw_method == "regions", echo=FALSE, child = '../workflow/modules/ihw_regions.Rmd'}
+```
+
+```{r ihw-features, eval = ihw_method == "features", echo=FALSE, child = '../workflow/modules/ihw_features.Rmd'}
+```
+
+```{r ihw-targets, eval = ihw_method == "targets", echo=FALSE, child = '../workflow/modules/ihw_targets.Rmd'}
+```
+
+## Mapping Windows To Genes
+
+```{r map-to-genes}
+merged_results <- merged_results %>%
+  mapByFeature(
+    genes = genes_gr, 
+    prom = GRangesList(
+      ## Add any external features which appear to be promoters
+      ifelse(
+        "feature" %in% colnames(mcols(external_features)), 
+        list(granges(subset(external_features, str_detect(feature, "[Pp]rom")))), 
+        list(GRanges())
+      )[[1]], 
+      granges(gene_regions$promoters)) %>% 
+      unlist() %>% 
+      reduce(),
+    enh = ifelse(
+      "feature" %in% colnames(mcols(external_features)), 
+      list(granges(subset(external_features, str_detect(feature, "[Ee]nhanc")))), 
+      list(GRanges())
+    )[[1]],
+    gi = hic
   ) 
+merged_results$detected <- merged_results %>% 
+  mutate(range = as.character(.)) %>% 
+  select(range, gene_id) %>% 
+  mcols() %>% 
+  as_tibble() %>%
+  mutate(id = seq_along(range), gene_id = vctrs::vec_proxy(gene_id)) %>% 
+  unnest(everything()) %>% 
+  dplyr::filter(gene_id %in% rnaseq$gene_id) %>% 
+  distinct(id, gene_id) %>% 
+  left_join(
+    tibble(gene_id = genes_gr$gene_id, gene_name = genes_gr$gene_name)
+    ) %>% 
+  dplyr::select(-gene_id) %>% 
+  chop(gene_name) %>% 
+  complete(id = seq_along(merged_results)) %>%
+  arrange(id) %>% 
+  .[["gene_name"]] %>% 
+  as("CharacterList") 
 ```
 
-Independent Hypothesis Weighting was then used to provide a more powerful FDR estimate using `r ifelse(ihw_discrete, paste(glue_collapse(intersect(config$comparisons$ihw, other_targets), sep = ", ", last= " & "), "binding"), config$comparisons$ihw)` as a covariate.
-`r ifelse(ihw_discrete, "The presence within each merged region of *any macs2-derived consensus peak* (i.e. under any treatment) from these additional ChIP targets was used to bin regions into groups, which were in turn collapsed until the smallest group contained > 1000 regions.", "")`
-`r ifelse(ihw_discrete, glue("This gave {length(levels(ihw_groups$group))} groups using these covariates."), glue())`
+In addition to statistical analysis, the regions produced by merging windows were mapped to all annotated genes.
+Promoters were the union of all regions defined based on transcript-level annotation, and any external features which were defined as promoters.
+Enhancers were any regions defined in `r basename(config$external$features)` as enhancers.
+`r ifelse(length(hic) > 0, glue("The set of {length(hic)} HiC-interactions were also used to define long-range interactions."), "")`
 
+These features were used to map merged windows to features using the process defined in the function `mapByFeature()`:
 
-`r ifelse(ihw_discrete, "### IHW Covariates", "")`
+1. Ranges *overlapping a promoter* are assigned to genes for that specific promoter
+2. Ranges *overlapping an enhancer* are assigned to all genes within 100kb
+3. Ranges *overlapping a long-range interaction* are assigned to all genes connected by the interaction
+4. Ranges with *no gene assignment from the previous steps* are assigned to all genes within 100kb
 
-```{r plot-summarise-covariate, eval = ihw_discrete, echo = ihw_discrete, fig.height=5, fig.cap = glue("*Summary of shared binding patterns between all regions identified as containing {target} signal. Groups will be collapsed from right to left until the smallest group contains > 1000 regions.*")}
-other_consensus %>% 
-  lapply(function(x){which(overlapsAny(merged_results, x))}) %>% 
-  c(list2("{target}" := seq_along(merged_results))) %>% 
-  fromList() %>% 
-  upset(
-    order.by = "freq",
-    set_size.show = TRUE,
-    set_size.scale_max = 1.2*nrow(.)
-  )
-```
-
-### P-Values by Covariate
-
-```{r plot-ihw-pvals, fig.cap = paste("*Comparison of p-values with the selected IHW variable.", ifelse(ihw_discrete, "Groups are automatically selected to ensure at 1000 points are present in every group.*", "The horizontal line indicates a raw p-value of 0.01.*"))}
-if (ihw_discrete) {
-  p <- merged_results %>% 
-    as_tibble() %>% 
-    ggplot(aes(P.Value, stat(density))) +
-    geom_histogram(colour = "black", fill = "grey50", bins = 100) +
-    facet_wrap(~ihw_covariate) 
-  pb <- ggplot_build(p) # Get the y limits for each facet panel
-  y_max <- tibble(
-    ihw_covariate = pb$layout$layout$ihw_covariate,
-    y = map_dbl(pb$layout$panel_scales_y, function(x){max(x$range$range)})
-  )
-  p +
-    geom_text(
-      aes(0.85, 0.9 * y, label = label),
-      data = . %>%
-        group_by(ihw_covariate) %>%
-        summarise(
-          n = dplyr::n(),
-          .groups = "drop"
-        ) %>%
-        mutate(label = glue("{comma(n)}\nWindows")) %>% 
-        left_join(y_max)
-    ) +
-    labs(y = "Density")
-}
-if (!ihw_discrete) {
-  merged_results %>% 
-    as_tibble() %>% 
-    mutate(rank = rank(ihw_covariate) / nrow(.)) %>% 
-    ggplot(aes(rank, -log10(P.Value))) +
-    geom_bin2d(bins = 150, drop = TRUE) +
-    geom_hline(yintercept = 2) +
-    scale_x_continuous(label = percent, expand = expansion(c(0.02, 0.02))) +
-    scale_fill_viridis_c(option = "cividis", trans = "log10") +
-    labs(
-      x = glue("{config$comparisons$ihw} Percentile"),
-      fill = "Count"
-    )
-}
-```
-
-### IHW Weights
-
-```{r plot-ihw-weights, fig.cap = "*Weights used for FDR estimation for each fold and group. In the case of a continuous variable, data is broken in suitably sized percentiles to form groups.*"}
-plot(ihw) +
-  geom_hline(yintercept = 1) +
-  labs(
-    x = ifelse(ihw_discrete, "Fold", str_to_title(config$comparisons$ihw)),
-    y = "Weight"
-  )
-```
-
-### FDR Comparison
-
-```{r plot-ihw-fdr, fig.cap = glue("*Comparison of raw and weighted p-values. Blue lines indicate the FDR threshold of {fdr_alpha} for each set of p-values. Any points in the upper-right quadrant would be considered as significant under both approaches. Points in the lower-right quadrant would no longer be significant under IHW, whilst those in the upper-left gain significance under IHW.*")}
-ihw %>% 
-  as.data.frame() %>% 
-  ggplot(
-    aes(-log10(pvalue), -log10(weighted_pvalue), colour = fold)
-  ) +
-  geom_point(size = 0.4) +
-  geom_hline(
-    aes(yintercept = -log10(weighted_pvalue)),
-    data = . %>% 
-      dplyr::select(-group) %>% 
-      dplyr::filter(adj_pvalue < fdr_alpha) %>% 
-      dplyr::filter(weighted_pvalue == max(weighted_pvalue)),
-    linetype = 2, colour = "blue"
-  ) +
-  geom_vline(
-    aes(xintercept = -log10(pvalue)),
-    data =. %>% 
-      dplyr::filter(p.adjust(pvalue, "fdr") < fdr_alpha) %>% 
-      dplyr::filter(pvalue == max(pvalue)) %>% 
-      dplyr::select(-group),
-    linetype = 2, colour = "blue"
-  ) +
-  facet_wrap(~group, scales = "free") +
-  coord_cartesian(xlim = c(0, 5), ylim = c(0, 5)) +
-  labs(
-    x = expression(-log[10](p)),
-    y = expression(-log[10](p[IHW]))
-  )
-```
-
+Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3.
+For visualisation purposes, only genes which were considered as detected in any provided RNA-Seq data will be shown as the mapping targets.
 
 # Results 
 
@@ -788,26 +595,26 @@ facet_labeller <- as_labeller(
     c(
       Up = glue("Increased {target} Binding"),
       Down = glue("Decreased {target} Binding")
-    ),
-    c(
-      "promoter" = "Promoter",
-      "enhancer" = "Enhancer",
-      "se" = "Super Enhancer",
-      "gene_body" = "Gene Body",
-      "intergenic" = "Intergenic"
     )
+    # c(
+    #   "promoter" = "Promoter",
+    #   "enhancer" = "Enhancer",
+    #   "se" = "Super Enhancer",
+    #   "gene_body" = "Gene Body",
+    #   "intergenic" = "Intergenic"
+    # )
   )
 )
 ```
 
 ```{r make-heatmaps}
-profile_width <- ifelse(target == "H3K27ac", 20e3, 5e3)
+profile_width <- 5e3
 n_bins <- 100
 bwfl <- file.path(bw_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- merged_results %>% 
-  filter(fdr_ihw < fdr_alpha) %>% 
+  filter(!!sym(fdr_column) < fdr_alpha) %>% 
   split(f = .$direction) %>% 
   .[vapply(., length, integer(1)) > 0]
 sig_profiles <- bplapply(
@@ -853,6 +660,21 @@ profile_heatmaps <- profile_heatmaps %>%
   })
 ```
 
+### Mean-Variance Relationship
+
+```{r plot-mean-var, fig.height = 6, fig.cap = "Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend, whilst the loess curve through the initial estimates is shown in blue."}
+tibble(A = fit$Amean, sigma = fit$sigma, s2.post = fit$s2.post) %>% 
+  sample_n(n_max) %>%
+  ggplot(aes(A, sigma)) +
+  geom_point(size = 1, alpha = 0.6) +
+  geom_point(aes(y = sqrt(s2.post)), col = "red", size = 1, alpha = 0.7) +
+  geom_smooth(se = FALSE, method = "loess") +
+  labs(
+    x = "logCPM", y = expression(hat(sigma))
+  ) +
+  theme(axis.title.y = element_text(angle = 0, vjust = 0.5))
+```
+
 
 ### MA Plot
 
@@ -867,22 +689,24 @@ merged_results %>%
   geom_label_repel(
     aes(y = 1.1*logFC, label = annot, colour = status),
     data= . %>%
-      dplyr::filter(logFC == max(logFC) | logFC == min(logFC)) %>% 
+      dplyr::filter(logFC == max(logFC) | logFC == min(logFC)) %>%
       mutate(
-        gene_name = gene_name %>% 
-          lapply(paste, collapse = ", ") %>% 
-          unlist() %>% 
-          str_replace("^NA$", "") %>% 
+        detected = detected %>%
+          lapply(paste, collapse = ", ") %>%
+          unlist() %>%
+          str_replace("^NA$", "") %>%
           str_wrap(width = 40),
-        range = ifelse(gene_name == "", range, paste0(range, "\n")),
-        annot = glue("{range}{gene_name}")
+        range = ifelse(detected == "", range, paste0(range, "\n")),
+        annot = glue("{range}{detected}")
       ),
     fill = rgb(1, 1, 1, 0.2),
     size = 3,
     show.legend = FALSE
   ) +
   scale_colour_manual(
-    values = unlist(rmd_config$colours$direction)[levels(merged_results$status)]
+    values = colours$direction %>% 
+      .[names(.) != "undetected"] %>% 
+      setNames(str_to_title(names(.)))
   ) +
   labs(
     x = "Ave Signal (logCPM)",
@@ -901,23 +725,43 @@ merged_results %>%
   geom_label_repel(
     aes(label = annot, colour = status),
     data= . %>%
-      arrange(P.Value) %>% 
+      arrange(sign(logFC)*log10(P.Value)) %>% 
       dplyr::slice(1:2) %>% 
       mutate(
-        gene_name = gene_name %>% 
-          lapply(paste, collapse = ", ") %>% 
-          unlist() %>% 
-          str_replace("^NA$", "") %>% 
+        detected = detected %>%
+          lapply(paste, collapse = ", ") %>%
+          unlist() %>%
+          str_replace("^NA$", "") %>%
           str_wrap(width = 40),
-        range = ifelse(gene_name == "", range, paste0(range, "\n")),
-        annot = glue("{range}{gene_name}")
+        range = ifelse(detected == "", range, paste0(range, "\n")),
+        annot = glue("{range}{detected}")
+      ),
+    fill = rgb(1, 1, 1, 0.2),
+    size = 3,
+    show.legend = FALSE
+  ) +
+  geom_label_repel(
+    aes(label = annot, colour = status),
+    data= . %>%
+      arrange(-sign(logFC)*log10(P.Value)) %>% 
+      dplyr::slice(1:2) %>% 
+      mutate(
+        detected = detected %>%
+          lapply(paste, collapse = ", ") %>%
+          unlist() %>%
+          str_replace("^NA$", "") %>%
+          str_wrap(width = 40),
+        range = ifelse(detected == "", range, paste0(range, "\n")),
+        annot = glue("{range}{detected}")
       ),
     fill = rgb(1, 1, 1, 0.2),
     size = 3,
     show.legend = FALSE
   ) +
   scale_colour_manual(
-    values = unlist(rmd_config$colours$direction)[levels(merged_results$status)]
+    values =  colours$direction %>% 
+      .[names(.) != "undetected"] %>% 
+      setNames(str_to_title(names(.)))
   ) +
   labs(
     x = "logFC",
@@ -951,7 +795,9 @@ merged_results %>%
   facet_grid(status~., scales = "free_y") +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   scale_fill_manual(
-    values = unlist(rmd_config$colours$direction)[c("Up", "Down", "Unchanged")]
+    values =  colours$direction %>% 
+      .[names(.) != "undetected"] %>% 
+      setNames(str_to_title(names(.)))
   ) +
   scale_alpha_manual(values = c(0.5, 1)) +
   labs(
@@ -960,6 +806,7 @@ merged_results %>%
   )
 ```
 
+# FROM HERE
 
 ### P Values By Feature
 
@@ -1022,6 +869,7 @@ df <- merged_results %>%
     `Overlaps Consensus`, Unchanged, Changed, `% Changed`, Up, Down, 
     `IHW (Gained/Lost)`
   )
+## Switch to reactable & add boxplots for whether they overlap the consensus
 df %>% 
   datatable(
     caption = glue(
@@ -1039,20 +887,20 @@ df %>%
   ) %>% 
   formatStyle(
     'Up',
-    background = styleColorBar(c(0, length(merged_results)), rmd_config$colours$direction$Up),
+    background = styleColorBar(c(0, length(merged_results)), colours$direction["up"]),
     backgroundSize = '100% 90%',
     backgroundPosition = 'center'
   ) %>% 
   formatStyle(
     'Down',
-    background = styleColorBar(c(0,  length(merged_results)), rmd_config$colours$direction$Down),
+    background = styleColorBar(c(0,  length(merged_results)), colours$direction["down"]),
     backgroundSize = '100% 90%',
     backgroundPosition = 'center'
   ) %>% 
   formatPercentage('% Changed', digits = 1) %>% 
   formatStyle(
     "% Changed",
-    background = styleColorBar(c(0, 1), rmd_config$colours$direction$Undetected)
+    background = styleColorBar(c(0, 1), colours$direction["undetected"])
   ) %>% 
   formatRound(c("Unchanged", "Changed"), digits = 0) %>% 
   formatStyle(0, target = "row", fontWeight = styleEqual(nrow(df), "bold"))

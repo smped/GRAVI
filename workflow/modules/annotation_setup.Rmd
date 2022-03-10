@@ -41,9 +41,12 @@ n_cores <- max(detectCores() - 2, 2)
 ```
 
 ```{r extra-funs}
-str_sep_to_title <- function(x, sep = "_", replacement = " ") {
-  str_replace_all(x, sep, replacement) %>% 
+str_sep_to_title <- function(x, sep = "_", replacement = " ", exclude = c()) {
+  out <- x
+  out[!x %in% exclude] <- out[!x %in% exclude] %>% 
+    str_replace_all(sep, replacement) %>% 
     str_to_title()
+  out
 }
 .plotScheme <- function(x, xlab = "", ylab = "") {
   x %>% 
