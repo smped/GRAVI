@@ -157,7 +157,7 @@ hic <- GInteractions()
 if (!is.null(config$external$hic)) {
   hic_path <- here::here(config$external$HiC)
   stopifnot(file.exists(hic_path))
-  hic <- autoload(hic_path)
+  # hic <- autoload(hic_path) ## Needs to handle bedpe format
 }
 stopifnot(is(hic, "GInteractions"))
 seqinfo(hic) <- sq
@@ -274,14 +274,15 @@ window_counts <- windowCounts(
   param = rp,
   BPPARAM = bpparam()
 )
-colData(window_counts) <- colData(window_counts)[c("bam.files", "totals", "ext", "rlen")] %>% 
-  as.data.frame() %>% 
-  mutate(sample = rownames(.)) %>% 
+colData(window_counts) <- colData(window_counts) %>% 
+  as_tibble(rownames = "sample") %>% 
+  dplyr::select(all_of(c("sample", "bam.files", "totals", "ext", "rlen"))) %>% 
   left_join(samples, by = "sample") %>% 
   mutate(
     treat = fct_explicit_na(treat, "Input"), 
     target = str_replace_na(target, "Input")
   ) %>% 
+  as.data.frame() %>% 
   column_to_rownames("sample") %>% 
   DataFrame()
 window_counts <- sortSeqlevels(window_counts)
@@ -293,18 +294,17 @@ With the exclusion of black-listed regions, all alignments within each window we
 Any windows with fewer than `r length(bfl) - 1` alignments across all samples were discarded, leaving a total of `r comma(nrow(window_counts))` sliding windows, covering the majority of the reference genome.
 
 ```{r filtered-counts}
-q <- config$comparisons$filter_q
 filtered_counts <- dualFilter(
   x = window_counts[, samples$sample], 
   bg = window_counts[, samples$input], 
   ref = consensus_peaks,
-  q = q
+  q = config$comparisons$filter_q
 )
 colData(filtered_counts) <- droplevels(colData(filtered_counts)) 
 n_max <- min(5e4, nrow(filtered_counts))
 ```
 
-A dual filtering strategy was used based on retaining `r percent(q, 0.1)` of windows overlapping the consensus peaks identified by `macs2 callpeak` on merged samples.
+A dual filtering strategy was used based on retaining `r percent(config$comparisons$filter_q, 0.1)` of windows overlapping the consensus peaks identified by `macs2 callpeak` on merged samples.
 This approach combined both 1) expression percentiles, and 2) signal strength in relation to the input sample.
 After filtering, `r comma(nrow(filtered_counts))` of the original `r comma(nrow(window_counts))` windows were retained for downstream analysis.
 Of these, `r comma(sum(rowData(filtered_counts)$overlaps_ref))` (`r percent(mean(rowData(filtered_counts)$overlaps_ref))`) overlapped one of the `r comma(length(consensus_peaks))` consensus peaks.
@@ -609,13 +609,6 @@ facet_labeller <- as_labeller(
     c(
       AveExpr = "logCPM", logFC = "logFC"
     )
-    # c(
-    #   "promoter" = "Promoter",
-    #   "enhancer" = "Enhancer",
-    #   "se" = "Super Enhancer",
-    #   "gene_body" = "Gene Body",
-    #   "intergenic" = "Intergenic"
-    # )
   )
 )
 ```
@@ -819,11 +812,9 @@ merged_results %>%
   )
 ```
 
-# FROM HERE
-
 ### Results By Region
 
-```{r boxplot-regions, fig.height = 7, fig.cap = ""}
+```{r boxplot-regions, fig.height = 7, fig.cap = "*Distributions of signal (logCPM) and changed signal (logFC) for each genomic region, separated by whether the merged window overlapped a consensus peak defined by `macs2 callpeak`.*"}
 df <- gene_regions %>% 
   .[names(.) != "tss"] %>% 
   lapply(function(x) overlapsProp(merged_results, x)) %>% 
@@ -867,7 +858,9 @@ df %>%
   labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
 
-```{r}
+### Windows By Region and Overlap
+
+```{r plot-ma-by-region, fig.cap = "*Binding intensity (logCPM) against changed signal (logFC) for all merged windows, separated by genomic region and consensus peak overlap. Significance and direction are indicated by colour*"}
 df %>% 
   mutate(
     overlaps_ref = unlist(facet_labeller(overlaps_ref))
@@ -889,95 +882,15 @@ df %>%
       .[names(.) != "undetected"] %>% 
       setNames(str_to_title(names(.)))
   ) +
-  labs(colour = "Status")
+  labs(x = "logCPM", colour = "Status")
 ```
 
-```{r}
-df %>% 
-  ggplot(aes(region, -log10(P.Value), fill = overlaps_ref)) +
-  geom_boxplot()
-```
+<!-- Should add optional plots by feature -->
 
-
-
+# FROM HERE
 
 ## Result Tables {.tabset}
 
-### Overall Summary
-
-
-```{r tab-results-summary}
-df <- merged_results %>% 
-  as_tibble() %>% 
-  group_by(overlaps_ref) %>% 
-  summarise(
-    Unchanged = sum(fdr_ihw >= fdr_alpha),
-    Up = sum(fdr_ihw <= fdr_alpha & logFC > 0),
-    Down = sum(fdr_ihw <= fdr_alpha & logFC < 0),
-    `IHW Gained` = sum(fdr_ihw < fdr_alpha & fdr >= fdr_alpha),
-    `IHW Lost` = sum(fdr_ihw > fdr_alpha & fdr < fdr_alpha),
-    .groups = "drop"
-  ) %>% 
-  mutate(
-    Changed = Up + Down,
-    `IHW Nett` = `IHW Gained` - `IHW Lost`
-  ) %>% 
-  dplyr::select(
-    `Overlaps Consensus` = overlaps_ref, Unchanged, Changed, Up, Down, starts_with("IHW")
-  ) %>% 
-  bind_rows(
-    summarise(
-      ., across(-contains("Overlap"), sum)
-    )
-  ) %>%
-  mutate(
-    `Overlaps Consensus` = str_replace_na(`Overlaps Consensus`, "Total"),
-    `IHW (Gained/Lost)` = glue(
-      "{ifelse(`IHW Nett` > 0, '+', '')}{`IHW Nett`} ",
-      "({`IHW Gained`}/{`IHW Lost`})"
-    ),
-    `% Changed` = Changed / (Changed + Unchanged)
-  ) %>% 
-  dplyr::select(
-    `Overlaps Consensus`, Unchanged, Changed, `% Changed`, Up, Down, 
-    `IHW (Gained/Lost)`
-  )
-## Switch to reactable & add boxplots for whether they overlap the consensus
-df %>% 
-  datatable(
-    caption = glue(
-      "Summary of all {comma(length(merged_results))} regions retained after ",
-      "filtering and merging of sliding windows. Regions which overlap a ",
-      "macs2 consensus peak are indicated in the first column. ",
-      "The impact of the IHW step is also given as an overall summary. ",
-      "Colour bars are drawn relative to the total number of regions."
-    ),
-    rownames = TRUE,
-    options = list(
-      searching = FALSE, info = FALSE, paging = FALSE, ordering = FALSE,
-      columnDefs = list(list(visible = F, targets = 0))
-    )
-  ) %>% 
-  formatStyle(
-    'Up',
-    background = styleColorBar(c(0, length(merged_results)), colours$direction["up"]),
-    backgroundSize = '100% 90%',
-    backgroundPosition = 'center'
-  ) %>% 
-  formatStyle(
-    'Down',
-    background = styleColorBar(c(0,  length(merged_results)), colours$direction["down"]),
-    backgroundSize = '100% 90%',
-    backgroundPosition = 'center'
-  ) %>% 
-  formatPercentage('% Changed', digits = 1) %>% 
-  formatStyle(
-    "% Changed",
-    background = styleColorBar(c(0, 1), colours$direction["undetected"])
-  ) %>% 
-  formatRound(c("Unchanged", "Changed"), digits = 0) %>% 
-  formatStyle(0, target = "row", fontWeight = styleEqual(nrow(df), "bold"))
-```
 
 ### Summary By Feature
 
