@@ -88,6 +88,7 @@ rule setup_annotations:
 	output:
 		annotations = ALL_RDS,
 		chrom_sizes = chrom_sizes,
+		rdata = os.path.join(annotation_path, "envs", "annotation_setup.RData"),
 		rmd = os.path.join(rmd_path, "annotation_setup.Rmd"),
 		html = "docs/annotation_setup.html",
 		fig_path = directory(

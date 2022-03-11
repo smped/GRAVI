@@ -95,12 +95,14 @@ treat_levels <- levels(samples$treat)
 annotation_path <- here::here("output", "annotations")
 if (!dir.exists(annotation_path)) dir.create(annotation_path, recursive = TRUE)
 all_out <- list(
-  seqinfo = file.path(annotation_path, "seqinfo.rds"),
   chrom_sizes = file.path(annotation_path, "chrom.sizes"),
-  gtf  = file.path(annotation_path, "all_gr.rds"),
-  transcript_models = file.path(annotation_path, "trans_models.rds"),
+  colours  = file.path(annotation_path, "colours.rds"),
+  env = here::here("output", "envs", "annotation_setup.RData"),
   gene_regions = file.path(annotation_path, "gene_regions.rds"),
-  colours  = file.path(annotation_path, "colours.rds")
+  gtf  = file.path(annotation_path, "all_gr.rds"),
+  seqinfo = file.path(annotation_path, "seqinfo.rds"),
+  transcript_models = file.path(annotation_path, "trans_models.rds"),
+  tss = file.path(annotation_path, "tss.rds")
 )
 ```
 
@@ -128,8 +130,7 @@ sq <- samples %>%
   as("Seqinfo")
 write_rds(sq, all_out$seqinfo)
 sq %>% 
-  as.data.frame() %>% 
-  rownames_to_column("seqnames") %>% 
+  as_tibble() %>% 
   dplyr::select(seqnames, seqlengths) %>% 
   write_tsv(all_out$chrom_sizes, col_names = FALSE)
 ```
@@ -159,7 +160,6 @@ blacklist %>%
     median = median(width) / 1e3,
     max = max(width) / 1e3
   ) %>% 
-  as.data.frame() %>% 
   as_tibble() %>% 
   dplyr::rename_all(str_to_title) %>% 
   dplyr::rename(
@@ -185,14 +185,10 @@ blacklist %>%
 
 ```{r plot-blacklist, fig.height = 7, fig.cap = "*Breakdown of blacklisted regions by chromosome*"}
 blacklist %>% 
-  as.data.frame() %>% 
-  as_tibble() %>%
+  as_tibble(rangeAsChar = FALSE) %>%
   group_by(seqnames) %>% 
   summarise(blacklisted = sum(width)) %>% 
-  left_join(
-    as.data.frame(sq) %>% 
-      rownames_to_column("seqnames")
-  ) %>% 
+  left_join(as_tibble(sq), by = "seqnames") %>% 
   mutate(
     whitelisted = seqlengths - blacklisted,
     seqnames = factor(seqnames, levels = seqlevels(sq))
@@ -318,18 +314,19 @@ rna_col <- c(tx_col, "gene_id")[[1]]
 ## 2. Upstream promoter (2-5kb, but not overlapping another)
 ## 3. Introns
 ## 4. Exons (other gene body)
+tss <- all_gr$transcript %>% 
+  resize(width = 1) %>% 
+  mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>% 
+  reduceMC() %>% 
+  mutate(
+    region = "TSS",
+    detected = vapply(detected, any, logical(1))
+  ) %>% 
+  select(region, everything(), -type)
+write_rds(tss, all_out$tss)
 prom <- list(up = 1500, down = 500, distal = 5e3)
 if (!file.exists(all_out$gene_regions)) {
   gene_regions <- list(
-    tss = all_gr$transcript %>% 
-      resize(width = 1) %>% 
-      mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>% 
-      reduceMC() %>% 
-      mutate(
-        region = "TSS",
-        detected = vapply(detected, any, logical(1))
-      ) %>% 
-      select(region, everything(), -type),
     promoters = all_gr$transcript %>% 
       promoters(
         upstream = prom$up, downstream = prom$down
@@ -447,7 +444,7 @@ if (!file.exists(all_out$gene_regions)) {
   ## Change the order of the two intragenic features for easier setting of 
   ## factor-levels
   o <- c(
-    "tss", "promoters", "upstream", "exons", "introns", "proximal",  "distal"
+    "promoters", "upstream", "exons", "introns", "proximal",  "distal"
   )
   gene_regions <- gene_regions[o]
   write_rds(gene_regions, all_out$gene_regions, compress = "gz")
@@ -469,14 +466,14 @@ col_config$regions <- as.list(region_cols)
 
 Using the provided GTF, **unique** gene and transcript-centric features were defined as:
 
-1. Transcriptional Start Sites
-2. Promoters
-3. Upstream 
-4. Exons
-5. Introns
-6. Intergenic regions within 10kb of a gene
-7. Intergenic regions >10kb from any defined genes
+1. Promoters
+2. Upstream 
+3. Exons
+4. Introns
+5. Intergenic regions within 10kb of a gene
+6. Intergenic regions >10kb from any defined genes
 
+TSS regions were defined as a separate object given each TSS has single-base width.
 With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, unstranded manner.
 
 - *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from the same TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
@@ -529,7 +526,6 @@ gene_regions %>%
     }
   ) %>%
   bind_rows() %>% 
-  dplyr::filter(region != "TSS") %>% 
   mutate(
     width = width / 1e6,
     mn = width/n,
@@ -552,8 +548,7 @@ gene_regions %>%
   scale_fill_manual(
     values = region_cols %>% 
       unlist() %>% 
-      setNames(regions[names(.)]) %>% 
-      .[setdiff(names(.), "TSS")]
+      setNames(regions[names(.)]) 
   ) +
   labs(fill = "Region") +
   theme_void()
@@ -582,13 +577,12 @@ ft <- gene_regions %>%
 df <- list(
   all_gr$transcript %>% 
     subsetByOverlaps(gr) %>% 
-    as.data.frame(),
+    as_tibble(rangeAsChar = FALSE),
   all_gr$exon %>% 
     subsetByOverlaps(gr) %>% 
-    as.data.frame()
+    as_tibble(rangeAsChar = FALSE) 
 ) %>% 
   bind_rows() %>% 
-  as_tibble() %>% 
   mutate(
     transcript_name = as.factor(transcript_name)
   )
@@ -718,7 +712,6 @@ suppressWarnings(
   external_features %>% 
     mutate(w = width) %>% 
     mcols() %>% 
-    as.data.frame() %>% 
     as_tibble() %>% 
     pivot_longer(
       cols = c(all_of(names(regions)), ends_with("detected")),
@@ -782,7 +775,7 @@ external_features %>%
     N = n(),
     Width = sum(width/1e3)
   ) %>% 
-  as.data.frame() %>% 
+  as_tibble() %>% 
   mutate(
     feature = factor(feature, levels = names(feat_col)) %>% 
       fct_relabel(str_sep_to_title)
@@ -888,6 +881,12 @@ col_config$direction %>%
 During this workflow, the following files were exported:
 
 `r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
+
+```{r save-renv}
+if (!dir.exists(dirname(all_out$env))) dir.create(dirname(all_out$env))
+save.image(all_out$env)
+```
+
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
 <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information

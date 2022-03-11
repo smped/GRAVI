@@ -509,6 +509,16 @@ ihw_method <- c(
 )
 ihw_method <- ihw_method[[1]]
 fdr_column <- "fdr" # The default should ihw not proceed
+## Add status (direction) for the ihw = "none" possibility
+merged_results <- merged_results %>% 
+  mutate(
+    status = case_when(
+      !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
+      !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
+    ) %>% 
+      factor(levels = c(levels(direction), "Unchanged")) %>% 
+      droplevels()
+  )
 ```
 
 `r ifelse(ihw_method == "none", "No independent Hypothesis Weighting was specified", "")`
@@ -595,6 +605,9 @@ facet_labeller <- as_labeller(
     c(
       Up = glue("Increased {target} Binding"),
       Down = glue("Decreased {target} Binding")
+    ),
+    c(
+      AveExpr = "logCPM", logFC = "logFC"
     )
     # c(
     #   "promoter" = "Promoter",
@@ -808,25 +821,85 @@ merged_results %>%
 
 # FROM HERE
 
-### P Values By Feature
+### Results By Region
 
-```{r plot-p-by-feature, fig.height = 6, fig.cap = "*Distribution of raw p-values separated by feature*"}
-p <- merged_results %>% 
+```{r boxplot-regions, fig.height = 7, fig.cap = ""}
+df <- gene_regions %>% 
+  .[names(.) != "tss"] %>% 
+  lapply(function(x) overlapsProp(merged_results, x)) %>% 
+  DataFrame() %>% 
+  cbind(
+    merged_results %>% 
+      select(
+        all_of(
+          c("AveExpr", "logFC", "P.Value", fdr_column, "status", "overlaps_ref")
+        )
+      ) %>% 
+      mutate(
+        range = as.character(.), id = seq_along(range)
+      ) %>% 
+      mcols()
+  ) %>% 
   as_tibble() %>% 
-  dplyr::select(range, P.Value, regulatory_feature, gene_region) %>% 
-  ggplot(aes(P.Value, stat(density))) + 
-  geom_histogram(bins = 101, fill = "grey70", colour = "black") + 
-  facet_grid(gene_region ~ regulatory_feature) +
-  labs(x = "P Value", y = "Density")
-ylim <- layer_scales(p)$y$range$range
-p + 
-  geom_text(
-    aes(0.85, 0.9*max(ylim), label = label),
-    data = p$data %>% 
-      group_by(regulatory_feature, gene_region, .groups = "drop") %>% 
-      summarise(label = glue("{comma(dplyr::n())}\nregions"))
+  pivot_longer(
+    cols = any_of(names(gene_regions)),
+    names_to = "region",
+    values_to = "prop"
+  ) %>% 
+  arrange(desc(prop)) %>% 
+  distinct(id, range, .keep_all = TRUE) %>% 
+  mutate(
+    region = regions[region] %>% 
+      factor(levels = regions) %>% 
+      fct_relabel(str_replace_all, pattern = " ", replacement = "\n")
   ) 
+df %>% 
+  pivot_longer(cols = c("AveExpr", "logFC")) %>% 
+  mutate(
+    overlaps_ref = unlist(facet_labeller(overlaps_ref))
+  ) %>% 
+  ggplot(aes(region, value, fill = overlaps_ref)) +
+  geom_boxplot() +
+  facet_grid(
+    name~., scales = "free", labeller = facet_labeller, switch = "y"
+  ) +
+  scale_fill_viridis_d(alpha = 0.5) +
+  labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
+
+```{r}
+df %>% 
+  mutate(
+    overlaps_ref = unlist(facet_labeller(overlaps_ref))
+  ) %>% 
+  ggplot(aes(AveExpr, logFC)) + 
+  geom_point(aes(colour = status)) +
+  geom_smooth(
+    data = . %>% 
+      group_by(region, overlaps_ref) %>% 
+      mutate(n = dplyr::n()) %>% 
+      ungroup() %>% 
+      dplyr::filter(n > 20),
+    se = FALSE, size = 1/2
+  ) +
+  geom_hline(yintercept = 0, colour = "grey30") +
+  facet_grid(region ~ overlaps_ref) +
+  scale_colour_manual(
+    values = colours$direction %>% 
+      .[names(.) != "undetected"] %>% 
+      setNames(str_to_title(names(.)))
+  ) +
+  labs(colour = "Status")
+```
+
+```{r}
+df %>% 
+  ggplot(aes(region, -log10(P.Value), fill = overlaps_ref)) +
+  geom_boxplot()
+```
+
+
+
 
 ## Result Tables {.tabset}
 

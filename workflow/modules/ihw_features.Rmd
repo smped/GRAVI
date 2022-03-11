@@ -182,7 +182,10 @@ ihw %>%
       fdr < fdr_alpha & adj_pvalue < fdr_alpha ~ "Retained",
       fdr > fdr_alpha & adj_pvalue < fdr_alpha ~ "Gained",
       fdr > fdr_alpha & adj_pvalue > fdr_alpha ~ "Never Significant"
-    )
+    ) %>% 
+      factor(
+        levels = c("Never Significant", "Retained", "Gained", "Lost")
+      )
   ) %>% 
   as_tibble() %>% 
   group_by(covariate, status) %>% 
