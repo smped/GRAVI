@@ -323,7 +323,7 @@ tss <- all_gr$transcript %>%
     detected = vapply(detected, any, logical(1))
   ) %>% 
   select(region, everything(), -type)
-write_rds(tss, all_out$tss)
+write_rds(tss, all_out$tss, compress = "gz")
 prom <- list(up = 1500, down = 500, distal = 5e3)
 if (!file.exists(all_out$gene_regions)) {
   gene_regions <- list(
