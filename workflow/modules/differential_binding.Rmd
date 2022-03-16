@@ -1,6 +1,6 @@
 ```{r example, echo = FALSE, eval=TRUE}
 ## This module requires the following to be set during preparation
-target <- "ER"
+target <- "AR"
 threads <- 6
 ```
 
@@ -26,12 +26,10 @@ library(statmod)
 library(IHW)
 library(ggrepel)
 library(rlang)
-library(UpSetR)
 library(ggside)
 library(InteractionSet)
 library(reactable)
 library(htmltools)
-library(DT)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -142,6 +140,7 @@ any_detected <- gene_regions %>%
 
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
+hfgc_genes <- trans_models
 if (!is.null(rna_path)) {
   stopifnot(file.exists(rna_path))
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
@@ -207,7 +206,7 @@ bfl_summary <- bfl %>%
 		names_to = "stat",
 		values_to = "value"
 	) %>%
-	left_join(samples) %>% 
+	left_join(samples, by = "sample") %>% 
 	mutate(
 		across(
 			all_of(c("target", "label", "treat")),
@@ -291,9 +290,11 @@ window_counts <- sortSeqlevels(window_counts)
 seqinfo(window_counts) <- sq
 ```
 
-Using the estimated fragment length of `r fl` a set of genomic sliding windows were defined using a window size of `r win_size`bp, sliding in increments of `r win_step`bp.
-With the exclusion of black-listed regions, all alignments within each window were counted for each `r target`-associated sample, and all relevant input samples
-Any windows with fewer than `r length(bfl) - 1` alignments across all samples were discarded, leaving a total of `r comma(nrow(window_counts))` sliding windows, covering the majority of the reference genome.
+Using the estimated fragment length of `r fl`nt, a set of genomic sliding windows were defined using a window size of `r win_size`bp, sliding in increments of `r win_step`bp.
+With the exclusion of black-listed regions, all alignments within each window were counted for each `r target`-associated sample, and all relevant input samples.
+Any windows with fewer than `r length(bfl) - 1` alignments across all samples were discarded, leaving a total of `r comma(nrow(window_counts))` sliding windows, covering `r percent(sum(width(reduce(granges(window_counts)))) / sum(width(GRanges(sq))))` of the reference genome.
+
+These windows were then filtered, discarding windows with low counts.
 
 ```{r filtered-counts}
 filtered_counts <- dualFilter(
@@ -327,8 +328,24 @@ list(
   as_tibble() %>% 
   pivot_longer(everything(), names_to = "Dataset") %>% 
   unnest(everything()) %>% 
+  left_join(
+    tibble(
+      Dataset = c("Retained Windows", "Consensus Peaks"),
+      `Unique (kb)` = c(
+        round(sum(width(setdiff(granges(filtered_counts), consensus_peaks))) / 1e3, 1),
+        round(sum(width(setdiff(consensus_peaks, granges(filtered_counts)))) / 1e3, 1)
+      ),
+      `% Unique` = percent(
+        1e3*`Unique (kb)` / c(
+          sum(width(reduce(granges(filtered_counts)))),
+          sum(width(consensus_peaks))
+        ),
+        0.1
+      )
+    )
+  ) %>% 
   pander(
-    justify = "lrrr",
+    justify = "lrrrrr",
     caption = paste(
       "A dual filtering strategy was used based on retaining", 
       percent(config$comparisons$filter_q, 0.1), 
@@ -357,6 +374,20 @@ list(
       )
     )
   )
+```
+
+```{r todo, echo=FALSE, eval=FALSE}
+## TODO
+## Figure a way to add a Venn/UpSet for the shared regions between filtered & consensus
+## The easiest would be:
+grid::grid.newpage()
+VennDiagram::draw.pairwise.venn(
+  area1 = granges(filtered_counts) %>% reduce() %>% width() %>% sum() %>% divide_by(1e3) %>% round(0),
+  area2 = consensus_peaks %>% width() %>% sum() %>% divide_by(1e3) %>% round(0),
+  cross.area = granges(filtered_counts) %>% intersect(consensus_peaks) %>% width() %>% sum() %>% divide_by(1e3) %>% round(0),
+  category = c("Retained Windows", "Consensus Peaks")
+  # print.mode = "percent"
+)
 ```
 
 
@@ -585,7 +616,7 @@ merged_results %>%
 
 ### Mean-Variance Relationship
 
-```{r plot-mean-var, fig.height = 6, fig.cap = "Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend, whilst the loess curve through the initial estimates is shown in blue."}
+```{r plot-mean-var, fig.height = 6, fig.cap = "*Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend, whilst the loess curve through the initial estimates is shown in blue.*"}
 tibble(A = fit$Amean, sigma = fit$sigma, s2.post = fit$s2.post) %>% 
   sample_n(n_max) %>%
   ggplot(aes(A, sigma)) +
@@ -615,8 +646,7 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) %>% 
-      droplevels()
+      factor(levels = c(levels(direction), "Unchanged")) 
   )
 ```
 
@@ -714,8 +744,9 @@ merged_results$detected <- merged_results %>%
   dplyr::filter(gene_id %in% rnaseq$gene_id) %>% 
   distinct(id, gene_id) %>% 
   left_join(
-    tibble(gene_id = genes_gr$gene_id, gene_name = genes_gr$gene_name)
-    ) %>% 
+    tibble(gene_id = genes_gr$gene_id, gene_name = genes_gr$gene_name),
+    by = "gene_id"
+  ) %>% 
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   complete(id = seq_along(merged_results)) %>%
@@ -872,7 +903,7 @@ merged_results %>%
 
 ### Volcano Plot
 
-```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} binding. Regions overlapping a consensus peak are coloured separately to thos which are not. The two most significant regions are labelled along with any genes these regions are mapped to.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} binding. Regions overlapping a consensus peak are coloured separately to those which are not. The most significant regions are labelled along with any genes these regions are mapped to.*")}
 merged_results %>% 
   as_tibble() %>% 
   ggplot(aes(logFC, -log10(P.Value))) +
@@ -882,6 +913,7 @@ merged_results %>%
     data= . %>%
       arrange(sign(logFC)*log10(P.Value)) %>% 
       dplyr::slice(1:2) %>% 
+      dplyr::filter(logFC > 1) %>%
       mutate(
         detected = detected %>%
           lapply(paste, collapse = ", ") %>%
@@ -900,6 +932,7 @@ merged_results %>%
     data= . %>%
       arrange(-sign(logFC)*log10(P.Value)) %>% 
       dplyr::slice(1:2) %>% 
+      dplyr::filter(logFC < -1) %>% 
       mutate(
         detected = detected %>%
           lapply(paste, collapse = ", ") %>%
@@ -1011,7 +1044,7 @@ merged_results %>%
     show.legend = FALSE
   ) +
   geom_text(
-    aes(y = y1, label = comma(y)),
+    aes(y = y1, label = comma(y, 1)),
     data = . %>% 
       dplyr::filter(y == max(y)) %>% 
       ungroup() %>% 
@@ -1070,7 +1103,7 @@ merged_results %>%
     show.legend = FALSE
   ) +
   geom_text(
-    aes(y = y1, label = comma(y)),
+    aes(y = y1, label = comma(y, 1)),
     data = . %>% 
       dplyr::filter(y == max(y)) %>% 
       ungroup() %>% 
@@ -1148,21 +1181,23 @@ with_tooltip <- function(value, width = 30) {
 df <- merged_results %>% 
   as_tibble() %>% 
   group_by(overlaps_ref, status) %>% 
-  summarise(n = dplyr::n(), .groups = "drop_last") %>% 
-  mutate(Total = sum(n)) %>% 
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  complete(overlaps_ref, status, fill = list(n = 0)) %>% 
+  group_by(overlaps_ref) %>% 
+  mutate(Total = sum(n)) %>%
   ungroup() %>% 
-  complete(status, fill = list(n = 0)) %>% 
-  pivot_wider(names_from = "status", values_from = "n") %>% 
+  pivot_wider(names_from = "status", values_from = "n", values_fill = 0) %>% 
   mutate(
-    overlaps_ref = unlist(facet_labeller(overlaps_ref)) %>% 
-      str_replace_na("All Windows"),
+    overlaps_ref = unlist(facet_labeller(overlaps_ref)),
     `% Changed` = 1 - Unchanged / Total
   ) %>% 
   dplyr::rename(`Macs2 Peak` = overlaps_ref) 
-cp <- glue(
-  "Overall results for changed {target} binding after {treat_levels[[2]]} ",
-  "treament, broken down by whether each merged window overlaps a `macs2`-",
-  "derived consensus peak."
+cp <- htmltools::em(
+  glue(
+    "Overall results for changed {target} binding after {treat_levels[[2]]} ",
+    "treament, broken down by whether each merged window overlaps a `macs2`-",
+    "derived consensus peak."
+  )
 )
 tbl <- df %>%
   reactable(
@@ -1230,8 +1265,8 @@ df <- merged_results %>%
   ) %>% 
   as_tibble() %>% 
   group_by(region, status) %>% 
-  tally() %>% 
-  complete(status, fill = list(n = 0)) %>% 
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  complete(region, status, fill = list(n = 0)) %>% 
   pivot_wider(names_from = "status", values_from = "n") %>% 
   ungroup() %>% 
   mutate(
@@ -1245,11 +1280,13 @@ df <- merged_results %>%
     any_of(str_to_title(names(colours$direction))),
     `% Changed`, Total, `% Of All Windows`
   )
-cp <- glue(
-      "Overall results for changed {target} binding after {treat_levels[[2]]} ",
-      "treament, broken down by which genomic region contains the largest ", 
-      "overlap with each merged window."
-    )
+cp <- htmltools::em(
+  glue(
+    "Overall results for changed {target} binding after {treat_levels[[2]]} ",
+    "treament, broken down by which genomic region contains the largest ", 
+    "overlap with each merged window."
+  )
+)
 tbl <- df %>%
   reactable(
     columns = list(
@@ -1318,9 +1355,9 @@ df <- merged_results %>%
   as_tibble() %>% 
   group_by(feature, status) %>% 
   tally() %>% 
-  complete(status, fill = list(n = 0)) %>% 
-  pivot_wider(names_from = "status", values_from = "n") %>% 
   ungroup() %>% 
+  complete(feature, status, fill = list(n = 0)) %>% 
+  pivot_wider(names_from = "status", values_from = "n") %>% 
   mutate(
     Total = Up + Down + Unchanged,
     `% Of All Windows` = Total / length(merged_results),
@@ -1332,10 +1369,12 @@ df <- merged_results %>%
     any_of(str_to_title(names(colours$direction))),
     `% Changed`, Total, `% Of All Windows`
   )
-cp <- glue(
-  "Overall results for changed {target} binding after {treat_levels[[2]]} ",
-  "treament, broken down by which external feature contains the largest ", 
-  "overlap with each merged window."
+cp <- htmltools::em(
+  glue(
+    "Overall results for changed {target} binding after {treat_levels[[2]]} ",
+    "treament, broken down by which external feature contains the largest ", 
+    "overlap with each merged window."
+  )
 )
 tbl <- df %>%
   reactable(
@@ -1402,18 +1441,23 @@ div(class = "table",
 ```{r tab-highy-ranked}
 show_n <- min(200, length(merged_results))
 scaling_vals <- list(
-  logFC = range(merged_results$logFC),
+  logFC = c(-1, 1)*max(abs(merged_results$logFC)),
   AveExpr = range(merged_results$AveExpr),
   Width = max(width(merged_results))
 )
-cp <- glue(
-  "The {show_n} most highly-ranked merged windows by FDR. ",
-  "Regions were assigned based on which genomic region showed the largest ",
-  "overlap with the merged window. ",
-  ifelse(
-    has_features, 
-    glue("Features are as provided in the file {basename(config$external$features)}"),
-    glue("")
+cp <- htmltools::em(
+  glue(
+    "The {show_n} most highly-ranked merged windows by FDR. ",
+    "Regions were assigned based on which genomic region showed the largest ",
+    "overlap with the merged window. ",
+    ifelse(
+      has_features, 
+      glue("Features are as provided in the file {basename(config$external$features)}"),
+      glue("")
+    ),
+    "For windows mapped to large numbers of genes, hovering your mouse over the ", 
+    "cell will reveal the full set of genes. ",
+    "The Macs2 Peak column is filterable using T/F values"
   )
 )
 tbl <- merged_results %>% 
@@ -1432,7 +1476,9 @@ tbl <- merged_results %>%
   dplyr::select(-strand) %>% 
   mutate(Genes = vapply(Genes, paste, character(1), collapse = "; ")) %>% 
   reactable(
-    searchable = TRUE,
+    filterable = TRUE,
+    showPageSizeOptions = TRUE,
+    pageSizeOptions = c(10, 20, 50, show_n), defaultPageSize = 10,
     columns = list(
       Start = colDef(
         cell = function(value) comma(value, 1)
@@ -1493,54 +1539,130 @@ div(class = "table",
 
 ## Inspection of Top-Ranked Regions {.tabset}
 
-```{r reset-bwfl}
-results_grl <- merged_results %>% 
-  mutate(group = str_remove(status, " \\+ Ref Peak")) %>% 
-  split(f = .$group) %>% 
-  lapply(granges) %>% 
+```{r grl-to-plot}
+## Define a GRL with the key ranges.
+## Then we can step through it & make all of the requisite plots
+grl_to_plot <- GRangesList(
+  top_up_by_fdr = merged_results %>% 
+    filter(logFC > 0) %>% 
+    filter(!!sym(fdr_column) == min(!!sym(fdr_column))),
+  top_up_by_lfc = merged_results %>% 
+    filter(logFC == max(logFC)),
+  top_up_by_expr = merged_results %>% 
+    filter(logFC > 0, !!sym(fdr_column) < fdr_alpha) %>% 
+    filter(AveExpr == max(AveExpr)),
+  top_down_by_fdr = merged_results %>% 
+    filter(logFC < 0) %>% 
+    filter(!!sym(fdr_column) == min(!!sym(fdr_column))),
+  top_down_by_lfc = merged_results %>% 
+    filter(logFC == min(logFC)),
+  top_down_by_expr = merged_results %>% 
+    filter(logFC < 0, !!sym(fdr_column) < fdr_alpha) %>% 
+    filter(AveExpr == max(AveExpr))
+) %>% 
+  unlist() %>% 
+  .[!duplicated(.)] %>% 
+  splitAsList(names(.)) %>% 
+  lapply(setNames, c()) %>% 
+  lapply(function(x) x[1]) %>% 
   GRangesList()
-feat_gr <- c(feat_gr, mutate(granges(consensus_peaks), feature = "Peak"))
-feat_col <- rmd_config$colours$features %>% 
-  c(list(Peak = "#B3B3B3")) 
-bwfl <- file.path(bw_path, glue("{samples$sample}_treat_pileup.bw")) %>% 
-  BigWigFileList() %>% 
-  setNames(samples$label)
 ```
 
+
+```{r prepare-plot-objects}
+## The coverage objects
+bwfl <- file.path(bw_path, glue("{samples$sample}_treat_pileup.bw")) %>% 
+  BigWigFileList() %>% 
+  setNames(samples$label) 
+ind <- filtered_counts %>% 
+  assay("counts") %>% 
+  apply(MARGIN = 2, which.max) %>%
+  unique()
+max_ranges <- rowRanges(filtered_counts[ind])
+y_lim <- bwfl %>% 
+  lapply(import.bw, which = max_ranges) %>% 
+  lapply(function(x) c(0, max(x$score)))
+line_col <- samples %>% 
+  mutate(col = treat_cols[as.character(treat)]) %>% 
+  split(.$label) %>%
+  lapply(pull, "col") %>%
+  lapply(setNames, c())
+
+## The features track
+feat_gr <- gene_regions %>% 
+  lapply(granges) %>% 
+  GRangesList()
+feat_col <- colours$regions
+if (has_features) {
+  feat_gr <- feat_gr %>% 
+    c(
+      splitAsList(external_features, external_features$feature)
+    )
+  feat_col <- c(feat_col, colours$features)
+}
+
+## The genes track
+hfgc_genes <- trans_models
+if (any_detected){
+  lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
+  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
+  if (!is.na(lfc_col) & !is.na(rna_fdr_col)) {
+    hfgc_genes <- trans_models %>% 
+      mutate(
+        status = case_when(
+          !gene %in% rnaseq$gene_id ~ "undetected",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
+          )$gene_id ~ "up",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
+          )$gene_id ~ "down",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
+          )$gene_id ~ "unchanged",
+        )
+      ) %>% 
+      splitAsList(.$status) %>% 
+      lapply(select, -status) %>% 
+      GRangesList()
+  }
+}
+```
+
+
 ```{r makeCaption}
-makeCaption <- function(
-  .gr, .genes = genes_gr, .features = feat_gr, .target = target, 
-  .trt = treat_levels[[2]]
-  ) {
-  nearest_gene <- .gr %>% 
-    granges() %>% 
-    join_nearest(.genes, distance= TRUE) %>% 
-    select(gene_name, distance) 
-  mapped_genes <- .gr$gene_name[[1]] %>% 
-    str_replace_na() %>% 
-    str_subset("^NA$", negate = TRUE) %>% 
-    collapseGenes(format = "")
-  feat_ol <- subsetByOverlaps(.features, .gr) %>% 
-    as_tibble() %>% 
-    subset(feature != "Peak") %>% 
-    distinct(feature)
-  wd <- width(.gr)
-  dir <- case_when(
-    .gr$direction == "Up" ~ "increased",
-    .gr$direction == "Down" ~ "decreased",
-    .gr$direction == "Unchanged" ~ "unchanged"
+makeCaption <- function(.gr) {
+  dir <- ifelse(.gr$direction == "Down", 'decreased', 'increased')
+  reg <- case_when(
+    str_detect(.gr$region, "Inter") ~ paste("an", .gr$region, "region"),
+    str_detect(.gr$region, "Upstream") ~ paste("an", .gr$region),
+    str_detect(.gr$region, "(Ex|Intr)on") ~ paste("an", .gr$region),
+    str_detect(.gr$region, "^Prom") ~ paste("a", .gr$region)
   )
+  feat <- c()
+  if (has_features) feat <- case_when(
+    str_detect(.gr$feature, "^[AEIOU]") ~ paste("an", .gr$feature),
+    !str_detect(.gr$feature, "^[AEIOU]") ~ paste("a", .gr$feature)
+  )
+  gn <- unlist(.gr$gene_name)
   cp <- c(
     glue(
-      "*The {wd}bp region showing {dir} {.target} binding in response to ", 
-      "{.trt} treatment (FDR = {sprintf('%.2e', gr$fdr_ihw)}). ",
-      "Features include any possible overlaps with Promoters, Enhancers, ",
-      "Super-Enhancers or Macs2 Peaks (shown in grey). ",
-      "Narrow bars directly above the coverage tracks indicate differential ",
-      "binding status for each retained region in the above analysis."
+      "*The {width(.gr)}bp region showing {dir} {target} binding in response to ", 
+      "{treat_levels[[2]]} treatment (FDR = {sprintf('%.2e', mcols(.gr)[[fdr_column]])}). ",
+      "The range mostly overlapped with {reg}, with all ",
+      "defined regions shown as a contiguous bar. ",
+      ifelse(
+        has_features,
+        glue(
+          "Using the features supplied in {basename(config$external$features)}, ",
+          "this mostly overlapped {feat}, shown as a separate block ",
+          "below the gene-centric regions. "
+        ),
+        glue("")
+      ),
     ),
     ifelse(
-      gr$overlaps_ref,
+      .gr$overlaps_ref,
       paste(
         "A consensus peak overlapping this region was identified by",
         "`macs2 callpeak` when using merged samples."
@@ -1548,268 +1670,198 @@ makeCaption <- function(
       "No consensus peak was identified using `macs2 callpeak`."
     ),
     ifelse(
-      nearest_gene$distance == 0, 
-      glue("The gene {nearest_gene$gene_name} directly overlaps the range."), 
-      glue("{nearest_gene$gene_name} is {round(nearest_gene$distance/1e3, 1)} kb away.")
-    ),
-    ifelse(
-      length(mapped_genes) > 0,
+      length(gn) > 0,
       paste0(
-        "Using a more complete mapping strategy, the genes mapped to this region were ",
-        mapped_genes, "."),
-      ""
+        "Using the above mapping strategy, this range is likely to regulate ",
+        collapseGenes(gn, format = "")
+      ),
+      "No genes were able to be assigned to this region."
     ),
-    ifelse(
-      length(feat_ol$feature) == 0,
-      "There is no direct overlap with any defined regulatory features.*",
-      case_when(
-        feat_ol$feature == "Enhancer" ~ 
-          "This region directly overlaps an Enhancer.*",
-        feat_ol$feature == "SE" ~ 
-          "This region directly overlaps a Super-Enhancer.*",
-        feat_ol$feature == "Promoter" ~ 
-          "This region directly overlaps a Promoter.*"
-      )
-    )
+    "For each sample, the y-axis limits represent the values in the window with the highest signal.*"
   )
-  cp <- paste(cp, collapse = " ")
-  gsub(" +", " ", cp)
+  paste(cp, collapse = " ")
 }
 ```
 
-### Most Highly Ranked Increase
 
-```{r gr_lowest_up_p}
-gr <- merged_results %>% 
-  filter(logFC > 0) %>% 
-  filter(P.Value == min(P.Value))
+### Normalised Sliding Windows
+
+```{r plot-qsmooth-top-ranges, fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} binding in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Binding Strength (Signal) and logFC. Windows are shown free of the genomic context.*")}
+grl_to_plot %>% 
+  lapply(
+    function(x){
+      filtered_counts %>% 
+        subsetByOverlaps(x) %>% 
+        assay("qsmooth") %>% 
+        as_tibble(rownames = "window") %>% 
+        pivot_longer(
+          cols = all_of(colnames(filtered_counts)),
+          names_to = "sample",
+          values_to = "logCPM"
+        ) %>% 
+        mutate(range = as.character(x)) %>% 
+        list()
+    }
+  ) %>% 
+  as_tibble() %>% 
+  pivot_longer(everything()) %>% 
+  unnest(everything()) %>% 
+  mutate(
+    direction = str_extract(name, "down|up"),
+    by = str_extract(name, "by_.+"),
+    across(
+      all_of(c("name", "direction", "by")), str_sep_to_title
+    ),
+    name = str_remove_all(name, "Top ") %>% 
+      str_replace_all("Lfc", "logFC") %>% 
+      str_replace_all("Fdr", "FDR") %>% 
+      str_replace_all("Expr", "Highest Signal") %>% 
+      str_replace_all("By (.+)", "(\\1)"),
+    window = as.integer(window)
+  ) %>% 
+  left_join(samples, by = "sample") %>% 
+  ggplot(
+    aes(window, logCPM, colour = treat, linetype = !!sym(rep_col))
+  ) +
+  geom_line(
+    data = . %>% 
+      group_by(name) %>% 
+      dplyr::filter(max(window) > 1)
+  ) + 
+  geom_point(
+    data = . %>% 
+      group_by(name) %>% 
+      dplyr::filter(max(window) == 1),
+    show.legend = FALSE
+  ) + 
+  facet_wrap(~name + range, scales = "free_x") +
+  scale_colour_manual(values = treat_cols) + 
+  labs(
+    x = "Sliding Window\n(Unmerged)", y = "SQ-Normalised logCPM", colour = "Treat",
+    linetype = str_sep_to_title(rep_col)
+  )
 ```
 
-```{r plot_gr_lowest_up_p, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
+`r ifelse("top_down_by_expr" %in% names(grl_to_plot), "### Decreased Binding (Strongest Signal)", "")`
+
+```{r plot-top-down-by-expr, eval = "top_down_by_expr" %in% names(grl_to_plot), echo = "top_down_by_expr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_by_expr)}
 plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  grl_to_plot$top_down_by_expr,
+  hic = hic,
+  features = feat_gr,
   featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+  genes = hfgc_genes,
+  genecol = colours$direction,
+  coverage = as.list(split(bwfl, f = names(bwfl))),
+  linecol = line_col,
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 5,
+  fontsize = 10,
+  ylim = y_lim
 )
 ```
 
-### Most Highly Ranked Decrease
+`r ifelse("top_down_by_fdr" %in% names(grl_to_plot), "### Decreased Binding (Lowest FDR)", "")`
 
-```{r gr_lowest_down_p}
-gr <- merged_results %>% 
-  filter(logFC < 0) %>% 
-  filter(P.Value == min(P.Value))
-```
-
-```{r plot_gr_lowest_down_p, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
+```{r plot-top_down_by_fdr, eval = "top_down_by_fdr" %in% names(grl_to_plot), echo = "top_down_by_fdr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_by_fdr)}
 plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  grl_to_plot$top_down_by_fdr,
+  hic = hic,
+  features = feat_gr,
   featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+  genes = hfgc_genes,
+  genecol = colours$direction,
+  coverage = as.list(split(bwfl, f = names(bwfl))),
+  linecol = line_col,
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 5,
+  fontsize = 10,
+  ylim = y_lim
 )
 ```
 
-### Changed Region With Highest Signal
+`r ifelse("top_down_by_lfc" %in% names(grl_to_plot), "### Decreased Binding (Most Extreme)", "")`
 
-```{r gr_highest_signal}
-gr <- merged_results %>% 
-  filter(fdr_ihw < fdr_alpha) %>% 
-  filter(AveExpr == max(AveExpr))
-```
-
-`r ifelse(length(gr) == 0, "No region was considered as significantly changed", "")`
-
-```{r plot_gr_highest_signal, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
+```{r plot-top_down_by_lfc, eval = "top_down_by_lfc" %in% names(grl_to_plot), echo = "top_down_by_lfc" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_by_lfc)}
 plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  grl_to_plot$top_down_by_lfc,
+  hic = hic,
+  features = feat_gr,
   featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+  genes = hfgc_genes,
+  genecol = colours$direction,
+  coverage = as.list(split(bwfl, f = names(bwfl))),
+  linecol = line_col,
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 5,
+  fontsize = 10,
+  ylim = y_lim
 )
 ```
 
-### Most Extreme Increase
+`r ifelse("top_up_by_expr" %in% names(grl_to_plot), "### Increased Binding (Strongest Signal)", "")`
 
-```{r gr_largest_up}
-gr <- merged_results %>% 
-  filter(fdr_ihw < fdr_alpha) %>% 
-  filter(logFC == max(logFC))
-```
-
-`r ifelse(length(gr) == 0, "No region was considered as significantly changed", "")`
-
-```{r plot_gr_largest_up, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
+```{r plot-top-up-by-expr, eval = "top_up_by_expr" %in% names(grl_to_plot), echo = "top_up_by_expr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_by_expr)}
 plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  grl_to_plot$top_up_by_expr,
+  hic = hic,
+  features = feat_gr,
   featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+  genes = hfgc_genes,
+  genecol = colours$direction,
+  coverage = as.list(split(bwfl, f = names(bwfl))),
+  linecol = line_col,
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 5,
+  fontsize = 10,
+  ylim = y_lim
 )
 ```
 
-### Most Extreme Decrease
+`r ifelse("top_up_by_fdr" %in% names(grl_to_plot), "### Increased Binding (Lowest FDR)", "")`
 
-```{r gr_largest_down}
-gr <- merged_results %>% 
-  filter(fdr_ihw < fdr_alpha) %>% 
-  filter(logFC == min(logFC))
-```
-
-`r ifelse(length(gr) == 0, "No region was considered as significantly changed", "")`
-
-```{r plot_gr_largest_down, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
+```{r plot-top_up_by_fdr, eval = "top_up_by_fdr" %in% names(grl_to_plot), echo = "top_up_by_fdr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_by_fdr)}
 plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  grl_to_plot$top_up_by_fdr,
+  hic = hic,
+  features = feat_gr,
   featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+  genes = hfgc_genes,
+  genecol = colours$direction,
+  coverage = as.list(split(bwfl, f = names(bwfl))),
+  linecol = line_col,
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 5,
+  fontsize = 10,
+  ylim = y_lim
 )
 ```
 
-### Weakest Signal (No Consensus Peak)
+`r ifelse("top_up_by_lfc" %in% names(grl_to_plot), "### Increased Binding (Most Extreme)", "")`
 
-```{r gr_weakest_nonref}
-gr <- merged_results %>% 
-  filter(fdr_ihw < fdr_alpha & !overlaps_ref) %>% 
-  filter(AveExpr == min(AveExpr))
-```
-
-`r ifelse(length(gr) == 0, "No region was considered as significantly changed without any consensus peak overlap", "")`
-
-```{r plot_gr_weakest_nonref, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
+```{r plot-top_up_by_lfc, eval = "top_up_by_lfc" %in% names(grl_to_plot), echo = "top_up_by_lfc" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_by_lfc)}
 plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
+  grl_to_plot$top_up_by_lfc,
+  hic = hic,
+  features = feat_gr,
   featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
+  genes = hfgc_genes,
+  genecol = colours$direction,
+  coverage = as.list(split(bwfl, f = names(bwfl))),
+  linecol = line_col,
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 5,
+  fontsize = 10,
+  ylim = y_lim
 )
 ```
 
-### Strongest Signal (No Consensus Peak)
-
-```{r gr_strongest_nonref}
-gr <- merged_results %>% 
-  filter(fdr_ihw < fdr_alpha & !overlaps_ref) %>% 
-  filter(AveExpr == max(AveExpr))
-```
-
-`r ifelse(length(gr) == 0, "No region was considered as significantly changed without any consensus peak overlap", "")`
-
-```{r plot_gr_strongest_nonref, eval = length(gr) > 0, echo = length(gr) > 0, fig.cap = makeCaption(gr)}
-y_max <-  bwfl %>% 
-  lapply(import.bw, which = resize(gr, width = 10*width(gr), fix = "center")) %>%
-  GRangesList() %>%
-  unlist() %>%
-  as_tibble() %>% 
-  pull(score) %>% 
-  max()
-plotHFGC(
-  gr, 
-  features = split(feat_gr, f = feat_gr$feature),
-  genes = trans_models,
-  coverage = bwfl, 
-  annotation = results_grl, annotcol = rmd_config$colours$direction,
-  coverage_type = "l", 
-  linecol = setNames(treat_cols[as.character(samples$treat)], samples$label),
-  featurecol = feat_col,
-  genecol = rmd_config$colours$direction,
-  cytobands = bands_df, 
-  zoom = 10, fontsize = 10, rotation.title = 90,
-  legend = FALSE, covsize = 1, ylim = c(0, y_max)
-)
-```
 
 # Data Export
 
@@ -1828,6 +1880,10 @@ all_out <- list(
   ),
   down_regions = file.path(
     out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_down.bed")
+  ),
+  renv = file.path(
+    here::here("output/envs"), 
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.RData")
   )
 )
 write_rds(merged_results, all_out$results, compress = "gz")
@@ -1838,6 +1894,7 @@ if (length(sig_ranges$Up) > 0)
 file.create(all_out$down_regions)
 if (length(sig_ranges$Down) > 0) 
   export.bed(granges(sig_ranges$Down), all_out$down_regions)
+save.image(all_out$renv)
 ```
 
 During this workflow, the following files were exported:

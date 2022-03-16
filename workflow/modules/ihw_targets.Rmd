@@ -39,7 +39,7 @@ ihw_all <- other_targets %>%
   .[["targets"]]
 merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
 ihw_proceed <- min(table(merged_results$ihw_covariate)) > 1e3
-fdr_column <- ifelse(ihw_proceed, "fdr_ihw", "fdr")
+if (ihw_proceed)  fdr_column <- "fdr_ihw"
 ihw_cols <- colours$regions
 if (ihw_proceed) {
   ihw <- ihw(
@@ -56,8 +56,7 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) %>% 
-      droplevels()
+      factor(levels = c(levels(direction), "Unchanged")) 
   )
 ```
 
@@ -80,7 +79,7 @@ tibble(ihw = ihw_all) %>%
   geom_bar() +
   geom_hline(yintercept = 1e3, colour = "blue") +
   geom_text(
-    aes(y = n + 0.025*max(n), label = comma(n)),
+    aes(y = n + 0.025*max(n), label = comma(n, 1)),
     data = . %>%
       group_by(ihw) %>%
       summarise(n = dplyr::n(), .groups = "drop") 
