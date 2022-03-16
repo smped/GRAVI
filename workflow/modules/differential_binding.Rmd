@@ -1,6 +1,6 @@
 ```{r example, echo = FALSE, eval=TRUE}
 ## This module requires the following to be set during preparation
-target <- "AR"
+target <- "ER"
 threads <- 6
 ```
 
@@ -30,6 +30,7 @@ library(ggside)
 library(InteractionSet)
 library(reactable)
 library(htmltools)
+library(scatterpie)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -646,7 +647,8 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) 
+      factor(levels = str_to_title(names(colours$direction))) %>% 
+      fct_drop(only = "Undetected")
   )
 ```
 
@@ -1123,6 +1125,56 @@ merged_results %>%
   labs(x = "Feature", y = "Merged Windows", fill = "Status")
 ```
 
+`r ifelse(has_features, "### Differential Binding By Region And Feature", "")`
+
+```{r scatterpie-region-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparison of changes in {target} binding separated by gene-centric region and external features provided in {basename(config$external$features)}*")}
+df <- merged_results %>% 
+  select(status, region, feature) %>% 
+  as_tibble() %>% 
+  group_by(status, region, feature) %>% 
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  complete(status, region, feature, fill = list(n = 0)) %>%
+  pivot_wider(
+    names_from = "status", values_from = n
+  ) %>% 
+  mutate(
+    x = as.integer(region),
+    y = as.integer(feature),
+    N = Up + Down + Unchanged,
+    r = N / sum(N)
+  )
+ggplot() + 
+  geom_scatterpie(
+    aes(x, y, r = 2*r), 
+    data=df,
+    cols=c("Up", "Down", "Unchanged")
+  ) +
+  geom_label(
+    aes(x, y, label = comma(N, 1)),
+    data = df %>% 
+      dplyr::filter(r > 0.025),
+    alpha = 0.5
+  ) +
+  coord_equal() +
+  scale_x_continuous(
+    breaks = seq_along(levels(df$region)),
+    labels = levels(df$region) %>% 
+      str_replace(" \\(", "\n(")
+  ) +
+  scale_y_continuous(
+    breaks = seq_along(levels(df$feature)),
+    labels = levels(df$feature)
+  ) +
+  scale_fill_manual(
+    values = colours$direction %>% 
+      setNames(str_to_title(names(.))) %>% 
+      .[names(.) %in% names(df)]
+  ) +
+  labs(
+    x = "Region", y = "External Feature", fill = "Status"
+  )
+```
+
 
 ## Result Tables {.tabset}
 
@@ -1195,7 +1247,7 @@ df <- merged_results %>%
 cp <- htmltools::em(
   glue(
     "Overall results for changed {target} binding after {treat_levels[[2]]} ",
-    "treament, broken down by whether each merged window overlaps a `macs2`-",
+    "treament, broken down by whether each merged window overlaps a macs2-",
     "derived consensus peak."
   )
 )

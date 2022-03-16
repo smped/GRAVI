@@ -59,6 +59,11 @@ rule differential_binding:
 				"figure-html"
 			)
 		),
+		rdata = expand(
+			os.path.join(
+				annotation_path, "envs", 
+				"{{target}}_{{ref}}_{{treat}}_.differential_binding.RData")
+		),
 		rds = expand(
 			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),
 			file = ['differential_binding.rds', 'down.bed', 'up.bed']

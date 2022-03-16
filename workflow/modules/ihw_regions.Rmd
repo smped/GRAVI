@@ -41,7 +41,8 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) 
+      factor(levels = str_to_title(names(colours$direction))) %>% 
+      fct_drop(only = "Undetected")
   )
 ```
 
