@@ -1,7 +1,7 @@
 ```{r example, echo = FALSE, eval=TRUE}
 ## This module requires the following to be set during preparation
-target <- "ER"
-threads <- 6
+# target <- "ER"
+# threads <- 6
 ```
 
 ```{r packages}
@@ -164,6 +164,25 @@ if (!is.null(config$external$hic)) {
 stopifnot(is(hic, "GInteractions"))
 seqinfo(hic) <- sq
 hic <- hic[!overlapsAny(hic, blacklist)]
+```
+
+```{r labeller}
+facet_labeller <- as_labeller(
+  c(
+    c(
+      `TRUE` = "Consensus Peak",
+      `FALSE` = "No Consensus Peak"
+    ),
+    structure(treat_levels, names = treat_levels),
+    c(
+      Up = glue("Increased {target} Binding"),
+      Down = glue("Decreased {target} Binding")
+    ),
+    c(
+      AveExpr = "logCPM", logFC = "logFC"
+    )
+  )
+)
 ```
 
 
@@ -587,6 +606,10 @@ FDR-adjustment was performed with `r comma(sum(merged_results$P.Value_fdr < fdr_
 merged_results %>% 
   mutate(kb = width / 1e3) %>% 
   as_tibble() %>% 
+  mutate(
+    overlaps_ref = unlist(facet_labeller(overlaps_ref)) %>% 
+      str_replace_all(" Peak", "\nPeak")
+  ) %>% 
   ggplot(aes(AveExpr, kb)) +
   geom_jitter(
     aes(colour = overlaps_ref), 
@@ -609,6 +632,7 @@ merged_results %>%
   theme(
     axis.title.x = element_text(hjust = 0.45),
     axis.title.y = element_text(hjust = 0.4),
+    ggside.axis.text.y = element_text(hjust = 0.5),
     ggside.panel.scale.x = 0.3,
     ggside.panel.scale.y = 0.25,
     legend.position = c(0.9, 0.9)
@@ -775,25 +799,6 @@ For visualisation purposes, only genes which were considered as detected in any 
 # Results 
 
 ## Summary Plots {.tabset}
-
-```{r labeller}
-facet_labeller <- as_labeller(
-  c(
-    c(
-      `TRUE` = "Consensus Peak",
-      `FALSE` = "No Consensus Peak"
-    ),
-    structure(treat_levels, names = treat_levels),
-    c(
-      Up = glue("Increased {target} Binding"),
-      Down = glue("Decreased {target} Binding")
-    ),
-    c(
-      AveExpr = "logCPM", logFC = "logFC"
-    )
-  )
-)
-```
 
 ```{r make-heatmaps}
 profile_width <- 5e3
@@ -1512,39 +1517,38 @@ cp <- htmltools::em(
     "The Macs2 Peak column is filterable using T/F values"
   )
 )
-tbl <- merged_results %>% 
+tbl <- merged_results %>%
+  mutate(w = width) %>% 
   arrange(!!sym(fdr_column)) %>% 
-  dplyr::slice(seq_len(show_n)) %>% 
+  plyranges::slice(seq_len(show_n)) %>% 
   select(
-    AveExpr, logFC, FDR = !!sym(fdr_column), 
+    w, AveExpr, logFC, FDR = !!sym(fdr_column), 
     overlaps_ref, Region = region, any_of("feature"), Genes = detected
   ) %>% 
-  as_tibble(rangeAsChar = FALSE) %>% 
+  as_tibble() %>% 
   dplyr::rename(
-    Chromosome = seqnames, Start = start, End = end, `Width (kb)` = width,
-    `Macs2 Peak` = overlaps_ref
+    Range = range, `Width (kb)` = w, `Macs2 Peak` = overlaps_ref
   ) %>% 
   rename_all(str_replace_all, "feature", "Feature") %>% 
-  dplyr::select(-strand) %>% 
   mutate(Genes = vapply(Genes, paste, character(1), collapse = "; ")) %>% 
   reactable(
     filterable = TRUE,
     showPageSizeOptions = TRUE,
     pageSizeOptions = c(10, 20, 50, show_n), defaultPageSize = 10,
+    borderless  = TRUE,
     columns = list(
-      Start = colDef(
-        cell = function(value) comma(value, 1)
-      ),
-      End = colDef(
-        cell = function(value) comma(value, 1)
-      ),
+      Range = colDef(minWidth = 200),
       `Width (kb)` = colDef(
-        cell = function(value) value / 1e3,
+        cell = function(value) round(value / 1e3, 1),
         style = function(value) {
           x <- value / scaling_vals$Width
           colour <- expr_col(x)
-          list(background = colour)
-        }
+          list(
+            background = colour, 
+            borderRight = "1px solid rgba(0, 0, 0, 0.1)"
+          )
+        },
+        maxWidth = 80
       ),
       AveExpr = colDef(
         cell = function(value) round(value, 2),
@@ -1552,7 +1556,8 @@ tbl <- merged_results %>%
           x <- (value - min(scaling_vals$AveExpr)) / diff(scaling_vals$AveExpr)
           colour = expr_col(x)
           list(background = colour)
-        }
+        },
+        maxWidth = 80
       ),
       logFC = colDef(
         cell = function(value) round(value, 2),
@@ -1560,17 +1565,21 @@ tbl <- merged_results %>%
           x <- (value - min(scaling_vals$logFC)) / diff(scaling_vals$logFC)
           colour <- lfc_col(x)
           list(background = colour)
-        }
+        },
+        maxWidth = 80
       ),
       FDR = colDef(
-        cell = function(value) sprintf("%.2e", value)
+        cell = function(value) sprintf("%.2e", value),
+        style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)"),
+        maxWidth = 100
       ),
       `Macs2 Peak` = colDef(
-        cell = function(value) ifelse(value, "\u2714", "\u2716"),
+        cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
         style = function(value) {
           color <- ifelse(value, "#008000", "#e00000")
-          list(color = color)
-        }
+          list(color = color, borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+        },
+        maxWidth = 80
       ),
       Region = colDef(
         cell = function(value) str_replace(value, " \\(", "\n(")
@@ -1913,6 +1922,7 @@ plotHFGC(
   ylim = y_lim
 )
 ```
+
 
 
 # Data Export

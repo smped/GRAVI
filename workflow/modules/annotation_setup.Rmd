@@ -773,23 +773,27 @@ external_features %>%
   group_by(feature) %>% 
   summarise(
     N = n(),
-    Width = sum(width/1e3)
+    Width = sum(width/1e3),
+    med = round(median(width/1e3), 1),
+    range = glue("[{round(min(width/1e3), 1)}, {round(max(width/1e3), 1)}]")
   ) %>% 
   as_tibble() %>% 
   mutate(
-    feature = factor(feature, levels = names(feat_col)) %>% 
+    feature = factor(feature, levels = names(feat_col)) %>%
       fct_relabel(str_sep_to_title)
-  ) %>% 
+  ) %>%
   arrange(feature) %>%
   dplyr::rename(
     Feature = feature,
-    `Width (kb)` = Width
+    `Total Width (kb)` = Width,
+    `Median Width (kb)` = med,
+    `Width Range (kb)` = range
   ) %>% 
   pander(
-    justify = "lrr",
+    justify = "lrrrr",
     caption = glue(
       "*Summary of external features provided in the file ", 
-      "{basename(config$external$feature)}. All peaks and windows will be", 
+      "{basename(config$external$feature)}. All peaks and windows will be ", 
       "compared to these throughout the workflow*"
     )
   )

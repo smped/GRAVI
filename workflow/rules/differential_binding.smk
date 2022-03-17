@@ -61,8 +61,8 @@ rule differential_binding:
 		),
 		rdata = expand(
 			os.path.join(
-				annotation_path, "envs", 
-				"{{target}}_{{ref}}_{{treat}}_.differential_binding.RData")
+				"output", "envs", 
+				"{{target}}_{{ref}}_{{treat}}_differential_binding.RData")
 		),
 		rds = expand(
 			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),

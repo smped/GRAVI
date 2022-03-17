@@ -1,4 +1,4 @@
-```{r example, echo = FALSE, eval=FALSE}
+```{r example, echo = FALSE, eval = FALSE}
 ## This module requires the following to be set during preparation
 # target <- "AR"
 # threads <- 6
@@ -39,9 +39,9 @@ panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
 theme_set(
   theme_bw() +
-  theme(
-    plot.title = element_text(hjust = 0.5)
-  )
+    theme(
+      plot.title = element_text(hjust = 0.5)
+    )
 )
 register(MulticoreParam(workers = threads))
 str_sep_to_title <- function(x, sep = "_", replacement = " ") {
@@ -103,19 +103,22 @@ blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
 external_features <- c()
+has_features <- FALSE
 if (!is.null(config$external$features)) {
   external_features <- suppressWarnings(
-    import.gff(config$external$features, genome = sq)
+    import.gff(here::here(config$external$features), genome = sq)
   )
   keep_cols <- !vapply(
     mcols(external_features), function(x) all(is.na(x)), logical(1)
   )
   mcols(external_features) <- mcols(external_features)[keep_cols]
+  has_features <- TRUE
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 any_detected <- gene_regions %>% 
   vapply(function(x) any(x$detected), logical(1)) %>% 
   any()
+tss <- read_rds(file.path(annotation_path, "tss.rds"))
 ```
 
 ```{r bfl}
@@ -128,7 +131,7 @@ bfl <- bam_path %>%
 ```{r individual-peaks}
 individual_peaks <- file.path(
   macs2_path, glue("{samples$sample}_peaks.narrowPeak")
-  ) %>%
+) %>%
   importPeaks(seqinfo = sq, blacklist = blacklist) %>%
   setNames(samples$sample)
 ```
@@ -216,7 +219,7 @@ macs2_logs %>%
 macs2_logs %>%
   ggplot(
     aes(label, n_tags_treatment, fill = qc)
-    ) +
+  ) +
   geom_col(position = "dodge") +
   geom_hline(
     aes(yintercept = mn),
@@ -261,8 +264,8 @@ bfl %>%
     cols = everything(), 
     names_to = "name",
     values_to = "freq"
-    ) %>% 
-  left_join(macs2_logs) %>% 
+  ) %>% 
+  left_join(macs2_logs, by = "name") %>% 
   unnest(freq) %>% 
   ggplot(aes(label, freq, fill = qc)) +
   geom_boxplot(alpha = 0.8) +
@@ -389,7 +392,7 @@ samples$sample %>%
     }
   ) %>%
   bind_rows() %>%
-  left_join(macs2_logs) %>%
+  left_join(macs2_logs, by = "name") %>%
   mutate(
     frip = reads_in_peaks / n_tags_treatment
   ) %>%
@@ -497,7 +500,7 @@ if (length(treat_levels) <= 3) {
       fill = colours$treat[treat_levels],
       alpha = 0.3
     )
-    file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
+  file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 }
 if (length(treat_levels) > 3) {
   png(
@@ -524,7 +527,7 @@ if (length(treat_levels) > 3) {
       set_size.scale_max = nrow(.) * 1.2,
       text.scale = 1.2
     )
-    dev.off()
+  dev.off()
 }
 ```
 
@@ -532,10 +535,10 @@ if (length(treat_levels) > 3) {
 
 ### Distance to TSS 
 
-```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. {comma(sum(overlapsAny(consensus_peaks, gene_regions$tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, gene_regions$tss)), 0.1)}) directly overlapped a TSS.*")}
+```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
 a <- consensus_peaks %>% 
   join_nearest(
-    mutate(gene_regions$tss, tss = start)
+    mutate(tss, tss = start)
   ) %>% 
   mutate(d = start + width/2 - tss) %>% 
   mcols() %>% 
@@ -549,7 +552,7 @@ a <- consensus_peaks %>%
   )
 b <- consensus_peaks %>% 
   join_nearest(
-    mutate(gene_regions$tss, tss = start)
+    mutate(tss, tss = start)
   ) %>% 
   mutate(d = start + width/2 - tss) %>%
   as.data.frame() %>% 
@@ -577,7 +580,6 @@ plot_grid(a, b, labels = c("A", "B"))
 ```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap gene-centric features.*")}
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 gene_regions %>% 
-  .[setdiff(names(.), "tss")] %>% 
   lapply(
     function(x) overlapsProp(consensus_peaks, x)
   ) %>% 
@@ -610,8 +612,7 @@ gene_regions %>%
   coord_polar("y", start = 0) +
   scale_fill_manual(
     values = colours$regions %>%
-      setNames(regions[names(.)]) %>%
-    .[setdiff(names(.), "TSS")]
+      setNames(regions[names(.)])
   ) +
   labs(fill = "Region") +
   theme_void()
@@ -622,7 +623,6 @@ gene_regions %>%
 ```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition.*"}
 suppressWarnings( # Turn off the discrete alpha warning
   gene_regions %>% 
-    .[setdiff(names(.), "tss")] %>% 
     lapply(
       function(x) {
         list(
@@ -670,8 +670,7 @@ suppressWarnings( # Turn off the discrete alpha warning
     scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
     scale_fill_manual(
       values = colours$regions %>%
-        setNames(regions[names(.)]) %>%
-        .[setdiff(names(.), "TSS")]
+        setNames(regions[names(.)]) 
     ) +
     scale_alpha_discrete(range = c(0.5, 1)) +
     labs(
@@ -684,9 +683,9 @@ suppressWarnings( # Turn off the discrete alpha warning
 )
 ```
 
-`r if(is.null(external_features), "", "### External Features")`
+`r ifelse(has_features, "### External Features", "")`
 
-```{r plot-feature-overlap, eval = !is.null(external_features), echo = !is.null(external_features), fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features.*")}
+```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features.*")}
 external_features %>% 
   splitAsList(.$feature) %>% 
   lapply(
@@ -734,15 +733,14 @@ external_features %>%
   theme_void()
 ```
 
-`r if(is.null(external_features), "", "### External Features And Gene-Centric Regions")`
+`r ifelse(has_features, "### External Features And Gene-Centric Regions", "")`
 
-```{r plot-feature-region-overlap, eval = !is.null(external_features), echo = !is.null(external_features), fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features and gene-centric regions. Percentages in each panel sum to 100.*")}
+```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features and gene-centric regions. Percentages in each panel sum to 100.*")}
 suppressWarnings(
   gene_regions %>% 
     lapply(select, region) %>% 
     GRangesList() %>% 
     unlist() %>% 
-    subset(region != "TSS") %>% 
     sort() %>% 
     setNames(c()) %>% 
     partitionRanges(select(external_features, feature)) %>% 
@@ -764,7 +762,7 @@ suppressWarnings(
       aes(region, feature, size = bp/1e6, alpha = bp/1e6, label = percent(p, 0.1))
     ) +
     geom_point(colour = "darkblue") +
-    geom_label(size = 4) +
+    geom_label(size = 3) +
     geom_xsidecol(
       aes(region, p, fill = region),
       inherit.aes = FALSE,
@@ -773,10 +771,11 @@ suppressWarnings(
         summarise(p = sum(p))
     ) +
     geom_xsidelabel(
-      aes(region, p + 0.12*max(p), label = percent(p, 0.1)),
+      aes(region, p + 0.15*max(p), label = percent(p, 0.1)),
       data = . %>%
         group_by(region) %>%
         summarise(p = sum(p)),
+      size = 3,
       inherit.aes = FALSE
     ) +
     geom_ysidecol(
@@ -787,20 +786,23 @@ suppressWarnings(
         summarise(p = sum(p))
     ) +
     geom_ysidelabel(
-      aes(max(p)*0.15, feature, label = percent(p, 0.1)),
+      aes(max(p)*0.2, feature, label = percent(p, 0.1)),
       data = . %>% 
         group_by(feature) %>% 
         summarise(p = sum(p)),
       inherit.aes = FALSE,
+      size = 3,
       alpha = 0.7
     ) +
-    scale_size_continuous(range = c(0, 50)) +
-    scale_xsidey_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
-    scale_ysidex_continuous(expand = expansion(c(0, 0.1)), labels = NULL, breaks = NULL) +
+    scale_x_discrete(
+      labels = function(x) str_replace_all(x, " \\(", "\n(")
+    ) +
+    scale_size_continuous(range = c(0, 30)) +
+    scale_xsidey_continuous(expand = expansion(c(0, 0.15)), labels = NULL, breaks = NULL) +
+    scale_ysidex_continuous(expand = expansion(c(0, 0.15)), labels = NULL, breaks = NULL) +
     scale_fill_manual(
       values =  colours$regions %>%
         setNames(regions[names(.)]) %>%
-        .[setdiff(names(.), "TSS")] %>% 
         c(
           colours$features %>% 
             setNames(str_sep_to_title(names(.)))
@@ -819,7 +821,7 @@ suppressWarnings(
 ```
 
 
-# Data Export
+## Data Export
 
 
 ```{r export}
@@ -833,8 +835,8 @@ oracle_peaks %>%
     compress = "gz"
   )
 all_out <- list(
-   file.path(out_path, "consensus_peaks.bed"),
-   file.path(out_path, "oracle_peaks.rds")
+  file.path(out_path, "consensus_peaks.bed"),
+  file.path(out_path, "oracle_peaks.rds")
 ) %>% 
   lapply(
     str_extract, 

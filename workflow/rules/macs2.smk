@@ -304,6 +304,7 @@ rule build_macs2_summary:
 			sample = set(df[df.target == wildcards.target]['sample']),
 			suffix = ['bam', 'bam.bai']
 		),
+		blacklist = blacklist,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
