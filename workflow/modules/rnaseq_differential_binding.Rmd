@@ -19,6 +19,39 @@ Write this workflow for the case: `rna_col == 'gene_id'`
 
 **ALSO ADD EXTERNAL COVERAGE AS AN OPTION IN CONFIG**
 
+```{r plot-p-target, fig.height = 7, fig.cap = glue("*P-Values for differential expression partitioned by whether a {target} ChIP peak was mapped to each gene.*")}
+rna_p_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "pval|p\\.val")][1]
+stopifnot(length(rna_p_col) == 1)
+y <- ggplot_build(
+  tibble(p = rnaseq[[rna_p_col]]) %>% 
+    ggplot(aes(p, stat(density))) + 
+    geom_histogram(bins = 100) 
+) %>% .[["data"]] %>% 
+  .[[1]] %>% 
+  .[["y"]] %>% 
+  max()
+rnaseq %>% 
+  mutate(
+    mapped = gene_id %in% unlist(merged_results$gene_id),
+    mapped = ifelse(mapped, glue("{target} Peak"), glue("No {target} Peak"))
+  ) %>%
+  ggplot(
+    aes(!!sym(rna_p_col), stat(density))
+  ) +
+  geom_histogram(
+    colour = "black", fill = "grey", bins = 100
+  ) +
+  geom_text(
+    aes(0.85, y, label = lab),
+    data = . %>% 
+      group_by(mapped) %>% 
+      tally() %>% 
+      mutate(lab = glue("N = {comma(n, 1)}"))
+  ) +
+  facet_wrap(~mapped)
+```
+
+
 ```{r}
 rna_status <- rnaseq %>% 
   mutate(
@@ -46,7 +79,7 @@ rna_status <- rnaseq %>%
 ```
 
 
-```{r}
+```{r plot-region-detected, fig.height = 6, fig.cap = "*Distribution of merged windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*"}
 merged_results %>% 
   mutate(
     any_detected = vapply(detected, length, integer(1)) > 1
@@ -58,6 +91,7 @@ merged_results %>%
   mutate(
     p = n / sum(n),
     x = cumsum(p),
+    any_detected = ifelse(any_detected, "Detected", "Not Detected"),
     any_detected = glue("{any_detected}\n(N = {comma(sum(n), 1)})")
   ) %>% 
   ungroup() %>% 
@@ -82,6 +116,95 @@ merged_results %>%
   theme(
     axis.text.y = element_text(hjust = 0.5)
   )
+```
+
+
+```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = "*Distribution of merged windows by feature, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*"}
+merged_results %>% 
+  mutate(
+    any_detected = vapply(detected, length, integer(1)) > 1
+  ) %>% 
+  group_by(any_detected, feature) %>% 
+  summarise(n = n()) %>% 
+  as_tibble() %>% 
+  group_by(any_detected) %>% 
+  mutate(
+    p = n / sum(n),
+    x = cumsum(p),
+    any_detected = ifelse(any_detected, "Detected", "Not Detected"),
+    any_detected = glue("{any_detected}\n(N = {comma(sum(n), 1)})")
+  ) %>% 
+  ungroup() %>% 
+  ggplot(
+    aes(p, any_detected, fill = fct_rev(feature))
+  ) +
+  geom_col() +
+  geom_label(
+    aes(x - 0.5*p, any_detected, label = percent(p, 0.1)),
+    data = . %>% dplyr::filter(p > 0.03),
+    alpha = 0.6, fill = "white"
+  ) +
+  scale_fill_manual(
+    values = colours$feature %>% 
+      setNames(str_sep_to_title(names(.)))
+  ) +
+  scale_x_continuous(expand = expansion(0), labels = percent) +
+  labs(
+    x = c(), y = "Mapped To Detected Genes", fill = "Feature"
+  ) +
+  theme(
+    axis.text.y = element_text(hjust = 0.5)
+  )
+```
+
+```{r plot-feature-region-detected, eval = has_features, echo = has_features, fig.cap = glue("*Detected/Undetected genes mapped by region and feature for merged windows*")}
+df <- merged_results %>%
+  mutate(
+    any_detected = vapply(detected, length, integer(1)) > 1
+  ) %>% 
+  group_by(any_detected, region, feature) %>% 
+  summarise(n = n()) %>% 
+  as_tibble() %>% 
+  group_by(region, feature) %>% 
+  mutate(
+    N = sum(n),
+    any_detected = ifelse(any_detected, "Detected", "Not Detected")
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    x = as.integer(region),
+    y = as.integer(feature)
+  ) %>% 
+  pivot_wider(names_from = "any_detected", values_from = "n", values_fill = 0) %>% 
+  mutate(r = N / sum(N))
+ggplot() +
+  geom_scatterpie(
+    aes(x, y, r = 2*r), 
+    data = df, cols = c("Not Detected", "Detected")
+  ) +
+  geom_label(
+    aes(x, y, label = lab),
+    data = df %>% 
+      dplyr::filter(r > 0.03) %>% 
+      mutate(lab = comma(N, 1)),
+    alpha = 0.6, size = 3.5
+  ) +
+  coord_equal() +
+  scale_x_continuous(
+    breaks = seq_along(levels(df$region)),
+    labels = str_replace(levels(df$region), " \\(", "\n(")
+  ) +
+  scale_y_continuous(
+    breaks = seq_along(levels(df$feature)),
+    labels = levels(df$feature)
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Not Detected" = colours$direction[["undetected"]],
+      "Detected" = "red"
+      )
+  ) +
+  labs(x = "Region", y = "Feature", fill = "Mapped Genes")
 ```
 
 
@@ -104,6 +227,7 @@ merged_results %>%
   mutate(
     p = n / sum(n),
     x = cumsum(p),
+    any_detected = ifelse(any_detected, "Detected", "Not Detected"),
     any_detected = glue("{any_detected}\n(N = {comma(sum(n), 1)})")
   ) %>% 
   ungroup() %>% 
@@ -114,7 +238,7 @@ merged_results %>%
   geom_label(
     aes(x - 0.5*p, any_detected, label = percent(p, 0.1)),
     data = . %>% dplyr::filter(p > 0.03),
-    alpha = 0.6, fill = "white"
+    alpha = 0.6, fill = "white", size = 3.5
   ) +
   facet_grid(status~., scales = "free_y", space = "free", labeller = db_labeller) +
   scale_fill_manual(
@@ -129,51 +253,61 @@ merged_results %>%
   theme(
     axis.text.y = element_text(hjust = 0.5)
   )
+## Not really convincing
 ```
 
 ```{r explore-scatterpie}
-df <- merged_results %>% 
+df <- merged_results %>%
   select(status, region, gene_id) %>% 
   as_tibble() %>% 
   unnest(gene_id) %>% 
   left_join(rna_status, by = "gene_id") %>% 
+  dplyr::filter(de_status %in% c("Up", "Down")) %>% 
   group_by(de_status, status, region) %>% 
   summarise(n = dplyr::n(), .groups = "drop_last") %>%
   mutate(N = sum(n)) %>% 
   ungroup() %>% 
   mutate(
-    x = as.integer(de_status),
-    y = as.integer(status),
+    x = as.integer(status),
+    y = as.integer(de_status),
     r = N / sum(N)
   ) %>% 
   pivot_wider(names_from = "region", values_from = "n", values_fill = 0)
 
 ggplot() +
   geom_scatterpie(
-    aes(x, y, r = 100*r),
-    data = df %>% dplyr::filter(de_status %in% c("Up", "Down")),
+    aes(x, y, r = 2*r),
+    data = df,
     cols = regions
   ) +
+  geom_label(
+    aes(x, y, label = lab),
+    data = df %>% 
+      # dplyr::filter(N > 0.025*sum(N)) %>% 
+      mutate(lab = comma(N, 1)),
+    alpha = 0.7, size = 3.5
+  ) +
   coord_equal() +
-  scale_x_continuous(
+  scale_y_continuous(
     breaks = seq_along(levels(df$de_status)), labels = levels(df$de_status)
   ) +
-  scale_y_continuous(
+  scale_x_continuous(
     breaks = seq_along(levels(df$status)), labels = levels(df$status)
-  ) +
-  labs(
-    x = "DE Genes", y = glue("Changed {target} Binding")
   ) +
   scale_fill_manual(
     values = colours$regions %>% 
       setNames(regions[names(.)])
+  ) +
+  labs(
+    x = glue("Changed {target} Binding"),
+    y = "DE Genes",
+    fill = "Region"
   )
-# Nope
+# Maybe
 ```
 
 ```{r explore-gsea}
 library(fgsea)
-rna_p_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "pval|p\\.val")][1]
 rna_ranks <- rnaseq %>% 
   mutate(
     ranking_stat = -sign(!!sym(lfc_col))*log10(!!sym(rna_p_col)) %>% 
@@ -193,19 +327,7 @@ reg_dir_gs <- merged_results %>%
   lapply(unlist) %>% 
   lapply(unique)
 if (has_features) {
-  reg_dir_gs <- c(
-    reg_dir_gs,
-    merged_results %>% 
-      select(
-        overlaps_ref, status, any_of(c("region", "feature")), starts_with("gene")
-      ) %>% 
-      as_tibble() %>% 
-      mutate(group = glue("{feature} / {target} {status}")) %>% 
-      split(.$group)%>% 
-      lapply(pull, "gene_id") %>% 
-      lapply(unlist) %>% 
-      lapply(unique),
-    merged_results %>% 
+  reg_dir_gs <- merged_results %>% 
       select(
         overlaps_ref, status, any_of(c("region", "feature")), starts_with("gene")
       ) %>% 
@@ -215,7 +337,6 @@ if (has_features) {
       lapply(pull, "gene_id") %>% 
       lapply(unlist) %>% 
       lapply(unique)
-  )
 }
 
 ## The full dataset
@@ -238,50 +359,7 @@ fgsea(reg_dir_gs, sort(abs(rna_ranks)), minSize = 20, scoreType = "pos") %>%
     )
   )
 
-## Non-directional
- merged_results %>% 
-      select(
-        overlaps_ref, status, any_of(c("region", "feature")), starts_with("gene")
-      ) %>% 
-      as_tibble() %>% 
-      mutate(group = glue("{region} / {feature} / {target} {status}")) %>% 
-      split(.$group)%>% 
-      lapply(pull, "gene_id") %>% 
-      lapply(unlist) %>% 
-      lapply(unique) %>% 
-   fgsea(sort(abs(rna_ranks)), minSize = 20, scoreType = "pos") %>% 
-  as_tibble() %>% 
-  arrange(pval) %>% 
-  mutate(bonf = p.adjust(pval, "bonf")) %>% 
-  as_tibble() %>% 
-  arrange(pval)%>%
-   dplyr::filter(padj < fdr_alpha) %>% 
-  mutate(
-    gene_name = vapply(
-      leadingEdge,
-      function(x) {
-        df <- left_join(as_tibble_col(x, "gene_id"), rna_status, by = "gene_id")
-        paste(df$gene_name, collapse = "; ")
-      },
-      character(1)
-    )
-  )
- 
- 
- ## Directional Analysis
- merged_results %>% 
-      select(
-        overlaps_ref, status, any_of(c("region", "feature")), starts_with("gene")
-      ) %>% 
-      as_tibble() %>% 
-      mutate(group = glue("{region} / {feature} / {target} {status}")) %>% 
-      split(.$group)%>% 
-      lapply(pull, "gene_id") %>% 
-      lapply(unlist) %>% 
-      lapply(unique) %>% 
-   fgsea(rna_ranks, minSize = 20) %>% 
-  as_tibble() %>% 
-  arrange(pval)
+
 ```
 
 
@@ -307,9 +385,35 @@ rnaseq %>%
 
 ```{r}
 ## Let's just check one of those
+## For these, we should use the merged bw, add the DB annotations and include
+## any external coverage tracks
+bwfl <- file.path(
+  bw_path, glue("{treat_levels}_merged_treat_pileup.bw")
+) %>% 
+  BigWigFileList() %>% 
+  setNames(treat_levels) %>% 
+  split(names(.)) %>% 
+  as.list()
+line_col <- colours$treat[names(bwfl)] %>% 
+  split(names(.))
 gr <- merged_results %>% 
   filter(vapply(gene_name, function(x) "RET" %in% x, logical(1))) %>% 
   range()
+y_lim <- file.path(
+  bw_path, glue("{treat_levels}_merged_treat_pileup.summary")
+) %>% 
+  lapply(read_tsv) %>% 
+  lapply(dplyr::filter, seqnames %in% as.character(seqnames(gr))) %>% 
+  lapply(function(x) c(0, max(x$max))) %>% 
+  setNames(treat_levels) 
+annot <- merged_results %>% 
+  filter_by_overlaps(gr) %>% 
+  splitAsList(.$status) %>% 
+  lapply(granges) %>% 
+  .[vapply(., length, integer(1)) > 0] %>% 
+  GRangesList()
+
+
 plotHFGC(
   gr,
   hic = hic,
@@ -317,14 +421,17 @@ plotHFGC(
   featurecol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
+  annotation = list(DHT = annot),
+  annotcol = colours$direction %>%
+    setNames(str_to_title(names(.))) %>%
+    .[names(annot)],
   cytobands = bands_df,
-  collapseTranscripts = FALSE, # Set this as a function of n_transcripts
+  collapseTranscripts = "meta", # Set this as a function of n_transcripts
   zoom = 1.1,
   fontsize = 10,
-  # ylim = lapply(y_lim, function(x) x / 2),
-  # ylim = y_lim, 
+  ylim = y_lim,
   highlight = c()
 )
 ```

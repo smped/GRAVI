@@ -1,4 +1,4 @@
-```{r ihw-all}
+```{r ihw-all, echo = TRUE}
 ihw_all <- gene_regions %>% 
   .[names(.) != "tss"] %>% 
   lapply(
@@ -59,7 +59,7 @@ Where multiple overlapping regions were found, the region with the *largest* ove
 
 ### Initial Group Sizes
 
-```{r ihw-partitions-raw, fig.height=6, fig.cap = "*Breakdown of all windows which overlapped the regions previously defined. Any partitions with fewer than 1000 windows (indicated as the blue horizontal line) were combined into the next smallest partition consecutively, until all partitions contained > 1000 windows.*"}
+```{r ihw-partitions-raw, echo = TRUE, fig.height=6, fig.cap = "*Breakdown of all windows which overlapped the regions previously defined. Any partitions with fewer than 1000 windows (indicated as the blue horizontal line) were combined into the next smallest partition consecutively, until all partitions contained > 1000 windows.*"}
 tibble(ihw = ihw_all) %>% 
   mutate(
     ihw_label = regions[as.character(ihw)] %>% 
@@ -84,7 +84,7 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, fig.height= 4 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
+```{r plot-ihw-pvals, echo = TRUE, fig.height= 4 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
 lblr <- as_labeller(c(regions, "Other" = "Other"))
 y <- ggplot_build(
   tibble(P.Value = merged_results$P.Value,) %>% 

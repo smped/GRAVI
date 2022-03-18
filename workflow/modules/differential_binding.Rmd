@@ -1640,8 +1640,8 @@ ind <- filtered_counts %>%
   apply(MARGIN = 2, which.max) %>%
   unique()
 max_ranges <- rowRanges(filtered_counts[ind])
-y_lim <- bwfl %>% 
-  lapply(import.bw, which = max_ranges) %>% 
+y_lim <- bwfl %>%
+  lapply(import.bw, which = max_ranges) %>%
   lapply(function(x) c(0, max(x$score)))
 line_col <- samples %>% 
   mutate(col = treat_cols[as.character(treat)]) %>% 
