@@ -8,7 +8,7 @@ ihw_all <- external_features %>%
     )
   ) %>% 
   lapply(
-    function(x) overlapsProp(merged_results, x)
+    function(x) propOverlap(merged_results, x)
   ) %>% 
   as_tibble() %>% 
   mutate(

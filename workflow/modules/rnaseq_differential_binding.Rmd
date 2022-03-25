@@ -368,18 +368,18 @@ all_ids <- unlist(merged_results$gene_id)
 db_ids <- unlist(filter(merged_results, !!sym(fdr_column) < fdr_alpha)$gene_id)
 rnaseq %>% 
   mutate(
-    # n_windows = vapply(
-    #   gene_id, 
-    #   function(x) sum(str_detect(all_ids, x)), 
-    #   integer(1)
-    # )#,
+    n_windows = vapply(
+      gene_id,
+      function(x) sum(str_detect(all_ids, x)),
+      integer(1)
+    ),
     n_db_windows = vapply(
       gene_id,
       function(x) sum(str_detect(db_ids, x)),
       integer(1)
     )
   ) %>% 
-  arrange(desc(n_db_windows)) %>% 
+  arrange(desc(n_windows)) %>% 
   dplyr::filter(!!sym(rna_fdr_col) < fdr_alpha)
 ```
 
@@ -391,13 +391,10 @@ bwfl <- file.path(
   bw_path, glue("{treat_levels}_merged_treat_pileup.bw")
 ) %>% 
   BigWigFileList() %>% 
-  setNames(treat_levels) %>% 
-  split(names(.)) %>% 
-  as.list()
-line_col <- colours$treat[names(bwfl)] %>% 
-  split(names(.))
+  setNames(treat_levels) 
+line_col <- colours$treat[names(bwfl)]
 gr <- merged_results %>% 
-  filter(vapply(gene_name, function(x) "RET" %in% x, logical(1))) %>% 
+  filter(vapply(gene_name, function(x) "PPRC1" %in% x, logical(1))) %>% 
   range()
 y_lim <- file.path(
   bw_path, glue("{treat_levels}_merged_treat_pileup.summary")
@@ -405,7 +402,8 @@ y_lim <- file.path(
   lapply(read_tsv) %>% 
   lapply(dplyr::filter, seqnames %in% as.character(seqnames(gr))) %>% 
   lapply(function(x) c(0, max(x$max))) %>% 
-  setNames(treat_levels) 
+  unlist() %>% 
+  range()
 annot <- merged_results %>% 
   filter_by_overlaps(gr) %>% 
   splitAsList(.$status) %>% 
@@ -423,10 +421,9 @@ plotHFGC(
   genecol = colours$direction,
   coverage = bwfl,
   linecol = line_col,
-  annotation = list(DHT = annot),
+  annotation = annot,
   annotcol = colours$direction %>%
-    setNames(str_to_title(names(.))) %>%
-    .[names(annot)],
+    setNames(str_to_title(names(.))),
   cytobands = bands_df,
   collapseTranscripts = "meta", # Set this as a function of n_transcripts
   zoom = 1.1,

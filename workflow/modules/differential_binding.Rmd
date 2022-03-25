@@ -30,7 +30,6 @@ library(ggside)
 library(InteractionSet)
 library(reactable)
 library(htmltools)
-library(scatterpie)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -51,13 +50,7 @@ theme_set(
   )
 )
 register(MulticoreParam(workers = threads))
-str_sep_to_title <- function(x, sep = "_", replacement = " ", exclude = c()) {
-  out <- x
-  out[!x %in% exclude] <- out[!x %in% exclude] %>% 
-    str_replace_all(sep, replacement) %>% 
-    str_to_title()
-  out
-}
+source(here::here("workflow", "scripts", "custom_functions.R"))
 ```
 
 ```{r load-config}
@@ -118,6 +111,7 @@ stopifnot(
 genes_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds() %>% 
   .[["gene"]]
+id2gene <- structure(genes_gr$gene_name, names = genes_gr$gene_id)
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
 
@@ -319,7 +313,7 @@ These windows were then filtered, discarding windows with low counts.
 ```{r filtered-counts}
 filtered_counts <- dualFilter(
   x = window_counts[, samples$sample],
-  bg = window_counts[, samples$input],
+  bg = window_counts[, unique(samples$input)],
   ref = consensus_peaks,
   keep.totals = TRUE,
   q = config$comparisons$filter_q
@@ -690,50 +684,29 @@ merged_results <- merged_results %>%
 ## Mapping Windows
 
 ```{r map-to-regions}
-merged_results$region <- gene_regions %>% 
-  lapply(function(x) overlapsProp(merged_results, x)) %>% 
-  as_tibble() %>% 
+merged_results <- merged_results %>% 
   mutate(
-    range = as.character(merged_results) %>% fct_inorder()
-  ) %>% 
-  pivot_longer(
-    cols = all_of(names(gene_regions)),
-    names_to = "region", values_to = "prop"
-  ) %>% 
-  arrange(desc(prop)) %>% 
-  distinct(range, .keep_all = TRUE) %>% 
-  arrange(range) %>% 
+    region = bestOverlap(
+      ., 
+      gene_regions %>% 
+        lapply(select, region) %>% 
+        GRangesList() %>% 
+        unlist(),
+      var = "region"
+    ) %>% 
+      factor(levels = regions)
+  )
+```
+
+```{r map-to-features, eval = has_features, echo = has_features}
+merged_results <- merged_results %>% 
   mutate(
-    region = regions[region] %>% 
-      factor(levels = regions) %>% 
+    feature = bestOverlap(
+      ., external_features, "feature", missing = "no_feature"
+    ) %>% 
+      factor(levels = names(colours$features)) %>% 
       fct_relabel(str_sep_to_title)
-  ) %>% 
-  pull("region")
-if (has_features) {
-  merged_results$feature <- external_features %>% 
-    c(
-      setdiff(GRanges(sq), external_features) %>% 
-        mutate(feature = "no_feature")
-    ) %>% 
-    splitAsList(.$feature) %>% 
-    lapply(function(x) overlapsProp(merged_results, x)) %>% 
-    as_tibble() %>% 
-    mutate(
-      range = as.character(merged_results) %>% fct_inorder()
-    ) %>% 
-    pivot_longer(
-      cols = all_of(c("no_feature", unique(external_features$feature))),
-      names_to = "feature", values_to = "prop"
-    ) %>% 
-    arrange(desc(prop)) %>% 
-    distinct(range, .keep_all = TRUE) %>% 
-    arrange(range) %>% 
-    mutate(
-      feature = factor(feature, levels = names(colours$features)) %>% 
-             fct_relabel(str_sep_to_title)
-    ) %>% 
-    pull("feature")
-}
+  )
 ```
 
 Merged windows were first mapped to the gene-centric region with the largest overlap.
@@ -759,26 +732,16 @@ merged_results <- merged_results %>%
       list(GRanges())
     )[[1]],
     gi = hic
-  ) 
-merged_results$detected <- merged_results %>% 
-  mutate(range = as.character(.)) %>% 
-  select(range, gene_id) %>% 
-  mcols() %>% 
-  as_tibble() %>%
-  mutate(id = seq_along(range), gene_id = vctrs::vec_proxy(gene_id)) %>% 
-  unnest(everything()) %>% 
-  dplyr::filter(gene_id %in% rnaseq$gene_id) %>% 
-  distinct(id, gene_id) %>% 
-  left_join(
-    tibble(gene_id = genes_gr$gene_id, gene_name = genes_gr$gene_name),
-    by = "gene_id"
   ) %>% 
-  dplyr::select(-gene_id) %>% 
-  chop(gene_name) %>% 
-  complete(id = seq_along(merged_results)) %>%
-  arrange(id) %>% 
-  .[["gene_name"]] %>% 
-  as("CharacterList") 
+  mutate(
+    detected = lapply(
+      gene_id,
+      function(x) {
+        id2gene[intersect(x, rnaseq$gene_id)]
+      }
+    ) %>% 
+      as("CharacterList")
+  )
 ```
 
 In addition to statistical analysis, the regions produced by merging windows were mapped to all annotated genes.
@@ -808,8 +771,9 @@ bwfl <- file.path(bw_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>%
   setNames(treat_levels) 
 sig_ranges <- merged_results %>% 
   filter(!!sym(fdr_column) < fdr_alpha) %>% 
-  split(f = .$direction) %>% 
-  .[vapply(., length, integer(1)) > 0]
+  colToRanges("keyval_range") %>% 
+  splitAsList(f = .$direction) %>% 
+  .[vapply(., length, integer(1)) > 0] 
 sig_profiles <- bplapply(
   sig_ranges, 
   function(x) getProfileData(
@@ -868,8 +832,7 @@ profile_heatmaps <- profile_heatmaps %>%
 
 ```{r plot-ma, fig.cap = glue("*MA plot showing the status of each window under consideration. The two most extreme regions are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. Windows are plotted in separate panels based on those which overlap a `macs2` consensus peak.*")}
 merged_results %>% 
-  as_tibble() %>% 
-  arrange(range) %>% 
+  as_tibble() %>%
   ggplot(aes(AveExpr, logFC)) +
   geom_point(aes(colour = status), alpha = 0.5) +
   geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
@@ -1133,50 +1096,15 @@ merged_results %>%
 `r ifelse(has_features, "### Differential Binding By Region And Feature", "")`
 
 ```{r scatterpie-region-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparison of changes in {target} binding separated by gene-centric region and external features provided in {basename(config$external$features)}*")}
-df <- merged_results %>% 
-  select(status, region, feature) %>% 
-  as_tibble() %>% 
-  group_by(status, region, feature) %>% 
-  summarise(n = dplyr::n(), .groups = "drop") %>% 
-  complete(status, region, feature, fill = list(n = 0)) %>%
-  pivot_wider(
-    names_from = "status", values_from = n
-  ) %>% 
-  mutate(
-    x = as.integer(region),
-    y = as.integer(feature),
-    N = Up + Down + Unchanged,
-    r = N / sum(N)
-  )
-ggplot() + 
-  geom_scatterpie(
-    aes(x, y, r = 2*r), 
-    data=df,
-    cols=c("Up", "Down", "Unchanged")
-  ) +
-  geom_label(
-    aes(x, y, label = comma(N, 1)),
-    data = df %>% 
-      dplyr::filter(r > 0.025),
-    alpha = 0.5
-  ) +
-  coord_equal() +
-  scale_x_continuous(
-    breaks = seq_along(levels(df$region)),
-    labels = levels(df$region) %>% 
-      str_replace(" \\(", "\n(")
-  ) +
-  scale_y_continuous(
-    breaks = seq_along(levels(df$feature)),
-    labels = levels(df$feature)
-  ) +
+merged_results %>% 
+  plotPie(x = "region", y = "feature", fill = "status") +
   scale_fill_manual(
     values = colours$direction %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) %in% names(df)]
+      setNames(str_sep_to_title(names(.))) %>% 
+      .[names(.) %in% merged_results$status]
   ) +
   labs(
-    x = "Region", y = "External Feature", fill = "Status"
+    x = "Region", y = "Feature", fill = "Status"
   )
 ```
 
@@ -1631,23 +1559,14 @@ grl_to_plot <- GRangesList(
 
 
 ```{r prepare-plot-objects}
-## The coverage objects
-bwfl <- file.path(bw_path, glue("{samples$sample}_treat_pileup.bw")) %>% 
-  BigWigFileList() %>% 
-  setNames(samples$label) 
-ind <- filtered_counts %>% 
-  assay("counts") %>% 
-  apply(MARGIN = 2, which.max) %>%
-  unique()
-max_ranges <- rowRanges(filtered_counts[ind])
-y_lim <- bwfl %>%
-  lapply(import.bw, which = max_ranges) %>%
-  lapply(function(x) c(0, max(x$score)))
-line_col <- samples %>% 
-  mutate(col = treat_cols[as.character(treat)]) %>% 
-  split(.$label) %>%
-  lapply(pull, "col") %>%
-  lapply(setNames, c())
+bwfl <- list2(
+  "{target}" := file.path(
+    bw_path, glue("{treat_levels}_merged_treat_pileup.bw")
+  ) %>% 
+    BigWigFileList() %>% 
+    setNames(treat_levels)
+)
+line_col <- list2("{target}" := treat_cols)
 
 ## The features track
 feat_gr <- gene_regions %>% 
@@ -1810,16 +1729,15 @@ plotHFGC(
   grl_to_plot$top_down_by_expr,
   hic = hic,
   features = feat_gr,
-  featurecol = feat_col,
+  featcol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 5,
-  fontsize = 10,
-  ylim = y_lim
+  zoom = 10,
+  featsize = 2
 )
 ```
 
@@ -1830,16 +1748,15 @@ plotHFGC(
   grl_to_plot$top_down_by_fdr,
   hic = hic,
   features = feat_gr,
-  featurecol = feat_col,
+  featcol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 5,
-  fontsize = 10,
-  ylim = y_lim
+  zoom = 10,
+  featsize = 2
 )
 ```
 
@@ -1850,16 +1767,15 @@ plotHFGC(
   grl_to_plot$top_down_by_lfc,
   hic = hic,
   features = feat_gr,
-  featurecol = feat_col,
+  featcol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 5,
-  fontsize = 10,
-  ylim = y_lim
+  zoom = 10,
+  featsize = 2
 )
 ```
 
@@ -1870,16 +1786,15 @@ plotHFGC(
   grl_to_plot$top_up_by_expr,
   hic = hic,
   features = feat_gr,
-  featurecol = feat_col,
+  featcol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 5,
-  fontsize = 10,
-  ylim = y_lim
+  zoom = 10,
+  featsize = 2
 )
 ```
 
@@ -1890,16 +1805,15 @@ plotHFGC(
   grl_to_plot$top_up_by_fdr,
   hic = hic,
   features = feat_gr,
-  featurecol = feat_col,
+  featcol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 5,
-  fontsize = 10,
-  ylim = y_lim
+  zoom = 10,
+  featsize = 2
 )
 ```
 
@@ -1910,16 +1824,15 @@ plotHFGC(
   grl_to_plot$top_up_by_lfc,
   hic = hic,
   features = feat_gr,
-  featurecol = feat_col,
+  featcol = feat_col,
   genes = hfgc_genes,
   genecol = colours$direction,
-  coverage = as.list(split(bwfl, f = names(bwfl))),
+  coverage = bwfl,
   linecol = line_col,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 5,
-  fontsize = 10,
-  ylim = y_lim
+  zoom = 10,
+  featsize = 2
 )
 ```
 

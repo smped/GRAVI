@@ -41,33 +41,9 @@ n_cores <- max(detectCores() - 2, 2)
 ```
 
 ```{r extra-funs}
-str_sep_to_title <- function(x, sep = "_", replacement = " ", exclude = c()) {
-  out <- x
-  out[!x %in% exclude] <- out[!x %in% exclude] %>% 
-    str_replace_all(sep, replacement) %>% 
-    str_to_title()
-  out
-}
-.plotScheme <- function(x, xlab = "", ylab = "") {
-  x %>% 
-    as_tibble() %>% 
-    pivot_longer(cols = everything()) %>% 
-    mutate(name = factor(name, levels = names(x))) %>% 
-    ggplot(
-      aes(name, 1, fill = name)
-    ) +
-    geom_raster() +
-    scale_fill_manual(values = unlist(x)) +
-    scale_x_discrete(expand = expansion(c(0, 0))) +
-    scale_y_continuous(expand = expansion(c(0, 0))) +
-    labs(x = xlab, y = ylab) +
-    guides(fill = "none") +
-    theme(
-      axis.text.y = element_blank(),  
-      axis.ticks.y = element_blank(),
-      panel.grid = element_blank()
-    )
-}
+source(
+  here::here("workflow", "scripts", "custom_functions.R")
+)
 ```
 
 
@@ -260,8 +236,7 @@ In total this object contained annotations for `r comma(length(all_gr$gene))` ge
 ```{r trans-models}
 if (!file.exists(all_out$transcript_models)) {
   trans_models <- all_gr$exon %>% 
-    as.data.frame() %>% 
-    as_tibble() %>% 
+    as_tibble(rangeAsChar = FALSE) %>% 
     group_by(transcript_id) %>% 
     mutate(exon = paste0(transcript_id, "_", seq_along(transcript_id))) %>% 
     makeGRangesFromDataFrame(keep.extra.columns = TRUE) %>% 
@@ -518,40 +493,22 @@ gene_regions %>%
 
 ### Summary
 
-```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-cetric regions using the above workflow and the supplied GTF. Blacklisted regions were not considered for this step of the annotation.*"}
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-cetric regions using the above workflow and the supplied GTF. Percentages represent the amount of the genome allocated to each region. Blacklisted regions were not considered for this step of the annotation.*"}
 gene_regions %>% 
-  lapply(
-    function(x){
-      tibble(n = length(x), width = sum(width(x)), region = unique(x$region))
-    }
-  ) %>%
-  bind_rows() %>% 
-  mutate(
-    width = width / 1e6,
-    mn = width/n,
-    region = fct_inorder(region),
-    p = width / sum(width),
-    lab = glue("{percent(p, 0.1)}")
-  ) %>% 
-  arrange(desc(region)) %>% 
-  mutate(
-    y = cumsum(width) - 0.5*width
-  ) %>% 
-  ggplot(aes(1, width, fill = region)) +
-  geom_bar(width = 1, stat = "identity") +
-  geom_label(
-    aes(x = 1, y = y, label = lab), 
-    size=4, fill = "white", alpha = 0.5,
-    nudge_x = 0.1
+  lapply(select, region) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  mutate(region = factor(region, levels = regions)) %>% 
+  plotPie(
+    fill = "region", scale_by = "width", show_total = FALSE, 
+    category_size = 3.5
   ) +
-  coord_polar("y", start = 0) +
   scale_fill_manual(
     values = region_cols %>% 
       unlist() %>% 
       setNames(regions[names(.)]) 
   ) +
-  labs(fill = "Region") +
-  theme_void()
+  theme(legend.position = "none")
 ```
 
 ### Example
@@ -677,11 +634,11 @@ if (!is.null(feat_path)) {
   mcols(external_features) <- cbind(
     mcols(external_features),
     gene_regions %>% 
-      lapply(function(x) overlapsProp(external_features, x)) %>% 
+      lapply(function(x) propOverlap(external_features, x)) %>% 
       as("DataFrame"),
     gene_regions %>% 
       lapply(
-        function(x) overlapsProp(external_features, subset(x, detected))
+        function(x) propOverlap(external_features, subset(x, detected))
       ) %>% 
       as("DataFrame") %>% 
       setNames(paste0(names(.), "_detected"))
@@ -717,7 +674,6 @@ suppressWarnings(
       cols = c(all_of(names(regions)), ends_with("detected")),
       names_to = "region", values_to = "prop"
     ) %>% 
-    dplyr::filter(!str_detect(region, "tss")) %>% 
     group_by(feature, region) %>% 
     summarise(ol = sum(prop*w/1e6), .groups = "drop") %>% 
     mutate(

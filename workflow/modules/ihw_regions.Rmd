@@ -2,7 +2,7 @@
 ihw_all <- gene_regions %>% 
   .[names(.) != "tss"] %>% 
   lapply(
-    function(x) overlapsProp(merged_results, x)
+    function(x) propOverlap(merged_results, x)
   ) %>% 
   as_tibble() %>% 
   mutate(

@@ -115,6 +115,7 @@ if (!is.null(config$external$features)) {
   has_features <- TRUE
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
+regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 any_detected <- gene_regions %>% 
   vapply(function(x) any(x$detected), logical(1)) %>% 
   any()
@@ -440,7 +441,17 @@ consensus_peaks <- oracle_peaks %>%
   unlist() %>%
   subset(keep) %>%
   GenomicRanges::reduce() %>%
-  setNames(as.character(.))
+  setNames(as.character(.)) %>% 
+  mutate(
+    region = bestOverlap(
+      ., 
+      lapply(gene_regions, select, region) %>% 
+        GRangesList() %>% 
+        unlist(),
+      var = "region"
+    ) %>% 
+      factor(levels = regions)
+  )
 ```
 
 
@@ -578,49 +589,23 @@ plot_grid(a, b, labels = c("A", "B"))
 ### Gene-Centric Regions
 
 ```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap gene-centric features.*")}
-regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
-gene_regions %>% 
-  lapply(
-    function(x) overlapsProp(consensus_peaks, x)
-  ) %>% 
-  as_tibble() %>% 
-  mutate(width = width(consensus_peaks)) %>% 
-  pivot_longer(
-    cols = any_of(names(regions)),
-    names_to = "region",
-    values_to = "overlap"
-  ) %>% 
-  dplyr::filter(overlap > 0) %>% 
-  mutate(bp = width * overlap) %>% 
-  group_by(region) %>% 
-  summarise(bp = sum(bp), .groups = 'drop') %>% 
-  mutate(
-    p = bp / sum(width(consensus_peaks)),
-    region = regions[region] %>% 
-      factor(levels = regions),
-    lab = percent(p, 0.1)
-  ) %>% 
-  arrange(desc(region)) %>% 
-  mutate(y = cumsum(p) - 0.5*p) %>% 
-  ggplot(aes(1, p, fill = region)) +
-  geom_bar(width = 1, stat = "identity") +
-  geom_label(
-    aes(x = 1, y = y, label = lab),
-    size=4, fill = "white", alpha = 0.5,
-    nudge_x = 0.1
-  ) +
-  coord_polar("y", start = 0) +
+consensus_peaks %>% 
+  plotPie(fill = "region") +
   scale_fill_manual(
     values = colours$regions %>%
       setNames(regions[names(.)])
   ) +
-  labs(fill = "Region") +
-  theme_void()
+  theme(legend.position = "none")
 ```
 
 `r ifelse(any_detected, "", "### Detected Genes")`
 
 ```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition.*"}
+
+# Now break the peaks into detected / undetected & split the pie
+
+
+
 suppressWarnings( # Turn off the discrete alpha warning
   gene_regions %>% 
     lapply(
@@ -628,8 +613,8 @@ suppressWarnings( # Turn off the discrete alpha warning
         list(
           tibble(
             width = width(consensus_peaks),
-            all = overlapsProp(consensus_peaks, x),
-            detected = overlapsProp(consensus_peaks, subset(x, detected))
+            all = propOverlap(consensus_peaks, x),
+            detected = propOverlap(consensus_peaks, subset(x, detected))
           )
         )
       }
@@ -689,7 +674,7 @@ suppressWarnings( # Turn off the discrete alpha warning
 external_features %>% 
   splitAsList(.$feature) %>% 
   lapply(
-    function(x) overlapsProp(consensus_peaks, x)
+    function(x) propOverlap(consensus_peaks, x)
   ) %>% 
   as_tibble() %>% 
   mutate(width = width(consensus_peaks)) %>% 
@@ -744,7 +729,7 @@ suppressWarnings(
     sort() %>% 
     setNames(c()) %>% 
     partitionRanges(select(external_features, feature)) %>% 
-    mutate(p = overlapsProp(., consensus_peaks)) %>% 
+    mutate(p = propOverlap(., consensus_peaks)) %>% 
     subset(p > 0) %>% 
     mutate(bp = p * width) %>% 
     mcols() %>% 
