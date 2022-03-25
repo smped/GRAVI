@@ -600,209 +600,78 @@ consensus_peaks %>%
 
 `r ifelse(any_detected, "", "### Detected Genes")`
 
-```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition.*"}
-
-# Now break the peaks into detected / undetected & split the pie
-
-
-
-suppressWarnings( # Turn off the discrete alpha warning
-  gene_regions %>% 
-    lapply(
-      function(x) {
-        list(
-          tibble(
-            width = width(consensus_peaks),
-            all = propOverlap(consensus_peaks, x),
-            detected = propOverlap(consensus_peaks, subset(x, detected))
-          )
-        )
-      }
+```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition. Values shown are the total genome occupancy in Kb*"}
+consensus_peaks %>% 
+  mutate(
+    detected = bestOverlap(
+      ., 
+      gene_regions %>% 
+        lapply(select, any_of("detected")) %>% 
+        GRangesList() %>% 
+        unlist(), 
+      var = "detected"
     ) %>% 
-    as_tibble() %>% 
-    pivot_longer(everything(), names_to = "region") %>% 
-    unnest(everything()) %>% 
-    mutate(
-      undetected = (all - detected) * width,
-      detected = detected*width
-    ) %>% 
-    group_by(region) %>% 
-    summarise(
-      detected = sum(detected),
-      undetected = sum(undetected),
-      .groups = "drop"
-    ) %>% 
-    pivot_longer(contains("detected"), names_to = "status", values_to = "total") %>% 
-    mutate(
-      p = total / sum(width(consensus_peaks)),
-      region = factor(regions[region], levels = regions),
-      status = as.factor(str_to_title(status))
-    ) %>% 
-    ggplot(
-      aes(region, total/1e3, fill = region, alpha = fct_rev(status))
-    ) +
-    geom_col() +
-    geom_label(
-      aes(y = y / 1e3, label = percent(p, 0.1)),
-      data = . %>% 
-        dplyr::filter(total > 0) %>% 
-        group_by(region) %>% 
-        mutate(y = cumsum(total) - 0.5*total),
-      fill = "white",
-      alpha= 0.5,
-      size = 3.2
-    ) +
-    scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-    scale_fill_manual(
-      values = colours$regions %>%
-        setNames(regions[names(.)]) 
-    ) +
-    scale_alpha_discrete(range = c(0.5, 1)) +
-    labs(
-      x = "Region",
-      y = "Total Overlap (kb)"
-    ) +
-    theme(
-      legend.position = "none"
-    )
-)
+      as.logical()
+  ) %>% 
+  plotPie(
+    fill = "detected", x = "region", scale_by = "width", min_p = 0.05,
+    label_alpha = 0.7, label_size = 4
+  ) +
+  scale_fill_manual(
+    values = c("grey", "red")
+  ) +
+  labs(
+    x = "Region", fill = "Any Detected Genes"
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    panel.border = element_blank(),
+    axis.line.x = element_line(),
+    legend.position = "top"
+  )
 ```
 
 `r ifelse(has_features, "### External Features", "")`
 
-```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features.*")}
-external_features %>% 
-  splitAsList(.$feature) %>% 
-  lapply(
-    function(x) propOverlap(consensus_peaks, x)
-  ) %>% 
-  as_tibble() %>% 
-  mutate(width = width(consensus_peaks)) %>% 
-  pivot_longer(
-    cols = all_of(unique(external_features$feature)),
-    names_to = "feature",
-    values_to = "overlap"
-  ) %>% 
-  dplyr::filter(overlap > 0) %>% 
-  mutate(bp = width * overlap) %>% 
-  group_by(feature) %>% 
-  summarise(bp = sum(bp), .groups = 'drop') %>% 
+```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
+consensus_peaks %>% 
   mutate(
-    p = bp / sum(width(consensus_peaks)),
-    feature = factor(feature, levels = names(colours$features)) %>% 
+    Feature = bestOverlap(
+      ., external_features, var = "feature", missing = "no_feature"
+    ) %>% 
+      factor(levels = names(colours$features)) %>% 
       fct_relabel(str_sep_to_title)
   ) %>% 
-  bind_rows(
-    tibble(
-      feature = "No Feature",
-      p = 1 - sum(.$p)
-    )
-  ) %>% 
-  arrange(desc(feature)) %>% 
-  mutate(
-    y = cumsum(p) - 0.5*p,
-    lab = percent(p, 0.1)
-  ) %>% 
-  ggplot(aes(1, p, fill = feature)) +
-  geom_bar(width = 1, stat = "identity") +
-  geom_label(
-    aes(x = 1, y = y, label = lab),
-    size=4, fill = "white", alpha = 0.5,
-    nudge_x = 0.1
-  ) +
-  coord_polar("y", start = 0) +
+  plotPie(fill = "Feature", label_size = 4) +
   scale_fill_manual(
-    values = setNames(colours$features, str_sep_to_title(names(colours$features)))
+    values = colours$features %>% setNames(str_sep_to_title(names(.)))
   ) +
-  labs(fill = "External Feature") +
-  theme_void()
+  theme(legend.position = "none")
 ```
 
 `r ifelse(has_features, "### External Features And Gene-Centric Regions", "")`
 
-```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*Proportions of {target} consensus peaks which overlap external features and gene-centric regions. Percentages in each panel sum to 100.*")}
-suppressWarnings(
-  gene_regions %>% 
-    lapply(select, region) %>% 
-    GRangesList() %>% 
-    unlist() %>% 
-    sort() %>% 
-    setNames(c()) %>% 
-    partitionRanges(select(external_features, feature)) %>% 
-    mutate(p = propOverlap(., consensus_peaks)) %>% 
-    subset(p > 0) %>% 
-    mutate(bp = p * width) %>% 
-    mcols() %>% 
-    as_tibble() %>% 
-    group_by(region, feature) %>% 
-    summarise(bp = sum(bp), .groups = "drop") %>% 
-    mutate(
-      region = factor(region, levels = regions),
-      feature = str_replace_na(feature, "no_feature") %>% 
-        factor(levels = names(colours$features)) %>% 
-        fct_relabel(str_sep_to_title),
-      p = bp / sum(width(consensus_peaks))
+```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap.*")}
+consensus_peaks %>% 
+  mutate(
+    Feature = bestOverlap(
+      ., external_features, var = "feature", missing = "no_feature"
     ) %>% 
-    ggplot(
-      aes(region, feature, size = bp/1e6, alpha = bp/1e6, label = percent(p, 0.1))
-    ) +
-    geom_point(colour = "darkblue") +
-    geom_label(size = 3) +
-    geom_xsidecol(
-      aes(region, p, fill = region),
-      inherit.aes = FALSE,
-      data = . %>% 
-        group_by(region) %>% 
-        summarise(p = sum(p))
-    ) +
-    geom_xsidelabel(
-      aes(region, p + 0.15*max(p), label = percent(p, 0.1)),
-      data = . %>%
-        group_by(region) %>%
-        summarise(p = sum(p)),
-      size = 3,
-      inherit.aes = FALSE
-    ) +
-    geom_ysidecol(
-      aes(p, feature, fill = feature),
-      inherit.aes = FALSE,
-      data = . %>% 
-        group_by(feature) %>% 
-        summarise(p = sum(p))
-    ) +
-    geom_ysidelabel(
-      aes(max(p)*0.2, feature, label = percent(p, 0.1)),
-      data = . %>% 
-        group_by(feature) %>% 
-        summarise(p = sum(p)),
-      inherit.aes = FALSE,
-      size = 3,
-      alpha = 0.7
-    ) +
-    scale_x_discrete(
-      labels = function(x) str_replace_all(x, " \\(", "\n(")
-    ) +
-    scale_size_continuous(range = c(0, 30)) +
-    scale_xsidey_continuous(expand = expansion(c(0, 0.15)), labels = NULL, breaks = NULL) +
-    scale_ysidex_continuous(expand = expansion(c(0, 0.15)), labels = NULL, breaks = NULL) +
-    scale_fill_manual(
-      values =  colours$regions %>%
-        setNames(regions[names(.)]) %>%
-        c(
-          colours$features %>% 
-            setNames(str_sep_to_title(names(.)))
-        )
-    ) +
-    coord_equal() +
-    labs(
-      x = "Gene-Centric Region",
-      y = "External Feature"
-    ) +
-    theme(
-      legend.position = "none",
-      ggside.panel.scale = 0.25
-    )
-)
+      factor(levels = names(colours$features)) %>% 
+      fct_relabel(str_sep_to_title)
+  ) %>% 
+  plotPie(fill = "region", x = "Feature", label_size = 4, label_alpha = 0.7) +
+  scale_fill_manual(
+    values = colours$regions %>%
+      setNames(regions[names(.)])
+  ) +
+  labs(fill = "Region") +
+  theme(
+    panel.grid = element_blank(),
+    panel.border = element_blank(),
+    axis.line.x = element_line(),
+    legend.position = "top"
+  )
 ```
 
 
@@ -810,28 +679,26 @@ suppressWarnings(
 
 
 ```{r export}
-export(consensus_peaks, file.path(out_path, "consensus_peaks.bed"))
+all_out <- list(
+  consensus_peaks = file.path(out_path, "consensus_peaks.bed"),
+  oracle_peaks = file.path(out_path, "oracle_peaks.rds"),
+  renv = file.path(
+    here::here("output/envs"), 
+    glue("{target}_macs2_summary.RData")
+  )
+) 
+export(consensus_peaks, all_out$consensus_peaks)
 oracle_peaks %>%
   lapply(subset, keep) %>%
   lapply(select, -keep) %>%
   GRangesList() %>%
-  write_rds(
-    file.path(out_path, "oracle_peaks.rds"),
-    compress = "gz"
-  )
-all_out <- list(
-  file.path(out_path, "consensus_peaks.bed"),
-  file.path(out_path, "oracle_peaks.rds")
-) %>% 
-  lapply(
-    str_extract, 
-    pattern = paste0(basename(here::here()), ".+")
-  )
+  write_rds(all_out$oracle_peaks, compress = "gz")
+save.image(all_out$renv)
 ```
 
 During this workflow the following files were exported:
 
-`r pander(all_out)`
+`r pander(lapply(all_out, str_extract, pattern = "output.+"))`
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
 <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information

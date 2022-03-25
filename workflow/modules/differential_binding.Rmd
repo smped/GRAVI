@@ -313,7 +313,7 @@ These windows were then filtered, discarding windows with low counts.
 ```{r filtered-counts}
 filtered_counts <- dualFilter(
   x = window_counts[, samples$sample],
-  bg = window_counts[, unique(samples$input)],
+  bg = window_counts[, samples$input],
   ref = consensus_peaks,
   keep.totals = TRUE,
   q = config$comparisons$filter_q
@@ -636,15 +636,22 @@ merged_results %>%
 ### Mean-Variance Relationship
 
 ```{r plot-mean-var, fig.height = 6, fig.cap = "*Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend, whilst the loess curve through the initial estimates is shown in blue.*"}
-tibble(A = fit$Amean, sigma = fit$sigma, s2.post = fit$s2.post) %>% 
-  sample_n(n_max) %>%
-  ggplot(aes(A, sigma)) +
+tibble(A = fit$Amean, pre = fit$sigma, post = sqrt(fit$s2.post)) %>% 
+  sample_n(n_max) %>% 
+  pivot_longer(c("pre", "post"), names_to = "step", values_to = "sigma") %>%
+  mutate(step = factor(step, levels = c("pre", "post"))) %>% 
+  ggplot(aes(A, sigma, colour = step)) +
   geom_point(size = 1, alpha = 0.5) +
-  geom_point(aes(y = sqrt(s2.post)), col = "red", size = 1, alpha = 0.7) +
-  geom_smooth(se = FALSE, method = "loess") +
+  geom_smooth(
+    se = FALSE, method = "loess", formula = y ~ x,
+    data = . %>% dplyr::filter(step == "pre"),
+    colour = "blue",
+    show.legend = FALSE
+  ) +
   labs(
     x = "logCPM", y = expression(hat(sigma))
   ) +
+  scale_colour_manual(values = c(pre = "black", post = "red")) +
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5))
 ```
 
@@ -1540,6 +1547,9 @@ grl_to_plot <- GRangesList(
   top_up_by_expr = merged_results %>% 
     filter(logFC > 0, !!sym(fdr_column) < fdr_alpha) %>% 
     filter(AveExpr == max(AveExpr)),
+  top_up_no_macs2 = merged_results %>% 
+    filter(logFC > 0, !!sym(fdr_column) < fdr_alpha, !overlaps_ref) %>% 
+    arrange(!!sym(fdr_column)),
   top_down_by_fdr = merged_results %>% 
     filter(logFC < 0) %>% 
     filter(!!sym(fdr_column) == min(!!sym(fdr_column))),
@@ -1547,7 +1557,10 @@ grl_to_plot <- GRangesList(
     filter(logFC == min(logFC)),
   top_down_by_expr = merged_results %>% 
     filter(logFC < 0, !!sym(fdr_column) < fdr_alpha) %>% 
-    filter(AveExpr == max(AveExpr))
+    filter(AveExpr == max(AveExpr)),
+  top_up_no_macs2 = merged_results %>% 
+    filter(logFC < 0, !!sym(fdr_column) < fdr_alpha, !overlaps_ref) %>% 
+    arrange(!!sym(fdr_column)) 
 ) %>% 
   unlist() %>% 
   .[!duplicated(.)] %>% 
@@ -1559,6 +1572,7 @@ grl_to_plot <- GRangesList(
 
 
 ```{r prepare-plot-objects}
+## The coverage
 bwfl <- list2(
   "{target}" := file.path(
     bw_path, glue("{treat_levels}_merged_treat_pileup.bw")
@@ -1567,6 +1581,26 @@ bwfl <- list2(
     setNames(treat_levels)
 )
 line_col <- list2("{target}" := treat_cols)
+## Coverage annotations
+annot <- merged_results %>% 
+  splitAsList(.$status) %>% 
+  .[vapply(., length, integer(1)) > 0] %>% 
+  endoapply(granges) %>% 
+  list() %>% 
+  setNames(target)
+## Coverage y-limits
+ind <- filtered_counts %>% 
+  assay("counts") %>% 
+  apply(MARGIN = 2, which.max) %>%
+  unique()
+max_ranges <- rowRanges(filtered_counts[ind])
+y_lim <- bwfl[[target]] %>%
+  lapply(import.bw, which = max_ranges) %>%
+  lapply(function(x) c(0, max(x$score))) %>% 
+  unlist() %>% 
+  range() %>% 
+  list() %>% 
+  setNames(target)
 
 ## The features track
 feat_gr <- gene_regions %>% 
@@ -1607,6 +1641,53 @@ if (any_detected){
       GRangesList()
   }
 }
+
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+  ext_cov_path <- lapply(config$external$coverage, unlist)
+  bwfl <- c(
+    bwfl[target],
+    lapply(ext_cov_path, function(x) BigWigFileList(x) %>% setNames(names(x)))
+  )
+  line_col <- c(
+    line_col[target],
+    ext_cov_path %>% 
+      lapply(
+        function(x) {
+          missing <- setdiff(names(x), names(treat_cols))
+          cmn <- intersect(names(x), names(treat_cols))
+          col <- setNames(character(length(names(x))), names(x))
+          if (length(cmn) > 0) col[cmn] <- treat_cols[cmn]
+          if (length(missing) > 0) 
+            col[missing] <- hcl.colors(
+              max(5, length(missing)), "Zissou 1")[seq_along(missing)]
+          col
+        }
+      )
+  )
+  
+  y_ranges <- grl_to_plot %>% 
+    unlist() %>% 
+    granges() %>% 
+    resize(w = 10 * width(.), fix = 'center')
+  
+  y_lim <- c(
+    y_lim[target],
+    bwfl[names(bwfl) != target] %>% 
+      lapply(
+        function(x) {
+          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
+            unlist() %>% 
+            filter(score == max(score)) %>% 
+            mcols() %>% 
+            .[["score"]] %>% 
+            c(0) %>% 
+            range()
+        }
+      )
+  )
+  
+}
 ```
 
 
@@ -1636,7 +1717,7 @@ makeCaption <- function(.gr) {
         glue(
           "Using the features supplied in {basename(config$external$features)}, ",
           "this mostly overlapped {feat}, shown as a separate block ",
-          "below the gene-centric regions. "
+          "with the gene-centric regions. "
         ),
         glue("")
       ),
@@ -1657,7 +1738,10 @@ makeCaption <- function(.gr) {
       ),
       "No genes were able to be assigned to this region."
     ),
-    "For each sample, the y-axis limits represent the values in the window with the highest signal.*"
+    paste(
+      "For each sample, the y-axis limits represent the values from the window", 
+      "with the highest signal.*"
+    )
   )
   paste(cp, collapse = " ")
 }
@@ -1728,15 +1812,17 @@ grl_to_plot %>%
 plotHFGC(
   grl_to_plot$top_down_by_expr,
   hic = hic,
-  features = feat_gr,
-  featcol = feat_col,
-  genes = hfgc_genes,
-  genecol = colours$direction,
-  coverage = bwfl,
-  linecol = line_col,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  ylim = y_lim,
   featsize = 2
 )
 ```
@@ -1747,15 +1833,17 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_fdr,
   hic = hic,
-  features = feat_gr,
-  featcol = feat_col,
-  genes = hfgc_genes,
-  genecol = colours$direction,
-  coverage = bwfl,
-  linecol = line_col,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  ylim = y_lim,
   featsize = 2
 )
 ```
@@ -1766,18 +1854,42 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_lfc,
   hic = hic,
-  features = feat_gr,
-  featcol = feat_col,
-  genes = hfgc_genes,
-  genecol = colours$direction,
-  coverage = bwfl,
-  linecol = line_col,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  ylim = y_lim,
   featsize = 2
 )
 ```
+
+`r ifelse("top_down_no_macs2" %in% names(grl_to_plot), "### Significant Decreased Binding (No Consensus Peak)", "")`
+
+```{r plot-top_down_no_macs2, eval = "top_down_no_macs2" %in% names(grl_to_plot), echo = "top_down_no_macs2" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_no_macs2)}
+plotHFGC(
+  grl_to_plot$top_down_no_macs2,
+  hic = hic,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 10,
+  ylim = y_lim,
+  featsize = 2
+)
+```
+
 
 `r ifelse("top_up_by_expr" %in% names(grl_to_plot), "### Increased Binding (Strongest Signal)", "")`
 
@@ -1785,15 +1897,17 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_expr,
   hic = hic,
-  features = feat_gr,
-  featcol = feat_col,
-  genes = hfgc_genes,
-  genecol = colours$direction,
-  coverage = bwfl,
-  linecol = line_col,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  ylim = y_lim,
   featsize = 2
 )
 ```
@@ -1804,15 +1918,17 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_fdr,
   hic = hic,
-  features = feat_gr,
-  featcol = feat_col,
-  genes = hfgc_genes,
-  genecol = colours$direction,
-  coverage = bwfl,
-  linecol = line_col,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  ylim = y_lim,
   featsize = 2
 )
 ```
@@ -1823,20 +1939,41 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_lfc,
   hic = hic,
-  features = feat_gr,
-  featcol = feat_col,
-  genes = hfgc_genes,
-  genecol = colours$direction,
-  coverage = bwfl,
-  linecol = line_col,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  ylim = y_lim,
   featsize = 2
 )
 ```
 
+`r ifelse("top_up_no_macs2" %in% names(grl_to_plot), "### Significant Increased Binding (No Consensus Peak)", "")`
 
+```{r plot-top_up_no_macs2, eval = "top_up_no_macs2" %in% names(grl_to_plot), echo = "top_up_no_macs2" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_no_macs2)}
+plotHFGC(
+  grl_to_plot$top_up_no_macs2,
+  hic = hic,
+  features = feat_gr,featcol = feat_col,
+  genes = hfgc_genes, genecol = colours$direction,
+  coverage = bwfl, linecol = line_col,
+  annotation = annot, 
+  annotcol = colours$direction %>% 
+    setNames(str_to_title(names(.))) %>% 
+    .[unique(unlist(lapply(annot, names)))],
+  cytobands = bands_df,
+  collapseTranscripts = FALSE,
+  zoom = 10,
+  ylim = y_lim,
+  featsize = 2
+)
+```
 
 # Data Export
 
@@ -1874,7 +2011,7 @@ save.image(all_out$renv)
 
 During this workflow, the following files were exported:
 
-`r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
+`r pander(lapply(all_out, str_extract, "output.+"))`
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
 <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
