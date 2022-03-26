@@ -490,7 +490,8 @@ oracle_peaks %>%
 In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic **consensus peaks** were defined.
 Ranges were the union of any overlapping ranges identified in one or more sets of oracle peaks.
 
-```{r plot-common-peaks, results = 'hide', fig.height=ifelse(length(treat_levels) <= 3, 8, 6), fig.width=6, fig.cap="*Number of consensus peaks that overlap the oracle peaks defined in each condition.*"}
+
+```{r plot-common-peaks, results = 'hide', fig.height = ifelse(length(treat_levels) <= 3, 9, 6), fig.width = 6, fig.cap="*Number of consensus peaks that overlap the oracle peaks defined in each condition.*"}
 fig_path <- here::here("docs", "assets", target)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- glue("{target}_common_peaks.png")
@@ -506,7 +507,7 @@ if (length(treat_levels) <= 3) {
       filename = file.path(fig_path, fig_name),
       imagetype = "png",
       units = "in",
-      height = 8,
+      height = knitr::opts_chunk$get("fig.height"), 
       width = knitr::opts_chunk$get("fig.width"),
       fill = colours$treat[treat_levels],
       alpha = 0.3
@@ -517,7 +518,7 @@ if (length(treat_levels) > 3) {
   png(
     filename = file.path(fig_path, fig_name),
     units = "in",
-    height = 6,
+    height = knitr::opts_chunk$get("fig.height"),
     width = knitr::opts_chunk$get("fig.width"),
     res = 300
   )
@@ -626,8 +627,7 @@ consensus_peaks %>%
   theme(
     panel.grid = element_blank(),
     panel.border = element_blank(),
-    axis.line.x = element_line(),
-    legend.position = "top"
+    axis.line.x = element_line()
   )
 ```
 
@@ -669,8 +669,7 @@ consensus_peaks %>%
   theme(
     panel.grid = element_blank(),
     panel.border = element_blank(),
-    axis.line.x = element_line(),
-    legend.position = "top"
+    axis.line.x = element_line()
   )
 ```
 

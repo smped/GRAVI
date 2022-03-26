@@ -1644,7 +1644,9 @@ if (any_detected){
 
 ## External Coverage (Optional)
 if (!is.null(config$external$coverage)) {
-  ext_cov_path <- lapply(config$external$coverage, unlist)
+  ext_cov_path <- config$external$coverage %>% 
+    lapply(unlist) %>% 
+    lapply(function(x) setNames(here::here(x), names(x)))
   bwfl <- c(
     bwfl[target],
     lapply(ext_cov_path, function(x) BigWigFileList(x) %>% setNames(names(x)))
@@ -1693,6 +1695,7 @@ if (!is.null(config$external$coverage)) {
 
 ```{r makeCaption}
 makeCaption <- function(.gr) {
+  if (is.null(.gr)) return(NULL)
   dir <- ifelse(.gr$direction == "Down", 'decreased', 'increased')
   reg <- case_when(
     str_detect(.gr$region, "Inter") ~ paste("an", .gr$region, "region"),
@@ -1780,7 +1783,8 @@ grl_to_plot %>%
       str_replace_all("Lfc", "logFC") %>% 
       str_replace_all("Fdr", "FDR") %>% 
       str_replace_all("Expr", "Highest Signal") %>% 
-      str_replace_all("By (.+)", "(\\1)"),
+      str_replace_all("By (.+)", "(\\1)") %>% 
+      str_replace_all("No Macs2", "(No Macs2 Peak)"),
     window = as.integer(window)
   ) %>% 
   left_join(samples, by = "sample") %>% 
@@ -1823,7 +1827,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1844,7 +1850,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1865,7 +1873,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1908,7 +1918,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1929,7 +1941,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1950,7 +1964,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1971,7 +1987,9 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   ylim = y_lim,
-  featsize = 2
+  featsize = 2,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
