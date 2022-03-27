@@ -137,7 +137,6 @@ any_detected <- gene_regions %>%
 
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
-hfgc_genes <- trans_models
 if (!is.null(rna_path)) {
   stopifnot(file.exists(rna_path))
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
@@ -1619,6 +1618,7 @@ if (has_features) {
 
 ## The genes track
 hfgc_genes <- trans_models
+gene_col <- "grey"
 if (any_detected){
   lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
   rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
@@ -1626,21 +1626,23 @@ if (any_detected){
     hfgc_genes <- trans_models %>% 
       mutate(
         status = case_when(
-          !gene %in% rnaseq$gene_id ~ "undetected",
+          !gene %in% rnaseq$gene_id ~ "Undetected",
           gene %in% dplyr::filter(
             rnaseq, !!sym(lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
-          )$gene_id ~ "up",
+          )$gene_id ~ "Up",
           gene %in% dplyr::filter(
             rnaseq, !!sym(lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
-          )$gene_id ~ "down",
+          )$gene_id ~ "Down",
           gene %in% dplyr::filter(
             rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
-          )$gene_id ~ "unchanged",
+          )$gene_id ~ "Unchanged",
         )
       ) %>% 
       splitAsList(.$status) %>% 
       lapply(select, -status) %>% 
       GRangesList()
+    gene_col <- colours$direction %>% 
+      setNames(str_to_title(names(.)))
   }
 }
 
@@ -1819,7 +1821,7 @@ plotHFGC(
   grl_to_plot$top_down_by_expr,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1842,7 +1844,7 @@ plotHFGC(
   grl_to_plot$top_down_by_fdr,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1865,7 +1867,7 @@ plotHFGC(
   grl_to_plot$top_down_by_lfc,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1888,7 +1890,7 @@ plotHFGC(
   grl_to_plot$top_down_no_macs2,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1910,7 +1912,7 @@ plotHFGC(
   grl_to_plot$top_up_by_expr,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1933,7 +1935,7 @@ plotHFGC(
   grl_to_plot$top_up_by_fdr,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1956,7 +1958,7 @@ plotHFGC(
   grl_to_plot$top_up_by_lfc,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -1979,7 +1981,7 @@ plotHFGC(
   grl_to_plot$top_up_no_macs2,
   hic = hic,
   features = feat_gr,featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction,
+  genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
   annotcol = colours$direction %>% 
@@ -2090,7 +2092,7 @@ cp <- htmltools::em(
     "compared to those not mapped to any merged windows."
   )
 )
-tbl <- goseq_mapped %>% 
+tbl <- goseq_mapped %>%
   dplyr::filter(fdr < fdr_alpha) %>% 
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
@@ -2112,17 +2114,18 @@ tbl <- goseq_mapped %>%
     filterable = TRUE,
     columns = list(
       "Gene Set" = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", value$gs_name
+          href = value$gs_url, target = "_blank", 
+          str_replace_all(value$gs_name, "_", " ")
         ),
         html = TRUE
       ),
       Description = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      Mapped = colDef(maxWidth = 100),
+      Mapped = colDef(maxWidth = 80),
       "Total Gene Set Size" = colDef(
         maxWidth = 100,
         cell = function(value) comma(value, 1)
@@ -2135,7 +2138,7 @@ tbl <- goseq_mapped %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       FDR = colDef(
         cell = function(value) {
@@ -2145,11 +2148,11 @@ tbl <- goseq_mapped %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       "Mapped Genes" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
-        minWidth = 200
+        minWidth = 150
       )
     )
   )
@@ -2222,9 +2225,9 @@ tbl <- goseq_diff %>%
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    `Mapped To DB Windows` = numDEInCat, `Total Mapped` = numInCat,
     p = pval, FDR = fdr, 
-    `Mapped Genes` = gene_name
+    `Genes Mapped to DB Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -2240,8 +2243,8 @@ tbl <- goseq_diff %>%
         minWidth = 200,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      Mapped = colDef(maxWidth = 100),
-      "Total Gene Set Size" = colDef(
+      "Mapped To DB Windows" = colDef(maxWidth = 100),
+      "Total Mapped" = colDef(
         maxWidth = 100,
         cell = function(value) comma(value, 1)
       ),
@@ -2265,7 +2268,7 @@ tbl <- goseq_diff %>%
         },
         maxWidth = 100
       ),
-      "Mapped Genes" = colDef(
+      "Genes Mapped to DB Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
@@ -2315,7 +2318,7 @@ goseq_up <- goseq(
 ```
 
 
-`r ifelse(sum(goseq_up$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to site with increased binding", "")`
+`r ifelse(sum(goseq_up$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to sites with increased binding", "")`
 
 ```{r tbl-goseq-up, eval = sum(goseq_up$fdr < fdr_alpha) > 0, echo = sum(goseq_up$fdr < fdr_alpha) > 0}
 cp <- htmltools::em(
@@ -2341,9 +2344,9 @@ tbl <- goseq_up %>%
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    `Mapped to Gained Windows` = numDEInCat, `Total Mapped` = numInCat,
     p = pval, FDR = fdr, 
-    `Mapped Genes` = gene_name
+    `Genes Mapped to Gained Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -2359,8 +2362,8 @@ tbl <- goseq_up %>%
         minWidth = 200,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      Mapped = colDef(maxWidth = 100),
-      "Total Gene Set Size" = colDef(
+      "Mapped to Gained Windows" = colDef(maxWidth = 100),
+      "Total Mapped" = colDef(
         maxWidth = 100,
         cell = function(value) comma(value, 1)
       ),
@@ -2384,7 +2387,7 @@ tbl <- goseq_up %>%
         },
         maxWidth = 100
       ),
-      "Mapped Genes" = colDef(
+      "Genes Mapped to Gained Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
@@ -2433,9 +2436,9 @@ goseq_down <- goseq(
 ```
 
 
-`r ifelse(sum(goseq_down$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to site with decreased binding", "")`
+`r ifelse(sum(goseq_down$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to sites with decreased binding", "")`
 
-```{r tbl-goseq-up, eval = sum(goseq_down$fdr < fdr_alpha) > 0, echo = sum(goseq_down$fdr < fdr_alpha) > 0}
+```{r tbl-goseq-down, eval = sum(goseq_down$fdr < fdr_alpha) > 0, echo = sum(goseq_down$fdr < fdr_alpha) > 0}
 cp <- htmltools::em(
   glue(
     "All {sum(goseq_down$fdr < fdr_alpha)} gene sets considered as ", 
@@ -2459,9 +2462,9 @@ tbl <- goseq_down %>%
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    `Mapped to Decreased Windows` = numDEInCat, `Total Mapped` = numInCat,
     p = pval, FDR = fdr, 
-    `Mapped Genes` = gene_name
+    `Genes Mapped to Decreased Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -2477,8 +2480,8 @@ tbl <- goseq_down %>%
         minWidth = 200,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      Mapped = colDef(maxWidth = 100),
-      "Total Gene Set Size" = colDef(
+      "Mapped to Decreased Windows" = colDef(maxWidth = 100),
+      "Total Mapped" = colDef(
         maxWidth = 100,
         cell = function(value) comma(value, 1)
       ),
@@ -2502,7 +2505,7 @@ tbl <- goseq_down %>%
         },
         maxWidth = 100
       ),
-      "Mapped Genes" = colDef(
+      "Genes Mapped to Decreased Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
@@ -2514,6 +2517,9 @@ div(class = "table",
       tbl
   )
 )
+```
+
+```{r add-rna, eval = any_detected, child = here::here('workflow/modules/rnaseq_differential_binding.Rmd')}
 ```
 
 

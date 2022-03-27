@@ -15,7 +15,7 @@ glue(
 	  chunk_output_type: console
 	---
 
-	```{r set-knitr-opts, echo=FALSE, child = '../workflow/modules/setup_chunk.Rmd'}
+	```{r set-knitr-opts, echo=FALSE, child = here::here('workflow/modules/setup_chunk.Rmd')}
 	```
 
 	```{r set-vals}
@@ -23,7 +23,7 @@ glue(
 	threads <- {{threads}}
 	```
 
-	```{r build-from-module, echo = TRUE, child = '../workflow/modules/macs2_summary.Rmd'}
+	```{r build-from-module, echo = TRUE, child = here::here('workflow/modules/macs2_summary.Rmd')}
 	```
 
 	",

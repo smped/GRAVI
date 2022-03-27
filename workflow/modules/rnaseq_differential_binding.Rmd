@@ -42,7 +42,7 @@ diff_windows <- merged_results %>%
 
 ## Relationship To Detected Genes {.tabset}
 
-### Detectd Genes By Binding Region
+### Detected Genes By Binding Region
 
 Firstly, the distribution of merged windows was compared to genes within the RNA-Seq dataset.
 Genes were simply considered as detected if present in the RNA-Seq data, or undetected if not present.
@@ -50,6 +50,7 @@ Gene-centric regions were as defined previously.
 
 ```{r plot-region-detected, fig.height = 6, fig.cap = "*Distribution of merged windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*"}
 w <- 0.8
+min_p <- 0.05
 merged_results %>% 
   mutate(
     any_detected = ifelse(
@@ -68,7 +69,8 @@ merged_results %>%
         lab = glue("{region}\n{percent(p, 0.1)}") %>% 
           str_wrap(10)
       ) %>% 
-      dplyr::filter(p > 0.02)
+      dplyr::filter(p > min_p),
+    size = 3
   ) +
   geom_segment(
     aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
@@ -79,7 +81,7 @@ merged_results %>%
         x_outer = x + w*(r + 0.01)*sin(label_radians),
         y_outer = 1 + w*(r + 0.01)*cos(label_radians),
       ) %>% 
-      dplyr::filter(p > 0.02)
+      dplyr::filter(p > min_p)
   ) +
   scale_fill_manual(
     values = colours$regions %>% 
@@ -92,7 +94,6 @@ merged_results %>%
 `r ifelse(has_features, "### Detected Genes By Feature", "")`
 
 ```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = "*Distribution of merged windows by externally-provided features, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*"}
-w <- 0.8
 merged_results %>% 
   mutate(
     any_detected = ifelse(
@@ -111,7 +112,8 @@ merged_results %>%
         lab = glue("{feature}\n{percent(p, 0.1)}") %>% 
           str_wrap(10)
       ) %>% 
-      dplyr::filter(p > 0.02)
+      dplyr::filter(p > min_p),
+    size = 3
   ) +
   geom_segment(
     aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
@@ -122,7 +124,7 @@ merged_results %>%
         x_outer = x + w*(r + 0.01)*sin(label_radians),
         y_outer = 1 + w*(r + 0.01)*cos(label_radians),
       ) %>% 
-      dplyr::filter(p > 0.02)
+      dplyr::filter(p > min_p)
   ) +
   scale_fill_manual(
     values = colours$features %>% 
@@ -133,10 +135,9 @@ merged_results %>%
 ```
 
 
-`r ifelse(has_features, "### Detectd Genes By Feature and BInding Region", "")`
+`r ifelse(has_features, "### Detected Genes By Feature and Binding Region", "")`
 
 ```{r plot-region-feature-detected, eval = has_features, echo = has_features, fig.cap = "*Distribution of merged windows mapped to detected/undetected genes separated by gene-centric-region and external fatures.*" }
-w <- 0.8
 merged_results %>% 
   mutate(
     any_detected = ifelse(
@@ -145,17 +146,21 @@ merged_results %>%
       "Mapped to Undetected Genes"
     )
   ) %>% 
-  plotPie(fill = "region", y = "any_detected", x = "feature", label_size = 5, width = w) +
+  plotPie(
+    fill = "region", y = "any_detected", x = "feature", 
+    label_alpha = 0.7, label_size = 5, width = w
+  ) +
   geom_text(
     aes(xlab, ylab, label =lab),
     data = . %>% 
       mutate(
-        xlab = x + w*(r + 0.2)*sin(label_radians),
-        ylab = y + w*(r + 0.2)*cos(label_radians),
+        xlab = x + w*(r + 0.15)*sin(label_radians),
+        ylab = y + w*(r + 0.15)*cos(label_radians),
         lab = glue("{region}\n{percent(p, 0.1)}") %>% 
-          str_wrap(10)
+          str_wrap(12)
       ) %>% 
-      dplyr::filter(p > 0.2, N > 0.01 * sum(N))
+      dplyr::filter(p > 0.2, N > 0.03 * sum(N)),
+    size = 3
   ) +
   geom_segment(
     aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
@@ -166,7 +171,7 @@ merged_results %>%
         x_outer = x + w*(r + 0.02)*sin(label_radians),
         y_outer = y + w*(r + 0.02)*cos(label_radians),
       ) %>% 
-      dplyr::filter(p > 0.2, N > 0.01 * sum(N))
+      dplyr::filter(p > 0.2, N > 0.03 * sum(N))
   ) +
   scale_fill_manual(
     values = colours$regions %>% 
@@ -374,7 +379,7 @@ cp <-  htmltools::em(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on which ",
     "region was the best overlap, and the direction of {target} binding with ",
-    "{treat_levels[[2]]} treatment. {nrow(gsea_dir_sig)} sets of windows were ",
+    "{treat_levels[[2]]} treatment. {nrow(gsea_nondir_sig)} sets of windows were ",
     "associated with changes in gene expression, using only the p-value to ", 
     "rank the {comma(nrow(rnaseq), 1)} genes considered as detected."
   )
@@ -419,12 +424,11 @@ div(class = "table",
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
-<!-- Is it worth checking these gene-sets for enrichment amongst MSigDB? -->
 <!-- Could be done regardless of changes in expression -->
 
-## Differentially Expressed Genes {.tabset}
+## Highly Ranked Genes {.tabset}
 
-```{r}
+```{r setup-genes-to-plot}
 all_ids <- unlist(merged_results$gene_id)
 db_ids <- unlist(filter(merged_results, !!sym(fdr_column) < fdr_alpha)$gene_id)
 top_diff_win <- rnaseq %>% 
@@ -440,9 +444,9 @@ top_diff_win <- rnaseq %>%
       integer(1)
     )
   ) %>% 
-  dplyr::filter(!!sym(rna_fdr_col) < fdr_alpha, n_db_windows > 1) %>% 
+  arrange(!!sym(rna_p_col)) %>% 
+  dplyr::filter(n_windows > 1) %>% 
   dplyr::slice(1:5)
-
 grl_to_plot <- top_diff_win$gene_id %>% 
   sapply(
     function(x) {
@@ -460,13 +464,6 @@ grl_to_plot <- top_diff_win$gene_id %>%
   ) %>% 
   lapply(range) %>% 
   GRangesList()
-```
-
-
-
-
-
-```{r}
 if (!is.null(config$external$coverage)) {
   y_ranges <- granges(unlist(grl_to_plot))
   y_lim <- c(
@@ -485,27 +482,200 @@ if (!is.null(config$external$coverage)) {
       )
   )
 }
+i <- 1
+```
 
-## Let's just check one of those
-## For these, we should use the merged bw, add the DB annotations and include
-## any external coverage tracks
+Using the ranked list of gens from the RNA-Seq data, the 5 genes most highly ranked for differential expression, with more than one `r target`-bound window mapped to it were selected for visualisation.
+
+```{r make-deg-caption, echo = FALSE}
+.makeDEGCaption <- function(id) {
+  nm <- id2gene[id]
+  df <- dplyr::filter(top_diff_win, gene_id == id)
+  fdr <- ifelse(
+    df[[rna_fdr_col]] < 0.001,
+    sprintf("%.2e", df[[rna_fdr_col]]),
+    sprintf("%.3f", df[[rna_fdr_col]])
+  )
+  glue(
+    "*Region showing all merged {target}-bound windows mapped to ", 
+    "{nm}. Windows considered to be unchanged for {target} are ", 
+    "annotated in grey, with other colours indicating {target} gain or loss.",
+    "Gene-centric regions {ifelse(has_features, 'and external features', '')} ",
+    "are shown in the top panel. The estimated logFC for {nm} is ",
+    sprintf("%.2f ", df$logFC),
+    "with an FDR of {fdr}. Undetected and unchanged genes are shown on ",
+    "separate tracks.*"
+  )
+}
+```
+
+
+### `r id2gene[names(grl_to_plot)[i]]`
+
+
+```{r plot-gene1, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+ct <- trans_models %>% 
+  subsetByOverlaps(grl_to_plot[[i]]) %>% 
+  as_tibble() %>% 
+  pull("transcript") %>% 
+  unique() %>% 
+  length() %>% 
+  is_greater_than(10) %>% 
+  ifelse("meta", FALSE)
 plotHFGC(
-  grl_to_plot[[5]],
+  grl_to_plot[[i]],
   hic = hic,
   features = feat_gr, featcol = feat_col,
-  genes = hfgc_genes, genecol = colours$direction, genesize = 0.7,
+  genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
   linecol = line_col,
   annotation = annot,
   annotcol = colours$direction %>%
     setNames(str_to_title(names(.))),
   cytobands = bands_df,
-  collapseTranscripts =  "meta", # Set this as a function of n_transcripts
+  collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
-  showAxis = FALSE, rotation.title = 90
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
+i <- i + 1
 ```
 
+### `r id2gene[names(grl_to_plot)[i]]`
+
+
+```{r plot-gene2, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+ct <- trans_models %>% 
+  subsetByOverlaps(grl_to_plot[[i]]) %>% 
+  as_tibble() %>% 
+  pull("transcript") %>% 
+  unique() %>% 
+  length() %>% 
+  is_greater_than(10) %>% 
+  ifelse("meta", FALSE)
+plotHFGC(
+  grl_to_plot[[i]],
+  hic = hic,
+  features = feat_gr, featcol = feat_col,
+  genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
+  coverage = bwfl,
+  linecol = line_col,
+  annotation = annot,
+  annotcol = colours$direction %>%
+    setNames(str_to_title(names(.))),
+  cytobands = bands_df,
+  collapseTranscripts = ct, # Set this as a function of n_transcripts
+  zoom = 1.1,
+  fontsize = 10,
+  ylim = y_lim,
+  highlight = c(),
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
+)
+i <- i + 1
+```
+
+### `r id2gene[names(grl_to_plot)[i]]`
+
+
+```{r plot-gene3, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+ct <- trans_models %>% 
+  subsetByOverlaps(grl_to_plot[[i]]) %>% 
+  as_tibble() %>% 
+  pull("transcript") %>% 
+  unique() %>% 
+  length() %>% 
+  is_greater_than(10) %>% 
+  ifelse("meta", FALSE)
+plotHFGC(
+  grl_to_plot[[i]],
+  hic = hic,
+  features = feat_gr, featcol = feat_col,
+  genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
+  coverage = bwfl,
+  linecol = line_col,
+  annotation = annot,
+  annotcol = colours$direction %>%
+    setNames(str_to_title(names(.))),
+  cytobands = bands_df,
+  collapseTranscripts = ct, # Set this as a function of n_transcripts
+  zoom = 1.1,
+  fontsize = 10,
+  ylim = y_lim,
+  highlight = c(),
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
+)
+i <- i + 1
+```
+
+### `r id2gene[names(grl_to_plot)[i]]`
+
+
+```{r plot-gene4, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+ct <- trans_models %>% 
+  subsetByOverlaps(grl_to_plot[[i]]) %>% 
+  as_tibble() %>% 
+  pull("transcript") %>% 
+  unique() %>% 
+  length() %>% 
+  is_greater_than(10) %>% 
+  ifelse("meta", FALSE)
+plotHFGC(
+  grl_to_plot[[i]],
+  hic = hic,
+  features = feat_gr, featcol = feat_col,
+  genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
+  coverage = bwfl,
+  linecol = line_col,
+  annotation = annot,
+  annotcol = colours$direction %>%
+    setNames(str_to_title(names(.))),
+  cytobands = bands_df,
+  collapseTranscripts = ct, # Set this as a function of n_transcripts
+  zoom = 1.1,
+  fontsize = 10,
+  ylim = y_lim,
+  highlight = c(),
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
+)
+i <- i + 1
+```
+
+### `r id2gene[names(grl_to_plot)[i]]`
+
+
+```{r plot-gene5, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+ct <- trans_models %>% 
+  subsetByOverlaps(grl_to_plot[[i]]) %>% 
+  as_tibble() %>% 
+  pull("transcript") %>% 
+  unique() %>% 
+  length() %>% 
+  is_greater_than(10) %>% 
+  ifelse("meta", FALSE)
+plotHFGC(
+  grl_to_plot[[i]],
+  hic = hic,
+  features = feat_gr, featcol = feat_col,
+  genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
+  coverage = bwfl,
+  linecol = line_col,
+  annotation = annot,
+  annotcol = colours$direction %>%
+    setNames(str_to_title(names(.))),
+  cytobands = bands_df,
+  collapseTranscripts = ct, # Set this as a function of n_transcripts
+  zoom = 1.1,
+  fontsize = 10,
+  ylim = y_lim,
+  highlight = c(),
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
+)
+i <- i + 1
+```

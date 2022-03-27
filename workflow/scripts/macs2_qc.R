@@ -59,7 +59,7 @@ qc_prop <- config$peaks$qc$min_prop_peaks
 
 annotation_path <- here::here("output", "annotations")
 macs2_path <- here::here(config$paths$macs2, target)
-stopifnot(dir.exists(macs2_path))
+if (!dir.exists(macs2_path)) dir.create(macs2_path)
 out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 

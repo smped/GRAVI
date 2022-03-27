@@ -44,10 +44,7 @@ theme_set(
     )
 )
 register(MulticoreParam(workers = threads))
-str_sep_to_title <- function(x, sep = "_", replacement = " ") {
-  str_replace_all(x, sep, replacement) %>% 
-    str_to_title()
-}
+source(here::here("workflow/scripts/custom_functions.R"))
 ## This has been pushed to the main repo of ggside, but is not yet
 ## incorporated into the packge. The functions are geom_*sidelabel
 source(here::here("workflow/scripts/geom_sidelabel.R"))
@@ -62,8 +59,6 @@ bam_path <- here::here(config$paths$bam, target)
 stopifnot(dir.exists(bam_path))
 macs2_path <- here::here(config$paths$macs2, target)
 stopifnot(dir.exists(macs2_path))
-ext_path <- here::here("data", "external")
-stopifnot(dir.exists(ext_path))
 out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 annotation_path <- here::here("output", "annotations")
@@ -146,13 +141,12 @@ macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
   ) %>%
   left_join(samples, by = c("name" = "sample")) %>%
   mutate(
-    filtered_peaks = map_int(
+    total_peaks = map_int(
       name,
       function(x) {
         length(individual_peaks[[x]])
       }
-    ),
-    prop_passed = filtered_peaks / paired_peaks
+    )
   ) 
 n_reps <- macs2_logs %>% 
   group_by(treat) %>%
@@ -166,25 +160,20 @@ emphasize.italics.rows(NULL)
 any_fail <- any(macs2_logs$qc == "fail")
 if (any_fail) emphasize.italics.rows(which(macs2_logs$qc == "fail"))
 macs2_logs %>%
-  mutate(
-    `% Passed` = percent(prop_passed, accuracy = 0.1)
-  ) %>%
   dplyr::select(
     sample = name, label,
-    ends_with("peaks"), `% Passed`,
+    total_peaks, 
     reads = n_tags_treatment, read_length = tag_length,
     fragment_length
   ) %>%
-  rename_all(str_replace_all, pattern = "_", replacement = " ") %>%
-  rename_all(str_to_title) %>%
+  rename_all(str_sep_to_title )%>%
   pander(
-    justify = "llrrrrrr",
+    justify = "llrrrr",
     caption = glue(
       "*Summary of results for `macs2 callpeak` on individual {target} samples.",
-      "Paired peaks indicate the number of identified peaks __before__",
-      "applying any FDR threshold, whilst the filtered peaks indicate how many",
-      "were retained after applying the FDR threshold of",
-      "{percent(config$peaks$macs2$fdr)} during the peak calling process.",
+      "Total peaks indicates the number retained after applying the FDR ", 
+      "threshold of {percent(config$peaks$macs2$fdr)} during the peak calling ", 
+      "process.",
       ifelse(
         any_fail,
         glue(
@@ -294,29 +283,19 @@ bfl %>%
 
 ### Peaks Detected
 
-```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. Those which are discarded by macs2 are shown in transparent shades. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
+```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
 suppressWarnings(
   macs2_logs %>%
-    mutate(
-      Discarded = paired_peaks - filtered_peaks
-    ) %>%
-    dplyr::rename(Retained = filtered_peaks) %>%
-    pivot_longer(
-      cols = c("Retained", "Discarded"),
-      names_to = "Status",
-      values_to = "total"
-    ) %>%
     ggplot(
-      aes(label, total, fill = qc, alpha = Status)
+      aes(label, total_peaks, fill = qc)
     ) +
     geom_col() +
     geom_label(
-      aes(x = label, y = total, label = lab, colour = qc),
+      aes(x = label, y = total_peaks, label = lab, colour = qc),
       data = . %>%
-        dplyr::filter(Status == "Retained" & total > 0) %>%
         mutate(
-          lab = comma(total, accuracy = 1),
-          total = total
+          lab = comma(total_peaks, accuracy = 1),
+          total = total_peaks
         ),
       inherit.aes = FALSE,
       show.legend = FALSE
@@ -324,9 +303,8 @@ suppressWarnings(
     geom_hline(
       aes(yintercept = min),
       data = . %>%
-        dplyr::filter(Status == "Retained") %>% 
         group_by(treat) %>%
-        summarise(min = config$peaks$qc$min_prop_peaks*max(total)),
+        summarise(min = config$peaks$qc$min_prop_peaks*max(total_peaks)),
       linetype = 2,
       col = "grey"
     ) +
@@ -334,11 +312,9 @@ suppressWarnings(
     scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
     scale_fill_manual(values = colours$qc) +
     scale_colour_manual(values = colours$qc) +
-    scale_alpha_discrete(range = c(0.2, 1)) +
-    guides(alpha = "none") +
     labs(
       x = "Sample",
-      y = "Paired Peaks",
+      y = "Total Peaks",
       fill = "QC"
     ) +
     ggtitle(
@@ -376,7 +352,7 @@ file.path(out_path, "cross_correlations.tsv") %>%
 
 ### Reads In Peaks
 
-```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}).*")}
+```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}). The minimum value for an acceptable sample (1%) is shown as a dashed horizontal line*")}
 samples$sample %>%
   bplapply(
     function(x) {
@@ -401,6 +377,7 @@ samples$sample %>%
     aes(label, frip, fill = qc)
   ) +
   geom_col() +
+  geom_hline(yintercept = 0.01, colour = "grey", linetype = 2) +
   facet_grid(~treat, scales = "free_x", space = "free") +
   scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
   scale_fill_manual(values = colours$qc) +
@@ -469,11 +446,10 @@ oracle_peaks %>%
   mutate(
     detected_peaks = map_int(data, nrow),
     retained = data %>% lapply(dplyr::filter, keep) %>% map_int(nrow),
-    `% retained` = percent(retained / detected_peaks)
+    `% retained` = percent(retained / detected_peaks, 0.1)
   ) %>%
   dplyr::select(treat, detected_peaks, retained, `% retained`) %>%
-  rename_all(str_replace_all, pattern = "_", replacement = " ") %>%
-  rename_all(str_to_title) %>%
+  rename_all(str_sep_to_title) %>% 
   pander(
     justify = "lrrr",
     caption = glue(
@@ -491,7 +467,7 @@ In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` tre
 Ranges were the union of any overlapping ranges identified in one or more sets of oracle peaks.
 
 
-```{r plot-common-peaks, results = 'hide', fig.height = ifelse(length(treat_levels) <= 3, 9, 6), fig.width = 6, fig.cap="*Number of consensus peaks that overlap the oracle peaks defined in each condition.*"}
+```{r plot-common-peaks, results = 'hide', fig.height = ifelse(length(treat_levels) <= 3, 9, 6), fig.width = ifelse(length(treat_levels) <= 3, 6, 10), fig.cap="*Number of consensus peaks that overlap the oracle peaks defined in each condition.*"}
 fig_path <- here::here("docs", "assets", target)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- glue("{target}_common_peaks.png")
@@ -599,7 +575,7 @@ consensus_peaks %>%
   theme(legend.position = "none")
 ```
 
-`r ifelse(any_detected, "", "### Detected Genes")`
+`r ifelse(any_detected, "### Detected Genes", "")`
 
 ```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition. Values shown are the total genome occupancy in Kb*"}
 consensus_peaks %>% 

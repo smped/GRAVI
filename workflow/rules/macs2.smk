@@ -226,7 +226,7 @@ rule macs2_merged:
 				((TRIES--))
 			done
 			git add {output.narrow_peaks}
-			git add {output.log}
+			git add -f {output.log}
 		fi
 		"""
 
@@ -249,15 +249,11 @@ rule bedgraph_to_bigwig:
 
 		## Sort the file
 		echo -e "\nSorting as $SORTED_BDG..." >> {log}
-		sort -k1,1 -k2,2n {input.bedgraph} | \
-			egrep '^chr[0-9XY]' > $SORTED_BDG
+		sort -k1,1 -k2,2n {input.bedgraph} | egrep $'^chr[0-9XY]+\t' > $SORTED_BDG
 
 		## Convert the file
 		echo -e "Done\nConverting..." >> {log}
-		bedGraphToBigWig \
-			$SORTED_BDG \
-			{input.chrom_sizes} \
-			{output.bigwig}
+		bedGraphToBigWig $SORTED_BDG {input.chrom_sizes} {output.bigwig}
 		echo -e "Done" >> {log}
 
 		## Remove the temp sorted file
