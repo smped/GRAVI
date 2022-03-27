@@ -42,16 +42,16 @@ def check_git(x = "."):
 # Define all contrasts
 # x will be config['comparisons']['contrasts']:
 def make_contrasts(x):
+	ret_val = []
 	for comp in x:
 		ref = comp[0]
 		tgt_ref = set(df['target'][df['treat'] == ref])
 		treat = comp[1]
 		tgt_treat = set(df['target'][df['treat'] == treat])
 		comp_tgts = list(tgt_ref.intersection(tgt_treat))
-		ret_val = []
 		for t in comp_tgts:
 			ret_val.extend([t + "_" + ref + "_" + treat])
-		return(ret_val)
+	return(ret_val)
 
 
 

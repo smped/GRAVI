@@ -119,14 +119,16 @@ rule macs2_qc:
 			sample = set(df[df.target == wildcards.target]['sample']),
 			suffix = ['bam', 'bam.bai']
 		),
+		blacklist = blacklist,
+		config = "config/config.yml",
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		config = "config/config.yml",
 		pkgs = rules.install_packages.output,
 		samples = config['samples']['file'],
+		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
 		r = "workflow/scripts/macs2_qc.R"
 	output:
 		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
@@ -265,7 +267,7 @@ rule bedgraph_to_bigwig:
 rule get_coverage_summary:
 	input: rules.bedgraph_to_bigwig.output.bigwig
 	output: os.path.join(bw_path, "{target}", "{sample}_treat_pileup.summary")
-	params: 
+	params:
 		script = "workflow/scripts/get_bigwig_summary.R",
 		git = git_add,
 		interval = random.uniform(0, 1),
