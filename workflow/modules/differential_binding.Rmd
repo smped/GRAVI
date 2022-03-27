@@ -1,6 +1,6 @@
 ```{r example, echo = FALSE, eval=TRUE}
 ## This module requires the following to be set during preparation
-# target <- "ER"
+# target <- "AR"
 # threads <- 6
 ```
 
@@ -30,6 +30,8 @@ library(ggside)
 library(InteractionSet)
 library(reactable)
 library(htmltools)
+library(msigdbr)
+library(goseq)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -1992,6 +1994,528 @@ plotHFGC(
   rotation.title = 90
 )
 ```
+
+# Enrichment Testing {.tabset}
+
+```{r msigdb}
+msigdb <- msigdbr(species = "Homo sapiens") %>% 
+  dplyr::filter(
+    gs_cat %in% c("H") |
+      gs_subcat %in% c("CP:KEGG", "CP:REACTOME", "CP:WIKIPATHWAYS", "TFT:GTRD"),
+    str_detect(ensembl_gene, "^E")
+  ) %>% 
+  dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
+  dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
+  dplyr::filter(gene_id %in% genes_gr$gene_id)
+gs_by_gsid <- msigdb %>% 
+  split(.$gs_name) %>% 
+  lapply(pull, "gene_id") %>% 
+  lapply(unique)
+gs_by_geneid <- msigdb %>% 
+  split(.$gene_id) %>% 
+  lapply(pull, "gs_name") %>% 
+  lapply(unique)
+```
+
+As an initial exploration, the retained windows were compared to pre-defined gene-sets.
+These were taken from the `MSigDB` database and the gene-sets used for enrichment testing were:
+
+```{r tbl-msigdb}
+msigdb %>% 
+  distinct(gs_cat, gs_subcat, gs_name) %>%
+  group_by(gs_cat, gs_subcat) %>% 
+  summarise(`Gene Sets` = dplyr::n(),.groups = "drop") %>% 
+  dplyr::rename(Category = gs_cat, `Sub-Category` = gs_subcat) %>% 
+  mutate(
+    Description = case_when(
+      Category == "H" ~ "Hallmark Gene-Sets",
+      Category == "C2" ~ str_replace_all(`Sub-Category`, "CP:(.+)", "Curated Gene-Sets: \\1"),
+      Category == "C3" ~ str_replace_all(`Sub-Category`, "TFT:(.+)", "Transcription Factor Target Prediction Gene-Sets: \\1")
+    ),
+    Category = factor(Category, levels = c("H", "C2", "C3"))
+  ) %>% 
+  arrange(Category) %>% 
+  pander(
+    justify = "llrl", 
+    caption = "*Summary of Gene-Sets used for Enrichment Testing*"
+  )
+```
+
+Retained windows were tested for enrichment of these gene-sets using:
+
+1. Any window mapped to a gene from these gene-sets
+2. Any window with evidence of differential binding mapped to a gene from these gene-sets
+
+In the first case, mapped genes were tested for enrichment against all annotated genes.
+In the second case, i.e. Differentially Bound Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
+All enrichment testing ws performed using `goseq` with gene-length as the bias term to offset biased sampling of genes
+
+## Windows With Detected `r target`
+
+```{r goseq-mapped}
+pwf_mapped <- genes_gr %>% 
+  mutate(w = width(.)) %>% 
+  as_tibble() %>% 
+  dplyr::select(gene_id, w) %>% 
+  arrange(desc(w)) %>% 
+  distinct(gene_id, .keep_all = TRUE) %>% 
+  mutate(mapped = gene_id %in% unlist(merged_results$gene_id)) %>% 
+  with(
+    nullp(
+      structure(mapped, names = gene_id),
+      genome = config$genome$build,
+      bias.data = log10(w),
+      plot.fit = FALSE
+    )
+  )
+goseq_mapped <- goseq(
+  pwf_mapped, config$genome$build, gene2cat = gs_by_geneid
+) %>% 
+  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+  dplyr::select(-starts_with("under")) %>% 
+  as_tibble() %>% 
+  arrange(pval) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
+  mutate(fdr = p.adjust(pval, "fdr"))
+```
+
+`r ifelse(sum(goseq_mapped$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to any window", "")`
+
+```{r tbl-goseq-mapped, eval = sum(goseq_mapped$fdr < fdr_alpha) > 0, echo = sum(goseq_mapped$fdr < fdr_alpha) > 0}
+cp <- htmltools::em(
+  glue(
+    "All {sum(goseq_mapped$fdr < fdr_alpha)} gene sets considered as ", 
+    "significantly enriched (FDR < {fdr_alpha}) amongst the merged windows ", 
+    "with detectable {target} binding. Genes mapped to a merged window were ",
+    "compared to those not mapped to any merged windows."
+  )
+)
+tbl <- goseq_mapped %>% 
+  dplyr::filter(fdr < fdr_alpha) %>% 
+  left_join(
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+  ) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::select(-gene_id) %>% 
+  chop(gene_name) %>% 
+  mutate(
+    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+  ) %>% 
+  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
+  dplyr::select(
+    `Gene Set` = gs_name, Description = gs_description,
+    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    p = pval, FDR = fdr, 
+    `Mapped Genes` = gene_name
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list(
+      "Gene Set" = colDef(
+        minWidth = 200,
+        cell = function(value) htmltools::tags$a(
+          href = value$gs_url, target = "_blank", value$gs_name
+        ),
+        html = TRUE
+      ),
+      Description = colDef(
+        minWidth = 200,
+        cell = function(value) with_tooltip(value, width = 100)
+      ),
+      Mapped = colDef(maxWidth = 100),
+      "Total Gene Set Size" = colDef(
+        maxWidth = 100,
+        cell = function(value) comma(value, 1)
+      ),
+      p = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      FDR = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      "Mapped Genes" = colDef(
+        cell = function(value) with_tooltip(value, width = 100),
+        minWidth = 200
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+## Windows With Differentially Bound `r target`
+
+```{r goseq-diff}
+pwf_diff <- genes_gr %>% 
+  mutate(w = width(.)) %>% 
+  as_tibble() %>% 
+  dplyr::select(gene_id, w) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  arrange(desc(w)) %>% 
+  distinct(gene_id, .keep_all = TRUE) %>% 
+  mutate(
+    diff = gene_id %in% unlist(
+      subset(merged_results, status != "Unchanged")$gene_id
+    )
+  ) %>% 
+  with(
+    nullp(
+      structure(diff, names = gene_id),
+      genome = config$genome$build,
+      bias.data = log10(w),
+      plot.fit = FALSE
+    )
+  )
+goseq_diff <- goseq(
+  pwf_diff, config$genome$build, gene2cat = gs_by_geneid
+) %>% 
+  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+  dplyr::select(-starts_with("under")) %>% 
+  as_tibble() %>% 
+  arrange(pval) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
+  mutate(fdr = p.adjust(pval, "fdr"))
+```
+
+
+`r ifelse(sum(goseq_diff$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to sites showing any differential binding.", "")`
+
+```{r tbl-goseq-diff, eval = sum(goseq_diff$fdr < fdr_alpha) > 0, echo = sum(goseq_diff$fdr < fdr_alpha) > 0}
+cp <- htmltools::em(
+  glue(
+    "All {sum(goseq_diff$fdr < fdr_alpha)} gene sets considered as ", 
+    "significantly enriched (FDR < {fdr_alpha}) amongst the windows showing ",
+    "evidence of changed {target} binding. Genes mapped to a ", 
+    "differentially-bound window were compared to those mapped to any merged ", 
+    "window."
+  )
+)
+tbl <- goseq_diff %>% 
+  dplyr::filter(fdr < fdr_alpha) %>%
+  left_join(
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+  ) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::select(-gene_id) %>% 
+  chop(gene_name) %>% 
+  mutate(
+    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+  ) %>% 
+  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
+  dplyr::select(
+    `Gene Set` = gs_name, Description = gs_description,
+    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    p = pval, FDR = fdr, 
+    `Mapped Genes` = gene_name
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list(
+      "Gene Set" = colDef(
+        minWidth = 200,
+        cell = function(value) htmltools::tags$a(
+          href = value$gs_url, target = "_blank", value$gs_name
+        ),
+        html = TRUE
+      ),
+      Description = colDef(
+        minWidth = 200,
+        cell = function(value) with_tooltip(value, width = 100)
+      ),
+      Mapped = colDef(maxWidth = 100),
+      "Total Gene Set Size" = colDef(
+        maxWidth = 100,
+        cell = function(value) comma(value, 1)
+      ),
+      p = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      FDR = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      "Mapped Genes" = colDef(
+        cell = function(value) with_tooltip(value, width = 100),
+        minWidth = 200
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+
+## Windows With Increased `r target` Binding
+
+```{r goseq-up}
+pwf_up <- genes_gr %>% 
+  mutate(w = width(.)) %>% 
+  as_tibble() %>% 
+  dplyr::select(gene_id, w) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  arrange(desc(w)) %>% 
+  distinct(gene_id, .keep_all = TRUE) %>% 
+  mutate(
+    diff = gene_id %in% unlist(
+      subset(merged_results, status == "Up")$gene_id
+    )
+  ) %>% 
+  with(
+    nullp(
+      structure(diff, names = gene_id),
+      genome = config$genome$build,
+      bias.data = log10(w),
+      plot.fit = FALSE
+    )
+  )
+goseq_up <- goseq(
+  pwf_up, config$genome$build, gene2cat = gs_by_geneid
+) %>% 
+  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+  dplyr::select(-starts_with("under")) %>% 
+  as_tibble() %>% 
+  arrange(pval) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
+  mutate(fdr = p.adjust(pval, "fdr"))
+```
+
+
+`r ifelse(sum(goseq_up$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to site with increased binding", "")`
+
+```{r tbl-goseq-up, eval = sum(goseq_up$fdr < fdr_alpha) > 0, echo = sum(goseq_up$fdr < fdr_alpha) > 0}
+cp <- htmltools::em(
+  glue(
+    "All {sum(goseq_up$fdr < fdr_alpha)} gene sets considered as ", 
+    "significantly enriched (FDR < {fdr_alpha}) amongst the windows showing ",
+    "evidence of increased {target} binding. Genes mapped to a ", 
+    "window showing increased binding were compared to those mapped to any ", 
+    "merged window."
+  )
+)
+tbl <- goseq_up %>% 
+  dplyr::filter(fdr < fdr_alpha) %>%
+  left_join(
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+  ) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::select(-gene_id) %>% 
+  chop(gene_name) %>% 
+  mutate(
+    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+  ) %>% 
+  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
+  dplyr::select(
+    `Gene Set` = gs_name, Description = gs_description,
+    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    p = pval, FDR = fdr, 
+    `Mapped Genes` = gene_name
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list(
+      "Gene Set" = colDef(
+        minWidth = 200,
+        cell = function(value) htmltools::tags$a(
+          href = value$gs_url, target = "_blank", value$gs_name
+        ),
+        html = TRUE
+      ),
+      Description = colDef(
+        minWidth = 200,
+        cell = function(value) with_tooltip(value, width = 100)
+      ),
+      Mapped = colDef(maxWidth = 100),
+      "Total Gene Set Size" = colDef(
+        maxWidth = 100,
+        cell = function(value) comma(value, 1)
+      ),
+      p = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      FDR = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      "Mapped Genes" = colDef(
+        cell = function(value) with_tooltip(value, width = 100),
+        minWidth = 200
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+## Windows With Decreased `r target` Binding
+
+```{r goseq-down}
+pwf_down <- genes_gr %>% 
+  mutate(w = width(.)) %>% 
+  as_tibble() %>% 
+  dplyr::select(gene_id, w) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  arrange(desc(w)) %>% 
+  distinct(gene_id, .keep_all = TRUE) %>% 
+  mutate(
+    diff = gene_id %in% unlist(
+      subset(merged_results, status == "Down")$gene_id
+    )
+  ) %>% 
+  with(
+    nullp(
+      structure(diff, names = gene_id),
+      genome = config$genome$build,
+      bias.data = log10(w),
+      plot.fit = FALSE
+    )
+  )
+goseq_down <- goseq(
+  pwf_down, config$genome$build, gene2cat = gs_by_geneid
+) %>% 
+  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+  dplyr::select(-starts_with("under")) %>% 
+  as_tibble() %>% 
+  arrange(pval) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
+  mutate(fdr = p.adjust(pval, "fdr"))
+```
+
+
+`r ifelse(sum(goseq_down$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to site with decreased binding", "")`
+
+```{r tbl-goseq-up, eval = sum(goseq_down$fdr < fdr_alpha) > 0, echo = sum(goseq_down$fdr < fdr_alpha) > 0}
+cp <- htmltools::em(
+  glue(
+    "All {sum(goseq_down$fdr < fdr_alpha)} gene sets considered as ", 
+    "significantly enriched (FDR < {fdr_alpha}) amongst the windows showing ",
+    "evidence of decreased {target} binding. Genes mapped to a ", 
+    "window showing decreased binding were compared to those mapped to any ", 
+    "merged window."
+  )
+)
+tbl <- goseq_down %>% 
+  dplyr::filter(fdr < fdr_alpha) %>%
+  left_join(
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+  ) %>% 
+  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::select(-gene_id) %>% 
+  chop(gene_name) %>% 
+  mutate(
+    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+  ) %>% 
+  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
+  dplyr::select(
+    `Gene Set` = gs_name, Description = gs_description,
+    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    p = pval, FDR = fdr, 
+    `Mapped Genes` = gene_name
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list(
+      "Gene Set" = colDef(
+        minWidth = 200,
+        cell = function(value) htmltools::tags$a(
+          href = value$gs_url, target = "_blank", value$gs_name
+        ),
+        html = TRUE
+      ),
+      Description = colDef(
+        minWidth = 200,
+        cell = function(value) with_tooltip(value, width = 100)
+      ),
+      Mapped = colDef(maxWidth = 100),
+      "Total Gene Set Size" = colDef(
+        maxWidth = 100,
+        cell = function(value) comma(value, 1)
+      ),
+      p = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      FDR = colDef(
+        cell = function(value) {
+          ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        },
+        maxWidth = 100
+      ),
+      "Mapped Genes" = colDef(
+        cell = function(value) with_tooltip(value, width = 100),
+        minWidth = 200
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
 
 # Data Export
 

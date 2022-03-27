@@ -117,7 +117,12 @@ rule setup_annotations:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output}
+			git add \
+			  {output.annotations} \
+			  {output.chrom_sizes} \
+			  {output.rmd} \
+			  {output.html} \
+			  {output.fig_path}
 		fi
 		"""
 

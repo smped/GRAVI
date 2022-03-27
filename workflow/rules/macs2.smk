@@ -108,7 +108,7 @@ rule macs2_individual:
 				((TRIES--))
 			done
 			git add {output.narrow_peaks}
-			git add {output.log}
+			git add -f {output.log}
 		fi
 		"""
 

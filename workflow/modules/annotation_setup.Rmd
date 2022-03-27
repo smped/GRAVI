@@ -270,7 +270,7 @@ This object was formed here, so they too could be simply imported during all vis
 ## the RNA-Seq data
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
-if (!is.null(rna_path)) {
+if (length(rna_path) > 0) {
   stopifnot(file.exists(rna_path))
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
@@ -626,11 +626,13 @@ df %>%
 ```{r external-features}
 feat_path <- here::here(config$external$features)
 external_features <- list(features = c())
-if (!is.null(feat_path)) {
+has_features <- FALSE
+if (length(feat_path)> 0) {
   stopifnot(file.exists(feat_path))
   external_features <- suppressWarnings(
     import.gff(feat_path, genome = sq)
   )
+  has_features <- TRUE
   mcols(external_features) <- cbind(
     mcols(external_features),
     gene_regions %>% 
@@ -650,7 +652,7 @@ if (!is.null(feat_path)) {
 }
 ```
 
-```{r feat-col}
+```{r feat-col, eval = has_features, echo = has_features}
 feat_col <- col_config$features
 feat_levels <- unique(external_features$feature)
 missing_feat_col <- setdiff(feat_levels, names(feat_col))
@@ -662,9 +664,9 @@ col_config$features <- feat_col
 ```
 
 
-`r ifelse(is.null(external_features), "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
+`r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = !is.null(external_features), echo = !is.null(external_features), fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours.*")}
+```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours.*")}
 suppressWarnings(
   external_features %>% 
     mutate(w = width) %>% 
@@ -724,7 +726,7 @@ suppressWarnings(
 
 
 
-```{r tab-features, eval = !is.null(external_features), echo = !is.null(external_features)}
+```{r tab-features, eval = has_features, echo = has_features}
 external_features %>% 
   group_by(feature) %>% 
   summarise(
@@ -822,9 +824,9 @@ col_config$regions %>%
 ```
 
 
-## Features
+`r ifelse(has_features, "## Features", "")`
 
-```{r plot-feat, fig.height=3, fig.width=2 + length(col_config$features)}
+```{r plot-feat, eval = has_features, echo = has_features, fig.height=3, fig.width=2 + length(col_config$features)}
 feat_col %>% 
   .plotScheme(xlab = "Feature")
 ```
