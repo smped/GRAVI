@@ -61,7 +61,7 @@ rule differential_binding:
 		),
 		rdata = expand(
 			os.path.join(
-				"output", "envs", 
+				"output", "envs",
 				"{{target}}_{{ref}}_{{treat}}_differential_binding.RData")
 		),
 		rds = expand(
@@ -81,8 +81,8 @@ rule differential_binding:
 			(df['target'] == wildcards.target) &
 			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
 			])
-	log: 
-		"workflow/logs/rmarkdown/{target}_{ref}_{treat}_differential_binding.log"
+	log:
+		"workflow/logs/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
 	shell:
 		"""
 		## Create the generic markdown

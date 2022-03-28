@@ -13,13 +13,9 @@ library(DiagrammeR)
 library(pander)
 library(yaml)
 library(scales)
-```
-
-```{r remotes, results='hide'}
-## Deal with github packages
-if (!"spBioUtils" %in% rownames(installed.packages()))
-  BiocManager::install("steveped/spBioUtils")
-stopifnot(library(spBioUtils, logical.return = TRUE))
+source(
+  here::here("workflow/scripts/plot_dag_functions.R")
+)
 ```
 
 ```{r config}
@@ -62,9 +58,15 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
 
 ### External Data
 
-The external data supplied was:
+```{r, echo = FALSE}
+ext_data <- config$external[map_int(config$external, length) > 0] %>% 
+  lapply(unlist) %>% 
+  lapply(basename)
+```
 
-`r pander(lapply(config$external[map_int(config$external, length) > 0], basename))`
+`r ifelse(length(ext_data) > 0, "The external data was:", "No external data was included")`
+
+`r if (length(ext_data) > 0) pander(ext_data)`
 
 ### Peak Detection
 

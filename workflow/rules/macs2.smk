@@ -343,7 +343,7 @@ rule build_macs2_summary:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
-	log: "workflow/logs/rmarkdown/build_{target}_macs2_summary.log"
+	log: "workflow/logs/macs2_summmary/build_{target}_macs2_summary.log"
 	shell:
 		"""
 		## Create the generic markdown

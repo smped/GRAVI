@@ -491,13 +491,6 @@ if (length(treat_levels) <= 3) {
   file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 }
 if (length(treat_levels) > 3) {
-  png(
-    filename = file.path(fig_path, fig_name),
-    units = "in",
-    height = knitr::opts_chunk$get("fig.height"),
-    width = knitr::opts_chunk$get("fig.width"),
-    res = 300
-  )
   oracle_peaks %>%
     lapply(
       function(x) {
@@ -515,11 +508,11 @@ if (length(treat_levels) > 3) {
       set_size.scale_max = nrow(.) * 1.2,
       text.scale = 1.2
     )
-  dev.off()
+  file.create(file.path(fig_path, fig_name)) # An empty file to keep snakemake happy
 }
 ```
 
-![*Number of consensus peaks which overlap oracle peaks defined within each condition.*](`r glue("assets/{target}/{target}_common_peaks.png")`)
+`r ifelse(length(treat_levels) <= 3, glue("![*Number of consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.png)"), "")`
 
 ### Distance to TSS 
 

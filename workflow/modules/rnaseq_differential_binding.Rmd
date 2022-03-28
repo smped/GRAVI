@@ -279,7 +279,9 @@ p <- gsea_dir_sig %>%
     function(x) {
       plotEnrichment(reg_dir_gs[[x]], rna_dir_ranks) +
         ggtitle(x) +
-        theme(plot.title = element_text(hjust = 0.5))
+        theme(
+          plot.title = element_text(hjust = 0.5, size = 10)
+        )
     }
   )
 ```
@@ -347,6 +349,8 @@ div(class = "table",
 )
 ```
 
+
+
 ```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = "*Barcode plots for sets of windows associated with directional changes in gene expression.*"}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
@@ -367,7 +371,7 @@ p <- gsea_nondir_sig %>%
     function(x) {
       plotEnrichment(reg_dir_gs[[x]], rna_sig_ranks) +
         ggtitle(x) +
-        theme(plot.title = element_text(hjust = 0.5))
+        theme(plot.title = element_text(hjust = 0.5, size = 10))
     }
   )
 ```
@@ -677,5 +681,4 @@ plotHFGC(
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
-i <- i + 1
 ```

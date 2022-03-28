@@ -71,6 +71,52 @@ rule create_setup_chunk:
 		fi
 		"""
 
+rule build_annotations_rmd:
+  input:
+    blacklist = blacklist,
+    rmd = "workflow/modules/annotation_setup.Rmd",
+    rds = expand(
+      os.path.join(annotation_path, "{file}.rds"),
+      file = ['all_gr', 'gene_regions', 'seqinfo', 'trans_models', 'tss']
+    ),
+    setup = rules.create_setup_chunk.output,
+    yaml = expand(
+      os.path.join("config", "{file}.yml"),
+      file = ['config', 'colours', 'rmarkdown']
+    )
+  output:
+    rmd = "analysis/annotation_setup.Rmd",
+    rds = os.path.join(annotation_path, "colours.rds"),
+    html = "docs/annotation_setup.html",
+    fig_path = directory(
+			os.path.join("docs", "annotation_setup_files", "figure-html")
+		)
+	params:
+		git = git_add,
+		interval = random.uniform(0, 1),
+		tries = 10
+	conda: "../envs/rmarkdown.yml"
+	threads: 1
+	log: "workflow/logs/rmarkdown/build_annotations_rmd.log"
+	shell:
+	  """
+	  cp {input.rmd} {output.rmd}
+	  R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
+
+	  if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output}
+		fi
+	  """
 
 rule build_site_index:
 	input:

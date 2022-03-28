@@ -2,6 +2,7 @@
 ## This module requires the following to be set during preparation
 # target <- "AR"
 # threads <- 6
+# treat_levels <- c("Veh", "DHT")
 ```
 
 ```{r packages}
@@ -37,8 +38,8 @@ library(goseq)
 ```{r remotes, results = 'hide'}
 if (!"extraChIPs" %in% rownames(installed.packages()))
   BiocManager::install("steveped/extraChIPs")
+
 stopifnot(library(extraChIPs, logical.return = TRUE))
-source(here::here("workflow", "scripts", "autoload.R"))
 ```
 
 ```{r options}
@@ -56,24 +57,17 @@ source(here::here("workflow", "scripts", "custom_functions.R"))
 ```
 
 ```{r load-config}
-colours <- read_rds(
-  here::here("output", "annotations", "colours.rds")
-) %>% 
-  lapply(unlist)
-config <- read_yaml(
-	here::here("config", "config.yml")
-)
+params <- read_yaml(here::here("config", "params.yml"))
+config <- read_yaml(here::here("config", "config.yml"))
 samples <- here::here("output", target, "qc_samples.tsv") %>% 
   read_tsv() %>% 
   dplyr::filter(
     qc == "pass",
-    treat %in% names(colours$treat)
+    treat %in% treat_levels
   ) %>% 
-  mutate(treat = factor(treat, levels = names(colours$treat))) %>% 
+  mutate(treat = factor(treat, levels = treat_levels)) %>% 
   droplevels()
 stopifnot(nrow(samples) > 0)
-treat_levels <- levels(samples$treat)
-treat_cols <- colours$treat[treat_levels]
 rep_col <- setdiff(
   colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
 )
@@ -84,8 +78,6 @@ fdr_alpha <- config$comparisons$fdr
 ```{r set-paths}
 bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
-ext_path <- here::here("data", "external")
-stopifnot(dir.exists(ext_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
 bw_path <- here::here(config$paths$bigwig, target)
@@ -137,7 +129,7 @@ any_detected <- gene_regions %>%
 
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
-if (!is.null(rna_path)) {
+if (length(rna_path) > 0) {
   stopifnot(file.exists(rna_path))
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
@@ -160,6 +152,21 @@ stopifnot(is(hic, "GInteractions"))
 seqinfo(hic) <- sq
 hic <- hic[!overlapsAny(hic, blacklist)]
 ```
+
+```{r set-colours}
+colours <- read_rds(here::here("output", "annotations", "colours.rds")) %>% 
+  lapply(unlist)
+region_colours <- setNames(colours$regions, regions[names(colours$regions)])
+if (has_features)
+  feature_colours <- setNames(
+    colours$features, str_sep_to_title(names(colours$features))
+  )
+direction_colours <- colours$direction %>% 
+  setNames(str_to_title(names(.))) %>% 
+  .[c("Up", "Down", "Unchanged")]
+treat_colours <- colours$treat[treat_levels]
+```
+
 
 ```{r labeller}
 facet_labeller <- as_labeller(
@@ -257,7 +264,7 @@ anyPE <- bplapply(
 ```
 
 
-Taking thefirst `r comma(ys)` alignments, a brief inspection of the Bam Files revealed:
+Taking the first `r comma(ys)` alignments, a brief inspection of the Bam Files revealed:
 
 - Aligned read lengths ranged between `r glue_collapse(range(bfl_summary$qwidth$value), last = " and ")`. The median length was `r median(bfl_summary$qwidth$value)`.
 - MAPQ scores of aligned reads ranged between `r glue_collapse(range(bfl_summary$mapq$value), last = " and ")`. The median score was `r median(bfl_summary$mapq$value)`.
@@ -452,7 +459,7 @@ plotAssayDensities(
   window_counts, trans = "log1p", n_max = n_max, colour = "treat",
   linetype = "target"
 ) +
-  scale_colour_manual(values = treat_cols) + 
+  scale_colour_manual(values = colours$treat) + 
   labs(
     x = "log(counts + 1)", y = "Density", colour = "Treat", linetype = "Target"
   )
@@ -463,7 +470,7 @@ plotAssayDensities(
 ```{r plot-logcpm-densities, fig.cap = "*logCPM distributions for all retained windows prior to smooth quantile normalisation*"}
 filtered_counts %>% 
   plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
-  scale_colour_manual(values = treat_cols[treat_levels]) +
+  scale_colour_manual(values = treat_colours) +
   labs(colour = "Treat")
 ```
 
@@ -472,7 +479,7 @@ filtered_counts %>%
 ```{r plot-qsmooth-densities, fig.cap = "*SQ-normalised logCPM distributions for all retained windows.*"}
 filtered_counts %>% 
   plotAssayDensities("qsmooth", colour = "treat", n_max = n_max) +
-  scale_colour_manual(values = treat_cols[treat_levels]) +
+  scale_colour_manual(values = treat_colours) +
   labs(
     x = "Normalised logCPM", colour = "Treat"
   )
@@ -487,7 +494,7 @@ filtered_counts %>%
 ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
-  scale_fill_manual(values = treat_cols[treat_levels]) +
+  scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
 ```
 
@@ -501,7 +508,7 @@ filtered_counts %>%
 ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
-  scale_fill_manual(values = treat_cols[treat_levels]) +
+  scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
 ```
 
@@ -510,9 +517,9 @@ filtered_counts %>%
 
 ```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for A) logCPM and B) SQ-Normalised logCPM*"}
 a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
-  scale_colour_manual(values = treat_cols[treat_levels])
+  scale_colour_manual(values = treat_colours)
 b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +
-  scale_colour_manual(values = treat_cols[treat_levels]) 
+  scale_colour_manual(values = treat_colours) 
 plot_grid(
   a + theme(legend.position = "none"), b + theme(legend.position = "none"), 
   get_legend(b + labs(colour = "Treat")), rel_widths = c(1, 1, 0.2), 
@@ -650,7 +657,7 @@ tibble(A = fit$Amean, pre = fit$sigma, post = sqrt(fit$s2.post)) %>%
     show.legend = FALSE
   ) +
   labs(
-    x = "logCPM", y = expression(hat(sigma))
+    x = "logCPM", y = expression(hat(sigma)), colour = "Analytic\nStep"
   ) +
   scale_colour_manual(values = c(pre = "black", post = "red")) +
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5))
@@ -665,7 +672,7 @@ ihw_method <- c(
   intersect(str_to_lower(config$comparisons$ihw), ihw_opts), "none"
 )
 ihw_method <- ihw_method[[1]]
-fdr_column <- "P.Value_fdr" # The default should ihw not proceed
+fdr_column <- str_subset(names(mcols(merged_results)), "fdr|FDR")
 ## Add status (direction) for the ihw = "none" possibility
 merged_results <- merged_results %>% 
   mutate(
@@ -754,7 +761,7 @@ merged_results <- merged_results %>%
 
 In addition to statistical analysis, the regions produced by merging windows were mapped to all annotated genes.
 Promoters were the union of all regions defined based on transcript-level annotation, and any external features which were defined as promoters.
-Enhancers were any regions defined in `r basename(config$external$features)` as enhancers.
+`r ifelse(has_features, glue("Enhancers were any regions defined in {basename(config$external$features)} as enhancers."), glue(""))`
 `r ifelse(length(hic) > 0, glue("The set of {length(hic)} HiC-interactions were also used to define long-range interactions."), "")`
 
 These features were used to map merged windows to features using the process defined in the function `mapByFeature()`:
@@ -790,7 +797,7 @@ sig_profiles <- bplapply(
   BPPARAM = MulticoreParam(length(sig_ranges))
 )
 profile_heatmaps <- sig_profiles %>% 
-  lapply(
+  bplapply(
     plotProfileHeatmap,
     profileCol = "profile_data", 
     facetY = "overlaps_ref",
@@ -799,13 +806,13 @@ profile_heatmaps <- sig_profiles %>%
     xLab = "Distance from Centre (bp)",
     fillLab = "CPM",
     labeller = as_labeller(
-      treat_levels %>% 
-        setNames(treat_levels) %>% 
         c(
+          setNames(treat_levels, treat_levels),
           `TRUE` = "Consensus\nPeak",
           `FALSE` = "No\nConsensus\nPeak"
         )
-    )
+    ),
+    BPPARAM = MulticoreParam(length(sig_ranges))
   ) 
 fill_range <- profile_heatmaps %>% 
   lapply(function(x) x$data[,"score"]) %>% 
@@ -822,7 +829,7 @@ profile_heatmaps <- profile_heatmaps %>%
         option = "inferno", direction = -1, limits = fill_range
       ) +
       scale_xsidey_continuous(limits = sidey_range) +
-      scale_colour_manual(values = treat_cols[treat_levels]) +
+      scale_colour_manual(values = treat_colours) +
       scale_linetype_manual(values = c("TRUE" = 1, "FALSE" = 2)) +
       labs(
         x = "Distance from Centre (bp)",
@@ -832,7 +839,8 @@ profile_heatmaps <- profile_heatmaps %>%
       theme(
         strip.text.y = element_text(angle = 0)
       )
-  })
+  }
+  )
 ```
 
 
@@ -867,11 +875,7 @@ merged_results %>%
     scales = "free_x", space = "free_x",
     labeller = facet_labeller
   ) +
-  scale_colour_manual(
-    values = colours$direction %>% 
-      .[names(.) != "undetected"] %>% 
-      setNames(str_to_title(names(.)))
-  ) +
+  scale_colour_manual(values = direction_colours) +
   labs(
     x = "Ave Signal (logCPM)",
     colour = "Status"
@@ -924,11 +928,7 @@ merged_results %>%
     size = 3,
     show.legend = FALSE
   ) +
-  scale_colour_manual(
-    values =  colours$direction %>% 
-      .[names(.) != "undetected"] %>% 
-      setNames(str_to_title(names(.)))
-  ) +
+  scale_colour_manual(values = direction_colours) +
   labs(
     x = "logFC",
     y = expression(paste(-log[10], "p")),
@@ -960,11 +960,7 @@ merged_results %>%
   geom_bar() +
   facet_grid(status~., scales = "free_y") +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(
-    values =  colours$direction %>% 
-      .[names(.) != "undetected"] %>% 
-      setNames(str_to_title(names(.)))
-  ) +
+  scale_fill_manual(values =  direction_colours) +
   scale_alpha_manual(values = c(0.5, 1)) +
   labs(
     x = "Chromosome", y = "Number of Windows", 
@@ -989,10 +985,7 @@ merged_results %>%
   facet_grid(
     name~., scales = "free", labeller = facet_labeller, switch = "y"
   ) +
-  scale_fill_manual(
-    values = colours$regions %>% 
-      setNames(regions[names(.)]) 
-  ) +
+  scale_fill_manual(values = region_colours) +
   labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
 
@@ -1029,16 +1022,8 @@ merged_results %>%
       mutate(y1 = y + 0.03*max(y))
   ) +
   scale_y_continuous(expand = expansion(c(0, 0.5)), labels = comma) +
-  scale_fill_manual(
-    values = colours$direction %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) != "Undetected"]
-  ) +
-  scale_colour_manual(
-    values = colours$direction %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) != "Undetected"]
-  ) +
+  scale_fill_manual(values = direction_colours) +
+  scale_colour_manual(values = direction_colours) +
   labs(x = "Region", y = "Merged Windows", fill = "Status")
 ```
 
@@ -1054,9 +1039,7 @@ merged_results %>%
   facet_grid(
     name~., scales = "free", labeller = facet_labeller, switch = "y"
   ) +
-  scale_fill_manual(
-    values = colours$features %>% setNames(str_sep_to_title(names(.)))
-  ) +
+  scale_fill_manual(values = feature_colours) +
   labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
 
@@ -1088,16 +1071,8 @@ merged_results %>%
       mutate(y1 = y + 0.03*max(y))
   ) +
   scale_y_continuous(expand = expansion(c(0, 0.5)), labels = comma) +
-  scale_fill_manual(
-    values = colours$direction %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) != "Undetected"]
-  ) +
-  scale_colour_manual(
-    values = colours$direction %>% 
-      setNames(str_to_title(names(.))) %>% 
-      .[names(.) != "Undetected"]
-  ) +
+  scale_fill_manual(values = direction_colours) +
+  scale_colour_manual(values = direction_colours) +
   labs(x = "Feature", y = "Merged Windows", fill = "Status")
 ```
 
@@ -1106,11 +1081,7 @@ merged_results %>%
 ```{r scatterpie-region-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparison of changes in {target} binding separated by gene-centric region and external features provided in {basename(config$external$features)}*")}
 merged_results %>% 
   plotPie(x = "region", y = "feature", fill = "status") +
-  scale_fill_manual(
-    values = colours$direction %>% 
-      setNames(str_sep_to_title(names(.))) %>% 
-      .[names(.) %in% merged_results$status]
-  ) +
+  scale_fill_manual(values = direction_colours) +
   labs(
     x = "Region", y = "Feature", fill = "Status"
   )
@@ -1450,16 +1421,22 @@ cp <- htmltools::em(
     ),
     "For windows mapped to large numbers of genes, hovering your mouse over the ", 
     "cell will reveal the full set of genes. ",
+    ifelse(
+      any_detected,
+      "Only genes considered as detected in the RNA-Seq data are shown. ",
+      ""
+    ),
     "The Macs2 Peak column is filterable using T/F values"
   )
 )
+gene_col <- ifelse(any_detected, "detected", "gene_name")
 tbl <- merged_results %>%
   mutate(w = width) %>% 
   arrange(!!sym(fdr_column)) %>% 
   plyranges::slice(seq_len(show_n)) %>% 
   select(
     w, AveExpr, logFC, FDR = !!sym(fdr_column), 
-    overlaps_ref, Region = region, any_of("feature"), Genes = detected
+    overlaps_ref, Region = region, any_of("feature"), Genes = !!sym(gene_col)
   ) %>% 
   as_tibble() %>% 
   dplyr::rename(
@@ -1581,7 +1558,7 @@ bwfl <- list2(
     BigWigFileList() %>% 
     setNames(treat_levels)
 )
-line_col <- list2("{target}" := treat_cols)
+line_col <- list2("{target}" := treat_colours)
 ## Coverage annotations
 annot <- merged_results %>% 
   splitAsList(.$status) %>% 
@@ -1660,10 +1637,10 @@ if (!is.null(config$external$coverage)) {
     ext_cov_path %>% 
       lapply(
         function(x) {
-          missing <- setdiff(names(x), names(treat_cols))
-          cmn <- intersect(names(x), names(treat_cols))
+          missing <- setdiff(names(x), names(treat_colours))
+          cmn <- intersect(names(x), names(treat_colours))
           col <- setNames(character(length(names(x))), names(x))
-          if (length(cmn) > 0) col[cmn] <- treat_cols[cmn]
+          if (length(cmn) > 0) col[cmn] <- treat_colours[cmn]
           if (length(missing) > 0) 
             col[missing] <- hcl.colors(
               max(5, length(missing)), "Zissou 1")[seq_along(missing)]
@@ -1807,7 +1784,7 @@ grl_to_plot %>%
     show.legend = FALSE
   ) + 
   facet_wrap(~name + range, scales = "free_x") +
-  scale_colour_manual(values = treat_cols) + 
+  scale_colour_manual(values = treat_colours) + 
   labs(
     x = "Sliding Window\n(Unmerged)", y = "SQ-Normalised logCPM", colour = "Treat",
     linetype = str_sep_to_title(rep_col)
@@ -2002,8 +1979,8 @@ plotHFGC(
 ```{r msigdb}
 msigdb <- msigdbr(species = "Homo sapiens") %>% 
   dplyr::filter(
-    gs_cat %in% c("H") |
-      gs_subcat %in% c("CP:KEGG", "CP:REACTOME", "CP:WIKIPATHWAYS", "TFT:GTRD"),
+    gs_cat %in% unlist(params$msigdb$gs_cat) |
+      gs_subcat %in% unlist(params$msigdb$gs_subcat),
     str_detect(ensembl_gene, "^E")
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
@@ -2031,11 +2008,24 @@ msigdb %>%
   mutate(
     Description = case_when(
       Category == "H" ~ "Hallmark Gene-Sets",
+      Category == "C1" ~ "Positional Gene Sets",
       Category == "C2" ~ str_replace_all(`Sub-Category`, "CP:(.+)", "Curated Gene-Sets: \\1"),
-      Category == "C3" ~ str_replace_all(`Sub-Category`, "TFT:(.+)", "Transcription Factor Target Prediction Gene-Sets: \\1")
+      str_detect(`Sub-Category`, "TFT") ~ str_replace_all(`Sub-Category`, "TFT:(.+)", "Transcription Factor Target Prediction Gene-Sets: \\1"),
+      str_detect(`Sub-Category`, "MIR") ~ str_replace_all(`Sub-Category`, "MIR:(.+)", "microRNA Target Gene-Sets: \\1"),
+      str_detect(`Sub-Category`, "CGN") ~ "Cancer Gene Neighbourhoods",
+      str_detect(`Sub-Category`, "CM") ~ "Cancer Modules",
+      str_detect(`Sub-Category`, "GO:BP") ~ "Gene Ontology: Bological Process",
+      str_detect(`Sub-Category`, "GO:MF") ~ "Gene Ontology: Molecular Function",
+      str_detect(`Sub-Category`, "GO:CC") ~ "Gene Ontology: Cellular Component",
+      str_detect(`Sub-Category`, "HPO") ~ "Human Phenotype Ontology",
+      Category == "C6" ~ "Oncogenic Signature Gene Sets",
+      `Sub-Category` == "IMMUNESIGDB" ~ "ImmuneSigDB Gene Sets",
+      `Sub-Category` == "VAX" ~ "Vaccine Response Gene Sets",
+      Category == "C8" ~ "Cell Type Signature Gene Sets"
     ),
-    Category = factor(Category, levels = c("H", "C2", "C3"))
+    Category = factor(Category, levels = c("H", paste0("C", 1:8)))
   ) %>% 
+  droplevels() %>% 
   arrange(Category) %>% 
   pander(
     justify = "llrl", 
@@ -2127,7 +2117,7 @@ tbl <- goseq_mapped %>%
       ),
       Mapped = colDef(maxWidth = 80),
       "Total Gene Set Size" = colDef(
-        maxWidth = 100,
+        maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),
       p = colDef(
@@ -2216,7 +2206,9 @@ tbl <- goseq_diff %>%
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
   ) %>% 
-  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::filter(
+    gene_id %in% unlist(subset(merged_results, status != "Unchanged")$gene_id)
+  ) %>% 
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   mutate(
@@ -2243,9 +2235,9 @@ tbl <- goseq_diff %>%
         minWidth = 200,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      "Mapped To DB Windows" = colDef(maxWidth = 100),
+      "Mapped To DB Windows" = colDef(maxWidth = 80),
       "Total Mapped" = colDef(
-        maxWidth = 100,
+        maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),
       p = colDef(
@@ -2256,7 +2248,7 @@ tbl <- goseq_diff %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       FDR = colDef(
         cell = function(value) {
@@ -2266,7 +2258,7 @@ tbl <- goseq_diff %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       "Genes Mapped to DB Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
@@ -2335,7 +2327,9 @@ tbl <- goseq_up %>%
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
   ) %>% 
-  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::filter(
+    gene_id %in% unlist(subset(merged_results, status == "Up")$gene_id)
+  ) %>% 
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   mutate(
@@ -2362,9 +2356,9 @@ tbl <- goseq_up %>%
         minWidth = 200,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      "Mapped to Gained Windows" = colDef(maxWidth = 100),
+      "Mapped to Gained Windows" = colDef(maxWidth = 80),
       "Total Mapped" = colDef(
-        maxWidth = 100,
+        maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),
       p = colDef(
@@ -2375,7 +2369,7 @@ tbl <- goseq_up %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       FDR = colDef(
         cell = function(value) {
@@ -2385,7 +2379,7 @@ tbl <- goseq_up %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       "Genes Mapped to Gained Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
@@ -2453,7 +2447,9 @@ tbl <- goseq_down %>%
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
   ) %>% 
-  dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
+  dplyr::filter(
+    gene_id %in% unlist(subset(merged_results, status == "Down")$gene_id)
+  ) %>% 
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   mutate(
@@ -2480,9 +2476,9 @@ tbl <- goseq_down %>%
         minWidth = 200,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      "Mapped to Decreased Windows" = colDef(maxWidth = 100),
+      "Mapped to Decreased Windows" = colDef(maxWidth = 80),
       "Total Mapped" = colDef(
-        maxWidth = 100,
+        maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),
       p = colDef(
@@ -2493,7 +2489,7 @@ tbl <- goseq_down %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       FDR = colDef(
         cell = function(value) {
@@ -2503,7 +2499,7 @@ tbl <- goseq_down %>%
             sprintf("%.3f", value)
           )
         },
-        maxWidth = 100
+        maxWidth = 80
       ),
       "Genes Mapped to Decreased Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),

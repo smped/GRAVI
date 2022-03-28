@@ -75,36 +75,29 @@ rule download_cytobands:
 		fi
 		"""
 
-rule setup_annotations:
+rule create_annotations:
 	input:
 		bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = indiv_pre),
-		blacklist = blacklist,
-		config = "config/config.yml",
 		gtf = gtf,
-		rmd = "workflow/modules/annotation_setup.Rmd",
+		r = os.path.join("workflow", "scripts", "create_annotations.R"),
 		pkgs = rules.install_packages.output,
-		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output
+		yaml = os.path.join("config", "params.yml")
 	output:
-		annotations = ALL_RDS,
-		chrom_sizes = chrom_sizes,
-		rdata = os.path.join("output", "envs", "annotation_setup.RData"),
-		rmd = os.path.join(rmd_path, "annotation_setup.Rmd"),
-		html = "docs/annotation_setup.html",
-		fig_path = directory(
-			os.path.join("docs", "annotation_setup_files", "figure-html")
-		)
+		rds = expand(
+		  os.path.join(annotation_path, "{file}.rds"),
+		  file = ['all_gr', 'gene_regions', 'tss', 'seqinfo', 'trans_models']
+		),
+		chrom_sizes = chrom_sizes
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
-	threads: 8
-	log: "workflow/logs/rmarkdown/annotation_setup.log"
+	threads: 16
+	log: "workflow/logs/scripts/create_annotations.log"
 	shell:
 		"""
-		cp {input.rmd} {output.rmd}
-		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
+		Rscript --vanilla {input.r} {input.gtf} {threads} &>> {log}
 
 		if [[ {params.git} == "True" ]]; then
 			TRIES={params.tries}
@@ -117,12 +110,7 @@ rule setup_annotations:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add \
-			  {output.annotations} \
-			  {output.chrom_sizes} \
-			  {output.rmd} \
-			  {output.html} \
-			  {output.fig_path}
+			git add {output}
 		fi
 		"""
 
