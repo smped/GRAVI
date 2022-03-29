@@ -18,6 +18,7 @@ library(scales)
 library(yaml)
 library(reactable)
 library(htmltools)
+library(plyranges)
 library(GenomicInteractions)
 ```
 
@@ -37,6 +38,15 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 annotation_path <- here::here("output", "annotations")
+all_out <- list(
+  chrom_sizes = file.path(annotation_path, "chrom.sizes"),
+  gene_regions = file.path(annotation_path, "gene_regions.rds"),
+  gtf  = file.path(annotation_path, "all_gr.rds"),
+  seqinfo = file.path(annotation_path, "seqinfo.rds"),
+  transcript_models = file.path(annotation_path, "trans_models.rds"),
+  tss = file.path(annotation_path, "tss.rds"),
+  colours = file.path(annotation_path, "colours.rds")
+)
 ```
 
 ```{r extra-funs}
@@ -694,7 +704,7 @@ if (length(missing_dir_cols) > 0){
   )
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
-write_rds(colours, file.path(annotation_path, "colours.rds"), compress = "gz")
+write_rds(colours, all_out$colours, compress = "gz")
 ```
 
 
@@ -735,14 +745,9 @@ To change any colours, simply add them to `config/rmarkdown.yml`.
 
 # Data Export
 
-During this workflow, the following files were exported:
+During the setup of all required annotations, the following files were exported:
 
 `r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
-
-```{r save-renv}
-if (!dir.exists(dirname(all_out$env))) dir.create(dirname(all_out$env))
-save.image(all_out$env)
-```
 
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">

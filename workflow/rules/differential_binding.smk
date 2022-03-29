@@ -49,7 +49,10 @@ rule differential_binding:
 			os.path.join("config", "{file}.yml"),
 			file = ['config', 'params']
 		),
-		module = "workflow/modules/differential_binding.Rmd"
+		modules = expand(
+			os.path.join("workflow", "modules", "{file}.Rmd"),
+			file = ['differential_binding', 'rnaseq_differential_binding']
+		)
 	output:
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
@@ -61,12 +64,13 @@ rule differential_binding:
 				"figure-html"
 			)
 		),
-		rdata = expand(
+		renv = expand(
 			os.path.join(
 				"output", "envs",
-				"{{target}}_{{ref}}_{{treat}}_differential_binding.RData")
+				"{{target}}_{{ref}}_{{treat}}_differential_binding.RData"
+			)
 		),
-		rds = expand(
+		outs = expand(
 			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),
 			file = ['differential_binding.rds', 'down.bed', 'up.bed']
 		),
@@ -112,6 +116,6 @@ rule differential_binding:
 			git add {output.rmd}
 			git add {output.html}
 			git add {output.fig_path}
-			git add {output.rds}
+			git add {output.outs}
 		fi
 		"""

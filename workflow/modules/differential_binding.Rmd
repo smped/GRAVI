@@ -143,6 +143,20 @@ rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
 rna_col <- c(tx_col, "gene_id")[[1]]
 ```
 
+```{r set-colours}
+colours <- read_rds(here::here("output", "annotations", "colours.rds")) %>% 
+  lapply(unlist)
+region_colours <- setNames(colours$regions, regions[names(colours$regions)])
+if (has_features)
+  feature_colours <- setNames(
+    colours$features, str_sep_to_title(names(colours$features))
+  )
+direction_colours <- colours$direction %>% 
+  setNames(str_to_title(names(.))) %>% 
+  .[c("Up", "Down", "Unchanged")]
+treat_colours <- colours$treat[treat_levels]
+```
+
 
 ```{r load-hic}
 hic <- GInteractions()
@@ -182,12 +196,12 @@ if (length(hic_path) > 0)
         pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
       )
     if (has_features) {
-      feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 
+      feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>% 
         as.matrix() %>% 
         apply(
           MARGIN = 1, 
           function(x) {
-            x <- sort(factor(x, levels = names(feat_col)))
+            x <- sort(factor(x, levels = names(feature_colours)))
             paste(as.character(x), collapse = " - ")
           }
         ) %>% 
@@ -202,7 +216,7 @@ if (length(hic_path) > 0)
         apply(
           MARGIN = 1, 
           function(x) {
-            x <- sort(factor(x, levels = names(feat_col)))
+            x <- sort(factor(x, levels = names(feature_colours)))
             paste(as.character(x), collapse = " - ")
           }
         ) %>% 
@@ -214,20 +228,6 @@ stopifnot(is(hic, "GInteractions"))
 seqlevels(hic) <- seqlevels(sq)
 seqinfo(hic) <- sq
 hic <- hic[!overlapsAny(hic, blacklist)]
-```
-
-```{r set-colours}
-colours <- read_rds(here::here("output", "annotations", "colours.rds")) %>% 
-  lapply(unlist)
-region_colours <- setNames(colours$regions, regions[names(colours$regions)])
-if (has_features)
-  feature_colours <- setNames(
-    colours$features, str_sep_to_title(names(colours$features))
-  )
-direction_colours <- colours$direction %>% 
-  setNames(str_to_title(names(.))) %>% 
-  .[c("Up", "Down", "Unchanged")]
-treat_colours <- colours$treat[treat_levels]
 ```
 
 
@@ -1652,13 +1652,13 @@ y_lim <- bwfl[[target]] %>%
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
   GRangesList()
-feat_col <- colours$regions
+feature_colours <- colours$regions
 if (has_features) {
   feat_gr <- feat_gr %>% 
     c(
       splitAsList(external_features, external_features$feature)
     )
-  feat_col <- c(feat_col, colours$features)
+  feature_colours <- c(feature_colours, colours$features)
 }
 
 ## The genes track
@@ -1865,7 +1865,7 @@ grl_to_plot %>%
 plotHFGC(
   grl_to_plot$top_down_by_expr,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1889,7 +1889,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_fdr,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1913,7 +1913,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_lfc,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1935,7 +1935,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_no_macs2,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1958,7 +1958,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_expr,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1982,7 +1982,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_fdr,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -2006,7 +2006,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_lfc,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -2030,7 +2030,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_no_macs2,
   hic = hic,
-  features = feat_gr,featcol = feat_col,
+  features = feat_gr,featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -2595,19 +2595,24 @@ all_out <- list(
   down_regions = file.path(
     out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_down.bed")
   ),
-  renv = file.path(
-    here::here("output/envs"), 
-    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.RData")
+  renv = here::here(
+    "output/envs",
+    glue(
+      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.RData"
+    )
   )
 )
 write_rds(merged_results, all_out$results, compress = "gz")
 write_rds(filtered_counts, all_out$windows, compress = "gz")
+
 file.create(all_out$up_regions)
 if (length(sig_ranges$Up) > 0) 
   export.bed(granges(sig_ranges$Up), all_out$up_regions)
+
 file.create(all_out$down_regions)
 if (length(sig_ranges$Down) > 0) 
   export.bed(granges(sig_ranges$Down), all_out$down_regions)
+
 save.image(all_out$renv)
 ```
 
@@ -2620,7 +2625,9 @@ During this workflow, the following files were exported:
 </button>
 </p>
 <div id="sessioninfo" class="collapse">
+
 ```{r session-info, echo=FALSE}
 pander::pander(sessionInfo())
 ```
+
 </div>

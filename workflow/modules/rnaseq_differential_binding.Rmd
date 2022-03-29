@@ -42,13 +42,13 @@ diff_windows <- merged_results %>%
 
 ## Relationship To Detected Genes {.tabset}
 
-### Detected Genes By Binding Region
+### Detected Genes By `r target` Binding Region
 
-Firstly, the distribution of merged windows was compared to genes within the RNA-Seq dataset.
+Firstly, the distribution of merged windows, where `r target` was considered as present, was compared to genes within the RNA-Seq dataset.
 Genes were simply considered as detected if present in the RNA-Seq data, or undetected if not present.
 Gene-centric regions were as defined previously.
 
-```{r plot-region-detected, fig.height = 6, fig.cap = "*Distribution of merged windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*"}
+```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 w <- 0.8
 min_p <- 0.05
 merged_results %>% 
@@ -93,7 +93,7 @@ merged_results %>%
 
 `r ifelse(has_features, "### Detected Genes By Feature", "")`
 
-```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = "*Distribution of merged windows by externally-provided features, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*"}
+```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by externally-defined features from {basename(config$external$features)}, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 merged_results %>% 
   mutate(
     any_detected = ifelse(
@@ -137,7 +137,7 @@ merged_results %>%
 
 `r ifelse(has_features, "### Detected Genes By Feature and Binding Region", "")`
 
-```{r plot-region-feature-detected, eval = has_features, echo = has_features, fig.cap = "*Distribution of merged windows mapped to detected/undetected genes separated by gene-centric-region and external fatures.*" }
+```{r plot-region-feature-detected, eval = has_features, echo = has_features, fig.cap = glue("*Distribution of {target}-bound windows mapped to detected/undetected genes separated by both gene-centric-region and external fatures.*")}
 merged_results %>% 
   mutate(
     any_detected = ifelse(
@@ -290,6 +290,8 @@ p <- gsea_dir_sig %>%
   )
 ```
 
+`r if (nrow(gsea_dir_sig) = 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes.")`
+
 ```{r tbl-gsea-dir_sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0}
 cp <-  htmltools::em(
   glue(
@@ -312,8 +314,8 @@ tbl <- gsea_dir_sig %>%
     pathway = str_remove_all(pathway, " / [^/]+$")
   ) %>% 
   dplyr::select(
-    pathway, !!sym(target), `N Windows` = size, Direction, 
-    p = pval, FDR = padj, NES, `Edge Size`, `Leading Edge` = leadingEdge
+    pathway, !!sym(target), Windows = size, Direction, 
+    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -322,7 +324,7 @@ tbl <- gsea_dir_sig %>%
         minWidth = 100, name = "Region"
       ),
       "{target}" := colDef(
-        maxWidth = 80,
+        maxWidth = 90,
         cell = function(value) {
           html_symbol <- ""
           if (str_detect(value, "Up")) html_symbol <- "\u21E7"
@@ -330,15 +332,15 @@ tbl <- gsea_dir_sig %>%
           paste(html_symbol, value)
         },
         style = function(value) {
-          colour <- ifelse(
-            str_detect(value, "Up"), 
-            colours$direction[["up"]], 
-            colours$direction[["down"]]
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            TRUE ~ colours$direction[["unchanged"]]
           )
           list(color = colour)
         }
       ),
-      "N Windows" = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80),
       Direction = colDef(
         name = "Gene Direction",
         maxWidth = 120,
@@ -357,9 +359,6 @@ tbl <- gsea_dir_sig %>%
       FDR = colDef(
         cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
-      NES = colDef(
-        cell = function(value) sprintf("%.2f", value), maxWidth = 80
-      ),
       "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(
        minWidth = 150,
@@ -377,7 +376,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = "*Barcode plots for sets of windows associated with directional changes in gene expression.*"}
+```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -402,6 +401,7 @@ p <- gsea_nondir_sig %>%
   )
 ```
 
+`r if (nrow(gsea_nondir_sig) = 0) glue("No association was found between {target} binding and *overall* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea_nondir_sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0}
 cp <-  htmltools::em(
@@ -423,7 +423,7 @@ tbl <- gsea_nondir_sig %>%
     pathway = str_remove_all(pathway, " / [^/]+$")
   ) %>% 
   dplyr::select(
-    pathway, !!sym(target), `N Windows` = size, p = pval, FDR = padj, 
+    pathway, !!sym(target), Windows = size, p = pval, FDR = padj, 
     `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
@@ -441,15 +441,15 @@ tbl <- gsea_nondir_sig %>%
           paste(html_symbol, value)
         },
         style = function(value) {
-          colour <- ifelse(
-            str_detect(value, "Up"), 
-            colours$direction[["up"]], 
-            colours$direction[["down"]]
+           colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            TRUE ~ colours$direction[["unchanged"]]
           )
           list(color = colour)
         }
       ),
-      "N Windows" = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80),
       p = colDef(
         cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
@@ -471,7 +471,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = "*Barcode plots for sets of windows associated with non-directional changes in gene expression.*"}
+```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -576,7 +576,7 @@ ct <- trans_models %>%
 plotHFGC(
   grl_to_plot[[i]],
   hic = hic,
-  features = feat_gr, featcol = feat_col,
+  features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
   linecol = line_col,
@@ -611,7 +611,7 @@ ct <- trans_models %>%
 plotHFGC(
   grl_to_plot[[i]],
   hic = hic,
-  features = feat_gr, featcol = feat_col,
+  features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
   linecol = line_col,
@@ -646,7 +646,7 @@ ct <- trans_models %>%
 plotHFGC(
   grl_to_plot[[i]],
   hic = hic,
-  features = feat_gr, featcol = feat_col,
+  features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
   linecol = line_col,
@@ -681,7 +681,7 @@ ct <- trans_models %>%
 plotHFGC(
   grl_to_plot[[i]],
   hic = hic,
-  features = feat_gr, featcol = feat_col,
+  features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
   linecol = line_col,
@@ -716,7 +716,7 @@ ct <- trans_models %>%
 plotHFGC(
   grl_to_plot[[i]],
   hic = hic,
-  features = feat_gr, featcol = feat_col,
+  features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
   linecol = line_col,

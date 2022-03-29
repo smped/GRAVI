@@ -332,11 +332,12 @@ rule build_macs2_summary:
 				"figure-html"
 			)
 		),
-		venn = "docs/assets/{target}/{target}_common_peaks.png",
 		peaks = expand(
 			"output/{{target}}/{file}",
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
-		)
+		),
+		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),
+		venn = "docs/assets/{target}/{target}_common_peaks.png"
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
@@ -366,6 +367,10 @@ rule build_macs2_summary:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output}
+			git add {output.rmd} \
+			  {output.html}\
+			  {output.fig_path} \
+			  {output.peaks} \
+			  {output.venn}
 		fi
 		"""

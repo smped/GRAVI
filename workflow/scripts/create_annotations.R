@@ -24,7 +24,7 @@ stopifnot(library(extraChIPs, logical.return = TRUE))
 args <- commandArgs(TRUE)
 gtf <- args[[1]]
 threads <- args[[2]]
-register(MultiCoreParam(threads))
+register(MulticoreParam(threads))
 
 config <- read_yaml(here::here("config", "config.yml"))
 params <- read_yaml(here::here("config", "params.yml"))
@@ -60,6 +60,7 @@ sq <- samples %>%
   ) %>%
   as("Seqinfo")
 write_rds(sq, all_out$seqinfo)
+cat("Seqinfo exported...\n")
 
 #### chrom_sizes ####
 ## For bedGraphToBigWig
@@ -67,6 +68,7 @@ sq %>%
   as_tibble() %>%
   dplyr::select(seqnames, seqlengths) %>%
   write_tsv(all_out$chrom_sizes, col_names = FALSE)
+cat("chrom_sizes exported...\n")
 
 #### GTF ####
 reqd_cols <- c(
@@ -92,6 +94,7 @@ all_gr <- gtf %>%
   splitAsList(f = .$type)
 seqinfo(all_gr) <- sq
 write_rds(all_gr, all_out$gtf, compress = "gz")
+cat("all_gr.rds written successfully...\n")
 
 #### Transcript Models (Gviz) ####
 trans_models <- all_gr$exon %>%
@@ -104,6 +107,7 @@ trans_models <- all_gr$exon %>%
   sort() %>%
   setNames(.$transcript)
 write_rds(trans_models, all_out$transcript_models, compress = "gz")
+cat("trans_models.rds written successfully...\n")
 
 #### Optional RNA-Seq ####
 rna_path <- here::here(config$external$rnaseq)
@@ -113,6 +117,7 @@ if (length(rna_path) > 0) {
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+  cat("RNA-Seq imported. detected will be an informative column...\n")
 }
 tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
 rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
@@ -129,6 +134,7 @@ tss <- all_gr$transcript %>%
   ) %>%
   select(region, everything(), -type)
 write_rds(tss, all_out$tss, compress = "gz")
+cat("TSS regions exported...\n")
 
 #### Promoters ####
 prom_params <- params$gene_regions$promoters
@@ -148,8 +154,10 @@ gene_regions <- list(
     ) %>%
     select(region, everything(), -type)
 )
+cat("Promoters defined...\n")
 
 #### Upstream Promoters ####
+cat("Began defining upstream promoters at ", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 gene_regions$upstream <- all_gr$transcript %>%
   promoters(upstream = params$gene_regions$upstream, downstream = 0)  %>%
   mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>%
@@ -176,6 +184,7 @@ gene_regions$upstream <- all_gr$transcript %>%
   GRangesList() %>%
   unlist() %>%
   setNames(c())
+cat("Finished defining upstream promoters at ", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Exons ####
 gene_regions$exons <- all_gr$exon %>%
@@ -192,6 +201,7 @@ gene_regions$exons <- all_gr$exon %>%
     detected = vapply(detected, any, logical(1))
   ) %>%
   select(region, everything(), -type)
+cat("Exons defined at ", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Introns ####
 gene_regions$introns <- all_gr$gene %>%
@@ -213,6 +223,7 @@ gene_regions$introns <- all_gr$gene %>%
     detected = vapply(detected, any, logical(1))
   ) %>%
   select(region, everything(), -type)
+cat("Introns defined at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Intergenic Distal ####
 suppressWarnings(
@@ -232,6 +243,7 @@ suppressWarnings(
       detected = FALSE
     )
 )
+cat("Distal Intergenic Regions defined at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Intergenic Proximal ####
 gene_regions$proximal <- setdiff(
@@ -248,6 +260,7 @@ gene_regions$proximal <- setdiff(
     )
   ) %>%
   select(region, everything(), -type)
+cat("Proximal Intergenic Regions defined at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Final Tidy Up ####
 ##Remove any columns which are just NA
@@ -274,4 +287,5 @@ o <- c(
 )
 gene_regions <- gene_regions[o]
 write_rds(gene_regions, all_out$gene_regions, compress = "gz")
+cat("Date export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
