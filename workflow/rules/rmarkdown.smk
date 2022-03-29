@@ -74,7 +74,7 @@ rule create_setup_chunk:
 rule build_annotations_rmd:
   input:
     blacklist = blacklist,
-    rmd = "workflow/modules/annotation_setup.Rmd",
+    rmd = "workflow/modules/annotation_description.Rmd",
     rds = expand(
       os.path.join(annotation_path, "{file}.rds"),
       file = ['all_gr', 'gene_regions', 'seqinfo', 'trans_models', 'tss']
@@ -86,11 +86,11 @@ rule build_annotations_rmd:
       file = ['config', 'colours', 'rmarkdown']
     )
   output:
-    rmd = "analysis/annotation_setup.Rmd",
+    rmd = "analysis/annotation_description.Rmd",
     rds = os.path.join(annotation_path, "colours.rds"),
-    html = "docs/annotation_setup.html",
+    html = "docs/annotation_description.html",
     fig_path = directory(
-			os.path.join("docs", "annotation_setup_files", "figure-html")
+			os.path.join("docs", "annotation_description_files", "figure-html")
 		)
 	params:
 		git = git_add,

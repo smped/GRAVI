@@ -10,16 +10,13 @@ library(yaml)
 library(glue)
 
 args <- commandArgs(TRUE)
-fl <- args[[1]]
+fl <- here::here(args[[1]])
 
 config <- read_yaml(here::here("config", "config.yml"))
 rmd <- read_yaml(here::here("config", "rmarkdown.yml"))
 samples <- read_tsv(here::here(config$samples$file))
 targets <- sort(unique(samples$target))
 treats <- unique(samples$treat)
-
-## Check colours are present for every treatment
-stopifnot(c("Input", treats) %in% names(rmd$colours$treat))
 
 ## Sort out the comparisons
 comparisons <- lapply(
@@ -51,20 +48,9 @@ if (!is.null(site_yaml$output_dir)) {
 annotation_html <- list(
       list(
         text = "Genome and Transcriptome Annotations",
-        href = "annotation_setup.html"
+        href = "annotation_description.html"
       )
 )
-if ("H3K27ac" %in% targets) {
-  annotation_html <- c(
-    annotation_html,
-    list(
-      list(
-        text = "Identification of Super-Enhancers",
-        href = "rose.html"
-      )
-    )
-  )
-}
 
 site_yaml$navbar$left <- list(
   ## This first item shouldn't change

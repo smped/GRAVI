@@ -38,10 +38,10 @@ Treatment groups and targets are specified using `config/config.yml`.
 here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
-  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create)") %>%
+  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install)") %>%
   change_node_colour("(setup|index|macs2|bedgraph|identify|binding|install)", "red") %>%
-  change_node_colour("(download|write|copy)", "blue") %>%
-  change_node_colour("(site|create|define|rmd)", "forestgreen") %>%
+  change_node_colour("(download|write|copy|install)", "blue") %>%
+  change_node_colour("(site|create|build|differential)", "forestgreen") %>%
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
   str_replace_all("fontsize=[0-9]+", "fontsize=16") %>%
