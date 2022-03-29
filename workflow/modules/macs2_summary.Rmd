@@ -30,7 +30,6 @@ library(ggside)
 if (!"extraChIPs" %in% rownames(installed.packages()))
   BiocManager::install("steveped/extraChIPs", ask = FALSE)
 stopifnot(library(extraChIPs, logical.return = TRUE))
-# source(here::here("workflow", "scripts", "autoload.R"))
 ```
 
 ```{r options}
@@ -466,11 +465,12 @@ oracle_peaks %>%
 In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic **consensus peaks** were defined.
 Ranges were the union of any overlapping ranges identified in one or more sets of oracle peaks.
 
-
-```{r plot-common-peaks, results = 'hide', fig.height = ifelse(length(treat_levels) <= 3, 9, 6), fig.width = ifelse(length(treat_levels) <= 3, 6, 10), fig.cap="*Number of consensus peaks that overlap the oracle peaks defined in each condition.*"}
+```{r plot-common-peaks, results = 'hide'}
 fig_path <- here::here("docs", "assets", target)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- glue("{target}_common_peaks.png")
+## An empty file to keep snakemake happy if > 3 treatments
+file.create(file.path(fig_path, fig_name)) 
 if (length(treat_levels) <= 3) {
   vd <- oracle_peaks %>%
     lapply(
@@ -483,36 +483,37 @@ if (length(treat_levels) <= 3) {
       filename = file.path(fig_path, fig_name),
       imagetype = "png",
       units = "in",
-      height = knitr::opts_chunk$get("fig.height"), 
-      width = knitr::opts_chunk$get("fig.width"),
+      height = 9, 
+      width = 10,
       fill = colours$treat[treat_levels],
       alpha = 0.3
     )
   file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 }
-if (length(treat_levels) > 3) {
-  oracle_peaks %>%
-    lapply(
-      function(x) {
-        names(subsetByOverlaps(consensus_peaks, x))
-      }
-    ) %>%
-    setNames(treat_levels) %>%
-    fromList() %>%
-    upset(
-      sets = treat_levels,
-      keep.order = TRUE,
-      order.by = "freq",
-      sets.bar.color = colours$treat[treat_levels],
-      set_size.show = TRUE,
-      set_size.scale_max = nrow(.) * 1.2,
-      text.scale = 1.2
-    )
-  file.create(file.path(fig_path, fig_name)) # An empty file to keep snakemake happy
-}
 ```
 
 `r ifelse(length(treat_levels) <= 3, glue("![*Number of consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.png)"), "")`
+
+```{r plot-common-upset, eval = length(treat_levels) > 3, echo = length(treat_levels) > 3, fig.height = 7, fig.cap = "*Number of consensus peaks which overlap the oracle peaks defined within each condition.*"}
+oracle_peaks %>%
+  lapply(
+    function(x) {
+      names(subsetByOverlaps(consensus_peaks, x))
+    }
+  ) %>%
+  setNames(treat_levels) %>%
+  fromList() %>%
+  upset(
+    sets = treat_levels,
+    keep.order = TRUE,
+    order.by = "freq",
+    sets.bar.color = colours$treat[treat_levels],
+    set_size.show = TRUE,
+    set_size.scale_max = nrow(.) * 1.2,
+    text.scale = 1.2
+  )
+```
+
 
 ### Distance to TSS 
 

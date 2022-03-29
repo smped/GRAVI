@@ -23,13 +23,6 @@ stopifnot(library(extraChIPs, logical.return = TRUE))
 
 args <- commandArgs(TRUE)
 gtf <- args[[1]]
-# gtf <- glue(
-#   "{annotation_path}/",
-#   "gencode.v", config$genome$gencode, "lift",
-#   str_extract(config$genome$build, '[0-9]+$'),
-#   ".annotation.gtf.gz"
-# )
-
 threads <- args[[2]]
 register(MultiCoreParam(threads))
 

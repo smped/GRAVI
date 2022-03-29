@@ -6,8 +6,8 @@ id2gene <- structure(genes_gr$gene_name, names = genes_gr$gene_id)
 rna_status <- rnaseq %>% 
   mutate(
     de_status = case_when(
-      !!sym(rna_fdr_col) < fdr_alpha & !!sym(lfc_col) < 0 ~ "Down",
-      !!sym(rna_fdr_col) < fdr_alpha & !!sym(lfc_col) > 0 ~ "Up",
+      !!sym(rna_fdr_col) < fdr_alpha & !!sym(rna_lfc_col) < 0 ~ "Down",
+      !!sym(rna_fdr_col) < fdr_alpha & !!sym(rna_lfc_col) > 0 ~ "Up",
       !!sym(rna_fdr_col) >= fdr_alpha ~ "Unchanged"
     )
   ) %>% 
@@ -59,7 +59,7 @@ merged_results %>%
       "Mapped to Undetected Genes"
     )
   ) %>% 
-  plotPie(fill = "region", x = "any_detected", label_size = 5, width = w) +
+  plotPie(fill = "region", x = "any_detected", label_size = 4, width = w) +
   geom_text(
     aes(xlab, ylab, label =lab),
     data = . %>% 
@@ -69,7 +69,7 @@ merged_results %>%
         lab = glue("{region}\n{percent(p, 0.1)}") %>% 
           str_wrap(10)
       ) %>% 
-      dplyr::filter(p > min_p),
+      dplyr::filter(p * N > min_p * max(N)),
     size = 3
   ) +
   geom_segment(
@@ -81,7 +81,7 @@ merged_results %>%
         x_outer = x + w*(r + 0.01)*sin(label_radians),
         y_outer = 1 + w*(r + 0.01)*cos(label_radians),
       ) %>% 
-      dplyr::filter(p > min_p)
+      dplyr::filter(p * N > min_p * max(N))
   ) +
   scale_fill_manual(
     values = colours$regions %>% 
@@ -102,7 +102,7 @@ merged_results %>%
       "Mapped to Undetected Genes"
     )
   ) %>% 
-  plotPie(fill = "feature", x = "any_detected", label_size = 5, width = w) +
+  plotPie(fill = "feature", x = "any_detected", label_size = 4, width = w) +
   geom_text(
     aes(xlab, ylab, label =lab),
     data = . %>% 
@@ -112,7 +112,7 @@ merged_results %>%
         lab = glue("{feature}\n{percent(p, 0.1)}") %>% 
           str_wrap(10)
       ) %>% 
-      dplyr::filter(p > min_p),
+      dplyr::filter(p * N > min_p * max(N)),
     size = 3
   ) +
   geom_segment(
@@ -124,7 +124,7 @@ merged_results %>%
         x_outer = x + w*(r + 0.01)*sin(label_radians),
         y_outer = 1 + w*(r + 0.01)*cos(label_radians),
       ) %>% 
-      dplyr::filter(p > min_p)
+      dplyr::filter(p * N > min_p * max(N))
   ) +
   scale_fill_manual(
     values = colours$features %>% 
@@ -148,7 +148,7 @@ merged_results %>%
   ) %>% 
   plotPie(
     fill = "region", y = "any_detected", x = "feature", 
-    label_alpha = 0.7, label_size = 5, width = w
+    label_alpha = 0.7, label_size = 4, width = w
   ) +
   geom_text(
     aes(xlab, ylab, label =lab),
@@ -159,7 +159,7 @@ merged_results %>%
         lab = glue("{region}\n{percent(p, 0.1)}") %>% 
           str_wrap(12)
       ) %>% 
-      dplyr::filter(p > 0.2, N > 0.03 * sum(N)),
+      dplyr::filter(p * N > 0.1 * max(N)),
     size = 3
   ) +
   geom_segment(
@@ -171,14 +171,17 @@ merged_results %>%
         x_outer = x + w*(r + 0.02)*sin(label_radians),
         y_outer = y + w*(r + 0.02)*cos(label_radians),
       ) %>% 
-      dplyr::filter(p > 0.2, N > 0.03 * sum(N))
+      dplyr::filter(p * N > 0.1 * max(N))
   ) +
   scale_fill_manual(
     values = colours$regions %>% 
       setNames(regions[names(.)]) 
   ) +
   labs(x = "External Feature", y = "", fill = "Region") +
-  theme(panel.grid = element_blank())
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "top"
+  )
 ```
 
 
@@ -188,7 +191,7 @@ merged_results %>%
 ```{r define_genesets}
 rna_dir_ranks <- rnaseq %>% 
   mutate(
-    ranking_stat = -sign(!!sym(lfc_col))*log10(!!sym(rna_p_col)) %>% 
+    ranking_stat = -sign(!!sym(rna_lfc_col))*log10(!!sym(rna_p_col)) %>% 
       setNames(gene_id)
   ) %>% 
   arrange(ranking_stat) %>% 
@@ -254,13 +257,14 @@ rnaseq %>%
     colour = "black", fill = "grey", bins = 100
   ) +
   geom_text(
-    aes(0.85, y, label = lab),
+    aes(0.5, y, label = lab),
     data = . %>% 
       group_by(mapped) %>% 
       tally() %>% 
       mutate(lab = glue("N = {comma(n, 1)}"))
   ) +
-  facet_wrap(~mapped, nrow = 1)
+  facet_wrap(~mapped, nrow = 1) +
+  scale_y_continuous(expand = expansion(c(0, 0.05)))
 ```
 
 
@@ -298,23 +302,45 @@ cp <-  htmltools::em(
     "{comma(nrow(rnaseq), 1)} genes considered as detected."
   )
 )
-tbl <- gsea_dir_sig %>% 
+tbl <- gsea_dir_sig %>%
   mutate(
     `Edge Size` = vapply(leadingEdge, length, integer(1)),
     leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %>% 
       vapply(paste, character(1), collapse = "; "),
-    Direction = ifelse(NES > 0, "\u21E7 Up-regulated", "\u21E9 Down-regulated")
+    Direction = ifelse(NES > 0, "\u21E7 Up-regulated", "\u21E9 Down-regulated"),
+    "{target}" := str_extract(pathway, "(Up|Down|Unchanged)$"),
+    pathway = str_remove_all(pathway, " / [^/]+$")
   ) %>% 
   dplyr::select(
-    Description = pathway, `N Windows` = size, Direction, p = pval, FDR = padj, NES, 
-    `Edge Size`, `Leading Edge` = leadingEdge
+    pathway, !!sym(target), `N Windows` = size, Direction, 
+    p = pval, FDR = padj, NES, `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
-    columns = list(
-      Description = colDef(minWidth = 150),
-      "N Windows" = colDef(maxWidth = 100),
+    columns = list2(
+      pathway = colDef(
+        minWidth = 100, name = "Region"
+      ),
+      "{target}" := colDef(
+        maxWidth = 80,
+        cell = function(value) {
+          html_symbol <- ""
+          if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+          if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour <- ifelse(
+            str_detect(value, "Up"), 
+            colours$direction[["up"]], 
+            colours$direction[["down"]]
+          )
+          list(color = colour)
+        }
+      ),
+      "N Windows" = colDef(maxWidth = 80),
       Direction = colDef(
+        name = "Gene Direction",
         maxWidth = 120,
         style = function(value) {
           colour <- ifelse(
@@ -326,15 +352,15 @@ tbl <- gsea_dir_sig %>%
         },
       ),
       p = colDef(
-        cell = function(value) sprintf("%.2e", value), maxWidth = 100
+        cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
       FDR = colDef(
-        cell = function(value) sprintf("%.2e", value), maxWidth = 100
+        cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
       NES = colDef(
-        cell = function(value) sprintf("%.2f", value), maxWidth = 100
+        cell = function(value) sprintf("%.2f", value), maxWidth = 80
       ),
-      "Edge Size" = colDef(maxWidth = 100),
+      "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(
        minWidth = 150,
        cell = function(value) with_tooltip(value, width = 50)
@@ -393,23 +419,44 @@ tbl <- gsea_nondir_sig %>%
     `Edge Size` = vapply(leadingEdge, length, integer(1)),
     leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %>% 
       vapply(paste, character(1), collapse = "; "),
+    "{target}" := str_extract(pathway, "(Up|Down|Unchanged)$"),
+    pathway = str_remove_all(pathway, " / [^/]+$")
   ) %>% 
   dplyr::select(
-    Description = pathway, `N Windows` = size, p = pval, FDR = padj, 
+    pathway, !!sym(target), `N Windows` = size, p = pval, FDR = padj, 
     `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
-    columns = list(
-      Description = colDef(minWidth = 150),
-      "N Windows" = colDef(maxWidth = 100),
+    columns = list2(
+      pathway = colDef(
+        minWidth = 100, name = "Region"
+      ),
+      "{target}" := colDef(
+        maxWidth = 80,
+        cell = function(value) {
+          html_symbol <- ""
+          if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+          if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour <- ifelse(
+            str_detect(value, "Up"), 
+            colours$direction[["up"]], 
+            colours$direction[["down"]]
+          )
+          list(color = colour)
+        }
+      ),
+      "N Windows" = colDef(maxWidth = 80),
       p = colDef(
-        cell = function(value) sprintf("%.2e", value), maxWidth = 100
+        cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
       FDR = colDef(
-        cell = function(value) sprintf("%.2e", value), maxWidth = 100
+        cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
-      "Edge Size" = colDef(maxWidth = 100),
+      "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(
        minWidth = 150,
        cell = function(value) with_tooltip(value, width = 50)
@@ -540,6 +587,7 @@ plotHFGC(
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
   fontsize = 10,
+  max = width(grl_to_plot[[i]]),
   ylim = y_lim,
   highlight = c(),
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -573,6 +621,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
+  max = width(grl_to_plot[[i]]),
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
@@ -607,6 +656,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
+  max = width(grl_to_plot[[i]]),
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
@@ -641,6 +691,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
+  max = width(grl_to_plot[[i]]),
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
@@ -675,6 +726,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
+  max = width(grl_to_plot[[i]]),
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),

@@ -2,72 +2,70 @@ digraph snakemake_dag {
     graph[bgcolor=white, margin=0];
     node[shape=box, style=rounded, fontname=sans,                 fontsize=10, penwidth=2];
     edge[penwidth=2, color=grey];
-	0[label = "all", color = "0.63 0.6 0.85", style="rounded"];
-	1[label = "create_annotations", color = "0.41 0.6 0.85", style="rounded"];
-	2[label = "download_gtf", color = "0.44 0.6 0.85", style="rounded"];
-	3[label = "install_packages", color = "0.04 0.6 0.85", style="rounded"];
-	4[label = "build_annotations_rmd", color = "0.30 0.6 0.85", style="rounded"];
-	5[label = "download_blacklist", color = "0.52 0.6 0.85", style="rounded"];
-	6[label = "create_setup_chunk", color = "0.22 0.6 0.85", style="rounded"];
-	7[label = "build_macs2_summary", color = "0.48 0.6 0.85", style="rounded"];
-	8[label = "index_bam", color = "0.07 0.6 0.85", style="rounded"];
-	9[label = "macs2_individual", color = "0.11 0.6 0.85", style="rounded"];
-	10[label = "macs2_merged", color = "0.59 0.6 0.85", style="rounded"];
-	11[label = "macs2_qc", color = "0.15 0.6 0.85", style="rounded"];
-	12[label = "create_site_yaml", color = "0.37 0.6 0.85", style="rounded"];
-	13[label = "differential_binding", color = "0.26 0.6 0.85", style="rounded"];
-	14[label = "bedgraph_to_bigwig", color = "0.33 0.6 0.85", style="rounded"];
-	15[label = "build_site_index", color = "0.56 0.6 0.85", style="rounded"];
-	16[label = "get_coverage_summary", color = "0.00 0.6 0.85", style="rounded"];
-	16 -> 0
-	9 -> 0
-	4 -> 0
+	0[label = "all", color = "0.59 0.6 0.85", style="rounded"];
+	1[label = "create_annotations", color = "0.35 0.6 0.85", style="rounded"];
+	2[label = "download_gtf", color = "0.00 0.6 0.85", style="rounded"];
+	3[label = "install_packages", color = "0.20 0.6 0.85", style="rounded"];
+	4[label = "build_annotations_rmd", color = "0.47 0.6 0.85", style="rounded"];
+	5[label = "download_blacklist", color = "0.24 0.6 0.85", style="rounded"];
+	6[label = "create_setup_chunk", color = "0.08 0.6 0.85", style="rounded"];
+	7[label = "create_site_yaml", color = "0.51 0.6 0.85", style="rounded"];
+	8[label = "build_macs2_summary", color = "0.39 0.6 0.85", style="rounded"];
+	9[label = "index_bam", color = "0.04 0.6 0.85", style="rounded"];
+	10[label = "macs2_individual", color = "0.63 0.6 0.85", style="rounded"];
+	11[label = "macs2_merged", color = "0.27 0.6 0.85", style="rounded"];
+	12[label = "macs2_qc", color = "0.31 0.6 0.85", style="rounded"];
+	13[label = "differential_binding", color = "0.43 0.6 0.85", style="rounded"];
+	14[label = "bedgraph_to_bigwig", color = "0.12 0.6 0.85", style="rounded"];
+	15[label = "build_site_index", color = "0.55 0.6 0.85", style="rounded"];
 	14 -> 0
+	11 -> 0
 	1 -> 0
-	10 -> 0
-	7 -> 0
-	15 -> 0
+	8 -> 0
 	13 -> 0
-	3 -> 1
+	4 -> 0
+	15 -> 0
+	10 -> 0
 	2 -> 1
-	1 -> 4
+	3 -> 1
 	5 -> 4
 	6 -> 4
-	3 -> 7
-	8 -> 7
-	9 -> 7
-	11 -> 7
-	6 -> 7
-	4 -> 7
-	12 -> 7
-	1 -> 7
-	5 -> 7
-	10 -> 7
-	8 -> 9
-	8 -> 10
-	11 -> 10
-	3 -> 11
-	8 -> 11
+	1 -> 4
+	7 -> 4
+	9 -> 8
+	6 -> 8
+	3 -> 8
+	5 -> 8
+	11 -> 8
+	1 -> 8
+	12 -> 8
+	4 -> 8
+	7 -> 8
+	10 -> 8
+	9 -> 10
 	9 -> 11
-	1 -> 11
-	5 -> 11
-	3 -> 13
-	8 -> 13
-	11 -> 13
-	6 -> 13
-	4 -> 13
+	12 -> 11
+	9 -> 12
+	3 -> 12
+	5 -> 12
+	1 -> 12
+	10 -> 12
+	9 -> 13
 	14 -> 13
-	12 -> 13
+	6 -> 13
+	3 -> 13
+	11 -> 13
 	1 -> 13
+	12 -> 13
+	8 -> 13
+	4 -> 13
 	7 -> 13
-	10 -> 13
-	9 -> 14
-	10 -> 14
+	11 -> 14
 	1 -> 14
+	10 -> 14
 	6 -> 15
-	4 -> 15
-	12 -> 15
-	7 -> 15
+	8 -> 15
 	13 -> 15
-	14 -> 16
+	4 -> 15
+	7 -> 15
 }            

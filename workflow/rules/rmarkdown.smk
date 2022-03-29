@@ -80,6 +80,7 @@ rule build_annotations_rmd:
       file = ['all_gr', 'gene_regions', 'seqinfo', 'trans_models', 'tss']
     ),
     setup = rules.create_setup_chunk.output,
+    site_yaml = rules.create_site_yaml.output,
     yaml = expand(
       os.path.join("config", "{file}.yml"),
       file = ['config', 'colours', 'rmarkdown']
@@ -123,7 +124,7 @@ rule build_site_index:
 		html = HTML_OUT,
 		rmd = os.path.join(rmd_path, "index.Rmd"),
 		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output,
+		site_yaml = rules.create_site_yaml.output,
 		rulegraph = 'workflow/rules/rulegraph.dot'
 	output:
 		html = "docs/index.html"

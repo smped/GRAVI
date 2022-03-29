@@ -41,12 +41,14 @@ rule differential_binding:
 			]
 		),
 		samples = os.path.join("output", "{target}", "qc_samples.tsv"),
-		config = "config/config.yml",
 		pkgs = rules.install_packages.output,
 		r = "workflow/scripts/create_differential_binding.R",
 		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output,
-		rmd_config = "config/rmarkdown.yml",
+		site_yaml = rules.create_site_yaml.output,
+		yml = expand(
+			os.path.join("config", "{file}.yml"),
+			file = ['config', 'params']
+		),
 		module = "workflow/modules/differential_binding.Rmd"
 	output:
 		rmd = os.path.join(

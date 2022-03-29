@@ -36,13 +36,17 @@ genome:
   gencode: "33"
 
 ## Additional data to be incorporated. Fields are fixed.
-## Features shoould be provided as a gtf
-## HiC data should be a single rds file prepared independently of this workflow
-## Change this to a bedpe
+## `rnaseq` Should be of a similar form to the output from limma::topTable.
+## Either a tsv or csv or csv if acceptable.
+## `features` **must be provided as a gtf** with the attribute 'feature' in the final column
+## HiC data should be a bedpe file generated prior to this workflow
+## `coverage` must be bigwig files with each track specified as a new yaml layer
+## Each file within the layer must also be named, and these will be overlaid as
+## a single track within the plot. Multiple coverage tracks can be added
 external:
   rnaseq: "data/external/PDX_HCI-005_Veh_DHT_Sarm_RNASeq.tsv"
   features: "data/external/h3k27ac_features.gtf"
-  hic:
+  hic: "data/external/encode_hic.bedpe"
   coverage:
     H3K27Ac:
       Veh: "data/external/H3K27Ac_Veh.bw"

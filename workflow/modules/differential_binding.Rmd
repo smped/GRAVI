@@ -29,6 +29,7 @@ library(ggrepel)
 library(rlang)
 library(ggside)
 library(InteractionSet)
+library(GenomicInteractions)
 library(reactable)
 library(htmltools)
 library(msigdbr)
@@ -94,10 +95,12 @@ blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
 
-bands_df <- config$genome$build %>% 
+cb <- config$genome$build %>% 
   str_to_lower() %>% 
-  paste0(".cytobands") %>% 
-  get()
+  paste0(".cytobands") 
+data(list = list(cb))
+bands_df <- mget(cb)[[cb]]
+
 stopifnot(
   colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
 )
@@ -143,12 +146,72 @@ rna_col <- c(tx_col, "gene_id")[[1]]
 
 ```{r load-hic}
 hic <- GInteractions()
-if (!is.null(config$external$hic)) {
-  hic_path <- here::here(config$external$HiC)
-  stopifnot(file.exists(hic_path))
-  # hic <- autoload(hic_path) ## Needs to handle bedpe format
-}
+hic_path <- here::here(config$external$hic)
+has_hic <- FALSE
+if (length(hic_path) > 0)
+  if (file.exists(hic_path)) {
+    has_hic <- TRUE
+    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
+    reg_combs <- expand.grid(regions, regions) %>% 
+      as.matrix() %>% 
+      apply(
+        MARGIN = 1, 
+        function(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      unique()
+    hic$regions <- anchors(hic) %>% 
+      vapply(
+        bestOverlap,
+        y = GRangesList(lapply(gene_regions, granges)),
+        character(length(hic))
+      ) %>% 
+      apply(MARGIN = 2, function(x) regions[x]) %>% 
+      apply(
+        MARGIN = 1, 
+        function(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      factor(levels = reg_combs) %>%
+      fct_relabel(
+        str_replace_all,
+        pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
+      )
+    if (has_features) {
+      feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 
+        as.matrix() %>% 
+        apply(
+          MARGIN = 1, 
+          function(x) {
+            x <- sort(factor(x, levels = names(feat_col)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        unique()
+      hic$features <- vapply(
+        anchors(hic),
+        function(x) bestOverlap(
+          x, external_features, var = "feature", missing = "no_feature"
+        ),
+        character(length(hic))
+      )  %>% 
+        apply(
+          MARGIN = 1, 
+          function(x) {
+            x <- sort(factor(x, levels = names(feat_col)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        factor(levels = feat_combs) %>%
+        fct_relabel(str_sep_to_title, pattern = "_")
+    }
+  }
 stopifnot(is(hic, "GInteractions"))
+seqlevels(hic) <- seqlevels(sq)
 seqinfo(hic) <- sq
 hic <- hic[!overlapsAny(hic, blacklist)]
 ```
@@ -1080,6 +1143,7 @@ merged_results %>%
 
 ```{r scatterpie-region-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparison of changes in {target} binding separated by gene-centric region and external features provided in {basename(config$external$features)}*")}
 merged_results %>% 
+  mutate(region = fct_relabel(region, str_wrap, width = 15)) %>% 
   plotPie(x = "region", y = "feature", fill = "status") +
   scale_fill_manual(values = direction_colours) +
   labs(
@@ -1450,7 +1514,12 @@ tbl <- merged_results %>%
     pageSizeOptions = c(10, 20, 50, show_n), defaultPageSize = 10,
     borderless  = TRUE,
     columns = list(
-      Range = colDef(minWidth = 200),
+      Range = colDef(
+        minWidth = 150,
+        cell = function(value) {
+          str_replace_all(value, ":", ": ")
+        }
+      ),
       `Width (kb)` = colDef(
         cell = function(value) round(value / 1e3, 1),
         style = function(value) {
@@ -1461,7 +1530,7 @@ tbl <- merged_results %>%
             borderRight = "1px solid rgba(0, 0, 0, 0.1)"
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       AveExpr = colDef(
         cell = function(value) round(value, 2),
@@ -1479,12 +1548,12 @@ tbl <- merged_results %>%
           colour <- lfc_col(x)
           list(background = colour)
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       FDR = colDef(
         cell = function(value) sprintf("%.2e", value),
         style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)"),
-        maxWidth = 100
+        maxWidth = 80
       ),
       `Macs2 Peak` = colDef(
         cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
@@ -1492,13 +1561,12 @@ tbl <- merged_results %>%
           color <- ifelse(value, "#008000", "#e00000")
           list(color = color, borderRight = "1px solid rgba(0, 0, 0, 0.1)")
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
-      Region = colDef(
-        cell = function(value) str_replace(value, " \\(", "\n(")
-      ),
+      Region = colDef(maxWidth = 150),
       Genes = colDef(
-        cell = function(value) with_tooltip(value)
+        cell = function(value) with_tooltip(value),
+        minWidth = 150
       )
     )
   )
@@ -1597,18 +1665,18 @@ if (has_features) {
 hfgc_genes <- trans_models
 gene_col <- "grey"
 if (any_detected){
-  lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
+  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
   rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
-  if (!is.na(lfc_col) & !is.na(rna_fdr_col)) {
+  if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
     hfgc_genes <- trans_models %>% 
       mutate(
         status = case_when(
           !gene %in% rnaseq$gene_id ~ "Undetected",
           gene %in% dplyr::filter(
-            rnaseq, !!sym(lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
+            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
           )$gene_id ~ "Up",
           gene %in% dplyr::filter(
-            rnaseq, !!sym(lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
+            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
           )$gene_id ~ "Down",
           gene %in% dplyr::filter(
             rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
@@ -1807,6 +1875,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_down_by_expr),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -1830,6 +1899,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_down_by_fdr),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -1847,12 +1917,11 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
-  zoom = 10,
+  zoom = 10, 
+  max = 10 * width(grl_to_plot$top_down_by_lfc),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -1876,6 +1945,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_down_no_macs2),
   ylim = y_lim,
   featsize = 2
 )
@@ -1898,6 +1968,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_up_by_expr),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -1921,6 +1992,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_up_by_fdr),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -1944,6 +2016,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_up_by_lfc),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -1967,6 +2040,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
+  max = 10 * width(grl_to_plot$top_up_no_macs2),
   ylim = y_lim,
   featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -2123,9 +2197,7 @@ tbl <- goseq_mapped %>%
       p = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
         maxWidth = 80
@@ -2133,9 +2205,7 @@ tbl <- goseq_mapped %>%
       FDR = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
         maxWidth = 80
@@ -2225,14 +2295,14 @@ tbl <- goseq_diff %>%
     filterable = TRUE,
     columns = list(
       "Gene Set" = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) htmltools::tags$a(
           href = value$gs_url, target = "_blank", value$gs_name
         ),
         html = TRUE
       ),
       Description = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
       "Mapped To DB Windows" = colDef(maxWidth = 80),
@@ -2243,22 +2313,18 @@ tbl <- goseq_diff %>%
       p = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       FDR = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       "Genes Mapped to DB Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
@@ -2346,14 +2412,14 @@ tbl <- goseq_up %>%
     filterable = TRUE,
     columns = list(
       "Gene Set" = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) htmltools::tags$a(
           href = value$gs_url, target = "_blank", value$gs_name
         ),
         html = TRUE
       ),
       Description = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
       "Mapped to Gained Windows" = colDef(maxWidth = 80),
@@ -2364,22 +2430,18 @@ tbl <- goseq_up %>%
       p = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       FDR = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       "Genes Mapped to Gained Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
@@ -2466,14 +2528,14 @@ tbl <- goseq_down %>%
     filterable = TRUE,
     columns = list(
       "Gene Set" = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) htmltools::tags$a(
           href = value$gs_url, target = "_blank", value$gs_name
         ),
         html = TRUE
       ),
       Description = colDef(
-        minWidth = 200,
+        minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
       "Mapped to Decreased Windows" = colDef(maxWidth = 80),
@@ -2484,22 +2546,18 @@ tbl <- goseq_down %>%
       p = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       FDR = colDef(
         cell = function(value) {
           ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 70
       ),
       "Genes Mapped to Decreased Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),

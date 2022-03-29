@@ -95,7 +95,6 @@ gtf = os.path.join(
 	".annotation.gtf.gz"
 )
 blacklist = os.path.join(annotation_path, "blacklist.bed.gz")
-cytobands = os.path.join(annotation_path, "cytoBand.txt.gz")
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
 #####################
@@ -182,13 +181,13 @@ ALL_OUTPUTS.extend(MERGED_PEAKS)
 INDIV_BW = expand(
 	os.path.join(bw_path, "{path}_treat_pileup.{suffix}"),
 	path = indiv_pre,
-	suffix = ['bw', 'summary']
+	suffix = ['bw']#, 'summary']
 )
 ALL_OUTPUTS.extend(INDIV_BW)
 MERGED_BW = expand(
 	os.path.join(bw_path, "{path}_merged_treat_pileup.{suffix}"),
 	path = merged_pre,
-	suffix = ['bw', 'summary']
+	suffix = ['bw']#, 'summary']
 )
 ALL_OUTPUTS.extend(MERGED_BW)
 

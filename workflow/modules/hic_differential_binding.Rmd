@@ -1,0 +1,20 @@
+# Comparison With HiC Data
+
+```{r}
+merged_results %>% 
+  subset(status != "Unchanged") %>% 
+  mutate(hic_overlap = overlapsAny(., hic)) %>% 
+  plotPie(fill = "hic_overlap", x = "feature", y = "region")
+```
+
+```{r}
+merged_results %>% 
+  mutate(hic_overlap = overlapsAny(., hic)) %>% 
+  as_tibble() %>% 
+  group_by(region, status) %>% 
+  summarise(
+    N = dplyr::n(),
+    `% HiC` = mean(hic_overlap)
+  )
+```
+

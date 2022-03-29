@@ -52,32 +52,10 @@ rule download_blacklist:
 		fi
 		"""
 
-rule download_cytobands:
-	output: cytobands
-	params:
-		url = urllib.parse.urlunparse(
-			(
-				'http', 'hgdownload.cse.ucsc.edu',
-				'/goldenPath/' + ucsc_build + '/database/' +
-				os.path.basename(cytobands),
-				'', '', ''
-			)
-		),
-		git = git_add
-	log: "workflow/logs/downloads/download_cytobands.log"
-	shell:
-		"""
-		curl \
-			-o {output} \
-			{params.url} 2> {log}
-		if [[ {params.git} == "True" ]]; then
-			git add {output}
-		fi
-		"""
-
 rule create_annotations:
 	input:
 		bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = indiv_pre),
+		config = ancient(os.path.join("config", "config.yml")),
 		gtf = gtf,
 		r = os.path.join("workflow", "scripts", "create_annotations.R"),
 		pkgs = rules.install_packages.output,
