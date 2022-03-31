@@ -1,5 +1,5 @@
 ---
-title: "Annotation Setup"
+title: "Annotations"
 date: "`r format(Sys.Date(), '%d %B, %Y')`"
 editor_options:
   chunk_output_type: console
@@ -629,6 +629,8 @@ hic %>%
   labs(fill = "Interacting\n Regions") +
   scale_fill_viridis_d(direction = -1)
 ```
+
+`r ifelse(has_hic & has_features, "## Feature Distribution of Interaction Pairs", "")`
 
 ```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided in {basename(feat_path)}. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' categor*")}
 feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 

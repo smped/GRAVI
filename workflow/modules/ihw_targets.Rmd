@@ -62,12 +62,13 @@ merged_results <- merged_results %>%
 ```
 
 
-Independent Hypothesis Weighting (IHW) was then used to partition the raw p-values by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`) defined using the consensus peaks detected under any treatment by `macs2 callpeak`
+Independent Hypothesis Weighting (IHW) was then used to partition the raw p-values for `r target` differential binding by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
+The presence of `r glue_collapse(other_targets, sep = ", ", last = " and ")` was defined simply using the consensus peaks detected under any treatment by `macs2 callpeak`, as determined [previously](`r glue("{target}_macs2_summary.html")`).
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
-The provided features were used as initial partitions, merging the smallest groups below this size until all partitions were of a suitable size.
+The provided consensus peaks were used as initial partitions in combination, merging the smallest groups below this size until all partitions were of a suitable size.
 
-Windows were classified as overlapping a peak from a secondary ChIP target if any section of the window overlapped the secondary peak.
+Windows were classified as overlapping a peak from a secondary ChIP target if *any* section of the window overlapped the secondary peak.
 `r ifelse(ihw_proceed, "Only one partition > 1000 was able to be formed and IHW was not executed.", "")`
 
 ### Initial Group Sizes
@@ -117,7 +118,7 @@ merged_results %>%
         y = y
       )
   ) +
-  facet_wrap(~ihw_covariate, ncol = 3) +
+  facet_wrap(~ihw_covariate) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
   labs(x = "P Value", y = "Density")
 ```
@@ -207,13 +208,14 @@ ihw %>%
   pander(
     justify = "lrrrrrr",
     caption = paste(
-      "*Summary of changes to significant windows introduced by IHW.",
-      "This corresponds to a nett change of", 
+      "*Summary of changes introduced by IHW for windows considered as being", 
+      paste0("differentially bound by ", target, "."),
+      "This corresponds to a __nett change of", 
         dplyr::slice(., nrow(.)) %>% 
         mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 
         .[["p"]] %>% 
         percent(0.1),
-      "from the initial list.*"
+      "from the initial list__.*"
     ),
     emphasize.strong.rows = nrow(.)
   )

@@ -1,49 +1,42 @@
-
-```{css, echo = FALSE}
-/* Taken from bootswatch sandstone */ 
-/* This should be applied to figure captions */
-/* which are rendered as a paragraph by knitr */
-/* This should also be able to be placed in all files intelligently */
-p.caption {
-  text-align: justify;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  color: #98978b;
-}
+```{r example, echo = FALSE, eval=TRUE}
+## This module requires the following to be set during preparation
+# threads <- 6
+pairs <- list(AR = c("Veh", "DHT"), ER = c("Veh", "DHT"))
 ```
 
-# Setup
+
 
 ```{r packages}
 library(tidyverse)
 library(glue)
 library(pander)
-library(BiocParallel)
 library(yaml)
+library(reactable)
 library(plyranges)
-library(rtracklayer)
-library(Rsamtools)
-library(cowplot)
-library(csaw)
-library(edgeR)
-library(scales)
-library(magrittr)
-library(UpSetR)
-library(InteractionSet)
-library(ggside)
-library(DT)
-library(VennDiagram)
-library(vctrs)
-library(ggrepel)
-library(rlang)
+# library(BiocParallel)
+# library(rtracklayer)
+# library(Rsamtools)
+# library(cowplot)
+# library(csaw)
+# library(edgeR)
+# library(scales)
+# library(magrittr)
+# library(UpSetR)
+# library(InteractionSet)
+# library(ggside)
+# library(DT)
+# library(VennDiagram)
+# library(vctrs)
+# library(ggrepel)
+# library(rlang)
 ```
 
 ```{r remotes, results = 'hide'}
-if (!"extraChIPs" %in% rownames(installed.packages()))
-  BiocManager::install("steveped/extraChIPs", ask = FALSE)
+# if (!"extraChIPs" %in% rownames(installed.packages()))
+#   BiocManager::install("steveped/extraChIPs", ask = FALSE)
 
 stopifnot(library(extraChIPs, logical.return = TRUE))
-source(here::here("workflow", "scripts", "autoload.R"))
+source(here::here("workflow", "scripts", "custom_functions.R"))
 ```
 
 ```{r options}
@@ -59,13 +52,23 @@ theme_set(
 ```
 
 ```{r set-bpparam}
-register(MulticoreParam(workers = threads))
+# register(MulticoreParam(workers = threads))
 ```
 
 ```{r load-config}
-config <- read_yaml(
-	here::here("config", "config.yml")
-)
+targets <- names(pairs)
+config <- read_yaml(here::here("config", "config.yml"))
+colours <- read_rds(here::here("output", "annotations", "colours.rds"))
+
+targets %>% 
+  lapply(
+    function(x) {
+      fl <- here::here("output", x, "qc_samples.tsv")
+      read_tsv(fl) %>% 
+        dplyr::filter(treat %in% pairs[[x]])
+    }
+  )
+
 samples <- here::here("output", targets, "qc_samples.tsv") %>% 
   lapply(read_tsv) %>% 
   bind_rows() %>% 

@@ -1,8 +1,8 @@
 ```{r example, echo = FALSE, eval=TRUE}
 ## This module requires the following to be set during preparation
-# target <- "AR"
+# target <- "ER"
 # threads <- 6
-# treat_levels <- c("Veh", "DHT")
+# treat_levels <- c("E2", "E2DHT")
 ```
 
 ```{r packages}
@@ -667,7 +667,7 @@ FDR-adjustment was performed with `r comma(sum(merged_results$P.Value_fdr < fdr_
 
 ### Merged Windows
 
-```{r plot-merged-size, fig.height=7, fig.cap = "*Comparison of signal intensity (logCPM) and merged window size (kb) for windows which overlap a macs2 consensus peak and those which don't. A mall amount of jitter has been added to the y-axis in the lower-left panel.*"}
+```{r plot-merged-size, fig.height=7, fig.cap = glue("*Comparison of {target} signal intensity (logCPM) and merged window size (kb) for windows which overlap a macs2 consensus peak and those which don't. A mall amount of jitter has been added to the y-axis in the lower-left panel.*")}
 merged_results %>% 
   mutate(kb = width / 1e3) %>% 
   as_tibble() %>% 
@@ -692,7 +692,7 @@ merged_results %>%
   scale_fill_brewer(palette = "Set1") +
   labs(
     x = "logCPM", y = "Merged Window Size (kb)",
-    fill = "Macs2 Peak", colour = "Macs2 Peak"
+    fill = glue("{target} Macs2 Peak"), colour = glue("{target} Macs2 Peak")
   ) +
   theme(
     axis.title.x = element_text(hjust = 0.45),
@@ -832,7 +832,7 @@ These features were used to map merged windows to features using the process def
 1. Ranges *overlapping a promoter* are assigned to genes for that specific promoter
 2. Ranges *overlapping an enhancer* are assigned to all genes within 100kb
 3. Ranges *overlapping a long-range interaction* are assigned to all genes connected by the interaction
-4. Ranges with *no gene assignment from the previous steps* are assigned to all genes within 100kb
+4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within 100kb
 
 Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3.
 For visualisation purposes, only genes which were considered as detected in any provided RNA-Seq data will be shown as the mapping targets.
@@ -2159,18 +2159,20 @@ cp <- htmltools::em(
 tbl <- goseq_mapped %>%
   dplyr::filter(fdr < fdr_alpha) %>% 
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    by = "gs_name"
   ) %>% 
   dplyr::filter(gene_id %in% unlist(merged_results$gene_id)) %>% 
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    gene_name = vapply(gene_name, paste, character(1), collapse = "; "),
+    `%` = numDEInCat / numInCat
   ) %>% 
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    Mapped = numDEInCat, `Total Gene Set Size` = numInCat,
+    `%`, numDEInCat, numInCat, 
     p = pval, FDR = fdr, 
     `Mapped Genes` = gene_name
   ) %>% 
@@ -2189,10 +2191,16 @@ tbl <- goseq_mapped %>%
         minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      Mapped = colDef(maxWidth = 80),
-      "Total Gene Set Size" = colDef(
+      numDEInCat = colDef(name = "Total Mapped", maxWidth = 80),
+      numInCat = colDef(
+        name = "Gene Set Size",
         maxWidth = 80,
         cell = function(value) comma(value, 1)
+      ),
+      "%" = colDef(
+        name = "% Mapped",
+        cell = function(value) percent(value, 0.1),
+        maxWidth = 80
       ),
       p = colDef(
         cell = function(value) {
@@ -2274,7 +2282,8 @@ cp <- htmltools::em(
 tbl <- goseq_diff %>% 
   dplyr::filter(fdr < fdr_alpha) %>%
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    by = "gs_name"
   ) %>% 
   dplyr::filter(
     gene_id %in% unlist(subset(merged_results, status != "Unchanged")$gene_id)
@@ -2283,12 +2292,12 @@ tbl <- goseq_diff %>%
   chop(gene_name) %>% 
   mutate(
     gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    `%` = numDEInCat / numInCat
   ) %>% 
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    `Mapped To DB Windows` = numDEInCat, `Total Mapped` = numInCat,
-    p = pval, FDR = fdr, 
+    `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
     `Genes Mapped to DB Windows` = gene_name
   ) %>% 
   reactable(
@@ -2297,7 +2306,8 @@ tbl <- goseq_diff %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", value$gs_name
+          href = value$gs_url, target = "_blank", 
+          str_replace_all(value$gs_name, "_", " ")
         ),
         html = TRUE
       ),
@@ -2305,8 +2315,14 @@ tbl <- goseq_diff %>%
         minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      "Mapped To DB Windows" = colDef(maxWidth = 80),
-      "Total Mapped" = colDef(
+      "%" = colDef(
+        name = "% DB",
+        maxWidth = 80,
+        cell = function(value) percent(value, 0.1)
+      ),
+      numDEInCat = colDef(name = "Total Mapped To DB", maxWidth = 80),
+      numInCat = colDef(
+        name = "Total Mapped",
         maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),
@@ -2391,7 +2407,8 @@ cp <- htmltools::em(
 tbl <- goseq_up %>% 
   dplyr::filter(fdr < fdr_alpha) %>%
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    by = "gs_name"
   ) %>% 
   dplyr::filter(
     gene_id %in% unlist(subset(merged_results, status == "Up")$gene_id)
@@ -2400,12 +2417,12 @@ tbl <- goseq_up %>%
   chop(gene_name) %>% 
   mutate(
     gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    `%` = numDEInCat / numInCat
   ) %>% 
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    `Mapped to Gained Windows` = numDEInCat, `Total Mapped` = numInCat,
-    p = pval, FDR = fdr, 
+    `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
     `Genes Mapped to Gained Windows` = gene_name
   ) %>% 
   reactable(
@@ -2414,7 +2431,8 @@ tbl <- goseq_up %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", value$gs_name
+          href = value$gs_url, target = "_blank", 
+          str_replace_all(value$gs_name, "_", " ")
         ),
         html = TRUE
       ),
@@ -2422,8 +2440,14 @@ tbl <- goseq_up %>%
         minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      "Mapped to Gained Windows" = colDef(maxWidth = 80),
-      "Total Mapped" = colDef(
+      "%" = colDef(
+        name = "% Gained",
+        cell = function(value) percent(value, 0.1),
+        maxWidth = 80
+      ),
+      numDEInCat = colDef(name = "Mapped to Gained Windows", maxWidth = 80),
+      numInCat = colDef(
+        name = "Total Mapped",
         maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),
@@ -2507,7 +2531,8 @@ cp <- htmltools::em(
 tbl <- goseq_down %>% 
   dplyr::filter(fdr < fdr_alpha) %>%
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description)
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    by = "gs_name"
   ) %>% 
   dplyr::filter(
     gene_id %in% unlist(subset(merged_results, status == "Down")$gene_id)
@@ -2516,12 +2541,12 @@ tbl <- goseq_down %>%
   chop(gene_name) %>% 
   mutate(
     gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    `%` = numDEInCat / numInCat
   ) %>% 
   nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    `Mapped to Decreased Windows` = numDEInCat, `Total Mapped` = numInCat,
-    p = pval, FDR = fdr, 
+    `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
     `Genes Mapped to Decreased Windows` = gene_name
   ) %>% 
   reactable(
@@ -2530,7 +2555,8 @@ tbl <- goseq_down %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", value$gs_name
+          href = value$gs_url, target = "_blank",
+          str_replace_all(value$gs_name, "_", " ")
         ),
         html = TRUE
       ),
@@ -2538,8 +2564,14 @@ tbl <- goseq_down %>%
         minWidth = 150,
         cell = function(value) with_tooltip(value, width = 100)
       ),
-      "Mapped to Decreased Windows" = colDef(maxWidth = 80),
-      "Total Mapped" = colDef(
+      "%" = colDef(
+        name = "% Decreased",
+        cell = function(value) percent(value, 0.1),
+        maxWidth = 80
+      ),
+      numDEInCat = colDef(name = "Mapped to Decreased Windows", maxWidth = 80),
+      numInCat = colDef(
+        name = "Total Mapped",
         maxWidth = 80,
         cell = function(value) comma(value, 1)
       ),

@@ -290,7 +290,7 @@ p <- gsea_dir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_dir_sig) = 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes.")`
+`r if (nrow(gsea_dir_sig) == 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea-dir_sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0}
 cp <-  htmltools::em(
@@ -401,7 +401,7 @@ p <- gsea_nondir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_nondir_sig) = 0) glue("No association was found between {target} binding and *overall* significance in differentially expressed genes.")`
+`r if (nrow(gsea_nondir_sig) == 0) glue("No association was found between {target} binding and *overall* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea_nondir_sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0}
 cp <-  htmltools::em(
@@ -506,15 +506,21 @@ grl_to_plot <- top_diff_win$gene_id %>%
         vapply(gene_id, function(id) x %in% id, logical(1))
       ) %>% 
         granges() %>% 
+        ## Restrict this to only sites within 5Mb of a gene
+        subsetByOverlaps(
+          resize(subset(genes_gr, gene_id == x), width = 1e7, fix = 'center')
+        ) %>% 
         c(
           granges(subset(genes_gr, gene_id == x))
         ) %>% 
-        unstrand()
+        unstrand() %>% 
+        sort()
     },
     simplify = FALSE
   ) %>% 
   lapply(range) %>% 
   GRangesList()
+hfgc_genes <- hfgc_genes[names(hfgc_genes) != "Undetected"]
 if (!is.null(config$external$coverage)) {
   y_ranges <- granges(unlist(grl_to_plot))
   y_lim <- c(
@@ -550,7 +556,15 @@ Using the ranked list of gens from the RNA-Seq data, the 5 genes most highly ran
   glue(
     "*Region showing all merged {target}-bound windows mapped to ", 
     "{nm}. Windows considered to be unchanged for {target} are ", 
-    "annotated in grey, with other colours indicating {target} gain or loss.",
+    "annotated in grey, with other colours indicating {target} gain or loss. ",
+    "Mapped windows are only shown if within 5Mb of {nm}. ",
+    ifelse(
+      has_hic,
+      glue(
+        "HiC Interactions are only shown which directly connect {target} to {nm}. "
+      ),
+      glue("")
+    ),
     "Gene-centric regions {ifelse(has_features, 'and external features', '')} ",
     "are shown in the top panel. The estimated logFC for {nm} is ",
     sprintf("%.2f ", df$logFC),
@@ -575,7 +589,13 @@ ct <- trans_models %>%
   ifelse("meta", FALSE)
 plotHFGC(
   grl_to_plot[[i]],
-  hic = hic,
+  hic = hic %>% 
+     subsetByOverlaps(
+       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+     ) %>% 
+    subsetByOverlaps(
+      subsetByOverlaps(merged_results, grl_to_plot[[i]])
+    ),
   features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
@@ -610,7 +630,13 @@ ct <- trans_models %>%
   ifelse("meta", FALSE)
 plotHFGC(
   grl_to_plot[[i]],
-  hic = hic,
+  hic = hic %>% 
+     subsetByOverlaps(
+       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+     ) %>% 
+    subsetByOverlaps(
+      subsetByOverlaps(merged_results, grl_to_plot[[i]])
+    ),
   features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
@@ -645,7 +671,13 @@ ct <- trans_models %>%
   ifelse("meta", FALSE)
 plotHFGC(
   grl_to_plot[[i]],
-  hic = hic,
+  hic = hic %>% 
+     subsetByOverlaps(
+       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+     ) %>% 
+    subsetByOverlaps(
+      subsetByOverlaps(merged_results, grl_to_plot[[i]])
+    ),
   features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
@@ -680,7 +712,13 @@ ct <- trans_models %>%
   ifelse("meta", FALSE)
 plotHFGC(
   grl_to_plot[[i]],
-  hic = hic,
+  hic = hic %>% 
+     subsetByOverlaps(
+       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+     ) %>% 
+    subsetByOverlaps(
+      subsetByOverlaps(merged_results, grl_to_plot[[i]])
+    ),
   features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,
@@ -715,7 +753,13 @@ ct <- trans_models %>%
   ifelse("meta", FALSE)
 plotHFGC(
   grl_to_plot[[i]],
-  hic = hic,
+  hic = hic %>% 
+     subsetByOverlaps(
+       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+     ) %>% 
+    subsetByOverlaps(
+      subsetByOverlaps(merged_results, grl_to_plot[[i]])
+    ),
   features = feat_gr, featcol = feature_colours,
   genes = hfgc_genes, genecol = gene_col, genesize = 0.7,
   coverage = bwfl,

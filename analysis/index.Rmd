@@ -49,6 +49,27 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
   grViz()
 ```
 
+## Targets
+
+```{r}
+samples %>% 
+  group_by(target, treat) %>%
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  rename_all(str_to_title) %>% 
+  pander(
+    justify = "llr",
+    caption = "Summary of supplied ChIP targets and treatment groups"
+  )
+```
+
+## Differential Binding
+
+The specified comparisons are given below, where 'Vs.' can be interpreted as a '-' sign.
+This effectively makes the first listed group as the treatment and the second listed as the reference of control.
+Differential binding analysis will be performed for every ChIP target where both treatment groups are present.
+
+`r pander(lapply(config$comparisons$contrasts, function(x) paste(rev(x), collapse = " Vs. ")))`
+
 ## Settings
 
 ### Genome

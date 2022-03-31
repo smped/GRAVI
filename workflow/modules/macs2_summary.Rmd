@@ -345,6 +345,9 @@ file.path(out_path, "cross_correlations.tsv") %>%
     x = "Distance (bp)",
     y = "Cross Correlation",
     colour = "Treat"
+  ) +
+  ggtitle(
+    glue("{target}: Cross Correlations")
   )
 ```
 
@@ -428,11 +431,30 @@ consensus_peaks <- oracle_peaks %>%
     ) %>% 
       factor(levels = regions)
   )
+if (has_features) {
+  consensus_peaks$Feature <- bestOverlap(
+    consensus_peaks, external_features, 
+    var = "feature", missing = "no_feature"
+  ) %>% 
+    factor(levels = names(colours$features)) %>% 
+    fct_relabel(str_sep_to_title)
+}
+if (any_detected) {
+  consensus_peaks$detected <- bestOverlap(
+    consensus_peaks, 
+    gene_regions %>% 
+      lapply(select, any_of("detected")) %>% 
+      GRangesList() %>% 
+      unlist(), 
+    var = "detected"
+  ) %>% 
+    as.logical()
+}
 ```
 
 
 
-A set of treatment-specific *oracle peaks* was defined for each condition by taking the peaks defined by merging all samples from each treatment group.
+A set of treatment-specific `target` *oracle peaks* was defined for each condition by taking the peaks defined by merging all samples from each treatment group.
 These were then compared to the individual replicates within each respective condition which passed the initial QC.
 Oracle peaks which overlapped a peak in more than `r percent(config$peaks$qc$min_prop_reps)` of the *individual replicates passing QC*, were retained.
 
@@ -462,10 +484,10 @@ oracle_peaks %>%
 
 ### Consensus Peaks
 
-In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic **consensus peaks** were defined.
+In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
 Ranges were the union of any overlapping ranges identified in one or more sets of oracle peaks.
 
-```{r plot-common-peaks, results = 'hide'}
+```{r plot-common-peaks, results = 'hide', echo = length(treat_levels) <= 3}
 fig_path <- here::here("docs", "assets", target)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- glue("{target}_common_peaks.png")
@@ -475,7 +497,12 @@ if (length(treat_levels) <= 3) {
   vd <- oracle_peaks %>%
     lapply(
       function(x) {
-        names(subsetByOverlaps(consensus_peaks, x))
+        names(
+          subsetByOverlaps(
+            consensus_peaks, 
+            subset(x, keep)
+          )
+        )
       }
     ) %>%
     setNames(treat_levels) %>%
@@ -492,13 +519,18 @@ if (length(treat_levels) <= 3) {
 }
 ```
 
-`r ifelse(length(treat_levels) <= 3, glue("![*Number of consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.png)"), "")`
+`r ifelse(length(treat_levels) <= 3, glue("![*Number of {target} consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.png)"), "")`
 
-```{r plot-common-upset, eval = length(treat_levels) > 3, echo = length(treat_levels) > 3, fig.height = 7, fig.cap = "*Number of consensus peaks which overlap the oracle peaks defined within each condition.*"}
+```{r plot-common-upset, eval = length(treat_levels) > 3, echo = length(treat_levels) > 3, fig.height = 7, fig.cap = glue("*Number of {target} consensus peaks which overlap the oracle peaks defined within each condition.*")}
 oracle_peaks %>%
   lapply(
     function(x) {
-      names(subsetByOverlaps(consensus_peaks, x))
+        names(
+          subsetByOverlaps(
+            consensus_peaks, 
+            subset(x, keep)
+          )
+        )
     }
   ) %>%
   setNames(treat_levels) %>%
@@ -517,7 +549,7 @@ oracle_peaks %>%
 
 ### Distance to TSS 
 
-```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
+```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the {target} consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
 a <- consensus_peaks %>% 
   join_nearest(
     mutate(tss, tss = start)
@@ -571,21 +603,13 @@ consensus_peaks %>%
 
 `r ifelse(any_detected, "### Detected Genes", "")`
 
-```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = "*Proportion of peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition. Values shown are the total genome occupancy in Kb*"}
+```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = glue("*Proportion of {target} peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition. Values shown are the total genome occupancy in Kb*")}
 consensus_peaks %>% 
   mutate(
-    detected = bestOverlap(
-      ., 
-      gene_regions %>% 
-        lapply(select, any_of("detected")) %>% 
-        GRangesList() %>% 
-        unlist(), 
-      var = "detected"
-    ) %>% 
-      as.logical()
+    region = fct_relabel(region, str_wrap, width = 20)
   ) %>% 
   plotPie(
-    fill = "detected", x = "region", scale_by = "width", min_p = 0.05,
+    fill = "detected", x = "region", scale_by = "width", 
     label_alpha = 0.7, label_size = 4
   ) +
   scale_fill_manual(
@@ -606,13 +630,6 @@ consensus_peaks %>%
 
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 consensus_peaks %>% 
-  mutate(
-    Feature = bestOverlap(
-      ., external_features, var = "feature", missing = "no_feature"
-    ) %>% 
-      factor(levels = names(colours$features)) %>% 
-      fct_relabel(str_sep_to_title)
-  ) %>% 
   plotPie(fill = "Feature", label_size = 4) +
   scale_fill_manual(
     values = colours$features %>% setNames(str_sep_to_title(names(.)))
@@ -624,13 +641,6 @@ consensus_peaks %>%
 
 ```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap.*")}
 consensus_peaks %>% 
-  mutate(
-    Feature = bestOverlap(
-      ., external_features, var = "feature", missing = "no_feature"
-    ) %>% 
-      factor(levels = names(colours$features)) %>% 
-      fct_relabel(str_sep_to_title)
-  ) %>% 
   plotPie(fill = "region", x = "Feature", label_size = 4, label_alpha = 0.7) +
   scale_fill_manual(
     values = colours$regions %>%
@@ -643,6 +653,24 @@ consensus_peaks %>%
     axis.line.x = element_line(),
     legend.position = "top"
   )
+```
+
+`r ifelse(has_features & any_detected, "### Detected Genes, External Features And Gene-Centric Regions", "")`
+
+```{r plot-pie-feature-region-detected, eval = has_features & any_detected, echo = has_features & any_detected, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions, separated by whether each peak is mapped to a detected gene. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. In the absence of HiC an excess of Distal Intergenic regions would be expected to remain unmapped.*")}
+consensus_peaks %>% 
+  plotPie(fill = "region", x = "Feature", y = "detected", label_size = 4, label_alpha = 0.7) +
+  scale_fill_manual(
+    values = colours$regions %>%
+      setNames(regions[names(.)])
+  ) +
+  labs(y = "Mapped To Detected Genes", fill = "Region") +
+  theme(
+    panel.grid = element_blank(),
+    axis.line.x = element_line(),
+    legend.position = "top"
+  )
+  
 ```
 
 
