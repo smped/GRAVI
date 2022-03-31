@@ -24,9 +24,6 @@ glue(
 	threads <- {{threads}}
 	```
 
-	```{r build-from-module, echo = TRUE, child = here::here('workflow/modules/differential_binding.Rmd')}
-	```
-
 	",
 	.open = "{{",
 	.close = "}}"

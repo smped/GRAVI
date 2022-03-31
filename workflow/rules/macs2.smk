@@ -353,6 +353,9 @@ rule build_macs2_summary:
 			{wildcards.target} \
 			{threads} \
 			{output.rmd} &>> {log}
+		
+		## Add the module directly as literal code
+		cat {input.module} >> {output.rmd}
 
 		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
 

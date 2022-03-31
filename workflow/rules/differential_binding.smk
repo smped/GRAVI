@@ -49,9 +49,11 @@ rule differential_binding:
 			os.path.join("config", "{file}.yml"),
 			file = ['config', 'params']
 		),
-		modules = expand(
-			os.path.join("workflow", "modules", "{file}.Rmd"),
-			file = ['differential_binding', 'rnaseq_differential_binding']
+		db_mod = os.path.join(
+			"workflow", "modules", "differential_binding.Rmd"
+		),
+		rnaseq_mod = os.path.join(
+			"workflow", "modules", "rnaseq_differential_binding.Rmd"
 		)
 	output:
 		rmd = os.path.join(
@@ -91,7 +93,7 @@ rule differential_binding:
 		"workflow/logs/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
 	shell:
 		"""
-		## Create the generic markdown
+		## Create the generic markdown header
 		Rscript --vanilla \
 			{input.r} \
 			{wildcards.target} \
@@ -99,6 +101,9 @@ rule differential_binding:
 			{wildcards.treat} \
 			{threads} \
 			{output.rmd} &>> {log}
+
+		## Add the remainder of the module as literal text
+		cat {input.db_mod} >> {output.rmd}
 
 		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
 

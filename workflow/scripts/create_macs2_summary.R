@@ -22,10 +22,7 @@ glue(
 	target <- \"{{target}}\"
 	threads <- {{threads}}
 	```
-
-	```{r build-from-module, echo = TRUE, child = here::here('workflow/modules/macs2_summary.Rmd')}
-	```
-
+	
 	",
 	.open = "{{",
 	.close = "}}"
