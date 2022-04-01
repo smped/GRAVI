@@ -198,6 +198,129 @@ samples %>%
   )
 ```
 
+# Differentially Bound Windows
+
+```{r}
+all_windows <- db_results %>% 
+  lapply(granges) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  reduce()
+```
+
+```{r}
+direction_colours <- names(colours$direction) %>% 
+  setdiff("undetected") %>% 
+  rep(each = 3) %>% 
+  cbind(rep(unique(.), times = 3)) %>% 
+  set_colnames(targets) %>% 
+  as_tibble() %>% 
+  mutate(
+    c1 = lapply(
+      !!sym(targets[[1]]), function(x) t(col2rgb(colours$direction[[x]]))
+      ), 
+    c2 = lapply(
+      !!sym(targets[[2]]), function(x) t(col2rgb(colours$direction[[x]]))
+    )
+  ) %>% 
+  split(f = seq_len(nrow(.))) %>% 
+  lapply(unnest, everything()) %>% 
+  lapply(
+    function(x) {
+      vals <- rbind(x$c1, x$c2) %>% 
+        colMeans()
+      rgb <- rgb(vals["red"], vals["green"], vals["blue"], maxColorValue = 255)
+      select(x, all_of(targets)) %>% 
+        mutate(rgb = rgb)
+    }
+  ) %>% 
+  bind_rows() %>% 
+  mutate(
+    !!sym(targets[[1]]) := paste(targets[[1]], str_to_title(!!sym(targets[[1]]))),
+    !!sym(targets[[2]]) := paste(targets[[2]], str_to_title(!!sym(targets[[2]])))
+  ) %>% 
+  unite(status, !!!syms(targets), sep = " - ") %>% 
+  mutate(rgb = setNames(rgb, status)) %>% 
+  pull("rgb")
+
+
+tbl <- all_windows %>% 
+  join_overlap_left(
+    db_results[[targets[[1]]]] %>% 
+      select(
+        !!sym(glue("{targets[[1]]}_AveExpr")) := AveExpr, 
+        !!sym(glue("{targets[[1]]}_logFC")) := logFC, 
+        !!sym(glue("{targets[[1]]}_status")) := status, 
+        !!sym(glue("{targets[[1]]}_fdr")) := fdr_ihw
+      )
+  ) %>%
+  join_overlap_left(
+    db_results[[targets[[2]]]] %>% 
+      select(
+        !!sym(glue("{targets[[2]]}_AveExpr")) := AveExpr, 
+        !!sym(glue("{targets[[2]]}_logFC")) := logFC, 
+        !!sym(glue("{targets[[2]]}_status")) := status, 
+        !!sym(glue("{targets[[2]]}_fdr")) := fdr_ihw
+      )
+  ) %>% 
+  mutate(
+    "{targets[[1]]}_status" := fct_explicit_na(
+      !!sym(glue("{targets[[1]]}_status")), na_level = "Undetected"
+    ),
+    "{targets[[2]]}_status" := fct_explicit_na(
+      !!sym(glue("{targets[[2]]}_status")), na_level = "Undetected"
+    )
+  ) %>% 
+  as_tibble() %>% 
+  mutate(
+    status = fct_cross(
+      !!sym(glue("{targets[[1]]}_status")), 
+      !!sym(glue("{targets[[2]]}_status"))
+    ) %>% 
+      fct_relabel(
+        str_replace_all,
+        pattern = "(.+):(.+)",
+        replacement = glue("{targets[[1]]} \\1 - {targets[[2]]} \\2")
+      ),
+    "{targets[[1]]}_status" := paste(
+      targets[[1]], !!sym(glue("{targets[[1]]}_status"))
+    ),
+    "{targets[[2]]}_status" := paste(
+      targets[[2]], !!sym(glue("{targets[[2]]}_status"))
+    )
+  ) %>% 
+  dplyr::filter(!str_detect(status, "Undetected")) %>% 
+  droplevels()
+tbl %>% 
+  ggplot(
+    aes(!!sym(glue("{targets[[1]]}_logFC")), !!sym(glue("{targets[[2]]}_logFC")))
+  ) +
+  geom_point(aes(colour = status)) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = "grey"
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = "grey"
+  ) +
+  facet_grid(
+    as.formula(
+      glue("fct_rev({targets[[2]]}_status) ~ {targets[[1]]}_status")
+    )
+  ) +
+  scale_colour_manual(
+    values = direction_colours[levels(tbl$status)]
+  )
+## Now add gene labels
+```
+
+
+
+
+
 
 ```{r set-paths}
 bam_path <- here::here(config$paths$bam)
