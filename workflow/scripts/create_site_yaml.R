@@ -31,7 +31,34 @@ comparisons <- lapply(
       dplyr::filter(comparison == paste(x, collapse = "_")) %>%
       unite(rmd, everything(), sep ="_", remove = FALSE)
   }
-)
+) %>%
+  bind_rows() %>%
+  split(.$target) %>%
+  setNames(c())
+
+## Sort out the pairwise comparisons
+pairs <- config$pairwise %>%
+  lapply(
+    function(x) {
+      tibble(
+        pairs = paste(names(x), collapse = "-"),
+        comps = vapply(
+          x,
+          function(y) paste(rev(y), collapse = " Vs. "),
+          character(1)
+        ) %>%
+          paste(collapse = " / "),
+        rmd = paste(
+          vapply(
+            names(x),
+            function(y) paste(y, paste(x[[y]], collapse = "_"), sep = "_"),
+            character(1)),
+          collapse = "_") %>%
+          paste0("_pairwise_comparison.Rmd")
+      )
+    }
+  ) %>%
+  bind_rows()
 
 site_yaml <- rmd$rmarkdown_site
 
@@ -80,12 +107,12 @@ site_yaml$navbar$left <- list(
       lapply(
         function(x){
           list(
-            text = str_replace_all(unique(x$comparison), "(.+)_(.+)", "\\2 Vs. \\1"),
+            text = x$target,
             menu = lapply(
               split(x, f = seq_len(nrow(x))),
               function(y) {
                 list(
-                  text = y$target,
+                  text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
                   href = paste0(y$rmd, "_differential_binding.html")
                 )
               }
@@ -94,7 +121,33 @@ site_yaml$navbar$left <- list(
           )
         }
       )
+  ),
+
+  ## Pairwise Comparisons
+  list(
+    text = "Pairwise Comparisons",
+    menu = pairs %>%
+      split(.$pairs) %>%
+      setNames(NULL) %>%
+      lapply(
+        function(x) {
+          list(
+            text = unique(x$pairs),
+            menu = lapply(
+              split(x, f = x$comps),
+              function(y) {
+                list(
+                  text = y$comps,
+                  href = y$rmd
+                )
+              }
+            ) %>%
+              setNames(NULL)
+          )
+        }
+      )
   )
+
 )
 other_nav <- setdiff(names(site_yaml$navbar), c("title", "left"))
 site_yaml$navbar <- site_yaml$navbar[c("title", "left", other_nav)]
