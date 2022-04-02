@@ -30,14 +30,12 @@ library(ggrepel)
 library(rlang)
 library(ggside)
 library(msigdbr)
+library(htmltools)
+library(goseq)
+library(parallel)
 # library(BiocParallel)
-# library(Rsamtools)
 # library(cowplot)
-# library(csaw)
-# library(edgeR)
 # library(InteractionSet)
-# library(DT)
-# library(vctrs)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -124,6 +122,55 @@ any_detected <- gene_regions %>%
   vapply(function(x) any(x$detected), logical(1)) %>% 
   any()
 ```
+
+```{r tbl-funs}
+up_col <- function(x) {
+  rgb(
+    colorRamp(c("#ffffff", colours$direction[["up"]]))(x), maxColorValue = 255
+  )
+}
+down_col <- function(x) {
+  rgb(
+    colorRamp(c("#ffffff", colours$direction[["down"]]))(x), maxColorValue = 255
+  )
+}
+unch_col <- function(x) {
+  rgb(
+    colorRamp(c("#ffffff", colours$direction[["unchanged"]]))(x), 
+    maxColorValue = 255
+  )
+}
+lfc_col <- function(x){
+  rgb(
+    colorRamp(c(colours$direction[["down"]], "#ffffff", colours$direction[["up"]]))(x), 
+    maxColorValue = 255
+  )
+}
+expr_col <- function(x){
+  rgb(colorRamp(hcl.colors(9, "TealRose"))(x), maxColorValue = 255)
+}
+bar_style <- function(width = 1, fill = "#e6e6e6", height = "75%", align = c("left", "right"), color = NULL) {
+  align <- match.arg(align)
+  if (align == "left") {
+    position <- paste0(width * 100, "%")
+    image <- sprintf("linear-gradient(90deg, %1$s %2$s, transparent %2$s)", fill, position)
+  } else {
+    position <- paste0(100 - width * 100, "%")
+    image <- sprintf("linear-gradient(90deg, transparent %1$s, %2$s %1$s)", position, fill)
+  }
+  list(
+    backgroundImage = image,
+    backgroundSize = paste("100%", height),
+    backgroundRepeat = "no-repeat",
+    backgroundPosition = "center",
+    color = color
+  )
+}
+with_tooltip <- function(value, width = 30) {
+  htmltools::tags$span(title = value, str_trunc(value, width))
+}
+```
+
 
 ```{r load-data}
 oracle_peaks <- targets %>% 
@@ -375,6 +422,105 @@ Merged windows were compared across both targets and in order to obtain the best
 A secondary step was then introduced for each window such that if one target was significant and the other target had received an FDR-adjusted p-value < `r 3 * fdr_alpha`, these windows were then considered significant in the second comparison.
 This was to help *reduce the number of windows incorrectly classified as unchanged* whilst the alternative ChIP target was defined as changed.
 
+```{r tbl-summary}
+cp <- htmltools::tags$em(
+  glue(
+    "Summary of combined binding windows for ",
+    glue_collapse(targets, sep = " and "),
+    ". Windows were classified as described above. ",
+    "The number of windows showing each combined pattern are given, along ",
+    "with the number of unique genes mapped to each set of combined windows, ",
+    "noting that some genes will be mapped to multiple sets of windows. ",
+    "The % of all genes with a window mapped from either target is given in ",
+    "the final column."
+  )
+)
+tbl <- all_windows %>% 
+  as_tibble() %>% 
+  group_by(
+    !!sym(glue("{targets[[1]]}_status")), !!sym(glue("{targets[[2]]}_status"))
+  ) %>% 
+  summarise(
+    windows = dplyr::n(),
+    mapped = length(unique(unlist(gene_id))),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    `% genes` = mapped / length(unique(unlist(all_windows$gene_id)))
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      "{targets[[1]]}_status" := colDef(
+        name = paste(targets[[1]], "Status"),
+        cell = function(value) {
+          if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
+          if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
+          value
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
+            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
+          )
+          list(color = colour)
+        },
+        footer = htmltools::tags$b("Total")
+      ),
+      "{targets[[2]]}_status" := colDef(
+        name = paste(targets[[2]], "Status"),
+        cell = function(value) {
+          if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
+          if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
+          value
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
+            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
+          )
+          list(color = colour)
+        }
+      ),
+      windows = colDef(
+        name = "Number of Windows", 
+        cell = function(value) comma(value, 1),
+        style = function(value) {
+          bar_style(width = 0.9*value / length(all_windows), fill = "#B3B3B3")
+        },
+        footer = htmltools::tags$b(comma(length(all_windows), 1))
+      ),
+      mapped = colDef(
+        name = "Uniquely Mapped Genes", 
+        cell = function(value) comma(value, 1),
+        style = function(value) {
+          bar_style(width = 0.9*value /length(unique(unlist(all_windows$gene_id))), fill = "#B3B3B3")
+        },
+        footer = htmltools::tags$b(comma(length(unique(unlist(all_windows$gene_id))), 1))
+      ),
+      `% genes` = colDef(
+        name = "% Of All Mapped Genes",
+        cell = function(x) percent(x, 0.1),
+        style = function(value) {
+          bar_style(width = 0.9*value, fill = "#B3B3B3")
+        }
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+Results across all windows are shown below for both `r glue_collapse(targets, sep = " and ")` separately, then together.
+
 ## `r targets[[1]]` By `r targets[[2]]` Status
 
 ```{r target1-by2, fig.cap = glue("*Differential binding patterns of {targets[[1]]} by {targets[[2]]} status. {targets[[1]]} values are coloured by their individual classification as Up, Down or Unchanged, with the distributions of these shown by {targets[[2]]} status in the side panels.*")}
@@ -412,12 +558,13 @@ all_windows %>%
   scale_colour_manual(
     values = colours$direction %>% 
       setNames(str_to_title(names(.))) %>% 
-      setNames(paste(targets[[1]], names(.)))
+      setNames(paste(targets[[1]], names(.))) %>% 
+      .[!str_detect(names(.), "Undetected")]
   ) +
   scale_fill_manual(
     values = colours$direction %>% 
       setNames(str_to_title(names(.))) %>% 
-      setNames(paste(targets[[2]], names(.)))
+      setNames(paste(targets[[2]], names(.))) 
   ) +
   labs(
     x = paste(targets[[1]], "logCPM"),
@@ -468,7 +615,8 @@ all_windows %>%
   scale_colour_manual(
     values = colours$direction %>% 
       setNames(str_to_title(names(.))) %>% 
-      setNames(paste(targets[[2]], names(.)))
+      setNames(paste(targets[[2]], names(.))) %>% 
+      .[!str_detect(names(.), "Undetected")]
   ) +
   scale_fill_manual(
     values = colours$direction %>% 
@@ -537,12 +685,12 @@ all_windows %>%
     aes(x, y, label = lab),
     data = . %>%
       mutate(
-        x = min(!!sym(glue("{targets[[1]]}_logFC"))),
+        x = max((!!sym(glue("{targets[[1]]}_logFC")))),
         y = min(!!sym(glue("{targets[[2]]}_logFC")))
       ) %>% 
-      group_by(
-        !!sym(glue("{targets[[1]]}_status")), !!sym(glue("{targets[[2]]}_status"))
-      ) %>%
+      # group_by(
+      #   !!sym(glue("{targets[[1]]}_status")), !!sym(glue("{targets[[2]]}_status"))
+      # ) %>%
       summarise(
         x = unique(x), 
         y = unique(y),
@@ -552,15 +700,16 @@ all_windows %>%
       ),
     inherit.aes = FALSE
   ) +
-  facet_grid(
-    as.formula(
-      glue("{targets[[2]]}_status ~ fct_rev({targets[[1]]}_status)")
-    )
-  ) +
+  # stat_ellipse(level = 0.9) +
+  # facet_grid(
+  #   as.formula(
+  #     glue("{targets[[2]]}_status ~ fct_rev({targets[[1]]}_status)")
+  #   )
+  # ) +
   scale_colour_manual(
     values = direction_colours[
-      filter(all_windows, !str_detect(status, "Undetected"))$status %>% 
-        droplevels() %>% 
+      filter(all_windows, !str_detect(status, "Undetected"))$status %>%
+        droplevels() %>%
         levels()
     ]
   ) +
@@ -729,7 +878,8 @@ all_windows %>%
 # Enrichment Analysis
 
 
-```{r msigdb, eval = FALSE}
+```{r msigdb}
+all_ids <- all_gr$gene$gene_id
 msigdb <- msigdbr(species = "Homo sapiens") %>% 
   dplyr::filter(
     gs_cat %in% unlist(params$msigdb$gs_cat) |
@@ -738,7 +888,7 @@ msigdb <- msigdbr(species = "Homo sapiens") %>%
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
   dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
-  dplyr::filter(gene_id %in% all_gr$gene$gene_id)
+  dplyr::filter(gene_id %in% all_ids)
 gs_by_gsid <- msigdb %>% 
   split(.$gs_name) %>% 
   lapply(pull, "gene_id") %>% 
@@ -749,7 +899,157 @@ gs_by_geneid <- msigdb %>%
   lapply(unique)
 ```
 
-The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r glue_collapse(targets, sep = " and ")`
+
+```{r goseq-groups}
+mapped_ids <- all_windows$gene_id %>%
+  unlist() %>% 
+  unique() %>% 
+  sort()
+gene_lengths <- structure(width(all_gr$gene), names = all_gr$gene$gene_id)[mapped_ids]
+group_ids <- all_windows %>% 
+  split(f = .$status) %>% 
+  lapply(function(x) unique(unlist(x$gene_id))
+  ) 
+goseq_group_res <- group_ids %>% 
+  mclapply(
+    function(x) {
+      vec <- structure(mapped_ids %in% x, names = mapped_ids)
+      pwf <- nullp(vec, bias.data = log10(gene_lengths))
+      res <- as_tibble(goseq(pwf, gene2cat = gs_by_geneid))
+      res$fdr <- p.adjust(res$over_represented_pvalue, "fdr")
+      res <- dplyr::select(
+        res,
+        gs_name = category, pval = over_represented_pvalue, fdr, ends_with("InCat")
+      )
+      res %>% 
+        # dplyr::filter(fdr < fdr_alpha) %>% 
+        dplyr::slice(1) %>% 
+        left_join(
+          dplyr::filter(msigdb, gene_id %in% x)[c("gs_name", "gene_name", "gs_url")],
+          by = "gs_name"
+        ) %>% 
+        chop(gene_name) %>% 
+        mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
+    },
+    mc.cores = 6
+  ) %>% 
+  lapply(list) %>% 
+  as_tibble() %>% 
+  pivot_longer(everything(), names_to = "group") %>% 
+  unnest(everything())
+```
+
+The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r glue_collapse(targets, sep = " and ")`.
+The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
+`r if(nrow(goseq_group_res) == 0) "No enrichment was found amongst any group of windows"`
+
+
+```{r goseq-group-res, eval = nrow(goseq_group_res) > 0, echo =  nrow(goseq_group_res) > 0}
+cp <- htmltools::tags$em(
+  glue(
+    "Pathways enriched amongst genes mapped to windows, using both ",
+    glue_collapse(targets, sep = " and "),
+    " status to define groups of genes."
+  )
+)
+tbl <- goseq_group_res %>% 
+  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
+  separate(
+    group, into = targets, sep = " - "
+  ) %>% 
+  dplyr::select(all_of(targets), gs_name, everything()) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      "{targets[[1]]}" := colDef(
+        name = paste(targets[[1]], "Status"),
+        cell = function(value) {
+          if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
+          if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
+          value
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
+            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
+          )
+          list(color = colour)
+        },
+        maxWidth = 150
+      ),
+      "{targets[[2]]}" := colDef(
+        name = paste(targets[[2]], "Status"),
+        cell = function(value) {
+          if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
+          if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
+          value
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
+            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
+          )
+          list(color = colour)
+        },
+        maxWidth = 150
+      ),
+      gs_name = colDef(
+        name = "Gene Set",
+        cell = function(value) {
+          htmltools::tags$a(
+            href = value$gs_url, target = "_blank",
+            str_replace_all(value$gs_name, "_", " ")
+          )
+        },
+        html = TRUE
+      ),
+      pval = colDef(
+        name = "P-Value",
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      fdr = colDef(
+        name = "FDR",
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      numDEInCat = colDef(
+        name = "Genes In Group",
+        cell = function(value) comma(value, 1),
+        maxWidth = 80
+      ),
+      numInCat = colDef(
+        name = "All Genes",
+        cell = function(value) comma(value, 1),
+        maxWidth = 80
+      ),
+      gene_name = colDef(
+        name = "Genes",
+        cell = function(value) with_tooltip(value, width = 30)
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+
 
 
 
