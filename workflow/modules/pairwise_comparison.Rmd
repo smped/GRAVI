@@ -64,9 +64,9 @@ if (length(unique(targets)) == 1) {
   comps <- seq_along(pairs) %>%
     vapply(
       function(x) paste(
-        names(pairs)[[x]], 
-        paste(rev(pairs[[x]]), collapse = " Vs. "), 
-        sep = ": "
+        # names(pairs)[[x]], 
+        paste(rev(pairs[[x]]), collapse = " Vs. ")#, 
+        # sep = ": "
       ), 
       character(1)
     )
@@ -387,11 +387,13 @@ samples %>%
   ) %>% 
   fromList() %>% 
   upset(
-    sets = seq_along(pairs) %>% 
-      vapply(function(x) paste(names(pairs)[[x]], pairs[[x]], sep = "_"), character(2)) %>% 
-      as.character() %>% 
-      rev() %>% 
-      str_replace_all("(.+)_(.+)", "\\1 (\\2)"),
+    sets = samples %>%
+      distinct(target, treat) %>%
+      mutate_all(as.character) %>%
+      mutate(grp = glue("{target} ({treat})")) %>%
+      pull("grp") %>%
+      as.character() %>%
+      rev(),
     keep.order = TRUE,
     order.by = "freq",
     set_size.show = TRUE, 
@@ -400,11 +402,12 @@ samples %>%
       unlist() %>% 
       max() %>% 
       multiply_by(1.15),
-    sets.bar.color = pairs %>% 
-      lapply(function(x) treat_colours[x]) %>% 
-      unlist() %>% 
-      as.character() %>% 
-      rev()
+    sets.bar.color = treat_colours[
+      pairs %>% 
+        unlist() %>% 
+        unique() %>% 
+        rev()
+    ] 
   )
 ```
 
