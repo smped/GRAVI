@@ -363,6 +363,14 @@ lapply(
 ## Treatment Specific Peaks
 
 ```{r oracle-peaks-upset, fig.height = 7, fig.cap = glue("*Macs2 peaks detected for ", glue_collapse(unique(targets), sep = " and " ), " in the treatment groups ", glue_collapse(unique(unlist(pairs)), sep = ", ", last = " or "), ".*")}
+bar_cols <- treat_colours[rev(unlist(pairs))]
+if (length(unique(targets)) == 1)
+  bar_cols <- treat_colours[
+    pairs %>% 
+      unlist() %>% 
+      unique() %>% 
+      rev()
+  ]
 samples %>% 
   distinct(target, treat) %>% 
   mutate_all(as.character) %>% 
@@ -394,12 +402,7 @@ samples %>%
       unlist() %>% 
       max() %>% 
       multiply_by(1.15),
-    sets.bar.color = treat_colours[
-      pairs %>% 
-        unlist() %>% 
-        unique() %>% 
-        rev()
-    ] 
+    sets.bar.color = bar_cols
   )
 ```
 

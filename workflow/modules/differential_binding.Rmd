@@ -2,7 +2,7 @@
 ## This module requires the following to be set during preparation
 # target <- "ER"
 # threads <- 6
-# treat_levels <- c("E2", "E2DHT")
+# treat_levels <- c("Veh", "DHT")
 ```
 
 ```{r packages}
@@ -245,6 +245,35 @@ facet_labeller <- as_labeller(
     ),
     c(
       AveExpr = "logCPM", logFC = "logFC"
+    )
+  )
+)
+```
+
+```{r define-outputs}
+all_out <- list(
+  results = file.path(
+    out_path, 
+    glue("{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.rds")
+  ),
+  csv = file.path(
+    out_path, 
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.csv")
+  ),
+  windows  = file.path(
+    out_path,
+    glue("{treat_levels[[1]]}_{treat_levels[[2]]}_filtered_windows.rds")
+  ),
+  up_regions = file.path(
+    out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_up.bed")
+  ),
+  down_regions = file.path(
+    out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_down.bed")
+  ),
+  renv = here::here(
+    "output/envs",
+    glue(
+      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.RData"
     )
   )
 )
@@ -2611,29 +2640,27 @@ div(class = "table",
 
 # Data Export
 
-```{r data-export, results='hide'}
-all_out <- list(
-  results = file.path(
-    out_path, 
-    glue("{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.rds")
-  ),
-  windows  = file.path(
-    out_path,
-    glue("{treat_levels[[1]]}_{treat_levels[[2]]}_filtered_windows.rds")
-  ),
-  up_regions = file.path(
-    out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_up.bed")
-  ),
-  down_regions = file.path(
-    out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_down.bed")
-  ),
-  renv = here::here(
-    "output/envs",
-    glue(
-      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.RData"
+```{r export-diff-by-gene}
+merged_results %>% 
+  as_tibble() %>%
+  unnest(starts_with("gene")) %>%
+  dplyr::select(
+    gene_id, gene_name, range, AveExpr, logFC, P.Value, FDR = !!sym(fdr_column), 
+    status, any_of(c("region", "feature")), macs2_peak = overlaps_ref,
+  ) %>% 
+  mutate(
+    distance_to_gene = distance(
+      GRanges(range),
+      setNames(all_gr$gene, all_gr$gene$gene_id)[gene_id]
     )
+  ) %>% 
+  write_csv(
+    all_out$csv
   )
-)
+```
+
+
+```{r data-export, results='hide'}
 write_rds(merged_results, all_out$results, compress = "gz")
 write_rds(filtered_counts, all_out$windows, compress = "gz")
 

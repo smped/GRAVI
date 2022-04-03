@@ -38,7 +38,7 @@ rule pairwise_comparisons:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
-	log: "workflow/logs/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
+	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
 	shell:
 		"""
 		## Create the generic markdown header

@@ -76,6 +76,10 @@ rule differential_binding:
 			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),
 			file = ['differential_binding.rds', 'down.bed', 'up.bed']
 		),
+		csv = os.path.join(
+			"output", 
+			"{target}", "{target}_{ref}_{treat}-differential_binding.csv"
+		),
 		win = os.path.join(
 			"output", "{target}", "{ref}_{treat}_filtered_windows.rds"
 		)
@@ -122,5 +126,6 @@ rule differential_binding:
 			git add {output.html}
 			git add {output.fig_path}
 			git add {output.outs}
+			git add {output.csv}
 		fi
 		"""
