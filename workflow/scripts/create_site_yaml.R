@@ -127,7 +127,7 @@ site_yaml$navbar$left <- list(
       lapply(
         function(x){
           list(
-            text = x$target,
+            text = unique(x$target),
             menu = lapply(
               split(x, f = seq_len(nrow(x))),
               function(y) {
