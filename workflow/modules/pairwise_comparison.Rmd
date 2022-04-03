@@ -59,15 +59,18 @@ theme_set(
 
 ```{r samples}
 targets <- names(pairs)
-comps <- seq_along(pairs) %>%
-  vapply(
-    function(x) paste(
-      names(pairs)[[x]], 
-      paste(rev(pairs[[x]]), collapse = " Vs. "), 
-      sep = ": "
-    ), 
-    character(1)
-  )
+comps <- targets
+if (length(unique(targets)) == 1) {
+  comps <- seq_along(pairs) %>%
+    vapply(
+      function(x) paste(
+        names(pairs)[[x]], 
+        paste(rev(pairs[[x]]), collapse = " Vs. "), 
+        sep = ": "
+      ), 
+      character(1)
+    )
+}
 samples <- seq_along(pairs) %>% 
   lapply(
     function(x) {
@@ -1715,7 +1718,7 @@ htmltools::tagList(
 
 # Combined Binding Visualisation
 
-## Windows With The Strongest Signal
+## Windows With The Strongest Signal {.tabset}
 
 For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
 Groups were restricted to those where differential binding was seen in at least comparison.
@@ -1747,6 +1750,7 @@ grl_to_plot <- all_windows %>%
   droplevels() %>% 
   split(.$status) %>% 
   lapply(pull, "range") %>% 
+  lapply(function(x) x[1]) %>% 
   lapply(GRanges, seqinfo = sq) %>% 
   GRangesList()
 ```
@@ -1777,6 +1781,7 @@ annot <- comps %>%
         ) %>% 
         splitAsList(.$status) %>% 
         lapply(granges) %>% 
+        lapply(unique) %>% 
         GRangesList()
     }
   ) %>% 
@@ -1910,6 +1915,9 @@ htmltools::tagList(
         filename = png_out,
         width = 10, height = 8, units = "in", res = 300
       )
+      ct <- FALSE
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
+        ct <- "meta"
       plotHFGC(
         grl_to_plot[[x]],
         features = feat_gr, featcol = feature_colours,
@@ -1920,7 +1928,7 @@ htmltools::tagList(
         rotation.title = 90,
         zoom = 10,
         ylim = y_lim,
-        collapseTranscripts = FALSE,
+        collapseTranscripts = ct,
         col.title = "black", background.title = "white", showAxis = FALSE
       )
       dev.off()
@@ -1942,9 +1950,10 @@ htmltools::tagList(
           id = names(grl_to_plot)[[x]] %>% 
             str_remove_all("(:|Vs. |- )") %>% 
             str_replace_all(" ", "-") %>% 
-            str_to_lower(),
+            str_to_lower() %>% 
+            paste0("-aveexpr"),
           class="section level3",
-          htmltools::h3(class = "tabset", x),
+          htmltools::h3(names(grl_to_plot)[[x]]),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = 960),
@@ -1959,7 +1968,7 @@ htmltools::tagList(
 )  
 ```
 
-## Windows With The Largest Change
+## Windows With The Largest Change {.tabset}
 
 For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
 Groups were restricted to those where differential binding was seen in at least comparison.
@@ -2051,6 +2060,9 @@ htmltools::tagList(
         filename = png_out,
         width = 10, height = 8, units = "in", res = 300
       )
+      ct <- FALSE
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
+        ct <- "meta"
       plotHFGC(
         grl_to_plot[[x]],
         features = feat_gr, featcol = feature_colours,
@@ -2061,7 +2073,7 @@ htmltools::tagList(
         rotation.title = 90,
         zoom = 10,
         ylim = y_lim,
-        collapseTranscripts = FALSE,
+        collapseTranscripts = ct,
         col.title = "black", background.title = "white", showAxis = FALSE
       )
       dev.off()
@@ -2083,9 +2095,10 @@ htmltools::tagList(
           id = names(grl_to_plot)[[x]] %>% 
             str_remove_all("(:|Vs. |- )") %>% 
             str_replace_all(" ", "-") %>% 
-            str_to_lower(),
+            str_to_lower() %>% 
+            paste0("-logfc"),
           class="section level3",
-          htmltools::h3(class = "tabset", x),
+          htmltools::h3(names(grl_to_plot)[[x]]),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = 960),
