@@ -5,6 +5,7 @@ import subprocess
 import urllib
 import sys
 import random
+import itertools
 
 configfile: "config/config.yml"
 
@@ -53,7 +54,15 @@ def make_contrasts(x):
 			ret_val.extend([t + "_" + ref + "_" + treat])
 	return(ret_val)
 
-
+def make_pairwise(x):
+	ret_val = []
+	all_cont = make_contrasts(x)
+	all_pairs = list(
+		itertools.combinations(all_cont, 2)
+	)
+	for p in all_pairs:
+		ret_val.extend([p[0] + "_" + p[1]])
+	return(ret_val)
 
 
 ###############################################################
@@ -139,6 +148,14 @@ HTML_OUT.extend(
 	)
 )
 
+## Pairwise Comparisons
+HTML_OUT.extend(
+	expand(
+		os.path.join("docs", "{comp}_pairwise_comparison.html"),
+		comp = make_pairwise(config['comparisons']['contrasts'])
+	)
+)
+
 ALL_OUTPUTS.extend(HTML_OUT)
 ## Keep the final index separate for easiers passing to other rules
 ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
@@ -200,3 +217,4 @@ include: "rules/rmarkdown.smk"
 include: "rules/macs2.smk"
 include: "rules/annotations.smk"
 include: "rules/differential_binding.smk"
+include: "rules/pairwise_comparisons.smk"

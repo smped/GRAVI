@@ -3,16 +3,18 @@ library(glue)
 
 args <- commandArgs(TRUE)
 target1 <- args[[1]]
-target2 <- args[[2]]
-ref <- args[[3]]
-treat <- args[[4]]
-threads <- args[[5]]
-rmd <- args[[6]]
+ref1 <- args[[2]]
+treat1 <- args[[3]]
+target2 <- args[[4]]
+ref2 <- args[[5]]
+treat2 <- args[[6]]
+threads <- args[[7]]
+rmd <- args[[8]]
 
 glue(
   "
 	---
-	title: '{{treat}} Vs. {{ref}}: Comparison between {{target1}} and {{target2}}'
+	title: '{{target1}}: {{treat1}} Vs. {{ref1}} Compared To {{target2}}: {{treat2}} Vs. {{ref2}}'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	---
 
@@ -20,12 +22,11 @@ glue(
 	```
 
 	```{r set-vals}
-	targets <- c(\"{{target1}}\", \"{{target2}}\")
-	treat_levels <- c(\"{{ref}}\", \"{{treat}}\")
 	threads <- {{threads}}
-	```
-
-	```{r build-from-module, echo = TRUE, child = here::here('workflow/modules/pairwise_comparison.Rmd')}
+	pairs <- list(
+	  \"{{target1}}\" = c(\"{{ref1}}\", \"{{treat1}}\"),
+	  \"{{target2}}\" = c(\"{{ref2}}\", \"{{treat2}}\")
+	)
 	```
 
 	",
