@@ -1,17 +1,9 @@
----
-title: "Test Pairwise"
----
 
-```{r set-knitr-opts, echo=FALSE, child = here::here('workflow/modules/setup_chunk.Rmd')}
-```
-
-
-```{r example, echo = FALSE, eval=TRUE}
+```{r example, echo = FALSE, eval=FALSE}
 ## This module requires the following to be set during preparation
-threads <- 6
-pairs <- list(AR = c("Veh", "DHT"), ER = c("Veh", "DHT"))
+# threads <- 6
+# pairs <- list(AR = c("Veh", "DHT"), ER = c("Veh", "DHT"))
 ```
-
 
 
 ```{r packages}
@@ -425,7 +417,8 @@ all_windows <- db_results %>%
   mutate(
     region = regions[
       bestOverlap(., GRangesList(lapply(gene_regions, granges)))
-    ]
+    ] %>% 
+      factor(levels = regions)
   ) %>%
   join_overlap_left(
     db_results[[comps[[1]]]] %>% 
@@ -683,6 +676,78 @@ div(class = "table",
 ```
 
 Results across all windows are shown below for both `r collapseGenes(comps)` separately, then together.
+
+## Distribution By Region
+
+```{r status-by-region, fig.cap = glue("*Distribution of binding patterns by genomic regions as defined in earlier sections.*")}
+w <- 0.8
+min_p <- 0.08
+all_windows %>%
+  mutate(
+    region = fct_relabel(region, str_replace, pattern = " \\(", replacement = "\n(")
+  ) %>% 
+  plotPie(fill = "status", x = "region", label_size = 4, label_alpha = 0.8, width = w) + 
+  geom_text(
+    aes(xlab, ylab, label =lab),
+    data = . %>% 
+      mutate(
+        xlab = x + w*(r + 0.1)*sin(label_radians),
+        ylab = 1 + w*(r + 0.1)*cos(label_radians),
+        lab = glue("{status}\n{percent(p, 0.1)}") %>% 
+          str_wrap(15)
+      ) %>% 
+      dplyr::filter(p * N > min_p * max(N)),
+    size = 3
+  ) +
+  geom_segment(
+    aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
+     data = . %>% 
+      mutate(
+        x_inner = x + w*r*sin(label_radians),
+        y_inner = 1 + w*r*cos(label_radians),
+        x_outer = x + w*(r + 0.01)*sin(label_radians),
+        y_outer = 1 + w*(r + 0.01)*cos(label_radians),
+      ) %>% 
+      dplyr::filter(p * N > min_p * max(N))
+  ) +
+  scale_fill_viridis_d() + 
+  labs(x = "Region", fill = "Status") +
+  theme(legend.position = "top")
+```
+
+`r if (has_features) "## Distribution By Feature"`
+
+```{r status-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Distribution of binding patterns by external features as defined in earlier sections.*")}
+all_windows %>%
+  plotPie(fill = "status", x = "feature", label_size = 4, label_alpha = 0.8) + 
+  geom_text(
+    aes(xlab, ylab, label =lab),
+    data = . %>% 
+      mutate(
+        xlab = x + w*(r + 0.1)*sin(label_radians),
+        ylab = 1 + w*(r + 0.1)*cos(label_radians),
+        lab = glue("{status}\n{percent(p, 0.1)}") %>% 
+          str_wrap(15)
+      ) %>% 
+      dplyr::filter(p * N > min_p * max(N)),
+    size = 3
+  ) +
+  geom_segment(
+    aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
+     data = . %>% 
+      mutate(
+        x_inner = x + w*r*sin(label_radians),
+        y_inner = 1 + w*r*cos(label_radians),
+        x_outer = x + w*(r + 0.01)*sin(label_radians),
+        y_outer = 1 + w*(r + 0.01)*cos(label_radians),
+      ) %>% 
+      dplyr::filter(p * N > min_p * max(N))
+  ) +
+  scale_fill_viridis_d() + 
+  labs(x = "Feature", fill = "Status") +
+  theme(legend.position = "top")
+```
+
 
 ## `r comps[[1]]` By `r comps[[2]]` Status
 
@@ -1113,12 +1178,12 @@ msigdb <- msigdbr(species = "Homo sapiens") %>%
   dplyr::filter(gene_id %in% all_ids$gene_id)
 gs_by_gsid <- msigdb %>% 
   split(.$gs_name) %>% 
-  lapply(pull, "gene_id") %>% 
-  lapply(unique)
+  mclapply(pull, "gene_id", mc.cores = threads) %>% 
+  mclapply(unique, mc.cores = threads)
 gs_by_geneid <- msigdb %>% 
   split(.$gene_id) %>% 
-  lapply(pull, "gs_name") %>% 
-  lapply(unique)
+  mclapply(pull, "gs_name", mc.cores = threads) %>% 
+  mclapply(unique, mc.cores = threads)
 comp_ids <- comps %>% 
   lapply(
     function(x) {
@@ -1134,7 +1199,9 @@ mapped_ids <- comp_ids %>%
 gene_lengths <- structure(width(all_gr$gene), names = all_gr$gene$gene_id)[mapped_ids]
 group_ids <- all_windows %>% 
   split(f = .$status) %>% 
-  lapply(function(x) unique(unlist(x$gene_id))
+  mclapply(
+    function(x) unique(unlist(x$gene_id)),
+    mc.cores = threads
   ) 
 ```
 
@@ -1599,7 +1666,7 @@ The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene id
 ```{r tbl-goseq-groups, eval = length(goseq_group_res) > 0, echo = length(goseq_group_res) > 0}
 htmltools::tagList(
   names(goseq_group_res) %>% 
-    lapply(
+    mclapply(
       function(x) {
         cp <- glue(
           "
@@ -1714,7 +1781,8 @@ htmltools::tagList(
               )
           )
         )
-      }
+      },
+      mc.cores = threads
     )
 )
 ```
@@ -1903,7 +1971,7 @@ if (!is.null(config$external$coverage)) {
 
 ```{r plot-top-ranges-aveexpr}
 htmltools::tagList(
-  lapply(
+  mclapply(
     seq_along(grl_to_plot),
     function(x) {
       ## Export the png
@@ -1966,7 +2034,8 @@ htmltools::tagList(
           )
         )
       )
-    }
+    },
+    mc.cores = threads
   )
 )  
 ```
@@ -2048,7 +2117,7 @@ if (!is.null(config$external$coverage)) {
 
 ```{r plot-top-ranges-logfc}
 htmltools::tagList(
-  lapply(
+  mclapply(
     seq_along(grl_to_plot),
     function(x) {
       ## Export the png
@@ -2111,15 +2180,57 @@ htmltools::tagList(
           )
         )
       )
-    }
+    },
+    mc.cores = threads
   )
 )  
 ```
 
 
+```{r add-rna, eval = any_detected, child = here::here('workflow/modules/rnaseq_pairwise.Rmd')}
+```
 
-<!-- # RNA-Seq -->
+# Data Export
 
-<!-- Add another RNA-Seq module here -->
+```{r}
+out_path <- here::here("output", paste(targets, collapse = "_"))
+if (!dir.exists(out_path)) dir.create(out_path)
+all_out <- list(
+  results = file.path(
+    out_path,
+    glue(
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
+      "all_windows.rds"
+    )
+  ),
+  renv = here::here(
+    "output", "envs",
+    glue(
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
+      "pairwise_comparison.RData"
+    )
+  )
+)
+write_rds(all_windows, all_out$results, compress = "gz")
+save.image(all_out$renv)
+```
+
+During this workflow, the following files were exported:
+
+`r pander(lapply(all_out, str_extract, "output.+"))`
 
 
+
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+
+</div>

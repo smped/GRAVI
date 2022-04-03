@@ -1,0 +1,319 @@
+# Comparison With RNA Seq
+
+```{r define-objects}
+library(fgsea)
+library(cowplot)
+id2gene <- structure(all_gr$gene$gene_name, names = all_gr$gene$gene_id)
+rna_status <- rnaseq %>% 
+  mutate(
+    de_status = case_when(
+      !!sym(rna_fdr_col) < fdr_alpha & !!sym(rna_lfc_col) < 0 ~ "Down",
+      !!sym(rna_fdr_col) < fdr_alpha & !!sym(rna_lfc_col) > 0 ~ "Up",
+      !!sym(rna_fdr_col) >= fdr_alpha ~ "Unchanged"
+    )
+  ) %>% 
+  dplyr::select(gene_id, gene_name, de_status) %>% 
+  bind_rows(
+    all_gr$gene %>% 
+      subset(!gene_id %in% rnaseq$gene_id) %>% 
+      select(gene_id, gene_name) %>% 
+      mcols() %>% 
+      as_tibble() %>% 
+      mutate(de_status = "Undetected")
+  ) %>% 
+  mutate(
+    de_status = factor(
+      de_status, levels = str_to_title(names(colours$direction))
+    )
+  ) %>% 
+  arrange(gene_id)
+rna_p_col <- colnames(rnaseq)[
+  str_detect(str_to_lower(colnames(rnaseq)), "pval|p\\.val")
+][1]
+stopifnot(length(rna_p_col) == 1)
+diff_windows <- all_windows %>% 
+  splitAsList(.$status) %>% 
+  lapply(select, gene_id) %>% 
+  lapply(mcols) %>% 
+  lapply(as_tibble) %>% 
+  lapply(pull, "gene_id") %>% 
+  lapply(unlist) %>% 
+  lapply(unique)
+```
+
+
+## Relationship To Differentially Expressed Genes {.tabset}
+
+
+```{r define_genesets}
+rna_dir_ranks <- rnaseq %>% 
+  mutate(
+    ranking_stat = -sign(!!sym(rna_lfc_col))*log10(!!sym(rna_p_col)) %>% 
+      setNames(gene_id)
+  ) %>% 
+  arrange(ranking_stat) %>% 
+  dplyr::filter(!!sym(rna_p_col) < 1) %>% 
+  pull("ranking_stat") 
+rna_sig_ranks <- rna_dir_ranks %>% 
+  abs() %>% 
+  sort()
+status_gs <- all_windows %>% 
+  select(status, starts_with("gene")) %>% 
+  as_tibble() %>% 
+  split(.$status) %>% 
+  lapply(pull, "gene_id") %>% 
+  lapply(unlist) %>% 
+  lapply(unique) %>% 
+  .[vapply(., length, integer(1)) > 20]
+```
+
+
+### Directional GSEA
+
+```{r gsea-dir-sig}
+gsea_dir <- fgsea(status_gs, rna_dir_ranks)
+gsea_dir_sig <- gsea_dir %>%
+  arrange(pval) %>%
+  dplyr::filter(padj < fdr_alpha) %>%
+  as_tibble()
+p <- gsea_dir_sig %>% 
+  dplyr::slice(1:9) %>% 
+  pull("pathway") %>% 
+  lapply(
+    function(x) {
+      plotEnrichment(status_gs[[x]], rna_dir_ranks) +
+        ggtitle(x) +
+        theme(
+          plot.title = element_text(hjust = 0.5, size = 10)
+        )
+    }
+  )
+```
+
+`r if (nrow(gsea_dir_sig) == 0) glue("No association was found between joint binding patterns and *directional* significance in differentially expressed genes.")`
+
+```{r tbl-gsea-dir_sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0}
+cp <-  htmltools::em(
+  glue(
+    "Combined windows were mapped to genes, and their position amongst the ",
+    "RNA-Seq results was assessed. {nrow(gsea_dir_sig)} sets of windows were ",
+    "associated with changes in gene expression, using the sign of ", 
+    "fold-change and ranking statistic to initially rank the ", 
+    "{comma(nrow(rnaseq), 1)} genes considered as detected."
+  )
+)
+tbl <- gsea_dir_sig %>%
+  mutate(
+    `Edge Size` = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %>% 
+      vapply(paste, character(1), collapse = "; "),
+    Direction = ifelse(NES > 0, "\u21E7 Up-regulated", "\u21E9 Down-regulated")
+  ) %>%
+  separate(pathway, comps, sep = " - ") %>% 
+  dplyr::select(
+    all_of(comps), Windows = size, Direction, 
+    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      "{comps[[1]]}" := colDef(
+        maxWidth = 150,
+        cell = function(value) {
+          html_symbol <- ""
+          if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+          if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            TRUE ~ colours$direction[["unchanged"]]
+          )
+          list(color = colour)
+        }
+      ),
+      "{comps[[2]]}" := colDef(
+        maxWidth = 150,
+        cell = function(value) {
+          html_symbol <- ""
+          if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+          if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            TRUE ~ colours$direction[["unchanged"]]
+          )
+          list(color = colour)
+        }
+      ),
+      Windows = colDef(maxWidth = 80),
+      Direction = colDef(
+        name = "Gene Direction",
+        maxWidth = 120,
+        style = function(value) {
+          colour <- ifelse(
+            str_detect(value, "Up"), 
+            colours$direction[["up"]], 
+            colours$direction[["down"]]
+          )
+          list(color = colour)
+        },
+      ),
+      p = colDef(
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ), 
+        maxWidth = 80
+      ),
+      FDR = colDef(
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ), 
+        maxWidth = 80
+      ),
+      "Edge Size" = colDef(maxWidth = 80),
+     "Leading Edge" = colDef(
+       minWidth = 150,
+       cell = function(value) with_tooltip(value, width = 50)
+     ) 
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+
+
+```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+```
+
+
+### Non-Directional GSEA
+
+```{r gsea-nondir-sig}
+gsea_nondir <- fgsea(status_gs, rna_sig_ranks)
+gsea_nondir_sig <- gsea_nondir %>% 
+  arrange(pval) %>% 
+  dplyr::filter(padj < fdr_alpha) %>% 
+  as_tibble() 
+p <- gsea_nondir_sig %>% 
+  dplyr::slice(1:9) %>% 
+  pull("pathway") %>% 
+  lapply(
+    function(x) {
+      plotEnrichment(status_gs[[x]], rna_sig_ranks) +
+        ggtitle(x) +
+        theme(plot.title = element_text(hjust = 0.5, size = 10))
+    }
+  )
+```
+
+`r if (nrow(gsea_nondir_sig) == 0) glue("No association was found between {target} binding and *overall* significance in differentially expressed genes.")`
+
+```{r tbl-gsea_nondir_sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0}
+cp <-  htmltools::em(
+  glue(
+    "Combined windows were mapped to genes, and their position amongst the ",
+    "RNA-Seq results was assessed. {nrow(gsea_nondir_sig)} sets of windows were ",
+    "associated with changes in gene expression, using only the p-value to ", 
+    "rank the {comma(nrow(rnaseq), 1)} genes considered as detected."
+  )
+)
+tbl <- gsea_nondir_sig %>%
+  mutate(
+    `Edge Size` = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %>% 
+      vapply(paste, character(1), collapse = "; ")
+  ) %>% 
+  separate(pathway, comps, sep = " - ") %>% 
+  dplyr::select(
+    all_of(comps), Windows = size, 
+    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+  ) %>% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      "{comps[[1]]}" := colDef(
+        maxWidth = 150,
+        cell = function(value) {
+          html_symbol <- ""
+          if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+          if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            TRUE ~ colours$direction[["unchanged"]]
+          )
+          list(color = colour)
+        }
+      ),
+      "{comps[[2]]}" := colDef(
+        maxWidth = 150,
+        cell = function(value) {
+          html_symbol <- ""
+          if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+          if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour <- case_when(
+            str_detect(value, "Up") ~ colours$direction[["up"]],
+            str_detect(value, "Down") ~ colours$direction[["down"]],
+            TRUE ~ colours$direction[["unchanged"]]
+          )
+          list(color = colour)
+        }
+      ),
+      Windows = colDef(maxWidth = 80),
+      p = colDef(
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ), 
+        maxWidth = 80
+      ),
+      FDR = colDef(
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ), 
+        maxWidth = 80
+      ),
+      "Edge Size" = colDef(maxWidth = 80),
+     "Leading Edge" = colDef(
+       minWidth = 150,
+       cell = function(value) with_tooltip(value, width = 50)
+     ) 
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+```
+
