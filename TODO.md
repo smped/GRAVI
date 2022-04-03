@@ -2,6 +2,9 @@
 
 ## Input Validity Functions
 
+- The Input file cannot be shared by multiple targets as we end up with an I/O conflict during parallel DB analyses
+- Ensuring the correct order in the _site.yml file needs improving
+
 ## Motifs
 
 - Include motif enrichment as part of the standard workflow

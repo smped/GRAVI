@@ -50,7 +50,8 @@ pairs <- lapply(
       logical(1)
     ) %>%
       which() %>%
-      names()
+      names() %>%
+      sort
     paste(target_combs, cont, sep = "_")
   }
 ) %>%
@@ -66,7 +67,7 @@ pairs <- lapply(
       str_extract(c2, "^[A-Za-z0-9]+"),
       sep = "-"
     ),
-    rmd = paste(c1, c2, "pairwise_comparison.Rmd", sep = "_"),
+    html = paste(c1, c2, "pairwise_comparison.html", sep = "_"),
     across(
       all_of(c("c1", "c2")),
       str_remove_all, "^[A-Za-z0-9]+_"
@@ -77,7 +78,7 @@ pairs <- lapply(
     )
   ) %>%
   unite(comps, c1, c2, sep = " / ") %>%
-  dplyr::select(pairs, comps, rmd)
+  dplyr::select(pairs, comps, html)
 
 site_yaml <- rmd$rmarkdown_site
 
@@ -157,7 +158,7 @@ site_yaml$navbar$left <- list(
               function(y) {
                 list(
                   text = y$comps,
-                  href = y$rmd
+                  href = y$html
                 )
               }
             ) %>%

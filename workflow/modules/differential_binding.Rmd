@@ -2651,12 +2651,10 @@ merged_results %>%
   mutate(
     distance_to_gene = distance(
       GRanges(range),
-      setNames(all_gr$gene, all_gr$gene$gene_id)[gene_id]
+      setNames(genes_gr, genes_gr$gene_id)[gene_id]
     )
   ) %>% 
-  write_csv(
-    all_out$csv
-  )
+  write_csv(all_out$csv)
 ```
 
 

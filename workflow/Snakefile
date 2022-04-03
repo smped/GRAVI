@@ -54,6 +54,7 @@ def make_contrasts(x):
 			ret_val.extend([t + "_" + ref + "_" + treat])
 	return(ret_val)
 
+
 def make_pairwise(x):
 	ret_val = []
 	all_cont = make_contrasts(x)
@@ -61,7 +62,9 @@ def make_pairwise(x):
 		itertools.combinations(all_cont, 2)
 	)
 	for p in all_pairs:
-		ret_val.extend([p[0] + "_" + p[1]])
+		p_list = list(p)
+		p_list.sort()
+		ret_val.extend([p_list[0] + "_" + p_list[1]])
 	return(ret_val)
 
 
