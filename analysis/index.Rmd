@@ -41,7 +41,7 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
   add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install)") %>%
   change_node_colour("(setup|index|macs2|bedgraph|identify|binding|install)", "red") %>%
   change_node_colour("(download|write|copy|install)", "blue") %>%
-  change_node_colour("(site|create|build|differential)", "forestgreen") %>%
+  change_node_colour("(site|create|build|differential|pairwise)", "forestgreen") %>%
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
   str_replace_all("fontsize=[0-9]+", "fontsize=16") %>%
