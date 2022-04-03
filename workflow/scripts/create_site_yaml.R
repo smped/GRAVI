@@ -8,6 +8,7 @@
 library(tidyverse)
 library(yaml)
 library(glue)
+library(magrittr)
 
 args <- commandArgs(TRUE)
 fl <- here::here(args[[1]])
@@ -37,28 +38,46 @@ comparisons <- lapply(
   setNames(c())
 
 ## Sort out the pairwise comparisons
-pairs <- config$pairwise %>%
-  lapply(
-    function(x) {
-      tibble(
-        pairs = paste(names(x), collapse = "-"),
-        comps = vapply(
-          x,
-          function(y) paste(rev(y), collapse = " Vs. "),
-          character(1)
-        ) %>%
-          paste(collapse = " / "),
-        rmd = paste(
-          vapply(
-            names(x),
-            function(y) paste(y, paste(x[[y]], collapse = "_"), sep = "_"),
-            character(1)),
-          collapse = "_") %>%
-          paste0("_pairwise_comparison.Rmd")
-      )
-    }
+## This currently automatically finds every possible combination and compares
+## them. Alternatives could be manually specifying or manually excluding...
+pairs <- lapply(
+  config$comparisons$contrasts,
+  function(x) {
+    cont = paste(x, collapse = "_")
+    target_combs <- vapply(
+      split(samples, samples$target),
+      function(y) all(x %in% y$treat),
+      logical(1)
+    ) %>%
+      which() %>%
+      names()
+    paste(target_combs, cont, sep = "_")
+  }
+) %>%
+  unlist() %>%
+  sort() %>%
+  combn(2) %>%
+  t() %>%
+  set_colnames(c("c1", "c2")) %>%
+  as_tibble() %>%
+  mutate(
+    pairs = paste(
+      str_extract(c1, "^[A-Za-z0-9]+"),
+      str_extract(c2, "^[A-Za-z0-9]+"),
+      sep = "-"
+    ),
+    rmd = paste(c1, c2, "pairwise_comparison.Rmd", sep = "_"),
+    across(
+      all_of(c("c1", "c2")),
+      str_remove_all, "^[A-Za-z0-9]+_"
+    ),
+    across(
+      all_of(c("c1", "c2")),
+      str_replace_all, pattern = "(.+)_(.+)", replacement = "\\2 Vs. \\1"
+    )
   ) %>%
-  bind_rows()
+  unite(comps, c1, c2, sep = " / ") %>%
+  dplyr::select(pairs, comps, rmd)
 
 site_yaml <- rmd$rmarkdown_site
 
