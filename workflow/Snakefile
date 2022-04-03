@@ -58,13 +58,12 @@ def make_contrasts(x):
 def make_pairwise(x):
 	ret_val = []
 	all_cont = make_contrasts(x)
+	all_cont.sort()
 	all_pairs = list(
 		itertools.combinations(all_cont, 2)
 	)
 	for p in all_pairs:
-		p_list = list(p)
-		p_list.sort()
-		ret_val.extend([p_list[0] + "_" + p_list[1]])
+		ret_val.extend([p[0] + "_" + p[1]])
 	return(ret_val)
 
 
