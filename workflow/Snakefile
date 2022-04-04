@@ -67,11 +67,12 @@ def make_pairwise(x):
 	return(ret_val)
 
 
+
 ###############################################################
 ## Check whether Git is installed & the directory has a repo ##
 ###############################################################
-#git_add = check_git(".")
-git_add = False
+git_add = check_git(".")
+# git_add = False
 
 ####################
 ## Define Samples ##
@@ -82,6 +83,7 @@ df = pd.read_table(config['samples']['file'])
 samples = list(set(df['sample']))
 targets = list(set(df['target']))
 treats = list(set(df['treat']))
+pairs=make_pairwise(config['comparisons']['contrasts'])
 
 ###############
 ## Key Paths ##
@@ -150,13 +152,15 @@ HTML_OUT.extend(
 	)
 )
 
-## Pairwise Comparisons
-HTML_OUT.extend(
-	expand(
-		os.path.join("docs", "{comp}_pairwise_comparison.html"),
-		comp = make_pairwise(config['comparisons']['contrasts'])
+## Pairwise Comparisons: Only if required
+if pairs:
+	HTML_OUT.extend(
+		expand(
+			os.path.join("docs", "{comp}_pairwise_comparison.html"),
+			comp = pairs
+		)
 	)
-)
+
 
 ALL_OUTPUTS.extend(HTML_OUT)
 ## Keep the final index separate for easiers passing to other rules

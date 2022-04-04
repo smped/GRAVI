@@ -108,6 +108,7 @@ stopifnot(all(dir.exists(bw_path)))
 
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
+id2gene <- setNames(all_gr$gene$gene_name, all_gr$gene$gene_id)
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
 
@@ -325,7 +326,7 @@ The sets of treatment-specific *oracle-peaks* were then compared across the comb
 
 `r if (length(unique(targets)) > 1) "## Consensus Peaks"`
 
-```{r plot-empty-peaks, eval = length(unique(targets)) == 1, echo = FALSE}
+```{r plot-empty-peaks, results = 'hide', eval = length(unique(targets)) == 1, echo = FALSE}
 fig_path <- here::here("docs", "assets", paste(targets, collapse = "_"))
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- targets %>% 
@@ -2275,7 +2276,8 @@ save.image(all_out$renv)
 all_windows %>% 
   as_tibble() %>% 
   dplyr::select(-detected) %>% 
-  unnest(starts_with("gene")) %>% 
+  unnest(all_of("gene_id")) %>% # This ensures correct id2gene mappings
+  mutate(gene_name = id2gene[gene_id]) %>% 
   dplyr::select(
     starts_with("gene"), everything()
   ) %>% 

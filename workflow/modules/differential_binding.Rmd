@@ -2088,7 +2088,8 @@ msigdb <- msigdbr(species = "Homo sapiens") %>%
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
   dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
-  dplyr::filter(gene_id %in% genes_gr$gene_id)
+  dplyr::filter(gene_id %in% genes_gr$gene_id) %>% 
+  mutate(gs_url = str_extract(gs_url, "^[^|]+"))
 gs_by_gsid <- msigdb %>% 
   split(.$gs_name) %>% 
   lapply(pull, "gene_id") %>% 
@@ -2643,7 +2644,8 @@ div(class = "table",
 ```{r export-diff-by-gene}
 merged_results %>% 
   as_tibble() %>%
-  unnest(starts_with("gene")) %>%
+  unnest(all_of("gene_id")) %>%
+  mutate(gene_name = id2gene[gene_id]) %>% 
   dplyr::select(
     gene_id, gene_name, range, AveExpr, logFC, P.Value, FDR = !!sym(fdr_column), 
     status, any_of(c("region", "feature")), macs2_peak = overlaps_ref,

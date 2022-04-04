@@ -40,7 +40,9 @@ comparisons <- lapply(
 ## Sort out the pairwise comparisons
 ## This currently automatically finds every possible combination and compares
 ## them. Alternatives could be manually specifying or manually excluding...
-pairs <- lapply(
+
+pairs_yaml <- NULL
+all_pairs <- lapply(
   config$comparisons$contrasts,
   function(x) {
     cont = paste(x, collapse = "_")
@@ -56,29 +58,56 @@ pairs <- lapply(
   }
 ) %>%
   unlist() %>%
-  sort() %>%
-  combn(2) %>%
-  t() %>%
-  set_colnames(c("c1", "c2")) %>%
-  as_tibble() %>%
-  mutate(
-    pairs = paste(
-      str_extract(c1, "^[A-Za-z0-9]+"),
-      str_extract(c2, "^[A-Za-z0-9]+"),
-      sep = "-"
-    ),
-    html = paste(c1, c2, "pairwise_comparison.html", sep = "_"),
-    across(
-      all_of(c("c1", "c2")),
-      str_remove_all, "^[A-Za-z0-9]+_"
-    ),
-    across(
-      all_of(c("c1", "c2")),
-      str_replace_all, pattern = "(.+)_(.+)", replacement = "\\2 Vs. \\1"
-    )
-  ) %>%
-  unite(comps, c1, c2, sep = " / ") %>%
-  dplyr::select(pairs, comps, html)
+  sort()
+if (length(all_pairs) > 1) {
+  # This can only proceed if we have more than one possible comparison
+  pairs <- all_pairs %>%
+    combn(2) %>%
+    t() %>%
+    set_colnames(c("c1", "c2")) %>%
+    as_tibble() %>%
+    mutate(
+      pairs = paste(
+        str_extract(c1, "^[A-Za-z0-9]+"),
+        str_extract(c2, "^[A-Za-z0-9]+"),
+        sep = "-"
+      ),
+      html = paste(c1, c2, "pairwise_comparison.html", sep = "_"),
+      across(
+        all_of(c("c1", "c2")),
+        str_remove_all, "^[A-Za-z0-9]+_"
+      ),
+      across(
+        all_of(c("c1", "c2")),
+        str_replace_all, pattern = "(.+)_(.+)", replacement = "\\2 Vs. \\1"
+      )
+    ) %>%
+    unite(comps, c1, c2, sep = " / ") %>%
+    dplyr::select(pairs, comps, html)
+  pairs_yaml <- list(
+    text = "Pairwise Comparisons",
+    menu = pairs %>%
+      split(.$pairs) %>%
+      setNames(NULL) %>%
+      lapply(
+        function(x) {
+          list(
+            text = unique(x$pairs),
+            menu = lapply(
+              split(x, f = x$comps),
+              function(y) {
+                list(
+                  text = y$comps,
+                  href = y$html
+                )
+              }
+            ) %>%
+              setNames(NULL)
+          )
+        }
+      )
+  )
+}
 
 site_yaml <- rmd$rmarkdown_site
 
@@ -144,31 +173,12 @@ site_yaml$navbar$left <- list(
   ),
 
   ## Pairwise Comparisons
-  list(
-    text = "Pairwise Comparisons",
-    menu = pairs %>%
-      split(.$pairs) %>%
-      setNames(NULL) %>%
-      lapply(
-        function(x) {
-          list(
-            text = unique(x$pairs),
-            menu = lapply(
-              split(x, f = x$comps),
-              function(y) {
-                list(
-                  text = y$comps,
-                  href = y$html
-                )
-              }
-            ) %>%
-              setNames(NULL)
-          )
-        }
-      )
-  )
+  pairs_yaml
 
 )
+site_yaml$navbar$left <- site_yaml$navbar$left[
+  vapply(site_yaml$navbar$left, length, integer(1)) > 0
+]
 other_nav <- setdiff(names(site_yaml$navbar), c("title", "left"))
 site_yaml$navbar <- site_yaml$navbar[c("title", "left", other_nav)]
 
