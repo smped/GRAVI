@@ -410,9 +410,7 @@ samples %>%
 
 ```{r all-windows}
 all_windows <- db_results %>%
-  lapply(
-    select, any_of(c("gene_id", "gene_name", "detected"))
-  ) %>% 
+  lapply(granges) %>% 
   GRangesList() %>% 
   unlist() %>% 
   sort() %>% 
@@ -425,22 +423,34 @@ all_windows <- db_results %>%
   ) %>%
   join_overlap_left(
     db_results[[comps[[1]]]] %>% 
-      mutate(status = as.character(status)) %>% 
+      mutate(
+        status = as.character(status),
+        peak_centre = start(
+          resize(keyval_range, width = 1, fix = "center")
+        )
+      ) %>% 
       select(
         !!sym(glue("{comps[[1]]}_AveExpr")) := AveExpr, 
         !!sym(glue("{comps[[1]]}_logFC")) := logFC, 
         !!sym(glue("{comps[[1]]}_status")) := status, 
-        !!sym(glue("{comps[[1]]}_fdr")) := !!sym(fdr_column)
+        !!sym(glue("{comps[[1]]}_fdr")) := !!sym(fdr_column),
+        !!sym(glue("{comps[[1]]}_centre")) := peak_centre
       )
   ) %>%
   join_overlap_left(
     db_results[[comps[[2]]]] %>% 
-      mutate(status = as.character(status)) %>% 
+      mutate(
+        status = as.character(status),
+        peak_centre = start(
+          resize(keyval_range, width = 1, fix = "center")
+        )
+      ) %>% 
       select(
         !!sym(glue("{comps[[2]]}_AveExpr")) := AveExpr, 
         !!sym(glue("{comps[[2]]}_logFC")) := logFC, 
         !!sym(glue("{comps[[2]]}_status")) := status,
-        !!sym(glue("{comps[[2]]}_fdr")) := !!sym(fdr_column)
+        !!sym(glue("{comps[[2]]}_fdr")) := !!sym(fdr_column),
+        !!sym(glue("{comps[[2]]}_centre")) := peak_centre
       )
   ) %>% 
   mutate(
@@ -483,22 +493,32 @@ all_windows <- db_results %>%
       !!sym(glue("{comps[[1]]}_status")), 
       !!sym(glue("{comps[[2]]}_status")),
       sep = " - "
+    ),
+    
+    distance = abs(
+      !!sym(glue("{comps[[1]]}_centre")) - !!sym(glue("{comps[[2]]}_centre"))
     )
     
   )
 ## The above will currently (inexplicably) change the column names to be the
-## classic old R-style with dots instead of spaces. This may need revisting
+## classic old R-style with dots instead of spaces. This may need re-visting
 colnames(mcols(all_windows)) <- mcols(all_windows) %>% 
   colnames() %>% 
   str_replace_all("\\.Vs\\.\\.", " Vs. ") %>% 
   str_replace_all("\\.\\.", ": ")
+
 if (has_features) 
   all_windows$feature <- bestOverlap(
     all_windows, external_features, var = "feature", missing = "no_feature"
   ) %>% 
   str_sep_to_title()
+
+all_windows$hic <- NA
+if (has_hic)
+  all_windows$hic <- overlapsAny(all_windows, hic)
+
 all_windows <- all_windows %>% 
-  select(any_of(c("region", "feature")), everything()) %>% 
+  select(any_of(c("region", "feature", "hic")), everything()) %>% 
   mapByFeature(
     all_gr$gene,
     prom = GRangesList(
@@ -568,8 +588,16 @@ direction_colours <- names(colours$direction) %>%
 
 A set of common windows was formed by obtaining the union of windows produced during the analysis of `r collapseGenes(comps)` individually.
 These common windows were formed using any overlap between target-specific windows.
-The window-to-gene mappings from previous steps were maintained and the best overlap with genomic regions was also reformed.
+The window-to-gene mappings and the best overlap with genomic regions was also reformed.
 `r if (has_features) "The best overlap with external features was also reformed."`
+`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For windows where binding was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
+
+In the original datasets, `r comma(length(db_results[[1]]))` windows were included for `r comps[[1]]`, whilst `r comma(length(db_results[[2]]))` windows were included for `r comps[[2]]`.
+The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. 
+As peaks were detected in an unstranded manner, all distance values were set to be positive.
+Taking the complete set of `r comma(length(all_windows))`, `r comma(sum(!is.na(all_windows$distance)))` (`r percent(mean(!is.na(all_windows$distance)), 0.1)`) were considered as having peaks in both datasets.
+The median distance between peaks where found in both was `r  median(all_windows$distance, na.rm = TRUE)`bp.
+`r comma(sum(all_windows$distance == 0, na.rm = TRUE))` peaks (`r percent(mean(all_windows$distance == 0, na.rm = TRUE), 0.1)`) were found to directly overlap.
 
 Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value < `r fdr_alpha` was used.
 A secondary step was then introduced for each window such that if one target was significant and the other target had received an FDR-adjusted p-value < `r 3 * fdr_alpha`, these windows were then considered significant in the second comparison.
@@ -903,6 +931,21 @@ all_windows %>%
   )
 ```
 
+## Distance by Region
+
+```{r distanc-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region.*"}
+all_windows %>% 
+  filter(!is.na(distance)) %>% 
+  mutate(region = fct_relabel(
+    region, str_replace_all, pattern = " \\(", replacement = "\n("
+    )
+  ) %>% 
+  as_tibble() %>% 
+  ggplot(aes(region, distance)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Region", y = "Distance Between Peaks") 
+```
 
 
 ## Windows By Differential Binding
@@ -2195,10 +2238,18 @@ htmltools::tagList(
 
 # Data Export
 
-```{r}
+```{r all-out}
 out_path <- here::here("output", paste(targets, collapse = "_"))
 if (!dir.exists(out_path)) dir.create(out_path)
 all_out <- list(
+  csv = file.path(
+    out_path,
+    glue(
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
+      "pairwise_comparison.csv"
+    )
+  ),
   results = file.path(
     out_path,
     glue(
@@ -2220,10 +2271,21 @@ write_rds(all_windows, all_out$results, compress = "gz")
 save.image(all_out$renv)
 ```
 
+```{r export-csv}
+all_windows %>% 
+  as_tibble() %>% 
+  dplyr::select(-detected) %>% 
+  unnest(starts_with("gene")) %>% 
+  dplyr::select(
+    starts_with("gene"), everything()
+  ) %>% 
+  write_csv(all_out$csv)
+```
+
+
 During this workflow, the following files were exported:
 
 `r pander(lapply(all_out, str_extract, "output.+"))`
-
 
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
