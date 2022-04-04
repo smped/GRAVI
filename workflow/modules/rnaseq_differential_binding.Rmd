@@ -1173,3 +1173,24 @@ plotHFGC(
   rotation.title = 90
 )
 ```
+
+<!-- ## Gene Expression GSEA -->
+
+```{r echo = FALSE}
+knitr::opts_chunk$set(eval = FALSE, echo = FALSE)
+```
+
+
+```{r}
+rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
+```
+
+```{r}
+goseq_diff %>% 
+  left_join(rnaseq_gsea, by = c("gs_name" = "pathway")) %>% 
+  ggplot(aes(-log10(pval.x), -log10(pval.y))) + 
+  geom_point() + 
+  geom_abline(slope = 1)
+## Maybe we need GSEA using the diff_binding mappings?
+```
+
