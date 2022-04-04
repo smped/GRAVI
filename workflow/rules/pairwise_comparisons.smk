@@ -32,7 +32,6 @@ rule pairwise_comparisons:
 				"{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_files"
 			)
 		),
-		assets = directory(os.path.join("docs", "assets", "{t1}_{t2}")),
 		csv = os.path.join(
 			"output", "{t1}_{t2}",
 			"{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.csv.gz"
@@ -78,6 +77,5 @@ rule pairwise_comparisons:
             git add {output.html}
             git add {output.fig_path}
 			git add {output.csv}
-			git add {output.assets}
         fi
 		"""

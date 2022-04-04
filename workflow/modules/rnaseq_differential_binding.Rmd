@@ -1411,7 +1411,7 @@ div(class = "table",
 
 ### Windows With Decreased `r target`
 
-```{r compare-gained-gsea}
+```{r compare-decreased-gsea}
 cmn_gs <- intersect(
   dplyr::filter(goseq_down, fdr < fdr_alpha)$gs_name,
   dplyr::filter(rnaseq_gsea, padj < fdr_alpha)$pathway
@@ -1420,7 +1420,7 @@ cmn_gs <- intersect(
 
 `r if (length(cmn_gs) == 0) glue("No gene sets were shared between {target} decreased windows and the RNA-Seq data")`
 
-```{r tbl-cmn-up-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
+```{r tbl-cmn-down-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
 cp <- htmltools::tags$em(
   glue(
     "

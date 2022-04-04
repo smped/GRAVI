@@ -2264,7 +2264,7 @@ all_out <- list(
     glue(
       "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
       "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
-      "pairwise_comparison.csv"
+      "pairwise_comparison.csv.gz"
     )
   ),
   results = file.path(
@@ -2297,7 +2297,9 @@ all_windows %>%
   dplyr::select(
     starts_with("gene"), everything()
   ) %>% 
-  write_csv(all_out$csv)
+  write_csv(
+    gzfile(all_out$csv)
+  )
 ```
 
 
