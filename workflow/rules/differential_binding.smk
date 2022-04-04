@@ -78,7 +78,7 @@ rule differential_binding:
 		),
 		csv = os.path.join(
 			"output", 
-			"{target}", "{target}_{ref}_{treat}_differential_binding.csv"
+			"{target}", "{target}_{ref}_{treat}_differential_binding.csv.gz"
 		),
 		win = os.path.join(
 			"output", "{target}", "{ref}_{treat}_filtered_windows.rds"

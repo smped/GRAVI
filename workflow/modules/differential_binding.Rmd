@@ -258,7 +258,7 @@ all_out <- list(
   ),
   csv = file.path(
     out_path, 
-    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.csv")
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}_differential_binding.csv.gz")
   ),
   windows  = file.path(
     out_path,
@@ -2656,7 +2656,9 @@ merged_results %>%
       setNames(genes_gr, genes_gr$gene_id)[gene_id]
     )
   ) %>% 
-  write_csv(all_out$csv)
+  write_csv(
+    gzfile(all_out$csv)
+  )
 ```
 
 

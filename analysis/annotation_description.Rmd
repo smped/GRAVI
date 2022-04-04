@@ -1,0 +1,763 @@
+---
+title: "Annotations"
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r set-knitr-opts, echo=FALSE, child = here::here('workflow/modules/setup_chunk.Rmd')}
+```
+
+```{r packages}
+library(tidyverse)
+library(magrittr)
+library(rtracklayer)
+library(glue)
+library(pander)
+library(scales)
+library(yaml)
+library(reactable)
+library(htmltools)
+library(plyranges)
+library(GenomicInteractions)
+```
+
+```{r remotes, results='hide'}
+## Deal with github packages
+# BiocManager::install("steveped/extraChIPs", ask = FALSE)
+
+stopifnot(library(extraChIPs, logical.return = TRUE))
+```
+
+```{r options}
+panderOptions("big.mark", ",")
+panderOptions("missing", "")
+panderOptions("table.split.table", Inf)
+theme_set(
+  theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+)
+annotation_path <- here::here("output", "annotations")
+all_out <- list(
+  chrom_sizes = file.path(annotation_path, "chrom.sizes"),
+  gene_regions = file.path(annotation_path, "gene_regions.rds"),
+  gtf  = file.path(annotation_path, "all_gr.rds"),
+  seqinfo = file.path(annotation_path, "seqinfo.rds"),
+  transcript_models = file.path(annotation_path, "trans_models.rds"),
+  tss = file.path(annotation_path, "tss.rds"),
+  colours = file.path(annotation_path, "colours.rds")
+)
+```
+
+```{r extra-funs}
+source(
+  here::here("workflow", "scripts", "custom_functions.R")
+)
+```
+
+
+```{r config}
+config <- read_yaml(here::here("config", "config.yml"))
+params <- read_yaml(here::here("config", "params.yml"))
+colours <- read_yaml(here::here("config", "colours.yml"))
+```
+
+```{r treat_levels}
+treat_levels <- config$comparisons$contrasts %>% 
+  unlist() %>% 
+  unique()
+samples <- here::here(config$samples$file) %>%
+  read_tsv() %>% 
+  mutate(
+    treat = factor(treat, levels = unique(c(treat_levels, treat))),
+    target = as.factor(target)
+  )
+treat_levels <- levels(samples$treat)
+```
+
+
+# Genome Annotations
+
+Before analysing any datasets, annotations for the genome and transcriptome were defined.
+
+## Genome Description
+
+```{r sq}
+sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
+```
+
+As the foundation for all annotation objects, the description of the underlying genome is required as a `Seqinfo` object.
+For this analysis, both the mitochondrial genome and scaffolds were excluded, giving only the autosomes and the X/Y chromosomes.
+This `Seqinfo` object is added to all subsequent objects requiring information about the underlying genome, such as a `GenomicRanges` object.
+
+## Blacklisted Regions {.tabset}
+
+```{r blacklist}
+blacklist <- file.path(annotation_path, "blacklist.bed.gz") %>%
+  import.bed(seqinfo = sq) %>%
+  sort()
+```
+
+### Summary
+
+```{r tab-blacklist}
+blacklist %>% 
+  group_by(name) %>% 
+  summarise(
+    n = n(),
+    p = percent(sum(width)/ sum(seqlengths(sq))),
+    kb = sum(width) / 1e3,
+    min = min(width) / 1e3,
+    median = median(width) / 1e3,
+    max = max(width) / 1e3
+  ) %>% 
+  as_tibble() %>% 
+  dplyr::rename_all(str_to_title) %>% 
+  dplyr::rename(
+    Type = Name, 
+    `Nbr Regions` = N,
+    `% Genome` = P, 
+    `Total (kb)` = Kb,
+    `Min (kb)` = Min,
+    `Median (kb)` = Median,
+    `Max (kb)` = Max
+  ) %>% 
+  pander(
+    caption = glue(
+      "*Summary of genomic regions excluded in the blacklist. ",
+      "The default set of blacklisted regions was used, as obtained from ",
+      "https://github.com/Boyle-Lab/Blacklist (ENCODE)*"
+    ),
+    justify = "lrrrrrr"
+  )
+```
+
+### Breakdown
+
+```{r plot-blacklist, fig.height = 7, fig.cap = "*Breakdown of blacklisted regions by chromosome*"}
+blacklist %>% 
+  as_tibble(rangeAsChar = FALSE) %>%
+  group_by(seqnames) %>% 
+  summarise(blacklisted = sum(width)) %>% 
+  left_join(as_tibble(sq), by = "seqnames") %>% 
+  mutate(
+    whitelisted = seqlengths - blacklisted,
+    seqnames = factor(seqnames, levels = seqlevels(sq))
+  ) %>% 
+  pivot_longer(
+    ends_with("listed"), names_to = "category", values_to = "bp"
+  ) %>% 
+  ggplot(aes(fct_rev(seqnames), bp/1e6, fill = fct_rev(category))) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_fill_manual(
+    values = c(rgb(0.1, 0.3, 0.9), rgb(0.9, 0.2, 0.1))
+  ) +
+  labs(
+    x = "Chromosome", y = "Length (Mb)", fill = "Status"
+  )
+```
+
+
+# Gene and Transcript Annotations
+
+## Basic Annotations
+
+```{r load-gtf}
+all_gr <- read_rds(file.path(annotation_path, "all_gr.rds"))
+```
+
+- The complete set of genes, transcripts and exons was loaded from the supplied `gtf`, excluding mitochondrial features.
+- The previously generated `Seqinfo` was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects
+- Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(all_gr$gene)))`) retained.
+
+In total this object contained annotations for `r comma(length(all_gr$gene))` genes, `r comma(length(all_gr$transcript))` transcripts and `r comma(length(all_gr$exon))` exons.
+Visualisation using the Bioconductor package `Gviz` also requires a specific `GRanges` structure for gene and transcript models to be displayed.
+This object was also created so transcript models could be simply visualised.
+
+## Gene-Centric Regions {.tabset}
+
+
+```{r define-region-colours}
+gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
+regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
+missing_reg_col <- setdiff(names(regions), names(colours$regions))
+if (length(missing_reg_col) > 0){
+  def_reg_cols <- c(
+    promoters = "#FF3300", upstream = "#E1EE05", exons = "#7EDD57", 
+    introns = "#006600", proximal = "#000066", distal = "#551A8B"
+  )
+  colours$regions[missing_reg_col] <- def_reg_cols[missing_reg_col]
+}
+region_cols <- unlist(colours$regions) %>% 
+  setNames(regions[names(.)])
+```
+
+
+Using the provided GTF, **unique** gene and transcript-centric features were also defined as:
+
+1. Promoters
+2. Upstream 
+3. Exons
+4. Introns
+5. Intergenic regions within `r params$gene_regions$intergenic/1e3`kb of a gene
+6. Intergenic regions >`r params$gene_regions$intergenic/1e3`kb from any defined genes
+
+TSS regions were defined as a separate object given each TSS has single-base width.
+With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, unstranded manner.
+
+- *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from the same TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
+- *Promoters* were first defined for all individual transcripts as the region `r glue("-{params$gene_regions$promoters$upstream}/+{params$gene_regions$promoters$downstream}")`bp around each TSS.
+Overlapping regions were merged to create a single promoter region for all transcripts within that genomic region.
+- *Upstream promoters* were then defined as the region extending `r glue(params$gene_regions$upstream/1e3)`kb upstream from a TSS, but excluding any region already defined as a promoter through the previous merging step.
+Any ranges within these which overlapped other genes were removed.
+- *Exons* and *Introns* were considered to be any exon or intron, not previously included in one of the above regions.
+- *Intergenic* regions were defined as those within `r params$gene_regions$intergenic/1e3`kb (excluding upstream promoters) or those >`r params$gene_regions$intergenic/1e3`kb from any gene
+
+```{r tab-regions}
+cp <- em(
+  glue(
+    "
+  Summary of gene-centric regions defined as a key annotation set. 
+  Colours used throughout the workflow for each region are indicated in the 
+  first column, with other summary statistics making up the rest of the table.
+  "
+  )
+)
+tbl <- gene_regions %>% 
+  lapply(
+    function(x){
+      tibble(
+        n = length(x),
+        width = sum(width(x)), 
+        region = unique(x$region)
+      )
+    }
+  ) %>%
+  bind_rows() %>% 
+  mutate(
+    width = width / 1e6,
+    mn = 1e3*width/n,
+    region = fct_inorder(region),
+    `% Genome` = width / sum(width),
+  ) %>% 
+  rename_all(str_to_title) %>% 
+  mutate(Guide = region_cols[Region]) %>% 
+  dplyr::select(
+    Guide, Region, N, Width, Mn, `% Genome`
+  ) %>% 
+  reactable(
+    searchable = FALSE, filterable = FALSE,
+    columns = list(
+      Guide = colDef(
+        maxWidth = 50,
+        style = function(value) list(background = value),
+        cell = function(value) "",
+        name = ""
+      ),
+      N = colDef(
+        maxWidth = 150,
+        cell = function(value) comma(value, 1)
+      ),
+      Width = colDef(
+        name = "Total Width (Mb)",
+        cell = function(value) sprintf("%.1f", value)
+      ),
+      Mn = colDef(
+        name = "Average Width (kb)",
+        cell = function(value) sprintf("%.2f", value)
+      ),
+      "% Genome" = colDef(
+        cell = function(value) percent(value, 0.1)
+      )
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+### Summary
+
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-cetric regions using the above workflow and the supplied GTF. Percentages represent the amount of the genome allocated to each region. Blacklisted regions were not considered for this step of the annotation.*"}
+gene_regions %>% 
+  lapply(select, region) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  mutate(region = factor(region, levels = regions)) %>% 
+  plotPie(
+    fill = "region", scale_by = "width", show_total = FALSE, 
+    category_size = 3.5
+  ) +
+  scale_fill_manual(values = region_cols) +
+  theme(legend.position = "none")
+```
+
+### Example
+
+```{r example-id}
+id <- sort(all_gr$gene$gene_id)[[1]]
+```
+
+
+```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
+gr <- subset(all_gr$gene, gene_id == id) %>% 
+  resize(width = width(.) + 2.4e4, fix = 'center') %>% 
+  unstrand()
+ft <- gene_regions %>% 
+  lapply(subsetByOverlaps, gr) %>% 
+  lapply(select, region) %>% 
+  lapply(intersectMC, gr) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  setNames(c()) %>% 
+  subset(region != "TSS") %>% 
+  sort()
+df <- list(
+  all_gr$transcript %>% 
+    subsetByOverlaps(gr) %>% 
+    as_tibble(rangeAsChar = FALSE),
+  all_gr$exon %>% 
+    subsetByOverlaps(gr) %>% 
+    as_tibble(rangeAsChar = FALSE) 
+) %>% 
+  bind_rows() %>% 
+  mutate(
+    transcript_name = as.factor(transcript_name)
+  )
+df %>% 
+  ggplot(aes(x = start, y = as.integer(transcript_name))) +
+  geom_rect(
+    aes(
+      xmin = start, xmax = end,
+      ymin =  0, ymax =  Inf,
+      fill = region
+    ),
+    data = ft %>%
+      as.data.frame() %>% 
+      mutate(region = fct_inorder(region) ),
+    inherit.aes = FALSE,
+    alpha = 0.6
+  ) +
+  geom_segment(
+    aes(
+      x = start, xend = end, 
+      y = as.integer(transcript_name),
+      yend = as.integer(transcript_name)
+    ),
+    data = . %>% 
+      dplyr::filter(type == "transcript")
+  ) +
+  geom_segment(
+    aes(
+      x = mid, xend = mid_offset, 
+      y = as.integer(transcript_name),
+      yend = as.integer(transcript_name)
+    ),
+    data = all_gr$transcript %>% 
+      subsetByOverlaps(gr) %>% 
+      select(transcript_name) %>% 
+      setdiffMC(all_gr$exon) %>%
+      as.data.frame() %>% 
+      mutate(transcript_name = vctrs::vec_proxy(transcript_name)) %>% 
+      unnest(transcript_name) %>% 
+      dplyr::filter(width > 600) %>% 
+      mutate(
+        mid = end - 0.5*width,
+        mid_offset = ifelse(strand == "+", mid + 50, mid - 50),
+        transcript_name = factor(transcript_name, levels = levels(df$transcript_name))
+      ),
+    arrow = arrow(angle = 40, length = unit(0.015, "npc"))
+  ) +
+  geom_rect(
+    aes(
+      xmin = start, xmax = end, 
+      ymin = as.integer(transcript_name) - 0.2, 
+      ymax = as.integer(transcript_name) + 0.2
+    ),
+    data = . %>% 
+      dplyr::filter(type == "exon"),
+    fill = "blue", colour = "blue"
+  ) +
+  coord_cartesian(xlim = c(start(gr), end(gr))) +
+  scale_x_continuous(
+    labels = comma, expand = expansion(c(0, 0))
+  ) +
+  scale_y_continuous(
+    breaks = seq_along(levels(df$transcript_name)),
+    labels = levels(df$transcript_name),
+    expand = expansion(c(-0.05, 0.05))
+  ) +
+  scale_fill_manual(values = region_cols) + 
+  labs(
+    x = as.character(seqnames(gr)), y = "Transcript", fill = "Feature"
+  ) +
+  theme(
+    panel.grid = element_blank()
+  )
+```
+
+
+# External Features
+
+```{r external-features}
+feat_path <- here::here(config$external$features)
+external_features <- list(features = c())
+has_features <- FALSE
+if (length(feat_path)> 0) {
+  stopifnot(file.exists(feat_path))
+  external_features <- suppressWarnings(
+    import.gff(feat_path, genome = sq)
+  )
+  mcols(external_features) <- cbind(
+    mcols(external_features),
+    gene_regions %>% 
+      lapply(function(x) propOverlap(external_features, x)) %>% 
+      as("DataFrame"),
+    gene_regions %>% 
+      lapply(
+        function(x) propOverlap(external_features, subset(x, detected))
+      ) %>% 
+      as("DataFrame") %>% 
+      setNames(paste0(names(.), "_detected"))
+  )
+  keep_cols <- !vapply(
+    mcols(external_features), function(x) all(is.na(x)), logical(1)
+  )
+  mcols(external_features) <- mcols(external_features)[keep_cols]
+  has_features <- TRUE
+}
+```
+
+```{r feat-col, eval = has_features, echo = has_features}
+feat_col <- colours$features
+feat_levels <- unique(external_features$feature)
+missing_feat_col <- setdiff(feat_levels, names(feat_col))
+if (length(missing_feat_col) > 0) {
+  if (!"no_feature" %in% feat_levels)
+    missing_feat_col <- c(missing_feat_col, "no_feature")
+  n <- length(missing_feat_col) 
+  feat_col[missing_feat_col] <- hcl.colors(max(9, n), "Spectral")[seq_len(n)]
+}
+colours$features <- feat_col
+```
+
+
+`r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
+
+```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours.*")}
+suppressWarnings(
+  external_features %>% 
+    mutate(w = width) %>% 
+    mcols() %>% 
+    as_tibble() %>% 
+    pivot_longer(
+      cols = c(all_of(names(regions)), ends_with("detected")),
+      names_to = "region", values_to = "prop"
+    ) %>% 
+    group_by(feature, region) %>% 
+    summarise(ol = sum(prop*w/1e6), .groups = "drop") %>% 
+    mutate(
+      detected = str_detect(region, "detected"),
+      region = str_remove_all(region, "_detected")
+    ) %>% 
+    pivot_wider(names_from = "detected", values_from = ol) %>% 
+    mutate(`FALSE` = `FALSE` - `TRUE`) %>% 
+    pivot_longer(
+      cols = all_of(c("TRUE", "FALSE")),
+      names_to = "detected",
+      values_to = "ol"
+    ) %>% 
+    left_join(
+      external_features %>%
+        group_by(feature) %>% 
+        summarise(w = sum(width/1e6)) %>%
+        as_tibble(),
+      by = "feature"
+    ) %>% 
+    mutate(
+      p = ol / w,
+      Feature = factor(feature, levels = names(feat_col)) %>% 
+        fct_relabel(str_sep_to_title),
+      region = factor(regions[region], levels = regions)
+    ) %>% 
+    ggplot(
+      aes(fct_rev(region), p, fill = feature, alpha = detected)
+    ) +
+    geom_col(colour = "grey80") +
+    geom_label(
+      aes(label = percent(p, accuracy = 1)),
+      data = . %>% 
+        group_by(region, feature, Feature) %>% 
+        summarise(p = sum(p), .groups = "drop"),
+      alpha = 0.5,
+      nudge_y = 0.03
+    ) +
+    coord_flip() +
+    facet_grid(Feature~., scales = "free_y", space = "free") +
+    scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
+    scale_alpha_discrete(range = c(0.4, 1)) +
+    scale_fill_manual(values = feat_col) +
+    labs(x = "", y = "") +
+    theme(legend.position = "none")
+)
+```
+
+
+
+```{r tab-features, eval = has_features, echo = has_features}
+cp <- em(
+  glue(
+      "*Summary of external features provided in the file ", 
+      "{basename(config$external$feature)}. All peaks and windows will be ", 
+      "compared to these throughout the workflow. The colours defined for each ",
+      "feature is show as a guide on the left.*"
+    )
+)
+tbl <- external_features %>% 
+  group_by(feature) %>% 
+  summarise(
+    N = n(),
+    Width = sum(width/1e3),
+    med = median(width/1e3),
+    range = glue("[{round(min(width/1e3), 1)}, {round(max(width/1e3), 1)}]")
+  ) %>% 
+  as_tibble() %>% 
+  mutate(
+    guide = unlist(feat_col)[feature],
+    feature = factor(feature, levels = names(feat_col)) %>%
+      fct_relabel(str_sep_to_title)
+  ) %>%
+  arrange(feature) %>%
+  dplyr::select(guide, everything()) %>% 
+  reactable(
+    filterable = FALSE, searchable = FALSE,
+    columns = list(
+      guide = colDef(
+        maxWidth = 40,
+        style = function(value) list(background= value),
+        cell = function(value) "",
+        name = ""
+      ),
+      feature = colDef(
+        name = "Feature",
+        footer = htmltools::tags$b("Total")
+      ),
+      N = colDef(
+        cell = function(value) comma(value, 1),
+        footer = htmltools::tags$b(comma(sum(.$N)))
+      ),
+      Width = colDef(
+        name = "Total Width (kb)",
+        cell = function(value) comma(value, 1),
+        footer = htmltools::tags$b(comma(sum(.$Width), 1))
+      ),
+      med = colDef(
+        name = "Median Width (kb)",
+        cell = function(value) sprintf("%.2f", value)
+      ),
+      range = colDef(name = "Size Range (kb)", align = "right")
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
+
+
+# HiC Data {.tabset}
+
+```{r has-hic, echo = FALSE}
+hic_path <- here::here(config$external$hic)
+has_hic <- FALSE
+if (length(hic_path) > 0)
+  if (file.exists(hic_path)) has_hic <- TRUE
+```
+
+```{r load-hic, eval = has_hic, echo = has_hic}
+hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
+reg_combs <- expand.grid(regions, regions) %>% 
+  as.matrix() %>% 
+  apply(
+    MARGIN = 1, 
+    function(x) {
+      x <- sort(factor(x, levels = regions))
+      paste(as.character(x), collapse = " - ")
+    }
+  ) %>% 
+  unique()
+hic$regions <- anchors(hic) %>% 
+  vapply(
+    bestOverlap,
+    y = GRangesList(lapply(gene_regions, granges)),
+    character(length(hic))
+  ) %>% 
+  apply(MARGIN = 2, function(x) regions[x]) %>% 
+  apply(
+    MARGIN = 1, 
+    function(x) {
+      x <- sort(factor(x, levels = regions))
+      paste(as.character(x), collapse = " - ")
+    }
+  ) %>% 
+  factor(levels = reg_combs) %>%
+  fct_relabel(
+    str_replace_all,
+    pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
+  ) 
+```
+
+`r ifelse(has_hic, glue("HiC data with {comma(length(hic), 1)} interaction pairs was provided and loaded."), "No HiC Data was supplied as an input.")`
+
+`r ifelse(has_hic, "## Genomic Distribution of Interaction Pairs", "")`
+
+```{r plot-pie-hic, eval = has_hic, echo = has_hic, fig.cap = "*Distribution of interaction pairs using pre-defined genomic regions. Region pairs with an interaction frequency < 1% were grouped into the 'Other' category*"}
+hic %>% 
+  as_tibble() %>% 
+  mutate(
+    regions = fct_lump_prop(regions, prop = 0.01)
+  ) %>% 
+  plotPie(fill = "regions", min_p = 0.05, category_width = 20, label_size = 4) +
+  labs(fill = "Interacting\n Regions") +
+  scale_fill_viridis_d(direction = -1)
+```
+
+`r ifelse(has_hic & has_features, "## Feature Distribution of Interaction Pairs", "")`
+
+```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided in {basename(feat_path)}. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' categor*")}
+feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 
+  as.matrix() %>% 
+  apply(
+    MARGIN = 1, 
+    function(x) {
+      x <- sort(factor(x, levels = names(feat_col)))
+      paste(as.character(x), collapse = " - ")
+    }
+  ) %>% 
+  unique()
+hic$features <- vapply(
+  anchors(hic),
+  function(x) bestOverlap(
+    x, external_features, var = "feature", missing = "no_feature"
+  ),
+  character(length(hic))
+)  %>% 
+  apply(
+    MARGIN = 1, 
+    function(x) {
+      x <- sort(factor(x, levels = names(feat_col)))
+      paste(as.character(x), collapse = " - ")
+    }
+  ) %>% 
+  factor(levels = feat_combs) %>%
+  fct_relabel(str_sep_to_title, pattern = "_")
+hic %>% 
+  as_tibble() %>% 
+  mutate(
+    features = fct_lump_prop(features, prop = 0.01)
+  ) %>% 
+  plotPie(fill = "features", min_p = 0.02, category_width = 15, label_size = 4) +
+  labs(fill = "Interacting\n Features") +
+  scale_fill_viridis_d(direction = -1)
+```
+
+
+# Colour Schemes {.tabset}
+
+```{r set_colours}
+
+## qc_colours need to have `Pass` and `Fail`
+missing_qc_cols <- setdiff(c("pass", "fail"), names(colours$qc))
+if ("pass" %in% missing_qc_cols) colours$qc$pass <- "#0571B0" # Blue
+if ("fail" %in% missing_qc_cols) colours$qc$fail <- "#CA0020" # Red
+colours$qc <- colours$qc[c("pass", "fail")]
+
+## The colours specified as treat_colours should contain all treat_levels + Input
+## If Input is missing, set to #33333380 ('grey20' + alpha = 50)
+## This should be a standard chunk for all workflows
+missing_treat_cols <- setdiff(
+  c("Input", treat_levels), names(colours$treat)
+)
+if (length(missing_treat_cols) > 0) {
+  if ("Input" %in% missing_treat_cols) 
+    colours$treat$Input <- "#33333380"
+  ## Automatically sample from the viridis palette if no colour is assigned
+  colours$treat[setdiff(missing_treat_cols, "Input")] <- hcl.colors(
+    length(setdiff(missing_treat_cols, "Input"))
+  )
+}
+
+## Direction colours always need up, down, unchanged & undetected
+missing_dir_cols <- setdiff(
+  c("up", "down", "unchanged", "undetected"), names(colours$direction)
+)
+if (length(missing_dir_cols) > 0){
+  def_dir_cols <- c(
+    up = "#CA0020", down = "#0571B0", 
+    unchanged = "#7F7F7F", undetected = "#E5E5E5"
+  )
+  colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
+}
+write_rds(colours, all_out$colours, compress = "gz")
+```
+
+
+Colours were checked where provided and any missing colours were automatically assigned.
+These colour schemes are shown below and will be propagated through all steps of the workflow.
+To change any colours, simply add them to `config/rmarkdown.yml`.
+
+## QC
+
+```{r plot-qc, fig.height=3, fig.width=2 + length(colours$qc)}
+.plotScheme(colours$qc , xlab = "QC Category") 
+```
+
+## Treatment Groups
+
+```{r plot-treat, fig.height=3, fig.width=2 + length(colours$treat)}
+.plotScheme(colours$treat, xlab = "Treatment")
+```
+
+## Regions
+
+```{r plot-regions, fig.height=3, fig.width=2 + length(colours$regions)}
+.plotScheme(colours$regions, xlab = "Regions")
+```
+
+
+`r ifelse(has_features, "## Features", "")`
+
+```{r plot-feat, eval = has_features, echo = has_features, fig.height=3, fig.width=2 + length(colours$features)}
+.plotScheme(feat_col, xlab = "Feature")
+```
+
+## Direction
+
+```{r plot-dir, fig.height=3, fig.width=2 + length(colours$direction)}
+.plotScheme(colours$direction, xlab = "Direction")
+```
+
+# Data Export
+
+During the setup of all required annotations, the following files were exported:
+
+`r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
+
+
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>

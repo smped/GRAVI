@@ -1,0 +1,47 @@
+name: 'GRAVI: Gene Regulatory Analaysis'
+output_dir: ../docs
+navbar:
+  title: GRAVI
+  left:
+  - icon: fa-home
+    text: Home
+    href: index.html
+  - text: Annotations
+    menu:
+    - text: Genome and Transcriptome Annotations
+      href: annotation_description.html
+  - text: MACS2 Peak Calling
+    menu:
+    - text: AR
+      href: AR_macs2_summary.html
+    - text: ER
+      href: ER_macs2_summary.html
+  - text: Differential Binding
+    menu:
+    - text: AR
+      menu:
+      - text: DHT Vs. Veh
+        href: AR_Veh_DHT_differential_binding.html
+    - text: ER
+      menu:
+      - text: DHT Vs. Veh
+        href: ER_Veh_DHT_differential_binding.html
+  - text: Pairwise Comparisons
+    menu:
+    - text: AR-ER
+      menu:
+      - text: DHT Vs. Veh / DHT Vs. Veh
+        href: AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison.html
+  right:
+  - icon: fa-github
+    href: https://github.com/steveped/GRAVI
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+    self_contained: no
+    theme: sandstone
+    highlight: textmate
+    includes:
+      after_body: footer.html

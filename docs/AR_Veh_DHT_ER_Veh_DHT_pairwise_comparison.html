@@ -1,0 +1,2915 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>AR: DHT Vs. Veh Compared To ER: DHT Vs. Veh</title>
+
+<script src="site_libs/header-attrs-2.13/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/sandstone.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<script src="site_libs/navigation-1.1/codefolding.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/core-js-2.5.3/shim.min.js"></script>
+<script src="site_libs/react-17.0.0/react.min.js"></script>
+<script src="site_libs/react-17.0.0/react-dom.min.js"></script>
+<script src="site_libs/reactwidget-1.0.0/react-tools.js"></script>
+<script src="site_libs/htmlwidgets-1.5.4/htmlwidgets.js"></script>
+<script src="site_libs/reactable-binding-0.2.3/reactable.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.tab('show');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">GRAVI</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">
+    <span class="fa fa-home"></span>
+     
+    Home
+  </a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Annotations
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="annotation_description.html">Genome and Transcriptome Annotations</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    MACS2 Peak Calling
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="AR_macs2_summary.html">AR</a>
+    </li>
+    <li>
+      <a href="ER_macs2_summary.html">ER</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Differential Binding
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li class="dropdown-submenu">
+      <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">AR</a>
+      <ul class="dropdown-menu" role="menu">
+        <li>
+          <a href="AR_Veh_DHT_differential_binding.html">DHT Vs. Veh</a>
+        </li>
+      </ul>
+    </li>
+    <li class="dropdown-submenu">
+      <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">ER</a>
+      <ul class="dropdown-menu" role="menu">
+        <li>
+          <a href="ER_Veh_DHT_differential_binding.html">DHT Vs. Veh</a>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Pairwise Comparisons
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li class="dropdown-submenu">
+      <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">AR-ER</a>
+      <ul class="dropdown-menu" role="menu">
+        <li>
+          <a href="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison.html">DHT Vs. Veh / DHT Vs. Veh</a>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/steveped/GRAVI">
+    <span class="fa fa-github"></span>
+     
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+<div class="btn-group pull-right float-right">
+<button type="button" class="btn btn-default btn-xs btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu dropdown-menu-right" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">AR: DHT Vs. Veh Compared To ER: DHT Vs. Veh</h1>
+<h4 class="date">04 April, 2022</h4>
+
+</div>
+
+
+<pre class="r"><code>threads &lt;- 4
+pairs &lt;- list(
+  &quot;AR&quot; = c(&quot;Veh&quot;, &quot;DHT&quot;),
+  &quot;ER&quot; = c(&quot;Veh&quot;, &quot;DHT&quot;)
+)</code></pre>
+<pre class="r"><code>library(tidyverse)
+library(glue)
+library(pander)
+library(yaml)
+library(reactable)
+library(plyranges)
+library(rtracklayer)
+library(VennDiagram)
+library(UpSetR)
+library(magrittr)
+library(scales)
+library(ggrepel)
+library(rlang)
+library(ggside)
+library(msigdbr)
+library(htmltools)
+library(goseq)
+library(parallel)
+library(GenomicInteractions)</code></pre>
+<pre class="r"><code># if (!&quot;extraChIPs&quot; %in% rownames(installed.packages()))
+#   BiocManager::install(&quot;steveped/extraChIPs&quot;, ask = FALSE)
+
+stopifnot(library(extraChIPs, logical.return = TRUE))
+source(here::here(&quot;workflow&quot;, &quot;scripts&quot;, &quot;custom_functions.R&quot;))</code></pre>
+<pre class="r"><code>panderOptions(&quot;big.mark&quot;, &quot;,&quot;)
+panderOptions(&quot;missing&quot;, &quot;&quot;)
+panderOptions(&quot;table.split.table&quot;, Inf)
+theme_set(
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+)</code></pre>
+<pre class="r"><code>targets &lt;- names(pairs)
+comps &lt;- targets
+if (length(unique(targets)) == 1) {
+  comps &lt;- seq_along(pairs) %&gt;%
+    vapply(
+      function(x) paste(
+        # names(pairs)[[x]], 
+        paste(rev(pairs[[x]]), collapse = &quot; Vs. &quot;)#, 
+        # sep = &quot;: &quot;
+      ), 
+      character(1)
+    )
+}
+samples &lt;- seq_along(pairs) %&gt;% 
+  lapply(
+    function(x) {
+      fl &lt;- here::here(&quot;output&quot;, names(pairs)[[x]], &quot;qc_samples.tsv&quot;)
+      read_tsv(fl) %&gt;% 
+        dplyr::filter(treat %in% pairs[[x]])
+    }
+  ) %&gt;% 
+  bind_rows() %&gt;% 
+  dplyr::filter(qc == &quot;pass&quot;) %&gt;% 
+  unite(label, target, label, remove = FALSE) %&gt;% 
+  mutate(
+    target = factor(target, levels = unique(targets)),
+    treat = factor(treat, levels = unique(unlist(pairs)))
+  ) %&gt;% 
+  dplyr::select(-qc) %&gt;% 
+  droplevels()
+stopifnot(nrow(samples) &gt; 0)
+rep_col &lt;- setdiff(
+  colnames(samples), c(&quot;sample&quot;, &quot;treat&quot;, &quot;target&quot;, &quot;input&quot;, &quot;label&quot;, &quot;qc&quot;)
+)
+samples[[rep_col]] &lt;- as.factor(samples[[rep_col]])</code></pre>
+<pre class="r"><code>params &lt;- read_yaml(here::here(&quot;config&quot;, &quot;params.yml&quot;))
+config &lt;- read_yaml(here::here(&quot;config&quot;, &quot;config.yml&quot;))
+fdr_alpha &lt;- config$comparisons$fdr
+colours &lt;- read_rds(here::here(&quot;output&quot;, &quot;annotations&quot;, &quot;colours.rds&quot;))
+treat_colours &lt;- unlist(colours$treat[levels(samples$treat)])</code></pre>
+<pre class="r"><code>cb &lt;- config$genome$build %&gt;% 
+  str_to_lower() %&gt;% 
+  paste0(&quot;.cytobands&quot;) 
+data(list = list(cb))
+bands_df &lt;- mget(cb)[[cb]]
+annotation_path &lt;- here::here(&quot;output&quot;, &quot;annotations&quot;)
+sq &lt;- read_rds(file.path(annotation_path, &quot;seqinfo.rds&quot;))
+bw_path &lt;- here::here(config$paths$bigwig, targets)
+stopifnot(all(dir.exists(bw_path)))
+
+all_gr &lt;- file.path(annotation_path, &quot;all_gr.rds&quot;) %&gt;% 
+  read_rds()
+id2gene &lt;- setNames(all_gr$gene$gene_name, all_gr$gene$gene_id)
+trans_models &lt;- file.path(annotation_path, &quot;trans_models.rds&quot;) %&gt;% 
+  read_rds() 
+
+blacklist &lt;- here::here(annotation_path, &quot;blacklist.bed.gz&quot;) %&gt;%
+  import.bed(seqinfo = sq) %&gt;%
+  sort()
+external_features &lt;- c()
+has_features &lt;- FALSE
+if (!is.null(config$external$features)) {
+  external_features &lt;- suppressWarnings(
+    import.gff(here::here(config$external$features), genome = sq)
+  )
+  keep_cols &lt;- !vapply(
+    mcols(external_features), function(x) all(is.na(x)), logical(1)
+  )
+  mcols(external_features) &lt;- mcols(external_features)[keep_cols]
+  has_features &lt;- TRUE
+  feature_colours &lt;- colours$features %&gt;% 
+    setNames(str_sep_to_title(names(.)))
+}
+gene_regions &lt;- read_rds(file.path(annotation_path, &quot;gene_regions.rds&quot;))
+regions &lt;- vapply(gene_regions, function(x) unique(x$region), character(1))
+region_colours &lt;-  unlist(colours$regions) %&gt;% setNames(regions[names(.)])
+any_detected &lt;- gene_regions %&gt;% 
+  vapply(function(x) any(x$detected), logical(1)) %&gt;% 
+  any()</code></pre>
+<pre class="r"><code>rna_path &lt;- here::here(config$external$rnaseq)
+rnaseq &lt;- tibble(gene_id = character(), gene_name = character())
+if (length(rna_path) &gt; 0) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, &quot;tsv$&quot;)) rnaseq &lt;- read_tsv(rna_path)
+  if (str_detect(rna_path, &quot;csv$&quot;)) rnaseq &lt;- read_csv(rna_path)
+  if (!&quot;gene_id&quot; %in% colnames(rnaseq)) stop(&quot;Supplied RNA-Seq data must contain the column &#39;gene_id&#39;&quot;)
+}
+tx_col &lt;- intersect(c(&quot;tx_id&quot;, &quot;transcript_id&quot;), colnames(rnaseq))
+rna_gr_col &lt;- ifelse(length(tx_col) &gt; 0, &quot;transcript_id&quot;, &quot;gene_id&quot;)
+rna_col &lt;- c(tx_col, &quot;gene_id&quot;)[[1]]</code></pre>
+<pre class="r"><code>hic &lt;- GInteractions()
+hic_path &lt;- here::here(config$external$hic)
+has_hic &lt;- FALSE
+if (length(hic_path) &gt; 0)
+  if (file.exists(hic_path)) {
+    has_hic &lt;- TRUE
+    hic &lt;- makeGenomicInteractionsFromFile(hic_path, type = &quot;bedpe&quot;)
+    reg_combs &lt;- expand.grid(regions, regions) %&gt;% 
+      as.matrix() %&gt;% 
+      apply(
+        MARGIN = 1, 
+        function(x) {
+          x &lt;- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = &quot; - &quot;)
+        }
+      ) %&gt;% 
+      unique()
+    hic$regions &lt;- anchors(hic) %&gt;% 
+      vapply(
+        bestOverlap,
+        y = GRangesList(lapply(gene_regions, granges)),
+        character(length(hic))
+      ) %&gt;% 
+      apply(MARGIN = 2, function(x) regions[x]) %&gt;% 
+      apply(
+        MARGIN = 1, 
+        function(x) {
+          x &lt;- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = &quot; - &quot;)
+        }
+      ) %&gt;% 
+      factor(levels = reg_combs) %&gt;%
+      fct_relabel(
+        str_replace_all,
+        pattern = &quot;Promoter \\([0-9kbp/\\+-]+\\)&quot;, replacement = &quot;Promoter&quot;
+      )
+    if (has_features) {
+      feat_combs &lt;- expand.grid(names(feature_colours), names(feature_colours)) %&gt;% 
+        as.matrix() %&gt;% 
+        apply(
+          MARGIN = 1, 
+          function(x) {
+            x &lt;- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = &quot; - &quot;)
+          }
+        ) %&gt;% 
+        unique()
+      hic$features &lt;- vapply(
+        anchors(hic),
+        function(x) bestOverlap(
+          x, external_features, var = &quot;feature&quot;, missing = &quot;no_feature&quot;
+        ),
+        character(length(hic))
+      )  %&gt;% 
+        apply(
+          MARGIN = 1, 
+          function(x) {
+            x &lt;- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = &quot; - &quot;)
+          }
+        ) %&gt;% 
+        factor(levels = feat_combs) %&gt;%
+        fct_relabel(str_sep_to_title, pattern = &quot;_&quot;)
+    }
+  }
+stopifnot(is(hic, &quot;GInteractions&quot;))
+seqlevels(hic) &lt;- seqlevels(sq)
+seqinfo(hic) &lt;- sq
+hic &lt;- hic[!overlapsAny(hic, blacklist)]</code></pre>
+<pre class="r"><code>up_col &lt;- function(x) {
+  rgb(
+    colorRamp(c(&quot;#ffffff&quot;, colours$direction[[&quot;up&quot;]]))(x), maxColorValue = 255
+  )
+}
+down_col &lt;- function(x) {
+  rgb(
+    colorRamp(c(&quot;#ffffff&quot;, colours$direction[[&quot;down&quot;]]))(x), maxColorValue = 255
+  )
+}
+unch_col &lt;- function(x) {
+  rgb(
+    colorRamp(c(&quot;#ffffff&quot;, colours$direction[[&quot;unchanged&quot;]]))(x), 
+    maxColorValue = 255
+  )
+}
+lfc_col &lt;- function(x){
+  rgb(
+    colorRamp(c(colours$direction[[&quot;down&quot;]], &quot;#ffffff&quot;, colours$direction[[&quot;up&quot;]]))(x), 
+    maxColorValue = 255
+  )
+}
+expr_col &lt;- function(x){
+  rgb(colorRamp(hcl.colors(9, &quot;TealRose&quot;))(x), maxColorValue = 255)
+}
+bar_style &lt;- function(width = 1, fill = &quot;#e6e6e6&quot;, height = &quot;75%&quot;, align = c(&quot;left&quot;, &quot;right&quot;), color = NULL) {
+  align &lt;- match.arg(align)
+  if (align == &quot;left&quot;) {
+    position &lt;- paste0(width * 100, &quot;%&quot;)
+    image &lt;- sprintf(&quot;linear-gradient(90deg, %1$s %2$s, transparent %2$s)&quot;, fill, position)
+  } else {
+    position &lt;- paste0(100 - width * 100, &quot;%&quot;)
+    image &lt;- sprintf(&quot;linear-gradient(90deg, transparent %1$s, %2$s %1$s)&quot;, position, fill)
+  }
+  list(
+    backgroundImage = image,
+    backgroundSize = paste(&quot;100%&quot;, height),
+    backgroundRepeat = &quot;no-repeat&quot;,
+    backgroundPosition = &quot;center&quot;,
+    color = color
+  )
+}
+with_tooltip &lt;- function(value, width = 30) {
+  htmltools::tags$span(title = value, str_trunc(value, width))
+}</code></pre>
+<pre class="r"><code>oracle_peaks &lt;- targets %&gt;% 
+  unique() %&gt;% 
+  lapply(
+    function(x) {
+      read_rds(
+        here::here(&quot;output&quot;, x, &quot;oracle_peaks.rds&quot;)
+      )
+    }
+  ) %&gt;% 
+  setNames(unique(targets))
+consensus_peaks &lt;- targets %&gt;% 
+  unique() %&gt;% 
+  lapply(
+    function(x) {
+      import.bed(
+        here::here(&quot;output&quot;, x, &quot;consensus_peaks.bed&quot;), seqinfo = sq
+      )
+    }
+  ) %&gt;% 
+  setNames(unique(targets))
+all_consensus &lt;- consensus_peaks %&gt;% 
+  GRangesList() %&gt;% 
+  unlist() %&gt;% 
+  reduce() %&gt;% 
+  sort() 
+db_results &lt;- seq_along(pairs) %&gt;% 
+  lapply(
+    function(x) {
+      here::here(
+        &quot;output&quot;, names(pairs)[[x]], glue(&quot;{pairs[[x]][[1]]}_{pairs[[x]][[2]]}_differential_binding.rds&quot;)
+      )
+    }
+  ) %&gt;% 
+  lapply(read_rds) %&gt;% 
+  setNames(comps)
+fdr_column &lt;- ifelse(
+  &quot;fdr_ihw&quot; %in% colnames(mcols(db_results[[1]])), 
+  &quot;fdr_ihw&quot;, 
+  str_subset(&quot;fdr&quot;, colnames(mcols(db_results[[1]])))
+)</code></pre>
+<div id="peak-comparison" class="section level1 tabset">
+<h1 class="tabset">Peak Comparison</h1>
+<p>Data was loaded for treatment-agnostic <em>consensus peaks</em> for AR and ER with treatment-specific <em>oracle peaks</em> (i.e. based on reproducibility across treatment-specific replicates). The sets of macs2-derived peaks for both AR and ER were first compared using treatment-agnostic peaks for each target. The sets of treatment-specific <em>oracle-peaks</em> were then compared across the combined treatment groups and targets.</p>
+<div id="consensus-peaks" class="section level2">
+<h2>Consensus Peaks</h2>
+<pre class="r"><code>fig_path &lt;- here::here(&quot;docs&quot;, &quot;assets&quot;, paste(targets, collapse = &quot;_&quot;))
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
+fig_name &lt;- targets %&gt;% 
+  paste(collapse = &quot;_&quot;) %&gt;% 
+  paste0(&quot;_common_peaks.png&quot;)
+lapply(
+  consensus_peaks,
+  function(x) as.character(subsetByOverlaps(all_consensus, x))
+) %&gt;% 
+  venn.diagram(
+    file.path(fig_path, fig_name),
+    imagetype = &quot;png&quot;,
+    units = &quot;in&quot;,
+    cat.cex = 1.4,
+    height = 9, 
+    width = 10,
+    fill = hcl.colors(2, &quot;Zissou 1&quot;, rev = TRUE), # Might need to fix later
+    alpha = 0.3
+  )
+ file.remove(list.files(fig_path, pattern = &quot;log$&quot;, full.names = TRUE))</code></pre>
+<div class="figure">
+<img src="assets/AR_ER/AR_ER_common_peaks.png" alt="" />
+<p class="caption"><em>Union of peaks found in AR and ER, and which of the two targets each peak is found in. Peaks are based on the union of both sets of consensus peaks, which are themselves independent of treatment group.</em></p>
+</div>
+</div>
+<div id="treatment-specific-peaks" class="section level2">
+<h2>Treatment Specific Peaks</h2>
+<pre class="r"><code>bar_cols &lt;- treat_colours[rev(unlist(pairs))]
+if (length(unique(targets)) == 1)
+  bar_cols &lt;- treat_colours[
+    pairs %&gt;% 
+      unlist() %&gt;% 
+      unique() %&gt;% 
+      rev()
+  ]
+samples %&gt;% 
+  distinct(target, treat) %&gt;% 
+  mutate_all(as.character) %&gt;% 
+  unite(group, target, treat, remove = FALSE) %&gt;% 
+  split(.$group) %&gt;% 
+  lapply(
+    function(x) {
+      gr &lt;- subsetByOverlaps(all_consensus, oracle_peaks[[x$target]][[x$treat]])
+      as.character(gr)
+    }
+  ) %&gt;% 
+  setNames(
+    str_replace_all(names(.), &quot;(.+)_(.+)&quot;, &quot;\\1 (\\2)&quot;)
+  ) %&gt;% 
+  fromList() %&gt;% 
+  upset(
+    sets = samples %&gt;%
+      distinct(target, treat) %&gt;%
+      mutate_all(as.character) %&gt;%
+      mutate(grp = glue(&quot;{target} ({treat})&quot;)) %&gt;%
+      pull(&quot;grp&quot;) %&gt;%
+      as.character() %&gt;%
+      rev(),
+    keep.order = TRUE,
+    order.by = &quot;freq&quot;,
+    set_size.show = TRUE, 
+    set_size.scale_max = oracle_peaks %&gt;% 
+      lapply(function(x) lapply(x, length)) %&gt;% 
+      unlist() %&gt;% 
+      max() %&gt;% 
+      multiply_by(1.15),
+    sets.bar.color = bar_cols
+  )</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/oracle-peaks-upset-1.png" alt="*Macs2 peaks detected for AR and ER in the treatment groups Veh or DHT.*" width="960" />
+<p class="caption">
+<em>Macs2 peaks detected for AR and ER in the treatment groups Veh or DHT.</em>
+</p>
+</div>
+</div>
+</div>
+<div id="differentially-bound-windows" class="section level1 tabset">
+<h1 class="tabset">Differentially Bound Windows</h1>
+<pre class="r"><code>all_windows &lt;- db_results %&gt;%
+  lapply(granges) %&gt;% 
+  GRangesList() %&gt;% 
+  unlist() %&gt;% 
+  sort() %&gt;% 
+  reduce() %&gt;% 
+  mutate(
+    region = regions[
+      bestOverlap(., GRangesList(lapply(gene_regions, granges)))
+    ] %&gt;% 
+      factor(levels = regions)
+  ) %&gt;%
+  join_overlap_left(
+    db_results[[comps[[1]]]] %&gt;% 
+      mutate(
+        status = as.character(status),
+        peak_centre = start(
+          resize(keyval_range, width = 1, fix = &quot;center&quot;)
+        )
+      ) %&gt;% 
+      select(
+        !!sym(glue(&quot;{comps[[1]]}_AveExpr&quot;)) := AveExpr, 
+        !!sym(glue(&quot;{comps[[1]]}_logFC&quot;)) := logFC, 
+        !!sym(glue(&quot;{comps[[1]]}_status&quot;)) := status, 
+        !!sym(glue(&quot;{comps[[1]]}_fdr&quot;)) := !!sym(fdr_column),
+        !!sym(glue(&quot;{comps[[1]]}_centre&quot;)) := peak_centre
+      )
+  ) %&gt;%
+  join_overlap_left(
+    db_results[[comps[[2]]]] %&gt;% 
+      mutate(
+        status = as.character(status),
+        peak_centre = start(
+          resize(keyval_range, width = 1, fix = &quot;center&quot;)
+        )
+      ) %&gt;% 
+      select(
+        !!sym(glue(&quot;{comps[[2]]}_AveExpr&quot;)) := AveExpr, 
+        !!sym(glue(&quot;{comps[[2]]}_logFC&quot;)) := logFC, 
+        !!sym(glue(&quot;{comps[[2]]}_status&quot;)) := status,
+        !!sym(glue(&quot;{comps[[2]]}_fdr&quot;)) := !!sym(fdr_column),
+        !!sym(glue(&quot;{comps[[2]]}_centre&quot;)) := peak_centre
+      )
+  ) %&gt;% 
+  mutate(
+    
+    ## Change the classification for unchanged sites to DB using 3 * fdr_alpha 
+    ## if the other target is significantly DB
+    &quot;{comps[[1]]}_status&quot; := case_when(
+      
+      (!!sym(glue(&quot;{comps[[2]]}_fdr&quot;)) &lt; fdr_alpha) &amp;
+        (!!sym(glue(&quot;{comps[[1]]}_fdr&quot;)) &lt; fdr_alpha * 3) &amp;
+        (!!sym(glue(&quot;{comps[[1]]}_logFC&quot;)) &gt; 0) ~ &quot;Up&quot;,
+      
+      (!!sym(glue(&quot;{comps[[2]]}_fdr&quot;)) &lt; fdr_alpha) &amp;
+        (!!sym(glue(&quot;{comps[[1]]}_fdr&quot;)) &lt; fdr_alpha * 3) &amp;
+        (!!sym(glue(&quot;{comps[[1]]}_logFC&quot;)) &lt; 0) ~ &quot;Down&quot;,
+      
+      TRUE ~ !!sym(glue(&quot;{comps[[1]]}_status&quot;))
+    ) %&gt;% 
+      factor(levels = str_sep_to_title(names(colours$direction))) %&gt;% 
+      fct_explicit_na(&quot;Undetected&quot;) %&gt;% 
+      fct_relabel(function(x) paste(comps[[1]], x)),
+    
+    &quot;{comps[[2]]}_status&quot; := case_when(
+      
+      (!!sym(glue(&quot;{comps[[1]]}_fdr&quot;)) &lt; fdr_alpha) &amp;
+        (!!sym(glue(&quot;{comps[[2]]}_fdr&quot;)) &lt; fdr_alpha * 3) &amp;
+        (!!sym(glue(&quot;{comps[[2]]}_logFC&quot;)) &gt; 0) ~ &quot;Up&quot;,
+      
+      (!!sym(glue(&quot;{comps[[1]]}_fdr&quot;)) &lt; fdr_alpha) &amp;
+        (!!sym(glue(&quot;{comps[[2]]}_fdr&quot;)) &lt; fdr_alpha * 3) &amp;
+        (!!sym(glue(&quot;{comps[[2]]}_logFC&quot;)) &lt; 0) ~ &quot;Down&quot;,
+      
+      TRUE ~ !!sym(glue(&quot;{comps[[2]]}_status&quot;))
+    ) %&gt;% 
+      factor(levels = str_sep_to_title(names(colours$direction)))%&gt;% 
+      fct_explicit_na(&quot;Undetected&quot;) %&gt;% 
+      fct_relabel(function(x) paste(comps[[2]], x)),
+    
+    status = fct_cross(
+      !!sym(glue(&quot;{comps[[1]]}_status&quot;)), 
+      !!sym(glue(&quot;{comps[[2]]}_status&quot;)),
+      sep = &quot; - &quot;
+    ),
+    
+    distance = abs(
+      !!sym(glue(&quot;{comps[[1]]}_centre&quot;)) - !!sym(glue(&quot;{comps[[2]]}_centre&quot;))
+    )
+    
+  )
+## The above will currently (inexplicably) change the column names to be the
+## classic old R-style with dots instead of spaces. This may need re-visting
+colnames(mcols(all_windows)) &lt;- mcols(all_windows) %&gt;% 
+  colnames() %&gt;% 
+  str_replace_all(&quot;\\.Vs\\.\\.&quot;, &quot; Vs. &quot;) %&gt;% 
+  str_replace_all(&quot;\\.\\.&quot;, &quot;: &quot;)
+
+if (has_features) 
+  all_windows$feature &lt;- bestOverlap(
+    all_windows, external_features, var = &quot;feature&quot;, missing = &quot;no_feature&quot;
+  ) %&gt;% 
+  str_sep_to_title()
+
+all_windows$hic &lt;- NA
+if (has_hic)
+  all_windows$hic &lt;- overlapsAny(all_windows, hic)
+
+all_windows &lt;- all_windows %&gt;% 
+  select(any_of(c(&quot;region&quot;, &quot;feature&quot;, &quot;hic&quot;)), everything()) %&gt;% 
+  mapByFeature(
+    all_gr$gene,
+    prom = GRangesList(
+      ## Add any external features which appear to be promoters
+      ifelse(
+        &quot;feature&quot; %in% colnames(mcols(external_features)), 
+        list(granges(subset(external_features, str_detect(feature, &quot;[Pp]rom&quot;)))), 
+        list(GRanges())
+      )[[1]], 
+      granges(gene_regions$promoters)) %&gt;% 
+      unlist() %&gt;% 
+      reduce(),
+    enh = ifelse(
+      &quot;feature&quot; %in% colnames(mcols(external_features)), 
+      list(granges(subset(external_features, str_detect(feature, &quot;[Ee]nhanc&quot;)))), 
+      list(GRanges())
+    )[[1]],
+    gi = hic
+  ) 
+all_windows$detected &lt;- all_windows$gene_name
+if (any_detected) all_windows$detected &lt;- endoapply(
+  all_windows$detected, intersect, rnaseq$gene_name
+) </code></pre>
+<pre class="r"><code>direction_colours &lt;- names(colours$direction) %&gt;% 
+  rep(each = length(.)) %&gt;% 
+  cbind(rep(unique(.), times = 4)) %&gt;% 
+  set_colnames(comps) %&gt;% 
+  as_tibble() %&gt;% 
+  mutate(
+    c1 = lapply(
+      !!sym(comps[[1]]), function(x) t(col2rgb(colours$direction[[x]]))
+      ), 
+    c2 = lapply(
+      !!sym(comps[[2]]), function(x) t(col2rgb(colours$direction[[x]]))
+    )
+  ) %&gt;% 
+  split(f = seq_len(nrow(.))) %&gt;% 
+  lapply(unnest, everything()) %&gt;% 
+  lapply(
+    function(x) {
+      vals &lt;- rbind(x$c1, x$c2) %&gt;% 
+        colMeans()
+      rgb &lt;- rgb(
+        vals[&quot;red&quot;], vals[&quot;green&quot;], vals[&quot;blue&quot;], 
+        maxColorValue = colours$direction %&gt;%
+          unlist() %&gt;%
+          col2rgb() %&gt;% 
+          max()
+      )
+      select(x, all_of(comps)) %&gt;% 
+        mutate(rgb = rgb)
+    }
+  ) %&gt;% 
+  bind_rows() %&gt;% 
+  mutate(
+    !!sym(comps[[1]]) := paste(comps[[1]], str_to_title(!!sym(comps[[1]]))),
+    !!sym(comps[[2]]) := paste(comps[[2]], str_to_title(!!sym(comps[[2]])))
+  ) %&gt;% 
+  unite(status, !!!syms(comps), sep = &quot; - &quot;) %&gt;% 
+  mutate(rgb = setNames(rgb, status)) %&gt;% 
+  pull(&quot;rgb&quot;)</code></pre>
+<p>A set of common windows was formed by obtaining the union of windows produced during the analysis of <em>AR</em> and <em>ER</em> individually. These common windows were formed using any overlap between target-specific windows. The window-to-gene mappings and the best overlap with genomic regions was also reformed. The best overlap with external features was also reformed. HiC data was also included, with 28.8% of all windows overlapping a HiC interaction bin. For windows where binding was observed in both datasets, this became 28.9%</p>
+<p>In the original datasets, 261 windows were included for AR, whilst 1,232 windows were included for ER. The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. As peaks were detected in an unstranded manner, all distance values were set to be positive. Taking the complete set of 1,411, 83 (5.9%) were considered as having peaks in both datasets. The median distance between peaks where found in both was 100bp. 13 peaks (15.7%) were found to directly overlap.</p>
+<p>Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value &lt; 0.05 was used. A secondary step was then introduced for each window such that if one target was significant and the other target had received an FDR-adjusted p-value &lt; 0.15, these windows were then considered significant in the second comparison. This was to help <em>reduce the number of windows incorrectly classified as unchanged</em> whilst the alternative ChIP target was defined as changed.</p>
+<pre class="r"><code>cp &lt;- htmltools::tags$em(
+  glue(
+    &quot;Summary of combined binding windows for &quot;,
+    glue_collapse(comps, sep = &quot; and &quot;),
+    &quot;. Windows were classified as described above. &quot;,
+    &quot;The number of windows showing each combined pattern are given, along &quot;,
+    &quot;with the number of unique genes mapped to each set of combined windows, &quot;,
+    &quot;noting that some genes will be mapped to multiple sets of windows. &quot;,
+    &quot;The % of all genes with a window mapped from either target is given in &quot;,
+    &quot;the final column.&quot;
+  )
+)
+tbl &lt;- all_windows %&gt;% 
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  group_by(across(ends_with(&quot;_status&quot;))) %&gt;% 
+  summarise(
+    windows = dplyr::n(),
+    mapped = length(unique(unlist(gene_id))),
+    .groups = &quot;drop&quot;
+  ) %&gt;% 
+  mutate(
+    `% genes` = mapped / length(unique(unlist(all_windows$gene_id)))
+  ) %&gt;% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      &quot;{comps[[1]]}_status&quot; := colDef(
+        name = comps[[1]],
+        cell = function(value) {
+          value &lt;- str_extract(value, &quot;Up|Down|Unchanged|Undetected&quot;)
+          if (str_detect(value, &quot;Up&quot;)) value &lt;- paste(value, &quot;\u21E7&quot;)
+          if (str_detect(value, &quot;Down&quot;)) value &lt;- paste(value, &quot;\u21E9&quot;)
+          paste(targets[[1]], value)
+        },
+        style = function(value) {
+          colour &lt;- case_when(
+            str_detect(value, &quot;Up&quot;) ~ colours$direction[[&quot;up&quot;]],
+            str_detect(value, &quot;Down&quot;) ~ colours$direction[[&quot;down&quot;]],
+            str_detect(value, &quot;Unchanged&quot;) ~ colours$direction[[&quot;unchanged&quot;]],
+            str_detect(value, &quot;Undetected&quot;) ~ colours$direction[[&quot;undetected&quot;]]
+          )
+          list(color = colour)
+        },
+        footer = htmltools::tags$b(&quot;Total&quot;)
+      ),
+      &quot;{comps[[2]]}_status&quot; := colDef(
+        name = comps[[2]],
+        cell = function(value) {
+          value &lt;- str_extract(value, &quot;Up|Down|Unchanged|Undetected&quot;)
+          if (str_detect(value, &quot;Up&quot;)) value &lt;- paste(value, &quot;\u21E7&quot;)
+          if (str_detect(value, &quot;Down&quot;)) value &lt;- paste(value, &quot;\u21E9&quot;)
+          paste(targets[[2]], value)
+        },
+        style = function(value) {
+          colour &lt;- case_when(
+            str_detect(value, &quot;Up&quot;) ~ colours$direction[[&quot;up&quot;]],
+            str_detect(value, &quot;Down&quot;) ~ colours$direction[[&quot;down&quot;]],
+            str_detect(value, &quot;Unchanged&quot;) ~ colours$direction[[&quot;unchanged&quot;]],
+            str_detect(value, &quot;Undetected&quot;) ~ colours$direction[[&quot;undetected&quot;]]
+          )
+          list(color = colour)
+        }
+      ),
+      windows = colDef(
+        name = &quot;Number of Windows&quot;, 
+        cell = function(value) comma(value, 1),
+        style = function(value) {
+          bar_style(width = 0.9*value / length(all_windows), fill = &quot;#B3B3B3&quot;)
+        },
+        footer = htmltools::tags$b(comma(length(all_windows), 1))
+      ),
+      mapped = colDef(
+        name = &quot;Uniquely Mapped Genes&quot;, 
+        cell = function(value) comma(value, 1),
+        style = function(value) {
+          bar_style(width = 0.9*value /length(unique(unlist(all_windows$gene_id))), fill = &quot;#B3B3B3&quot;)
+        },
+        footer = htmltools::tags$b(comma(length(unique(unlist(all_windows$gene_id))), 1))
+      ),
+      `% genes` = colDef(
+        name = &quot;% Of All Mapped Genes&quot;,
+        cell = function(x) percent(x, 0.1),
+        style = function(value) {
+          bar_style(width = 0.9*value, fill = &quot;#B3B3B3&quot;)
+        }
+      )
+    )
+  )
+div(class = &quot;table&quot;,
+  div(class = &quot;table-header&quot;,
+      div(class = &quot;caption&quot;, cp),
+      tbl
+  )
+)</code></pre>
+<div class="table">
+<div class="table-header">
+<div class="caption">
+<em>Summary of combined binding windows for AR and ER. Windows were classified as described above. The number of windows showing each combined pattern are given, along with the number of unique genes mapped to each set of combined windows, noting that some genes will be mapped to multiple sets of windows. The % of all genes with a window mapped from either target is given in the final column.</em>
+</div>
+<div id="htmlwidget-d97ab9812dd326e49970" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-d97ab9812dd326e49970">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"AR_status":["AR Up","AR Up","AR Up","AR Up","AR Unchanged","AR Unchanged","AR Undetected","AR Undetected","AR Undetected"],"ER_status":["ER Up","ER Down","ER Unchanged","ER Undetected","ER Unchanged","ER Undetected","ER Up","ER Down","ER Unchanged"],"windows":[1,54,24,170,4,8,3,895,252],"mapped":[2,228,94,512,18,36,15,1344,766],"% genes":[0.00125786163522013,0.143396226415094,0.0591194968553459,0.322012578616352,0.0113207547169811,0.0226415094339623,0.00943396226415094,0.845283018867925,0.481761006289308]},"columns":[{"accessor":"AR_status","name":"AR","type":"factor","cell":["AR Up ⇧","AR Up ⇧","AR Up ⇧","AR Up ⇧","AR Unchanged","AR Unchanged","AR Undetected","AR Undetected","AR Undetected"],"footer":{"name":"b","attribs":{},"children":["Total"]},"style":[{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#7F7F7F"},{"color":"#7F7F7F"},{"color":"#E5E5E5"},{"color":"#E5E5E5"},{"color":"#E5E5E5"}]},{"accessor":"ER_status","name":"ER","type":"factor","cell":["ER Up ⇧","ER Down ⇩","ER Unchanged","ER Undetected","ER Unchanged","ER Undetected","ER Up ⇧","ER Down ⇩","ER Unchanged"],"style":[{"color":"#CA0020"},{"color":"#0571B0"},{"color":"#7F7F7F"},{"color":"#E5E5E5"},{"color":"#7F7F7F"},{"color":"#E5E5E5"},{"color":"#CA0020"},{"color":"#0571B0"},{"color":"#7F7F7F"}]},{"accessor":"windows","name":"Number of Windows","type":"numeric","cell":["1","54","24","170","4","8","3","895","252"],"footer":{"name":"b","attribs":{},"children":["1,411"]},"style":[{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.0637845499645641%, transparent 0.0637845499645641%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 3.44436569808646%, transparent 3.44436569808646%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 1.53082919914954%, transparent 1.53082919914954%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 10.8433734939759%, transparent 10.8433734939759%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.255138199858257%, transparent 0.255138199858257%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.510276399716513%, transparent 0.510276399716513%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.191353649893692%, transparent 0.191353649893692%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 57.0871722182849%, transparent 57.0871722182849%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 16.0737065910702%, transparent 16.0737065910702%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null}]},{"accessor":"mapped","name":"Uniquely Mapped Genes","type":"numeric","cell":["2","228","94","512","18","36","15","1,344","766"],"footer":{"name":"b","attribs":{},"children":["1,590"]},"style":[{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.113207547169811%, transparent 0.113207547169811%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 12.9056603773585%, transparent 12.9056603773585%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 5.32075471698113%, transparent 5.32075471698113%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 28.9811320754717%, transparent 28.9811320754717%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 1.0188679245283%, transparent 1.0188679245283%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 2.0377358490566%, transparent 2.0377358490566%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.849056603773585%, transparent 0.849056603773585%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 76.0754716981132%, transparent 76.0754716981132%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 43.3584905660377%, transparent 43.3584905660377%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null}]},{"accessor":"% genes","name":"% Of All Mapped Genes","type":"numeric","cell":["0.1%","14.3%","5.9%","32.2%","1.1%","2.3%","0.9%","84.5%","48.2%"],"style":[{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.113207547169811%, transparent 0.113207547169811%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 12.9056603773585%, transparent 12.9056603773585%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 5.32075471698113%, transparent 5.32075471698113%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 28.9811320754717%, transparent 28.9811320754717%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 1.0188679245283%, transparent 1.0188679245283%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 2.0377358490566%, transparent 2.0377358490566%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 0.849056603773585%, transparent 0.849056603773585%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 76.0754716981132%, transparent 76.0754716981132%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null},{"backgroundImage":"linear-gradient(90deg, #B3B3B3 43.3584905660377%, transparent 43.3584905660377%)","backgroundSize":"100% 75%","backgroundRepeat":"no-repeat","backgroundPosition":"center","color":null}]}],"filterable":true,"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"dataKey":"b21ad046a74b0cb48b8f95edc2dab269","key":"b21ad046a74b0cb48b8f95edc2dab269"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<p>Results across all windows are shown below for both <em>AR</em> and <em>ER</em> separately, then together.</p>
+<div id="distribution-by-region" class="section level2">
+<h2>Distribution By Region</h2>
+<pre class="r"><code>w &lt;- 0.8
+min_p &lt;- 0.08
+all_windows %&gt;%
+  mutate(
+    region = fct_relabel(region, str_replace, pattern = &quot; \\(&quot;, replacement = &quot;\n(&quot;)
+  ) %&gt;% 
+  plotPie(fill = &quot;status&quot;, x = &quot;region&quot;, label_size = 4, label_alpha = 0.8, width = w) + 
+  geom_text(
+    aes(xlab, ylab, label =lab),
+    data = . %&gt;% 
+      mutate(
+        xlab = x + w*(r + 0.1)*sin(label_radians),
+        ylab = 1 + w*(r + 0.1)*cos(label_radians),
+        lab = glue(&quot;{status}\n{percent(p, 0.1)}&quot;) %&gt;% 
+          str_wrap(15)
+      ) %&gt;% 
+      dplyr::filter(p * N &gt; min_p * max(N)),
+    size = 3
+  ) +
+  geom_segment(
+    aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
+     data = . %&gt;% 
+      mutate(
+        x_inner = x + w*r*sin(label_radians),
+        y_inner = 1 + w*r*cos(label_radians),
+        x_outer = x + w*(r + 0.01)*sin(label_radians),
+        y_outer = 1 + w*(r + 0.01)*cos(label_radians),
+      ) %&gt;% 
+      dplyr::filter(p * N &gt; min_p * max(N))
+  ) +
+  scale_fill_viridis_d() + 
+  labs(x = &quot;Region&quot;, fill = &quot;Status&quot;) +
+  theme(legend.position = &quot;top&quot;)</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/status-by-region-1.png" alt="*Distribution of binding patterns by genomic regions as defined in earlier sections.*" width="960" />
+<p class="caption">
+<em>Distribution of binding patterns by genomic regions as defined in earlier sections.</em>
+</p>
+</div>
+</div>
+<div id="distribution-by-feature" class="section level2">
+<h2>Distribution By Feature</h2>
+<pre class="r"><code>all_windows %&gt;%
+  plotPie(fill = &quot;status&quot;, x = &quot;feature&quot;, label_size = 4, label_alpha = 0.8) + 
+  geom_text(
+    aes(xlab, ylab, label =lab),
+    data = . %&gt;% 
+      mutate(
+        xlab = x + w*(r + 0.1)*sin(label_radians),
+        ylab = 1 + w*(r + 0.1)*cos(label_radians),
+        lab = glue(&quot;{status}\n{percent(p, 0.1)}&quot;) %&gt;% 
+          str_wrap(15)
+      ) %&gt;% 
+      dplyr::filter(p * N &gt; min_p * max(N)),
+    size = 3
+  ) +
+  geom_segment(
+    aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
+     data = . %&gt;% 
+      mutate(
+        x_inner = x + w*r*sin(label_radians),
+        y_inner = 1 + w*r*cos(label_radians),
+        x_outer = x + w*(r + 0.01)*sin(label_radians),
+        y_outer = 1 + w*(r + 0.01)*cos(label_radians),
+      ) %&gt;% 
+      dplyr::filter(p * N &gt; min_p * max(N))
+  ) +
+  scale_fill_viridis_d() + 
+  labs(x = &quot;Feature&quot;, fill = &quot;Status&quot;) +
+  theme(legend.position = &quot;top&quot;)</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/status-by-feature-1.png" alt="*Distribution of binding patterns by external features as defined in earlier sections.*" width="960" />
+<p class="caption">
+<em>Distribution of binding patterns by external features as defined in earlier sections.</em>
+</p>
+</div>
+</div>
+<div id="ar-by-er-status" class="section level2">
+<h2>AR By ER Status</h2>
+<pre class="r"><code>all_windows %&gt;%
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  dplyr::filter(
+    !!sym(glue(&quot;{comps[[1]]}_status&quot;)) != paste(comps[[1]], &quot;Undetected&quot;)
+  ) %&gt;% 
+  mutate(
+    !!sym(glue(&quot;{comps[[1]]}_status&quot;)) := fct_relabel(
+      !!sym(glue(&quot;{comps[[1]]}_status&quot;)), 
+      str_extract, 
+      pattern = &quot;Up|Down|Unchanged|Undetected&quot;
+    ),
+    !!sym(glue(&quot;{comps[[2]]}_status&quot;)) := fct_relabel(
+      !!sym(glue(&quot;{comps[[2]]}_status&quot;)), 
+      str_extract, 
+      pattern = &quot;Up|Down|Unchanged|Undetected&quot;
+    )
+  ) %&gt;% 
+  droplevels() %&gt;% 
+  ggplot(
+    aes(
+      !!sym(glue(&quot;{comps[[1]]}_AveExpr&quot;)), 
+      !!sym(glue(&quot;{comps[[1]]}_logFC&quot;)),
+      colour = !!sym(glue(&quot;{comps[[1]]}_status&quot;)), 
+      fill = !!sym(glue(&quot;{comps[[2]]}_status&quot;))
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_xsideboxplot(
+    aes(y = !!sym(glue(&quot;{comps[[2]]}_status&quot;))),
+    orientation = &quot;y&quot;, colour = &quot;black&quot;
+  ) +
+  geom_ysideboxplot(
+    aes(x = !!sym(glue(&quot;{comps[[2]]}_status&quot;))),
+    orientation = &quot;x&quot;, colour = &quot;black&quot;
+  ) +
+  geom_ysideline(
+    aes(x, y),
+    data = tibble(x = seq(0, 5), y = 0),
+    inherit.aes = FALSE
+  ) +
+  geom_hline(yintercept = 0) +
+  scale_xsidey_discrete() +
+  scale_ysidex_discrete(guide = guide_axis(angle = 90)) +
+  scale_colour_manual(
+    values = colours$direction %&gt;%
+      setNames(str_to_title(names(.))) %&gt;% 
+      .[!str_detect(names(.), &quot;Undetected&quot;)]
+  ) +
+  scale_fill_manual(
+    values = colours$direction %&gt;%
+      setNames(str_to_title(names(.)))
+  ) +
+  labs(
+    x = paste(comps[[1]], &quot;logCPM&quot;),
+    y = paste(comps[[1]], &quot;logFC&quot;),
+    colour = str_replace(comps[[1]], &quot;: &quot;, &quot;\n&quot;),
+    fill = str_replace_all(comps[[2]], &quot;: &quot;, &quot;\n&quot;)
+  ) +
+  theme(
+    ggside.panel.scale.y = .2,
+    ggside.panel.scale.x = .25,
+    axis.title.x = element_text(hjust = 0.4, vjust = 1),
+    axis.title.y = element_text(hjust = 0.4, vjust = 1)
+  )</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/comps1-by2-1.png" alt="*Differential binding patterns of AR by ER status. AR values are coloured by their individual classification as Up, Down or Unchanged, with the distributions of these shown by ER status in the side panels.*" width="960" />
+<p class="caption">
+<em>Differential binding patterns of AR by ER status. AR values are coloured by their individual classification as Up, Down or Unchanged, with the distributions of these shown by ER status in the side panels.</em>
+</p>
+</div>
+</div>
+<div id="er-by-ar-status" class="section level2">
+<h2>ER By AR Status</h2>
+<pre class="r"><code>all_windows %&gt;%
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  as_tibble() %&gt;% 
+  dplyr::filter(
+    !!sym(glue(&quot;{comps[[2]]}_status&quot;)) != paste(comps[[2]], &quot;Undetected&quot;)
+  ) %&gt;% 
+  mutate(
+    !!sym(glue(&quot;{comps[[1]]}_status&quot;)) := fct_relabel(
+      !!sym(glue(&quot;{comps[[1]]}_status&quot;)), 
+      str_extract, 
+      pattern = &quot;Up|Down|Unchanged|Undetected&quot;
+    ),
+    !!sym(glue(&quot;{comps[[2]]}_status&quot;)) := fct_relabel(
+      !!sym(glue(&quot;{comps[[2]]}_status&quot;)), 
+      str_extract, 
+      pattern = &quot;Up|Down|Unchanged|Undetected&quot;
+    )
+  ) %&gt;% 
+  droplevels() %&gt;% 
+  ggplot(
+    aes(
+      !!sym(glue(&quot;{comps[[2]]}_AveExpr&quot;)), 
+      !!sym(glue(&quot;{comps[[2]]}_logFC&quot;)),
+      colour = !!sym(glue(&quot;{comps[[2]]}_status&quot;)), 
+      fill = !!sym(glue(&quot;{comps[[1]]}_status&quot;))
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_xsideboxplot(
+    aes(y = !!sym(glue(&quot;{comps[[1]]}_status&quot;))),
+    orientation = &quot;y&quot;, colour = &quot;black&quot;
+  ) +
+  geom_ysideboxplot(
+    aes(x = !!sym(glue(&quot;{comps[[1]]}_status&quot;))),
+    orientation = &quot;x&quot;, colour = &quot;black&quot;
+  ) +
+  geom_ysideline(
+    aes(x, y),
+    data = tibble(x = seq(0, 5), y = 0),
+    inherit.aes = FALSE
+  ) +
+  geom_hline(yintercept = 0) +
+  scale_xsidey_discrete() +
+  scale_ysidex_discrete(guide = guide_axis(angle = 90)) +
+  scale_colour_manual(
+    values = colours$direction %&gt;%
+      setNames(str_to_title(names(.))) %&gt;% 
+      .[!str_detect(names(.), &quot;Undetected&quot;)]
+  ) +
+  scale_fill_manual(
+    values = colours$direction %&gt;%
+      setNames(str_to_title(names(.)))
+  ) +
+  labs(
+    x = paste(comps[[2]], &quot;logCPM&quot;),
+    y = paste(comps[[2]], &quot;logFC&quot;),
+    colour = str_replace(comps[[2]], &quot;: &quot;, &quot;\n&quot;),
+    fill = str_replace_all(comps[[1]], &quot;: &quot;, &quot;\n&quot;)
+  ) +
+  theme(
+    ggside.panel.scale.y = .2,
+    ggside.panel.scale.x = .25,
+    axis.title.x = element_text(hjust = 0.4, vjust = 1),
+    axis.title.y = element_text(hjust = 0.4, vjust = 1)
+  )</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/target2-by1-1.png" alt="*Differential binding patterns of ER by AR status. ER values are coloured by their individual classification as Up, Down or Unchanged, with the distributions of these shown by AR status in the side panels.*" width="960" />
+<p class="caption">
+<em>Differential binding patterns of ER by AR status. ER values are coloured by their individual classification as Up, Down or Unchanged, with the distributions of these shown by AR status in the side panels.</em>
+</p>
+</div>
+</div>
+<div id="distance-by-region" class="section level2">
+<h2>Distance by Region</h2>
+<pre class="r"><code>all_windows %&gt;% 
+  filter(!is.na(distance)) %&gt;% 
+  mutate(region = fct_relabel(
+    region, str_replace_all, pattern = &quot; \\(&quot;, replacement = &quot;\n(&quot;
+    )
+  ) %&gt;% 
+  as_tibble() %&gt;% 
+  ggplot(aes(region, distance)) +
+  geom_boxplot() +
+  scale_y_continuous(labels = comma) +
+  labs(x = &quot;Region&quot;, y = &quot;Distance Between Peaks&quot;) </code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/distanc-by-region-1.png" alt="*Distribution of distances between peaks separated by genomic region.*" width="768" />
+<p class="caption">
+<em>Distribution of distances between peaks separated by genomic region.</em>
+</p>
+</div>
+</div>
+<div id="windows-by-differential-binding" class="section level2">
+<h2>Windows By Differential Binding</h2>
+<pre class="r"><code>all_windows %&gt;% 
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  dplyr::filter(!str_detect(status, &quot;Undetected&quot;)) %&gt;% 
+  droplevels() %&gt;% 
+  ggplot(
+    aes(
+      !!sym(glue(&quot;{comps[[1]]}_logFC&quot;)), !!sym(glue(&quot;{comps[[2]]}_logFC&quot;)),
+      colour = status
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = &quot;grey&quot;
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = &quot;grey&quot;
+  ) +
+  geom_label_repel(
+    aes(label = lab),
+    data = . %&gt;% 
+      dplyr::filter(
+        !str_detect(status, &quot;Unchanged.+Unchanged&quot;),
+        vapply(detected, length, integer(1)) &gt; 0
+      ) %&gt;% 
+      mutate(
+        total_lfc = abs(!!sym(glue(&quot;{comps[[1]]}_logFC&quot;))) + abs(!!sym(glue(&quot;{comps[[2]]}_logFC&quot;))) 
+      ) %&gt;% 
+      group_by(status) %&gt;%
+      dplyr::filter(total_lfc == max(total_lfc)) %&gt;% 
+      mutate(
+        detected = vapply(detected, paste, character(1), collapse = &quot;; &quot;),
+        lab = paste(status, detected, sep = &quot;: &quot;) %&gt;% str_wrap(25)
+      ),
+    size = 3, alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %&gt;%
+      mutate(
+        x = 0.9*max((!!sym(glue(&quot;{comps[[1]]}_logFC&quot;)))),
+        y = min(!!sym(glue(&quot;{comps[[2]]}_logFC&quot;)))
+      ) %&gt;% 
+      # group_by(
+      #   !!sym(glue(&quot;{comps[[1]]}_status&quot;)), !!sym(glue(&quot;{comps[[2]]}_status&quot;))
+      # ) %&gt;%
+      summarise(
+        x = unique(x), 
+        y = unique(y),
+        n = dplyr::n(),
+        lab = paste(&quot;n =&quot;, comma(n, 1)),
+        .groups = &quot;drop&quot;
+      ),
+    inherit.aes = FALSE
+  ) +
+  # stat_ellipse(level = 0.9) +
+  # facet_grid(
+  #   as.formula(
+  #     glue(&quot;{comps[[2]]}_status ~ fct_rev({comps[[1]]}_status)&quot;)
+  #   )
+  # ) +
+  scale_colour_manual(
+    values = direction_colours[
+      filter(all_windows, !str_detect(status, &quot;Undetected&quot;))$status %&gt;%
+        droplevels() %&gt;%
+        levels()
+    ]
+  ) +
+  labs(
+    x = paste(comps[[1]], &quot;logFC&quot;),
+    y = paste(comps[[2]], &quot;logFC&quot;),
+    colour = &quot;Status&quot;
+  ) +
+  theme(legend.position = &quot;top&quot;)</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/plot-dbwin-1.png" alt="*Comparative changes in both AR and ER. The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*" width="960" />
+<p class="caption">
+<em>Comparative changes in both AR and ER. The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.</em>
+</p>
+</div>
+</div>
+<div id="peaks-by-region" class="section level2">
+<h2>Peaks By Region</h2>
+<pre class="r"><code>all_windows %&gt;% 
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  dplyr::filter(!str_detect(status, &quot;Undetected&quot;)) %&gt;% 
+  droplevels() %&gt;% 
+  ggplot(
+    aes(
+      !!sym(glue(&quot;{comps[[1]]}_logFC&quot;)), !!sym(glue(&quot;{comps[[2]]}_logFC&quot;)),
+      colour = status
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = &quot;grey&quot;
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = &quot;grey&quot;
+  ) +
+  geom_label_repel(
+    aes(label = detected),
+    data = . %&gt;% 
+      dplyr::filter(
+        !str_detect(status, &quot;Unchanged.+Unchanged&quot;),
+        vapply(detected, length, integer(1)) &gt; 0
+      ) %&gt;% 
+      mutate(
+        total_lfc = abs(!!sym(glue(&quot;{comps[[1]]}_logFC&quot;))) + abs(!!sym(glue(&quot;{comps[[2]]}_logFC&quot;))) 
+      ) %&gt;% 
+      group_by(region) %&gt;% 
+      dplyr::filter(total_lfc == max(total_lfc)) %&gt;% 
+      mutate(
+        detected = vapply(detected, paste, character(1), collapse = &quot;; &quot;) %&gt;% 
+          str_wrap(25)
+      ),
+    size = 3, alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %&gt;%
+      mutate(
+        x = 0.9*max(!!sym(glue(&quot;{comps[[1]]}_logFC&quot;))),
+        y = min(!!sym(glue(&quot;{comps[[2]]}_logFC&quot;)))
+      ) %&gt;% 
+      group_by(region) %&gt;%
+      summarise(
+        x = unique(x), 
+        y = unique(y),
+        n = dplyr::n(),
+        lab = paste(&quot;n =&quot;, comma(n, 1)),
+        .groups = &quot;drop&quot;
+      ),
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~region) +
+  scale_colour_manual(
+    values = direction_colours[
+      filter(all_windows, !str_detect(status, &quot;Undetected&quot;))$status %&gt;% 
+        droplevels() %&gt;% 
+        levels()
+    ]
+  ) +
+  labs(
+    x = paste(comps[[1]], &quot;logFC&quot;),
+    y = paste(comps[[2]], &quot;logFC&quot;),
+    colour = &quot;Status&quot;
+  ) +
+  theme(legend.position = &quot;top&quot;)</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/plot-dbwin-by-region-1.png" alt="*Comparative changes in both AR and ER. The window with most extreme combined change in binding for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*" width="960" />
+<p class="caption">
+<em>Comparative changes in both AR and ER. The window with most extreme combined change in binding for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.</em>
+</p>
+</div>
+</div>
+<div id="peaks-by-feature" class="section level2">
+<h2>Peaks By Feature</h2>
+<pre class="r"><code>all_windows %&gt;% 
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  dplyr::filter(!str_detect(status, &quot;Undetected&quot;)) %&gt;% 
+  droplevels() %&gt;% 
+  ggplot(
+    aes(
+      !!sym(glue(&quot;{comps[[1]]}_logFC&quot;)), !!sym(glue(&quot;{comps[[2]]}_logFC&quot;)),
+      colour = status
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = &quot;grey&quot;
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    linetype = 2, colour = &quot;grey&quot;
+  ) +
+  geom_label_repel(
+    aes(label = detected),
+    data = . %&gt;% 
+      dplyr::filter(!str_detect(status, &quot;Unchanged.+Unchanged&quot;)) %&gt;% 
+      mutate(
+        total_lfc = abs(!!sym(glue(&quot;{comps[[1]]}_logFC&quot;))) + abs(!!sym(glue(&quot;{comps[[2]]}_logFC&quot;))) 
+      ) %&gt;% 
+      group_by(feature) %&gt;% 
+      dplyr::filter(total_lfc == max(total_lfc)) %&gt;% 
+      mutate(
+        detected = vapply(detected, paste, character(1), collapse = &quot;; &quot;) %&gt;% 
+          str_wrap(25)
+      ) %&gt;% 
+      dplyr::filter(detected != &quot;&quot;),
+    size = 3, alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %&gt;%
+      mutate(
+        x = 0.9 * max(!!sym(glue(&quot;{comps[[1]]}_logFC&quot;))),
+        y = min(!!sym(glue(&quot;{comps[[2]]}_logFC&quot;)))
+      ) %&gt;% 
+      group_by(feature) %&gt;%
+      summarise(
+        x = unique(x), 
+        y = unique(y),
+        n = dplyr::n(),
+        lab = paste(&quot;n =&quot;, comma(n, 1)),
+        .groups = &quot;drop&quot;
+      ),
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~feature) +
+  scale_colour_manual(
+    values = direction_colours[
+      filter(all_windows, !str_detect(status, &quot;Undetected&quot;))$status %&gt;% 
+        droplevels() %&gt;% 
+        levels()
+    ]
+  ) +
+  labs(
+    x = paste(comps[[1]], &quot;logFC&quot;),
+    y = paste(comps[[2]], &quot;logFC&quot;),
+    colour = &quot;Status&quot;
+  ) +
+  theme(legend.position = &quot;top&quot;)</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/plot-dbwin-by-feature-1.png" alt="*Comparative changes in both AR and ER. The window with most extreme combined change in binding for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*" width="960" />
+<p class="caption">
+<em>Comparative changes in both AR and ER. The window with most extreme combined change in binding for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.</em>
+</p>
+</div>
+</div>
+</div>
+<div id="enrichment-analysis" class="section level1">
+<h1>Enrichment Analysis</h1>
+<pre class="r"><code>all_ids &lt;- all_gr$gene %&gt;% 
+  mutate(w = width) %&gt;% 
+  as_tibble() %&gt;% 
+  dplyr::select(gene_id, w) %&gt;% 
+  arrange(desc(w)) %&gt;% 
+  distinct(gene_id, w) %&gt;% 
+  arrange(gene_id)
+msigdb &lt;- msigdbr(species = &quot;Homo sapiens&quot;) %&gt;% 
+  dplyr::filter(
+    gs_cat %in% unlist(params$msigdb$gs_cat) |
+      gs_subcat %in% unlist(params$msigdb$gs_subcat),
+    str_detect(ensembl_gene, &quot;^E&quot;)
+  ) %&gt;% 
+  dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %&gt;% # For easier integration 
+  dplyr::select(-starts_with(&quot;human&quot;), -contains(&quot;entrez&quot;)) %&gt;% 
+  dplyr::filter(gene_id %in% all_ids$gene_id)
+gs_by_gsid &lt;- msigdb %&gt;% 
+  split(.$gs_name) %&gt;% 
+  mclapply(pull, &quot;gene_id&quot;, mc.cores = threads) %&gt;% 
+  mclapply(unique, mc.cores = threads)
+gs_by_geneid &lt;- msigdb %&gt;% 
+  split(.$gene_id) %&gt;% 
+  mclapply(pull, &quot;gs_name&quot;, mc.cores = threads) %&gt;% 
+  mclapply(unique, mc.cores = threads)
+comp_ids &lt;- comps %&gt;% 
+  lapply(
+    function(x) {
+      subset(all_windows, !str_detect(status, paste(x, &quot;Undetected&quot;)))$gene_id
+    }
+  ) %&gt;% 
+  lapply(unlist) %&gt;% 
+  lapply(unique) %&gt;% 
+  setNames(comps)
+mapped_ids &lt;- comp_ids %&gt;% 
+  unlist() %&gt;% 
+  unique()
+gene_lengths &lt;- structure(width(all_gr$gene), names = all_gr$gene$gene_id)[mapped_ids]
+group_ids &lt;- all_windows %&gt;% 
+  split(f = .$status) %&gt;% 
+  mclapply(
+    function(x) unique(unlist(x$gene_id)),
+    mc.cores = threads
+  ) </code></pre>
+<div id="comparison-of-all-genes-mapped-to-targets" class="section level2 tabset">
+<h2 class="tabset">Comparison of All Genes Mapped To Targets</h2>
+<div id="all-mapped-genes" class="section level3">
+<h3>All Mapped Genes</h3>
+<pre class="r"><code>goseq_mapped_res &lt;- structure(
+  all_ids$gene_id %in%mapped_ids,
+  names = all_ids$gene_id
+) %&gt;% 
+  nullp(bias.data = log10(all_ids$w), plot.fit = FALSE) %&gt;% 
+  goseq(gene2cat = gs_by_geneid) %&gt;% 
+  dplyr::filter(numDEInCat &gt; 0) %&gt;% 
+  as_tibble() %&gt;% 
+  dplyr::select(
+    gs_name = category, pval = over_represented_pvalue,
+    mapped = numDEInCat, universe = numInCat
+  ) %&gt;% 
+  mutate(fdr = p.adjust(pval, &quot;fdr&quot;)) %&gt;% 
+  dplyr::filter(fdr &lt; fdr_alpha) %&gt;% 
+  left_join(
+    dplyr::filter(msigdb, gene_id %in% mapped_ids)[c(&quot;gs_name&quot;, &quot;gene_name&quot;, &quot;gs_url&quot;, &quot;gs_description&quot;)],
+    by = &quot;gs_name&quot;
+  ) %&gt;% 
+  chop(gene_name) %&gt;% 
+  mutate(gene_name = vapply(gene_name, paste, character(1), collapse = &quot;; &quot;))</code></pre>
+<p>All 1,590 genes with a mapped binding window from either <em>AR</em> or <em>ER</em> were compared to the ‘universe’ of 62,400 annotated genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.</p>
+<pre class="r"><code>cp &lt;- htmltools::tags$em(
+  glue(
+    &quot;All {comma(length(mapped_ids))} genes mapped to a binding window from &quot;, 
+    &quot;either &quot;, glue_collapse(comps, &quot; or &quot; ),
+    &quot;, were compared to all annotated genes to test for enrichment of gene sets &quot;,
+    &quot;amongst both individual analyses&quot;
+  )
+)
+tbl &lt;- goseq_mapped_res %&gt;%
+  nest(gs_name = c(&quot;gs_name&quot;, &quot;gs_url&quot;)) %&gt;% 
+  dplyr::select(gs_name, gs_description, pval, fdr, everything()) %&gt;% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      gs_name = colDef(
+        name = &quot;Gene Set&quot;,
+        cell = function(value) {
+          htmltools::tags$a(
+            href = value$gs_url, target = &quot;_blank&quot;,
+            str_replace_all(value$gs_name, &quot;_&quot;, &quot; &quot;)
+          )
+        },
+        html = TRUE,
+        maxWidth = 150
+      ),
+      gs_description = colDef(
+        name = &quot;Description&quot;,
+        cell = function(value) str_trunc(value, width = 150)
+      ),
+      pval = colDef(
+        name = &quot;P-Value&quot;,
+        cell = function(value) ifelse(
+          value &lt; 0.001,
+          sprintf(&quot;%.2e&quot;, value),
+          sprintf(&quot;%.3f&quot;, value)
+        ),
+        maxWidth = 80
+      ),
+      fdr = colDef(
+        name = &quot;FDR&quot;,
+        cell = function(value) ifelse(
+          value &lt; 0.001,
+          sprintf(&quot;%.2e&quot;, value),
+          sprintf(&quot;%.3f&quot;, value)
+        ),
+        maxWidth = 80
+      ),
+      mapped = colDef(
+        name = &quot;Mapped Genes&quot;,
+        cell = function(value) comma(value, 1),
+        maxWidth = 80
+      ),
+      universe = colDef(
+        name = &quot;Genes in Gene-Set&quot;,
+        cell = function(value) comma(value, 1),
+        maxWidth = 80
+      ),
+      gene_name = colDef(
+        name = &quot;Gene Names&quot;,
+        cell = function(value) with_tooltip(value, width = 150)
+      )
+    )
+  )
+div(class = &quot;table&quot;,
+  div(class = &quot;table-header&quot;,
+      div(class = &quot;caption&quot;, cp),
+      tbl
+  )
+)</code></pre>
+<div class="table">
+<div class="table-header">
+<div class="caption">
+<em>All 1,590 genes mapped to a binding window from either AR or ER, were compared to all annotated genes to test for enrichment of gene sets amongst both individual analyses</em>
+</div>
+<div id="htmlwidget-fee59ca008981bd32a51" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-fee59ca008981bd32a51">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"gs_name":[{"gs_name":["AUTS2_TARGET_GENES"],"gs_url":["http://gtrd.biouml.org/"]},{"gs_name":["RYBP_TARGET_GENES"],"gs_url":["http://gtrd.biouml.org/"]},{"gs_name":["NOTCH3_TARGET_GENES"],"gs_url":["http://gtrd.biouml.org/"]}],"gs_description":["Genes containing one or more binding sites for UniProt:Q8WXX7 (AUTS2) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20.06 ChIP-seq harmonization.","Genes containing one or more binding sites for UniProt:Q8N488 (RYBP) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20.06 ChIP-seq harmonization.","Genes containing one or more binding sites for UniProt:Q9UM47 (NOTCH3) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20.06 ChIP-seq harmonization."],"pval":[1.74302735713318e-10,1.36527654657281e-05,2.14937367523829e-05],"fdr":[3.20019822769651e-07,0.0125332386975384,0.0131541668924583],"mapped":[43,93,63],"universe":[453,1858,1130],"gene_name":["ARHGAP12; ARHGAP21; ASCC1; ATE1; ATE1-AS1; BMI1; CACUL1; COMMD3; CTBP2; DDIT4; DDX21; DNAJB12; EXOSC1; FAM241B; GATA3-AS1; HECTD2; HERC4; HNRNPF; IDE; KIFBP; LCOR; MASTL; MIR1915; MLLT10; MRPL43; MXI1; NRP1; OAT; ODAD2; PARD3; PARD3-AS1; PFKP; PIP4K2A; POLL; STN1; SUV39H2; SVIL; TWNK; ZDHHC16; ZFAND4; ZMIZ1; ZNF503; ZNF503-AS2","ACTR1A; ADK; ADRB1; ANK3; ANK3-DT; ARHGAP22; ARMC3; ASCC1; ATAD1; ATE1-AS1; BMI1; BMPR1A; BMS1; C10orf88; CALY; CAMK1D; CC2D2B; CCDC3; CFL1P1; CISD1; CXCL12; CYP26A1; DCLRE1A; DCLRE1C; DIP2C; DNAJC9-AS1; EDRF1; EDRF1-DT; EIF3A; ENKUR; ENTPD1-AS1; ERCC6; FBXL15; FRA10AC1; GATA3; GATA3-AS1; GBF1; HELLS; HIF1AN; HMX2; IKZF5; IPMK; JMJD1C; KIF20B; LBX1-AS1; LIPA; LRMDA; LRRC20; MARVELD1; MASTL; MKX; MRPS16; NCOA4; NEBL-AS1; NFKB2; NHLRC2; NKX2-3; NOC3L; NOLC1; NRP1; OPTN; PDZD7; PFKP; PHYHIPL; PIP4K2A; PRKG1; PSD; PTEN; RAB18; RET; SCD; SFMBT2; SGMS1; SKIDA1; SLC29A3; SLC35G1; SORBS1; SPAG6; STOX1; SUFU; SUV39H2; TASOR2; TCTN3; TET1; TLL2; TMEM72-AS1; UPF2; VDAC2; WAC; WAC-AS1; YME1L1; ZNF248; ZNF503-AS1","ABLIM1; ADIRF; ADIRF-AS1; ARL5B; ASCC1; BAG3; BLOC1S2; BORCS7; BORCS7-ASMT; CACNB2; CASP7; CDC123; CDNF; CNNM1; CTBP2; DDX50; DUSP5; ENSG00000232936; ENTPD1-AS1; FAM107B; FRAT2; FUOM; GNG10P1; GRID1; GSTO2; HNRNPF; HSPA14; KAT6B; KIAA1217; KIF20B; KIFBP; KLLN; LINC00705; LINC00865; LINC02621; LIPA; MAP3K8; MSMB; MTPAP; NSUN6; NUDT5; OLMALINC; PCBD1; PDSS1; PIK3AP1; PTEN; PTER; RBM17; RHOBTB1; SELENOOLP; SORBS1; STAM; STAM-DT; STN1; TAF3; TIMM23; TNKS2-AS1; WAC; WAC-AS1; WDFY4; ZFAND4; ZNF32; ZNF365"]},"columns":[{"accessor":"gs_name","name":"Gene Set","type":"list","cell":[{"name":"a","attribs":{"href":"http://gtrd.biouml.org/","target":"_blank"},"children":["AUTS2 TARGET GENES"]},{"name":"a","attribs":{"href":"http://gtrd.biouml.org/","target":"_blank"},"children":["RYBP TARGET GENES"]},{"name":"a","attribs":{"href":"http://gtrd.biouml.org/","target":"_blank"},"children":["NOTCH3 TARGET GENES"]}],"html":true,"maxWidth":150},{"accessor":"gs_description","name":"Description","type":"character","cell":["Genes containing one or more binding sites for UniProt:Q8WXX7 (AUTS2) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 2...","Genes containing one or more binding sites for UniProt:Q8N488 (RYBP) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20...","Genes containing one or more binding sites for UniProt:Q9UM47 (NOTCH3) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version ..."]},{"accessor":"pval","name":"P-Value","type":"numeric","cell":["1.74e-10","1.37e-05","2.15e-05"],"maxWidth":80},{"accessor":"fdr","name":"FDR","type":"numeric","cell":["3.20e-07","0.013","0.013"],"maxWidth":80},{"accessor":"mapped","name":"Mapped Genes","type":"numeric","cell":["43","93","63"],"maxWidth":80},{"accessor":"universe","name":"Genes in Gene-Set","type":"numeric","cell":["453","1,858","1,130"],"maxWidth":80},{"accessor":"gene_name","name":"Gene Names","type":"character","cell":[{"name":"span","attribs":{"title":"ARHGAP12; ARHGAP21; ASCC1; ATE1; ATE1-AS1; BMI1; CACUL1; COMMD3; CTBP2; DDIT4; DDX21; DNAJB12; EXOSC1; FAM241B; GATA3-AS1; HECTD2; HERC4; HNRNPF; IDE; KIFBP; LCOR; MASTL; MIR1915; MLLT10; MRPL43; MXI1; NRP1; OAT; ODAD2; PARD3; PARD3-AS1; PFKP; PIP4K2A; POLL; STN1; SUV39H2; SVIL; TWNK; ZDHHC16; ZFAND4; ZMIZ1; ZNF503; ZNF503-AS2"},"children":["ARHGAP12; ARHGAP21; ASCC1; ATE1; ATE1-AS1; BMI1; CACUL1; COMMD3; CTBP2; DDIT4; DDX21; DNAJB12; EXOSC1; FAM241B; GATA3-AS1; HECTD2; HERC4; HNRNPF; I..."]},{"name":"span","attribs":{"title":"ACTR1A; ADK; ADRB1; ANK3; ANK3-DT; ARHGAP22; ARMC3; ASCC1; ATAD1; ATE1-AS1; BMI1; BMPR1A; BMS1; C10orf88; CALY; CAMK1D; CC2D2B; CCDC3; CFL1P1; CISD1; CXCL12; CYP26A1; DCLRE1A; DCLRE1C; DIP2C; DNAJC9-AS1; EDRF1; EDRF1-DT; EIF3A; ENKUR; ENTPD1-AS1; ERCC6; FBXL15; FRA10AC1; GATA3; GATA3-AS1; GBF1; HELLS; HIF1AN; HMX2; IKZF5; IPMK; JMJD1C; KIF20B; LBX1-AS1; LIPA; LRMDA; LRRC20; MARVELD1; MASTL; MKX; MRPS16; NCOA4; NEBL-AS1; NFKB2; NHLRC2; NKX2-3; NOC3L; NOLC1; NRP1; OPTN; PDZD7; PFKP; PHYHIPL; PIP4K2A; PRKG1; PSD; PTEN; RAB18; RET; SCD; SFMBT2; SGMS1; SKIDA1; SLC29A3; SLC35G1; SORBS1; SPAG6; STOX1; SUFU; SUV39H2; TASOR2; TCTN3; TET1; TLL2; TMEM72-AS1; UPF2; VDAC2; WAC; WAC-AS1; YME1L1; ZNF248; ZNF503-AS1"},"children":["ACTR1A; ADK; ADRB1; ANK3; ANK3-DT; ARHGAP22; ARMC3; ASCC1; ATAD1; ATE1-AS1; BMI1; BMPR1A; BMS1; C10orf88; CALY; CAMK1D; CC2D2B; CCDC3; CFL1P1; CISD..."]},{"name":"span","attribs":{"title":"ABLIM1; ADIRF; ADIRF-AS1; ARL5B; ASCC1; BAG3; BLOC1S2; BORCS7; BORCS7-ASMT; CACNB2; CASP7; CDC123; CDNF; CNNM1; CTBP2; DDX50; DUSP5; ENSG00000232936; ENTPD1-AS1; FAM107B; FRAT2; FUOM; GNG10P1; GRID1; GSTO2; HNRNPF; HSPA14; KAT6B; KIAA1217; KIF20B; KIFBP; KLLN; LINC00705; LINC00865; LINC02621; LIPA; MAP3K8; MSMB; MTPAP; NSUN6; NUDT5; OLMALINC; PCBD1; PDSS1; PIK3AP1; PTEN; PTER; RBM17; RHOBTB1; SELENOOLP; SORBS1; STAM; STAM-DT; STN1; TAF3; TIMM23; TNKS2-AS1; WAC; WAC-AS1; WDFY4; ZFAND4; ZNF32; ZNF365"},"children":["ABLIM1; ADIRF; ADIRF-AS1; ARL5B; ASCC1; BAG3; BLOC1S2; BORCS7; BORCS7-ASMT; CACNB2; CASP7; CDC123; CDNF; CNNM1; CTBP2; DDX50; DUSP5; ENSG0000023293..."]}]}],"filterable":true,"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"dataKey":"e8834b51150ac155c22b2562adaa9aa0","key":"e8834b51150ac155c22b2562adaa9aa0"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+</div>
+<div id="genes-mapped-only-to-ar" class="section level3">
+<h3>Genes Mapped Only to AR</h3>
+<pre class="r"><code>goseq_t1_res &lt;- tibble()
+if (length(setdiff(comp_ids[[1]], comp_ids[[2]])) &gt; 0) {
+  goseq_t1_res &lt;- structure(
+    all_ids$gene_id %in% setdiff(comp_ids[[1]], comp_ids[[2]]),
+    names = all_ids$gene_id
+  ) %&gt;% 
+    nullp(bias.data = log10(all_ids$w), plot.fit = FALSE) %&gt;% 
+    goseq(gene2cat = gs_by_geneid) %&gt;% 
+    dplyr::filter(numDEInCat &gt; 0) %&gt;% 
+    as_tibble() %&gt;% 
+    dplyr::select(
+      gs_name = category, pval = over_represented_pvalue,
+      mapped = numDEInCat, universe = numInCat
+    ) %&gt;% 
+    mutate(fdr = p.adjust(pval, &quot;fdr&quot;)) %&gt;% 
+    dplyr::filter(fdr &lt; fdr_alpha) %&gt;% 
+    left_join(
+      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c(&quot;gs_name&quot;, &quot;gene_name&quot;, &quot;gs_url&quot;, &quot;gs_description&quot;)],
+      by = &quot;gs_name&quot;
+    ) %&gt;% 
+    chop(gene_name) %&gt;% 
+    mutate(gene_name = vapply(gene_name, paste, character(1), collapse = &quot;; &quot;))
+}</code></pre>
+<p>All 45 genes with a mapped binding window unique to AR were compared to the ‘universe’ of all 62,400 annotated genes, in order to ascertain whether any key gene-sets were likely to be targeted <em>uniquely</em> in either AR. No enrichment was found</p>
+</div>
+<div id="genes-mapped-only-to-er" class="section level3">
+<h3>Genes Mapped Only to ER</h3>
+<pre class="r"><code>goseq_t2_res &lt;- tibble()
+if (length(setdiff(comp_ids[[2]], comp_ids[[1]])) &gt; 0) {
+  goseq_t2_res &lt;- structure(
+    all_ids$gene_id %in% setdiff(comp_ids[[2]], comp_ids[[1]]),
+    names = all_ids$gene_id
+  ) %&gt;% 
+    nullp(bias.data = log10(all_ids$w), plot.fit = FALSE) %&gt;% 
+    goseq(gene2cat = gs_by_geneid) %&gt;% 
+    dplyr::filter(numDEInCat &gt; 0) %&gt;% 
+    as_tibble() %&gt;% 
+    dplyr::select(
+      gs_name = category, pval = over_represented_pvalue,
+      mapped = numDEInCat, universe = numInCat
+    ) %&gt;% 
+    mutate(fdr = p.adjust(pval, &quot;fdr&quot;)) %&gt;% 
+    dplyr::filter(fdr &lt; fdr_alpha) %&gt;% 
+    left_join(
+      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c(&quot;gs_name&quot;, &quot;gene_name&quot;, &quot;gs_url&quot;, &quot;gs_description&quot;)],
+      by = &quot;gs_name&quot;
+    ) %&gt;% 
+    chop(gene_name) %&gt;% 
+    mutate(gene_name = vapply(gene_name, paste, character(1), collapse = &quot;; &quot;))
+}</code></pre>
+<p>All 948 genes with a mapped binding window unique to ER were compared to the ‘universe’ of all 62,400 annotated genes, in order to ascertain whether any key gene-sets were likely to be targeted <em>uniquely</em> in either ER. No enrichment was found</p>
+</div>
+<div id="genes-mapped-to-both-ar-and-er" class="section level3">
+<h3>Genes Mapped to Both AR and ER</h3>
+<pre class="r"><code>goseq_t1t2_res &lt;- structure(
+  all_ids$gene_id %in% intersect(comp_ids[[2]], comp_ids[[1]]),
+  names = all_ids$gene_id
+) %&gt;% 
+  nullp(bias.data = log10(all_ids$w), plot.fit = FALSE) %&gt;% 
+  goseq(gene2cat = gs_by_geneid) %&gt;% 
+  dplyr::filter(numDEInCat &gt; 0) %&gt;% 
+  as_tibble() %&gt;% 
+  dplyr::select(
+    gs_name = category, pval = over_represented_pvalue,
+    mapped = numDEInCat, universe = numInCat
+  ) %&gt;% 
+  mutate(fdr = p.adjust(pval, &quot;fdr&quot;)) %&gt;% 
+  dplyr::filter(fdr &lt; fdr_alpha) %&gt;% 
+  left_join(
+    dplyr::filter(msigdb, gene_id %in% mapped_ids)[c(&quot;gs_name&quot;, &quot;gene_name&quot;, &quot;gs_url&quot;, &quot;gs_description&quot;)],
+    by = &quot;gs_name&quot;
+  ) %&gt;% 
+  chop(gene_name) %&gt;% 
+  mutate(gene_name = vapply(gene_name, paste, character(1), collapse = &quot;; &quot;))</code></pre>
+<p>All 597 genes with a mapped binding window to both <em>AR</em> and <em>ER</em> were compared to the ‘universe’ of 62,400 annotated genes, in order to ascertain whether any key gene-sets were likely to be targeted under <em>both in combination</em>.</p>
+<pre class="r"><code>cp &lt;- htmltools::tags$em(
+  glue(
+    &quot;All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes &quot;, 
+    &quot;mapped to a binding window from both &quot;, 
+    glue_collapse(targets, sep = &quot; and &quot;),
+    &quot; were compared to all annotated genes to test for enrichment of gene sets &quot;,
+    &quot;amongst any unique targets.&quot;
+  )
+)
+tbl &lt;- goseq_t1t2_res %&gt;%
+  nest(gs_name = c(&quot;gs_name&quot;, &quot;gs_url&quot;)) %&gt;% 
+  dplyr::select(gs_name, gs_description, pval, fdr, everything()) %&gt;% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      gs_name = colDef(
+        name = &quot;Gene Set&quot;,
+        cell = function(value) {
+          htmltools::tags$a(
+            href = value$gs_url, target = &quot;_blank&quot;,
+            str_replace_all(value$gs_name, &quot;_&quot;, &quot; &quot;)
+          )
+        },
+        html = TRUE,
+        maxWidth = 150
+      ),
+      gs_description = colDef(
+        name = &quot;Description&quot;,
+        cell = function(value) str_trunc(value, width = 150)
+      ),
+      pval = colDef(
+        name = &quot;P-Value&quot;,
+        cell = function(value) ifelse(
+          value &lt; 0.001,
+          sprintf(&quot;%.2e&quot;, value),
+          sprintf(&quot;%.3f&quot;, value)
+        ),
+        maxWidth = 80
+      ),
+      fdr = colDef(
+        name = &quot;FDR&quot;,
+        cell = function(value) ifelse(
+          value &lt; 0.001,
+          sprintf(&quot;%.2e&quot;, value),
+          sprintf(&quot;%.3f&quot;, value)
+        ),
+        maxWidth = 80
+      ),
+      mapped = colDef(
+        name = &quot;Mapped Genes&quot;,
+        cell = function(value) comma(value, 1),
+        maxWidth = 80
+      ),
+      universe = colDef(
+        name = &quot;Genes in Gene-Set&quot;,
+        cell = function(value) comma(value, 1),
+        maxWidth = 80
+      ),
+      gene_name = colDef(
+        name = &quot;Gene Names&quot;,
+        cell = function(value) with_tooltip(value, width = 150)
+      )
+    )
+  )
+div(class = &quot;table&quot;,
+  div(class = &quot;table-header&quot;,
+      div(class = &quot;caption&quot;, cp),
+      tbl
+  )
+)</code></pre>
+<div class="table">
+<div class="table-header">
+<div class="caption">
+<em>All 597 genes mapped to a binding window from both AR and ER were compared to all annotated genes to test for enrichment of gene sets amongst any unique targets.</em>
+</div>
+<div id="htmlwidget-edc02ddef48ec3c908ea" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-edc02ddef48ec3c908ea">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"gs_name":[{"gs_name":["AUTS2_TARGET_GENES"],"gs_url":["http://gtrd.biouml.org/"]},{"gs_name":["RYBP_TARGET_GENES"],"gs_url":["http://gtrd.biouml.org/"]}],"gs_description":["Genes containing one or more binding sites for UniProt:Q8WXX7 (AUTS2) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20.06 ChIP-seq harmonization.","Genes containing one or more binding sites for UniProt:Q8N488 (RYBP) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20.06 ChIP-seq harmonization."],"pval":[1.47339188496515e-08,6.04528341497471e-05],"fdr":[1.93898372061413e-05,0.0397779648705336],"mapped":[23,43],"universe":[453,1858],"gene_name":["ARHGAP12; ARHGAP21; ASCC1; ATE1; ATE1-AS1; BMI1; CACUL1; COMMD3; CTBP2; DDIT4; DDX21; DNAJB12; EXOSC1; FAM241B; GATA3-AS1; HECTD2; HERC4; HNRNPF; IDE; KIFBP; LCOR; MASTL; MIR1915; MLLT10; MRPL43; MXI1; NRP1; OAT; ODAD2; PARD3; PARD3-AS1; PFKP; PIP4K2A; POLL; STN1; SUV39H2; SVIL; TWNK; ZDHHC16; ZFAND4; ZMIZ1; ZNF503; ZNF503-AS2","ACTR1A; ADK; ADRB1; ANK3; ANK3-DT; ARHGAP22; ARMC3; ASCC1; ATAD1; ATE1-AS1; BMI1; BMPR1A; BMS1; C10orf88; CALY; CAMK1D; CC2D2B; CCDC3; CFL1P1; CISD1; CXCL12; CYP26A1; DCLRE1A; DCLRE1C; DIP2C; DNAJC9-AS1; EDRF1; EDRF1-DT; EIF3A; ENKUR; ENTPD1-AS1; ERCC6; FBXL15; FRA10AC1; GATA3; GATA3-AS1; GBF1; HELLS; HIF1AN; HMX2; IKZF5; IPMK; JMJD1C; KIF20B; LBX1-AS1; LIPA; LRMDA; LRRC20; MARVELD1; MASTL; MKX; MRPS16; NCOA4; NEBL-AS1; NFKB2; NHLRC2; NKX2-3; NOC3L; NOLC1; NRP1; OPTN; PDZD7; PFKP; PHYHIPL; PIP4K2A; PRKG1; PSD; PTEN; RAB18; RET; SCD; SFMBT2; SGMS1; SKIDA1; SLC29A3; SLC35G1; SORBS1; SPAG6; STOX1; SUFU; SUV39H2; TASOR2; TCTN3; TET1; TLL2; TMEM72-AS1; UPF2; VDAC2; WAC; WAC-AS1; YME1L1; ZNF248; ZNF503-AS1"]},"columns":[{"accessor":"gs_name","name":"Gene Set","type":"list","cell":[{"name":"a","attribs":{"href":"http://gtrd.biouml.org/","target":"_blank"},"children":["AUTS2 TARGET GENES"]},{"name":"a","attribs":{"href":"http://gtrd.biouml.org/","target":"_blank"},"children":["RYBP TARGET GENES"]}],"html":true,"maxWidth":150},{"accessor":"gs_description","name":"Description","type":"character","cell":["Genes containing one or more binding sites for UniProt:Q8WXX7 (AUTS2) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 2...","Genes containing one or more binding sites for UniProt:Q8N488 (RYBP) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20..."]},{"accessor":"pval","name":"P-Value","type":"numeric","cell":["1.47e-08","6.05e-05"],"maxWidth":80},{"accessor":"fdr","name":"FDR","type":"numeric","cell":["1.94e-05","0.040"],"maxWidth":80},{"accessor":"mapped","name":"Mapped Genes","type":"numeric","cell":["23","43"],"maxWidth":80},{"accessor":"universe","name":"Genes in Gene-Set","type":"numeric","cell":["453","1,858"],"maxWidth":80},{"accessor":"gene_name","name":"Gene Names","type":"character","cell":[{"name":"span","attribs":{"title":"ARHGAP12; ARHGAP21; ASCC1; ATE1; ATE1-AS1; BMI1; CACUL1; COMMD3; CTBP2; DDIT4; DDX21; DNAJB12; EXOSC1; FAM241B; GATA3-AS1; HECTD2; HERC4; HNRNPF; IDE; KIFBP; LCOR; MASTL; MIR1915; MLLT10; MRPL43; MXI1; NRP1; OAT; ODAD2; PARD3; PARD3-AS1; PFKP; PIP4K2A; POLL; STN1; SUV39H2; SVIL; TWNK; ZDHHC16; ZFAND4; ZMIZ1; ZNF503; ZNF503-AS2"},"children":["ARHGAP12; ARHGAP21; ASCC1; ATE1; ATE1-AS1; BMI1; CACUL1; COMMD3; CTBP2; DDIT4; DDX21; DNAJB12; EXOSC1; FAM241B; GATA3-AS1; HECTD2; HERC4; HNRNPF; I..."]},{"name":"span","attribs":{"title":"ACTR1A; ADK; ADRB1; ANK3; ANK3-DT; ARHGAP22; ARMC3; ASCC1; ATAD1; ATE1-AS1; BMI1; BMPR1A; BMS1; C10orf88; CALY; CAMK1D; CC2D2B; CCDC3; CFL1P1; CISD1; CXCL12; CYP26A1; DCLRE1A; DCLRE1C; DIP2C; DNAJC9-AS1; EDRF1; EDRF1-DT; EIF3A; ENKUR; ENTPD1-AS1; ERCC6; FBXL15; FRA10AC1; GATA3; GATA3-AS1; GBF1; HELLS; HIF1AN; HMX2; IKZF5; IPMK; JMJD1C; KIF20B; LBX1-AS1; LIPA; LRMDA; LRRC20; MARVELD1; MASTL; MKX; MRPS16; NCOA4; NEBL-AS1; NFKB2; NHLRC2; NKX2-3; NOC3L; NOLC1; NRP1; OPTN; PDZD7; PFKP; PHYHIPL; PIP4K2A; PRKG1; PSD; PTEN; RAB18; RET; SCD; SFMBT2; SGMS1; SKIDA1; SLC29A3; SLC35G1; SORBS1; SPAG6; STOX1; SUFU; SUV39H2; TASOR2; TCTN3; TET1; TLL2; TMEM72-AS1; UPF2; VDAC2; WAC; WAC-AS1; YME1L1; ZNF248; ZNF503-AS1"},"children":["ACTR1A; ADK; ADRB1; ANK3; ANK3-DT; ARHGAP22; ARMC3; ASCC1; ATAD1; ATE1-AS1; BMI1; BMPR1A; BMS1; C10orf88; CALY; CAMK1D; CC2D2B; CCDC3; CFL1P1; CISD..."]}]}],"filterable":true,"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"dataKey":"dc8c643b40acb2c0c5f36491710127a4","key":"dc8c643b40acb2c0c5f36491710127a4"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+</div>
+</div>
+<div id="comparison-of-differentially-bound-windows" class="section level2 tabset">
+<h2 class="tabset">Comparison of Differentially Bound Windows</h2>
+<pre class="r"><code>goseq_group_res &lt;- group_ids %&gt;% 
+  mclapply(
+    function(x) {
+      vec &lt;- structure(mapped_ids %in% x, names = mapped_ids)
+      pwf &lt;- nullp(vec, bias.data = log10(gene_lengths))
+      res &lt;- goseq(pwf, gene2cat = gs_by_geneid) %&gt;% 
+        as_tibble() %&gt;% 
+        dplyr::filter(numDEInCat &gt; 0) %&gt;% 
+        mutate(fdr = p.adjust(over_represented_pvalue, &quot;fdr&quot;)) %&gt;% 
+        dplyr::select(
+          gs_name = category, pval = over_represented_pvalue, fdr, ends_with(&quot;InCat&quot;)
+        ) %&gt;% 
+        dplyr::filter(fdr &lt; fdr_alpha) %&gt;%
+        left_join(
+          dplyr::filter(msigdb, gene_id %in% x)[c(&quot;gs_name&quot;, &quot;gene_name&quot;, &quot;gs_url&quot;, &quot;gs_description&quot;)],
+          by = &quot;gs_name&quot;
+        ) %&gt;% 
+        chop(gene_name) %&gt;% 
+        mutate(gene_name = vapply(gene_name, paste, character(1), collapse = &quot;; &quot;))
+      res
+    },
+    mc.cores = threads
+  ) %&gt;% 
+  ## This step at the end basically removes any groups with no results
+  lapply(list) %&gt;% 
+  as_tibble() %&gt;% 
+  pivot_longer(everything(), names_to = &quot;group&quot;) %&gt;% 
+  unnest(everything()) %&gt;% 
+  split(.$group)</code></pre>
+<p>The same MSigDB gene sets were used for associating any pathways with the combined changes in both <em>AR</em> and <em>ER</em>. The ‘universe’ of genes was defined as all 1,590 gene ids with a binding window mapped from either target.</p>
+<pre class="r"><code>htmltools::tagList(
+  names(goseq_group_res) %&gt;% 
+    mclapply(
+      function(x) {
+        cp &lt;- glue(
+          &quot;
+          All {comma(length(group_ids[[x]]), 1)} genes mapped to binding windows
+           with the pattern {x} were compared to the complete set of 
+          {comma(length(mapped_ids), 1)} genes mapped to at least one binding
+          window.
+          &quot;
+        )
+        htmltools::div(
+          htmltools::div(
+            id = x %&gt;% 
+              str_to_lower %&gt;% 
+              str_replace_all(&quot; &quot;, &quot;-&quot;) %&gt;% 
+              str_replace_all(&quot;-+&quot;, &quot;-&quot;),
+            class=&quot;section level3&quot;,
+            htmltools::h3(class = &quot;tabset&quot;, x),
+            htmltools::tags$em(cp),
+            goseq_group_res[[x]] %&gt;% 
+              separate(group, into = comps, sep = &quot; - &quot;) %&gt;% 
+              nest(gs_name = c(&quot;gs_name&quot;, &quot;gs_url&quot;)) %&gt;% 
+              dplyr::select(
+                all_of(comps), gs_name, gs_description, pval, fdr, everything()
+              ) %&gt;% 
+              reactable(
+                filterable = TRUE,
+                columns = list2(
+                  &quot;{comps[[1]]}&quot; := colDef(
+                    cell = function(value) {
+                      value &lt;- str_extract(value, &quot;Up|Down|Unchanged|Undetected&quot;)
+                      if (str_detect(value, &quot;Up&quot;)) value &lt;- paste(value, &quot;\u21E7&quot;)
+                      if (str_detect(value, &quot;Down&quot;)) value &lt;- paste(value, &quot;\u21E9&quot;)
+                      paste(targets[[1]], value)
+                    },
+                    style = function(value) {
+                      colour &lt;- case_when(
+                        str_detect(value, &quot;Up&quot;) ~ colours$direction[[&quot;up&quot;]],
+                        str_detect(value, &quot;Down&quot;) ~ colours$direction[[&quot;down&quot;]],
+                        str_detect(value, &quot;Unchanged&quot;) ~ colours$direction[[&quot;unchanged&quot;]],
+                        str_detect(value, &quot;Undetected&quot;) ~ colours$direction[[&quot;undetected&quot;]]
+                      )
+                      list(color = colour)
+                    },
+                    maxWidth = 120
+                  ),
+                  &quot;{comps[[2]]}&quot; := colDef(
+                    cell = function(value) {
+                      value &lt;- str_extract(value, &quot;Up|Down|Unchanged|Undetected&quot;)
+                      if (str_detect(value, &quot;Up&quot;)) value &lt;- paste(value, &quot;\u21E7&quot;)
+                      if (str_detect(value, &quot;Down&quot;)) value &lt;- paste(value, &quot;\u21E9&quot;)
+                      paste(targets[[2]], value)
+                    },
+                    style = function(value) {
+                      colour &lt;- case_when(
+                        str_detect(value, &quot;Up&quot;) ~ colours$direction[[&quot;up&quot;]],
+                        str_detect(value, &quot;Down&quot;) ~ colours$direction[[&quot;down&quot;]],
+                        str_detect(value, &quot;Unchanged&quot;) ~ colours$direction[[&quot;unchanged&quot;]],
+                        str_detect(value, &quot;Undetected&quot;) ~ colours$direction[[&quot;undetected&quot;]]
+                      )
+                      list(color = colour)
+                    },
+                    maxWidth = 120
+                  ),
+                  gs_name = colDef(
+                    name = &quot;Gene Set&quot;,
+                    cell = function(value) {
+                      htmltools::tags$a(
+                        href = value$gs_url, target = &quot;_blank&quot;,
+                        str_replace_all(value$gs_name, &quot;_&quot;, &quot; &quot;)
+                      )
+                    },
+                    html = TRUE,
+                    maxWidth = 150
+                  ),
+                  gs_description = colDef(
+                    name = &quot;Description&quot;,
+                    cell = function(value) str_trunc(value, width = 150)
+                  ),
+                  pval = colDef(
+                    name = &quot;P-Value&quot;,
+                    cell = function(value) ifelse(
+                      value &lt; 0.001,
+                      sprintf(&quot;%.2e&quot;, value),
+                      sprintf(&quot;%.3f&quot;, value)
+                    ),
+                    maxWidth = 80
+                  ),
+                  fdr = colDef(
+                    name = &quot;FDR&quot;,
+                    cell = function(value) ifelse(
+                      value &lt; 0.001,
+                      sprintf(&quot;%.2e&quot;, value),
+                      sprintf(&quot;%.3f&quot;, value)
+                    ),
+                    maxWidth = 80
+                  ),
+                  numDEInCat = colDef(
+                    name = &quot;Mapped Genes&quot;,
+                    cell = function(value) comma(value, 1),
+                    maxWidth = 80
+                  ),
+                  numInCat = colDef(
+                    name = &quot;Genes in Gene-Set&quot;,
+                    cell = function(value) comma(value, 1),
+                    maxWidth = 80
+                  ),
+                  gene_name = colDef(
+                    name = &quot;Gene Names&quot;,
+                    cell = function(value) with_tooltip(value, width = 150)
+                  )
+                )
+              )
+          )
+        )
+      },
+      mc.cores = threads
+    )
+)</code></pre>
+<div>
+<div id="ar-up-er-up" class="section level3">
+<h3 class="tabset">AR Up - ER Up</h3>
+<em>All 2 genes mapped to binding windows
+ with the pattern AR Up - ER Up were compared to the complete set of 
+1,590 genes mapped to at least one binding
+window.</em>
+<div id="htmlwidget-3e5afa5c365d18f433a4" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-3e5afa5c365d18f433a4">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"AR":["AR Up","AR Up","AR Up","AR Up","AR Up","AR Up","AR Up"],"ER":["ER Up","ER Up","ER Up","ER Up","ER Up","ER Up","ER Up"],"gs_name":[{"gs_name":["REACTOME_OPSINS"],"gs_url":["https://www.reactome.org/content/detail/R-HSA-419771|https://reactome.org/PathwayBrowser/#/R-HSA-419771"]},{"gs_name":["NME2_TARGET_GENES"],"gs_url":["http://gtrd.biouml.org/"]},{"gs_name":["REACTOME_G_ALPHA_Q_SIGNALLING_EVENTS"],"gs_url":["https://www.reactome.org/content/detail/R-HSA-416476|https://reactome.org/PathwayBrowser/#/R-HSA-416476"]},{"gs_name":["WP_GPCRS_CLASS_A_RHODOPSINLIKE"],"gs_url":["http://www.wikipathways.org/instance/WP455_r117740"]},{"gs_name":["HALLMARK_MYOGENESIS"],"gs_url":[""]},{"gs_name":["WP_CIRCADIAN_RHYTHM_GENES"],"gs_url":["http://www.wikipathways.org/instance/WP3594_r117682"]},{"gs_name":["REACTOME_CLASS_A_1_RHODOPSIN_LIKE_RECEPTORS"],"gs_url":["https://www.reactome.org/content/detail/R-HSA-373076|https://reactome.org/PathwayBrowser/#/R-HSA-373076"]}],"gs_description":["Opsins","Genes containing one or more binding sites for UniProt:P22392 (NME2) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20.06 ChIP-seq harmonization.","G alpha (q) signalling events","GPCRs, class A rhodopsin-like","Genes involved in development of skeletal muscle (myogenesis).","Circadian rhythm genes","Class A/1 (Rhodopsin-like receptors)"],"pval":[0.00245614935071497,0.00930804134487051,0.012160537482606,0.0170686560179204,0.0236655122887785,0.0237739625516027,0.0267870721808848],"fdr":[0.0319299415592946,0.0497474197645004,0.0497474197645004,0.0497474197645004,0.0497474197645004,0.0497474197645004,0.0497474197645004],"numDEInCat":[1,1,1,1,1,1,1],"numInCat":[1,4,5,7,10,10,11],"gene_name":["OPN4","OPN4","OPN4","OPN4","LDB3","OPN4","OPN4"]},"columns":[{"accessor":"AR","name":"AR","type":"character","cell":["AR Up ⇧","AR Up ⇧","AR Up ⇧","AR Up ⇧","AR Up ⇧","AR Up ⇧","AR Up ⇧"],"maxWidth":120,"style":[{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"}]},{"accessor":"ER","name":"ER","type":"character","cell":["ER Up ⇧","ER Up ⇧","ER Up ⇧","ER Up ⇧","ER Up ⇧","ER Up ⇧","ER Up ⇧"],"maxWidth":120,"style":[{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"},{"color":"#CA0020"}]},{"accessor":"gs_name","name":"Gene Set","type":"list","cell":[{"name":"a","attribs":{"href":"https://www.reactome.org/content/detail/R-HSA-419771|https://reactome.org/PathwayBrowser/#/R-HSA-419771","target":"_blank"},"children":["REACTOME OPSINS"]},{"name":"a","attribs":{"href":"http://gtrd.biouml.org/","target":"_blank"},"children":["NME2 TARGET GENES"]},{"name":"a","attribs":{"href":"https://www.reactome.org/content/detail/R-HSA-416476|https://reactome.org/PathwayBrowser/#/R-HSA-416476","target":"_blank"},"children":["REACTOME G ALPHA Q SIGNALLING EVENTS"]},{"name":"a","attribs":{"href":"http://www.wikipathways.org/instance/WP455_r117740","target":"_blank"},"children":["WP GPCRS CLASS A RHODOPSINLIKE"]},{"name":"a","attribs":{"href":"","target":"_blank"},"children":["HALLMARK MYOGENESIS"]},{"name":"a","attribs":{"href":"http://www.wikipathways.org/instance/WP3594_r117682","target":"_blank"},"children":["WP CIRCADIAN RHYTHM GENES"]},{"name":"a","attribs":{"href":"https://www.reactome.org/content/detail/R-HSA-373076|https://reactome.org/PathwayBrowser/#/R-HSA-373076","target":"_blank"},"children":["REACTOME CLASS A 1 RHODOPSIN LIKE RECEPTORS"]}],"html":true,"maxWidth":150},{"accessor":"gs_description","name":"Description","type":"character","cell":["Opsins","Genes containing one or more binding sites for UniProt:P22392 (NME2) in their promoter regions (TSS -1000,+100 bp) as identified by GTRD version 20...","G alpha (q) signalling events","GPCRs, class A rhodopsin-like","Genes involved in development of skeletal muscle (myogenesis).","Circadian rhythm genes","Class A/1 (Rhodopsin-like receptors)"]},{"accessor":"pval","name":"P-Value","type":"numeric","cell":["0.002","0.009","0.012","0.017","0.024","0.024","0.027"],"maxWidth":80},{"accessor":"fdr","name":"FDR","type":"numeric","cell":["0.032","0.050","0.050","0.050","0.050","0.050","0.050"],"maxWidth":80},{"accessor":"numDEInCat","name":"Mapped Genes","type":"numeric","cell":["1","1","1","1","1","1","1"],"maxWidth":80},{"accessor":"numInCat","name":"Genes in Gene-Set","type":"numeric","cell":["1","4","5","7","10","10","11"],"maxWidth":80},{"accessor":"gene_name","name":"Gene Names","type":"character","cell":[{"name":"span","attribs":{"title":"OPN4"},"children":["OPN4"]},{"name":"span","attribs":{"title":"OPN4"},"children":["OPN4"]},{"name":"span","attribs":{"title":"OPN4"},"children":["OPN4"]},{"name":"span","attribs":{"title":"OPN4"},"children":["OPN4"]},{"name":"span","attribs":{"title":"LDB3"},"children":["LDB3"]},{"name":"span","attribs":{"title":"OPN4"},"children":["OPN4"]},{"name":"span","attribs":{"title":"OPN4"},"children":["OPN4"]}]}],"filterable":true,"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"dataKey":"ad27c031e996c562f8702d5176b9907c","key":"ad27c031e996c562f8702d5176b9907c"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+</div>
+</div>
+<div id="combined-binding-visualisation" class="section level1">
+<h1>Combined Binding Visualisation</h1>
+<div id="windows-with-the-strongest-signal" class="section level2 tabset">
+<h2 class="tabset">Windows With The Strongest Signal</h2>
+<p>For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group. Groups were restricted to those where differential binding was seen in at least comparison.</p>
+<pre class="r"><code>grl_to_plot &lt;- all_windows %&gt;% 
+  filter(
+    !str_detect(status, &quot;Un.+Un&quot;),
+    vapply(detected, length, integer(1)) &gt; 0
+  ) %&gt;% 
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  nest(
+    AveExpr = ends_with(&quot;AveExpr&quot;)
+  ) %&gt;% 
+  mutate(
+    max_signal = vapply(AveExpr, function(x) max(unlist(x)), numeric(1))
+  ) %&gt;% 
+  group_by(status) %&gt;% 
+  filter(max_signal == max(max_signal)) %&gt;% 
+  dplyr::select(
+    range, status, ends_with(&quot;logFC&quot;)
+  ) %&gt;% 
+  droplevels() %&gt;% 
+  split(.$status) %&gt;% 
+  lapply(pull, &quot;range&quot;) %&gt;% 
+  lapply(function(x) x[1]) %&gt;% 
+  lapply(GRanges, seqinfo = sq) %&gt;% 
+  GRangesList()</code></pre>
+<pre class="r"><code>## The coverage
+bwfl &lt;- seq_along(pairs) %&gt;% 
+  lapply(
+    function(x) {
+      file.path(
+        bw_path[[x]], glue(&quot;{pairs[[x]]}_merged_treat_pileup.bw&quot;)
+      ) %&gt;% 
+        BigWigFileList() %&gt;% 
+        setNames(pairs[[x]])
+    } 
+  ) %&gt;% 
+  setNames(comps)
+line_col &lt;- lapply(bwfl, function(x) treat_colours[names(x)])
+
+## Coverage annotations
+annot &lt;- comps %&gt;% 
+  lapply(
+    function(x) {
+      col &lt;- glue(&quot;{x}_status&quot;)
+      select(all_windows, all_of(col)) %&gt;% 
+        mutate(
+          status = str_extract(!!sym(col), &quot;Down|Up|Unchanged|Undetected&quot;)
+        ) %&gt;% 
+        splitAsList(.$status) %&gt;% 
+        lapply(granges) %&gt;% 
+        lapply(unique) %&gt;% 
+        GRangesList()
+    }
+  ) %&gt;% 
+  setNames(comps)
+annot_col &lt;- unlist(colours$direction) %&gt;% 
+    setNames(str_to_title(names(.)))
+
+
+
+## Coverage y-limits
+gr &lt;- unlist(grl_to_plot)
+y_lim &lt;- lapply(
+  bwfl,
+  function(x) {
+    cov &lt;- lapply(x, import.bw, which = gr)
+    unlist(lapply(cov, function(y) max(y$score))) %&gt;% 
+      c(0) %&gt;% 
+      range()
+  }
+)
+
+## The features track
+feat_gr &lt;- gene_regions %&gt;% 
+  lapply(granges) %&gt;% 
+  GRangesList()
+feature_colours &lt;- colours$regions
+if (has_features) {
+  feat_gr &lt;- feat_gr %&gt;% 
+    c(
+      splitAsList(external_features, external_features$feature)
+    )
+  feature_colours &lt;- c(feature_colours, colours$features)
+}
+
+## The genes track
+hfgc_genes &lt;- trans_models
+gene_col &lt;- &quot;grey&quot;
+if (any_detected){
+  rna_lfc_col &lt;- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), &quot;logfc&quot;)][1]
+  rna_fdr_col &lt;- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), &quot;fdr|adjp&quot;)][1]
+  if (!is.na(rna_lfc_col) &amp; !is.na(rna_fdr_col)) {
+    hfgc_genes &lt;- trans_models %&gt;% 
+      mutate(
+        status = case_when(
+          !gene %in% rnaseq$gene_id ~ &quot;Undetected&quot;,
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_lfc_col) &gt; 0, !!sym(rna_fdr_col) &lt; fdr_alpha
+          )$gene_id ~ &quot;Up&quot;,
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_lfc_col) &lt; 0, !!sym(rna_fdr_col) &lt; fdr_alpha
+          )$gene_id ~ &quot;Down&quot;,
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_fdr_col) &gt;= fdr_alpha
+          )$gene_id ~ &quot;Unchanged&quot;,
+        )
+      ) %&gt;% 
+      splitAsList(.$status) %&gt;% 
+      lapply(select, -status) %&gt;% 
+      GRangesList()
+    gene_col &lt;- colours$direction %&gt;% 
+      setNames(str_to_title(names(.)))
+  }
+}
+
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+  ext_cov_path &lt;- config$external$coverage %&gt;% 
+    lapply(unlist) %&gt;% 
+    lapply(function(x) setNames(here::here(x), names(x)))
+  bwfl &lt;- c(
+    bwfl[comps],
+    lapply(ext_cov_path, function(x) BigWigFileList(x) %&gt;% setNames(names(x)))
+  )
+  line_col &lt;- c(
+    line_col[comps],
+    ext_cov_path %&gt;% 
+      lapply(
+        function(x) {
+          missing &lt;- setdiff(names(x), names(treat_colours))
+          cmn &lt;- intersect(names(x), names(treat_colours))
+          col &lt;- setNames(character(length(names(x))), names(x))
+          if (length(cmn) &gt; 0) col[cmn] &lt;- treat_colours[cmn]
+          if (length(missing) &gt; 0) 
+            col[missing] &lt;- hcl.colors(
+              max(5, length(missing)), &quot;Zissou 1&quot;)[seq_along(missing)]
+          col
+        }
+      )
+  )
+  
+  y_ranges &lt;- grl_to_plot %&gt;% 
+    unlist() %&gt;% 
+    granges() %&gt;% 
+    resize(w = 10 * width(.), fix = &#39;center&#39;)
+  
+  y_lim &lt;- c(
+    y_lim[comps],
+    bwfl[names(config$external$coverage)] %&gt;% 
+      lapply(
+        function(x) {
+          GRangesList(lapply(x, import.bw, which = y_ranges)) %&gt;% 
+            unlist() %&gt;% 
+            filter(score == max(score)) %&gt;% 
+            mcols() %&gt;% 
+            .[[&quot;score&quot;]] %&gt;% 
+            c(0) %&gt;% 
+            range()
+        }
+      )
+  )
+  
+}</code></pre>
+<pre class="r"><code>htmltools::tagList(
+  mclapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      ## Export the png
+      png_out &lt;- file.path(
+        fig_path,
+        names(grl_to_plot)[[x]] %&gt;% 
+          str_remove_all(&quot;(:|Vs. |- )&quot;) %&gt;% 
+          str_replace_all(&quot; &quot;, &quot;_&quot;) %&gt;% 
+          paste0(&quot;_AveExpr.png&quot;)
+      )
+      png(
+        filename = png_out,
+        width = 10, height = 8, units = &quot;in&quot;, res = 300
+      )
+      ct &lt;- FALSE
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) &gt; 10)
+        ct &lt;- &quot;meta&quot;
+      plotHFGC(
+        grl_to_plot[[x]],
+        features = feat_gr, featcol = feature_colours,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        annotation = annot, annotcol = annot_col,
+        cytobands = bands_df,
+        rotation.title = 90,
+        zoom = 10,
+        ylim = y_lim,
+        collapseTranscripts = ct,
+        col.title = &quot;black&quot;, background.title = &quot;white&quot;, showAxis = FALSE
+      )
+      dev.off()
+      ## Create html tags
+      fig_link &lt;- str_extract(png_out, &quot;assets.+&quot;)
+      gn &lt;- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
+      cp &lt;- htmltools::tags$em(
+        glue(
+          &quot;
+        Highlighted region corresponds to the highest signal within the group 
+        {names(grl_to_plot)[[x]]}. The most likely target 
+        {ifelse(length(gn) == 1, &#39;gene is &#39;, &#39;genes are &#39;)}
+        {collapseGenes(gn, format = &#39;&#39;)}
+        &quot;
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = names(grl_to_plot)[[x]] %&gt;% 
+            str_remove_all(&quot;(:|Vs. |- )&quot;) %&gt;% 
+            str_replace_all(&quot; &quot;, &quot;-&quot;) %&gt;% 
+            str_to_lower() %&gt;% 
+            paste0(&quot;-aveexpr&quot;),
+          class=&quot;section level3&quot;,
+          htmltools::h3(names(grl_to_plot)[[x]]),
+          htmltools::div(
+            class = &quot;figure&quot;, style = &quot;text-align: center&quot;,
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = &quot;caption&quot;, htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+)  </code></pre>
+<div>
+<div id="ar-up-er-up-aveexpr" class="section level3">
+<h3>AR Up - ER Up</h3>
+<div class="figure" style="text-align: center">
+<img src="assets/AR_ER/AR_Up_ER_Up_AveExpr.png" width="960"/>
+<p class="caption">
+<em>
+<em>Highlighted region corresponds to the highest signal within the group 
+AR Up - ER Up. The most likely target 
+gene is 
+LDB3</em>
+</em>
+</p>
+</div>
+</div>
+</div>
+<div>
+<div id="ar-up-er-down-aveexpr" class="section level3">
+<h3>AR Up - ER Down</h3>
+<div class="figure" style="text-align: center">
+<img src="assets/AR_ER/AR_Up_ER_Down_AveExpr.png" width="960"/>
+<p class="caption">
+<em>
+<em>Highlighted region corresponds to the highest signal within the group 
+AR Up - ER Down. The most likely target 
+gene is 
+SEC61A2</em>
+</em>
+</p>
+</div>
+</div>
+</div>
+<div>
+<div id="ar-up-er-unchanged-aveexpr" class="section level3">
+<h3>AR Up - ER Unchanged</h3>
+<div class="figure" style="text-align: center">
+<img src="assets/AR_ER/AR_Up_ER_Unchanged_AveExpr.png" width="960"/>
+<p class="caption">
+<em>
+<em>Highlighted region corresponds to the highest signal within the group 
+AR Up - ER Unchanged. The most likely target 
+genes are 
+AC016394.2, CFAP70, DNAJC9, FAM149B1, LINC00595, MRPS16 and PPIF</em>
+</em>
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="windows-with-the-largest-change" class="section level2 tabset">
+<h2 class="tabset">Windows With The Largest Change</h2>
+<p>For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group. Groups were restricted to those where differential binding was seen in at least comparison.</p>
+<pre class="r"><code>grl_to_plot &lt;- all_windows %&gt;% 
+  filter(
+    !str_detect(status, &quot;Un.+Un&quot;),
+    vapply(detected, length, integer(1)) &gt; 0
+  ) %&gt;% 
+  as_tibble() %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.Vs\\.\\.&quot;, replacement = &quot; Vs. &quot;
+  ) %&gt;% 
+  rename_all(
+    str_replace_all, pattern = &quot;\\.\\.&quot;, replacement = &quot;: &quot;
+  ) %&gt;% 
+  nest(
+    logFC = ends_with(&quot;logFC&quot;)
+  ) %&gt;% 
+  mutate(
+    max_logFC = vapply(logFC, function(x) max(abs(unlist(x))), numeric(1))
+  ) %&gt;% 
+  group_by(status) %&gt;% 
+  filter(max_logFC == max(max_logFC)) %&gt;% 
+  dplyr::select(
+    range, status, ends_with(&quot;logFC&quot;)
+  ) %&gt;% 
+  droplevels() %&gt;% 
+  split(.$status) %&gt;% 
+  lapply(pull, &quot;range&quot;) %&gt;% 
+  lapply(GRanges, seqinfo = sq) %&gt;% 
+  GRangesList()</code></pre>
+<pre class="r"><code>## Coverage y-limits
+gr &lt;- unlist(grl_to_plot)
+y_lim &lt;- lapply(
+  bwfl,
+  function(x) {
+    cov &lt;- lapply(x, import.bw, which = gr)
+    unlist(lapply(cov, function(y) max(y$score))) %&gt;% 
+      c(0) %&gt;% 
+      range()
+  }
+)
+
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+    y_ranges &lt;- grl_to_plot %&gt;% 
+    unlist() %&gt;% 
+    granges() %&gt;% 
+    resize(w = 10 * width(.), fix = &#39;center&#39;)
+  
+  y_lim &lt;- c(
+    y_lim[comps],
+    bwfl[names(config$external$coverage)] %&gt;% 
+      lapply(
+        function(x) {
+          GRangesList(lapply(x, import.bw, which = y_ranges)) %&gt;% 
+            unlist() %&gt;% 
+            filter(score == max(score)) %&gt;% 
+            mcols() %&gt;% 
+            .[[&quot;score&quot;]] %&gt;% 
+            c(0) %&gt;% 
+            range()
+        }
+      )
+  )
+  
+}</code></pre>
+<pre class="r"><code>htmltools::tagList(
+  mclapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      ## Export the png
+      png_out &lt;- file.path(
+        fig_path,
+        names(grl_to_plot)[[x]] %&gt;% 
+          str_remove_all(&quot;(:|Vs. |- )&quot;) %&gt;% 
+          str_replace_all(&quot; &quot;, &quot;_&quot;) %&gt;% 
+          paste0(&quot;_logFC.png&quot;)
+      )
+      png(
+        filename = png_out,
+        width = 10, height = 8, units = &quot;in&quot;, res = 300
+      )
+      ct &lt;- FALSE
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) &gt; 10)
+        ct &lt;- &quot;meta&quot;
+      plotHFGC(
+        grl_to_plot[[x]],
+        features = feat_gr, featcol = feature_colours,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        annotation = annot, annotcol = annot_col,
+        cytobands = bands_df,
+        rotation.title = 90,
+        zoom = 10,
+        ylim = y_lim,
+        collapseTranscripts = ct,
+        col.title = &quot;black&quot;, background.title = &quot;white&quot;, showAxis = FALSE
+      )
+      dev.off()
+      ## Create html tags
+      fig_link &lt;- str_extract(png_out, &quot;assets.+&quot;)
+      gn &lt;- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
+      cp &lt;- htmltools::tags$em(
+        glue(
+          &quot;
+        Highlighted region corresponds to the largest change within the group 
+        {names(grl_to_plot)[[x]]}. The most likely target 
+        {ifelse(length(gn) == 1, &#39;gene is &#39;, &#39;genes are &#39;)}
+        {collapseGenes(gn, format = &#39;&#39;)}
+        &quot;
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = names(grl_to_plot)[[x]] %&gt;% 
+            str_remove_all(&quot;(:|Vs. |- )&quot;) %&gt;% 
+            str_replace_all(&quot; &quot;, &quot;-&quot;) %&gt;% 
+            str_to_lower() %&gt;% 
+            paste0(&quot;-logfc&quot;),
+          class=&quot;section level3&quot;,
+          htmltools::h3(names(grl_to_plot)[[x]]),
+          htmltools::div(
+            class = &quot;figure&quot;, style = &quot;text-align: center&quot;,
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = &quot;caption&quot;, htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+)  </code></pre>
+<div>
+<div id="ar-up-er-up-logfc" class="section level3">
+<h3>AR Up - ER Up</h3>
+<div class="figure" style="text-align: center">
+<img src="assets/AR_ER/AR_Up_ER_Up_logFC.png" width="960"/>
+<p class="caption">
+<em>
+<em>Highlighted region corresponds to the largest change within the group 
+AR Up - ER Up. The most likely target 
+gene is 
+LDB3</em>
+</em>
+</p>
+</div>
+</div>
+</div>
+<div>
+<div id="ar-up-er-down-logfc" class="section level3">
+<h3>AR Up - ER Down</h3>
+<div class="figure" style="text-align: center">
+<img src="assets/AR_ER/AR_Up_ER_Down_logFC.png" width="960"/>
+<p class="caption">
+<em>
+<em>Highlighted region corresponds to the largest change within the group 
+AR Up - ER Down. The most likely target 
+genes are 
+MINPP1 and PAPSS2</em>
+</em>
+</p>
+</div>
+</div>
+</div>
+<div>
+<div id="ar-up-er-unchanged-logfc" class="section level3">
+<h3>AR Up - ER Unchanged</h3>
+<div class="figure" style="text-align: center">
+<img src="assets/AR_ER/AR_Up_ER_Unchanged_logFC.png" width="960"/>
+<p class="caption">
+<em>
+<em>Highlighted region corresponds to the largest change within the group 
+AR Up - ER Unchanged. The most likely target 
+gene is 
+KCNMA1</em>
+</em>
+</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="comparison-with-rna-seq" class="section level1">
+<h1>Comparison With RNA Seq</h1>
+<pre class="r"><code>library(fgsea)
+library(cowplot)
+id2gene &lt;- structure(all_gr$gene$gene_name, names = all_gr$gene$gene_id)
+rna_status &lt;- rnaseq %&gt;% 
+  mutate(
+    de_status = case_when(
+      !!sym(rna_fdr_col) &lt; fdr_alpha &amp; !!sym(rna_lfc_col) &lt; 0 ~ &quot;Down&quot;,
+      !!sym(rna_fdr_col) &lt; fdr_alpha &amp; !!sym(rna_lfc_col) &gt; 0 ~ &quot;Up&quot;,
+      !!sym(rna_fdr_col) &gt;= fdr_alpha ~ &quot;Unchanged&quot;
+    )
+  ) %&gt;% 
+  dplyr::select(gene_id, gene_name, de_status) %&gt;% 
+  bind_rows(
+    all_gr$gene %&gt;% 
+      subset(!gene_id %in% rnaseq$gene_id) %&gt;% 
+      select(gene_id, gene_name) %&gt;% 
+      mcols() %&gt;% 
+      as_tibble() %&gt;% 
+      mutate(de_status = &quot;Undetected&quot;)
+  ) %&gt;% 
+  mutate(
+    de_status = factor(
+      de_status, levels = str_to_title(names(colours$direction))
+    )
+  ) %&gt;% 
+  arrange(gene_id)
+rna_p_col &lt;- colnames(rnaseq)[
+  str_detect(str_to_lower(colnames(rnaseq)), &quot;pval|p\\.val&quot;)
+][1]
+stopifnot(length(rna_p_col) == 1)
+diff_windows &lt;- all_windows %&gt;% 
+  splitAsList(.$status) %&gt;% 
+  lapply(select, gene_id) %&gt;% 
+  lapply(mcols) %&gt;% 
+  lapply(as_tibble) %&gt;% 
+  lapply(pull, &quot;gene_id&quot;) %&gt;% 
+  lapply(unlist) %&gt;% 
+  lapply(unique)</code></pre>
+<div id="relationship-to-differentially-expressed-genes" class="section level2 tabset">
+<h2 class="tabset">Relationship To Differentially Expressed Genes</h2>
+<pre class="r"><code>rna_dir_ranks &lt;- rnaseq %&gt;% 
+  mutate(
+    ranking_stat = -sign(!!sym(rna_lfc_col))*log10(!!sym(rna_p_col)) %&gt;% 
+      setNames(gene_id)
+  ) %&gt;% 
+  arrange(ranking_stat) %&gt;% 
+  dplyr::filter(!!sym(rna_p_col) &lt; 1) %&gt;% 
+  pull(&quot;ranking_stat&quot;) 
+rna_sig_ranks &lt;- rna_dir_ranks %&gt;% 
+  abs() %&gt;% 
+  sort()
+status_gs &lt;- all_windows %&gt;% 
+  select(status, starts_with(&quot;gene&quot;)) %&gt;% 
+  as_tibble() %&gt;% 
+  split(.$status) %&gt;% 
+  lapply(pull, &quot;gene_id&quot;) %&gt;% 
+  lapply(unlist) %&gt;% 
+  lapply(unique) %&gt;% 
+  .[vapply(., length, integer(1)) &gt; 20]</code></pre>
+<div id="directional-gsea" class="section level3">
+<h3>Directional GSEA</h3>
+<pre class="r"><code>gsea_dir &lt;- fgsea(status_gs, rna_dir_ranks)
+gsea_dir_sig &lt;- gsea_dir %&gt;%
+  arrange(pval) %&gt;%
+  dplyr::filter(padj &lt; fdr_alpha) %&gt;%
+  as_tibble()
+p &lt;- gsea_dir_sig %&gt;% 
+  dplyr::slice(1:9) %&gt;% 
+  pull(&quot;pathway&quot;) %&gt;% 
+  lapply(
+    function(x) {
+      plotEnrichment(status_gs[[x]], rna_dir_ranks) +
+        ggtitle(x) +
+        theme(
+          plot.title = element_text(hjust = 0.5, size = 10)
+        )
+    }
+  )</code></pre>
+<p>No association was found between joint binding patterns and <em>directional</em> significance in differentially expressed genes.</p>
+</div>
+<div id="non-directional-gsea" class="section level3">
+<h3>Non-Directional GSEA</h3>
+<pre class="r"><code>gsea_nondir &lt;- fgsea(status_gs, rna_sig_ranks)
+gsea_nondir_sig &lt;- gsea_nondir %&gt;% 
+  arrange(pval) %&gt;% 
+  dplyr::filter(padj &lt; fdr_alpha) %&gt;% 
+  as_tibble() 
+p &lt;- gsea_nondir_sig %&gt;% 
+  dplyr::slice(1:9) %&gt;% 
+  pull(&quot;pathway&quot;) %&gt;% 
+  lapply(
+    function(x) {
+      plotEnrichment(status_gs[[x]], rna_sig_ranks) +
+        ggtitle(x) +
+        theme(plot.title = element_text(hjust = 0.5, size = 10))
+    }
+  )</code></pre>
+<pre class="r"><code>cp &lt;-  htmltools::em(
+  glue(
+    &quot;Combined windows were mapped to genes, and their position amongst the &quot;,
+    &quot;RNA-Seq results was assessed. {nrow(gsea_nondir_sig)} sets of windows were &quot;,
+    &quot;associated with changes in gene expression, using only the p-value to &quot;, 
+    &quot;rank the {comma(nrow(rnaseq), 1)} genes considered as detected.&quot;
+  )
+)
+tbl &lt;- gsea_nondir_sig %&gt;%
+  mutate(
+    `Edge Size` = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %&gt;% 
+      vapply(paste, character(1), collapse = &quot;; &quot;)
+  ) %&gt;% 
+  separate(pathway, comps, sep = &quot; - &quot;) %&gt;% 
+  dplyr::select(
+    all_of(comps), Windows = size, 
+    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+  ) %&gt;% 
+  reactable(
+    filterable = TRUE,
+    columns = list2(
+      &quot;{comps[[1]]}&quot; := colDef(
+        maxWidth = 150,
+        cell = function(value) {
+          html_symbol &lt;- &quot;&quot;
+          if (str_detect(value, &quot;Up&quot;)) html_symbol &lt;- &quot;\u21E7&quot;
+          if (str_detect(value, &quot;Down&quot;)) html_symbol &lt;- &quot;\u21E9&quot;
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour &lt;- case_when(
+            str_detect(value, &quot;Up&quot;) ~ colours$direction[[&quot;up&quot;]],
+            str_detect(value, &quot;Down&quot;) ~ colours$direction[[&quot;down&quot;]],
+            TRUE ~ colours$direction[[&quot;unchanged&quot;]]
+          )
+          list(color = colour)
+        }
+      ),
+      &quot;{comps[[2]]}&quot; := colDef(
+        maxWidth = 150,
+        cell = function(value) {
+          html_symbol &lt;- &quot;&quot;
+          if (str_detect(value, &quot;Up&quot;)) html_symbol &lt;- &quot;\u21E7&quot;
+          if (str_detect(value, &quot;Down&quot;)) html_symbol &lt;- &quot;\u21E9&quot;
+          paste(html_symbol, value)
+        },
+        style = function(value) {
+          colour &lt;- case_when(
+            str_detect(value, &quot;Up&quot;) ~ colours$direction[[&quot;up&quot;]],
+            str_detect(value, &quot;Down&quot;) ~ colours$direction[[&quot;down&quot;]],
+            TRUE ~ colours$direction[[&quot;unchanged&quot;]]
+          )
+          list(color = colour)
+        }
+      ),
+      Windows = colDef(maxWidth = 80),
+      p = colDef(
+        cell = function(value) ifelse(
+          value &lt; 0.001,
+          sprintf(&quot;%.2e&quot;, value),
+          sprintf(&quot;%.3f&quot;, value)
+        ), 
+        maxWidth = 80
+      ),
+      FDR = colDef(
+        cell = function(value) ifelse(
+          value &lt; 0.001,
+          sprintf(&quot;%.2e&quot;, value),
+          sprintf(&quot;%.3f&quot;, value)
+        ), 
+        maxWidth = 80
+      ),
+      &quot;Edge Size&quot; = colDef(maxWidth = 80),
+     &quot;Leading Edge&quot; = colDef(
+       minWidth = 150,
+       cell = function(value) with_tooltip(value, width = 50)
+     ) 
+    )
+  )
+div(class = &quot;table&quot;,
+  div(class = &quot;table-header&quot;,
+      div(class = &quot;caption&quot;, cp),
+      tbl
+  )
+)</code></pre>
+<div class="table">
+<div class="table-header">
+<div class="caption">
+<em>Combined windows were mapped to genes, and their position amongst the RNA-Seq results was assessed. 4 sets of windows were associated with changes in gene expression, using only the p-value to rank the 15,388 genes considered as detected.</em>
+</div>
+<div id="htmlwidget-401a643511e6b3920636" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-401a643511e6b3920636">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"AR":["AR Up","AR Undetected","AR Up","AR Up"],"ER":["ER Undetected","ER Unchanged","ER Unchanged","ER Down"],"Windows":[182,302,38,84],"p":[0.000132636010205156,0.00185001873154842,0.00889279591382428,0.032967032967033],"FDR":[0.000795816061230935,0.00555005619464527,0.0177855918276486,0.0494505494505495],"Edge Size":[67,89,10,35],"Leading Edge":["ADRA2A; MYPN; ZWINT; SVIL; CEP55; KIF20B; NEBL; ASB13; RHOBTB1; CALML5; RET; KIF11; OLMALINC; ALOX5; CDK1; SCD; MMRN2; FAM107B; ANK3; RASGEF1A; RTKN2; USP54; LINC00595; SNCG; HECTD2; ZMYND11; GATA3; DDIT4; TET1; GLUD1; SVIL2P; ADIRF-AS1; USP6NL; STOX1; CTNNA3; HHEX; STN1; FRMPD2; IDI1; NOC3L; SLF2; SLC16A12; CACNB2; FAM241B; SEMA4G; ASCC1; NUTM2A; AC022400.6; GSTO1; PDZD7; IDI2-AS1; DCLRE1C; CNNM2; PPP3CB-AS1; PLCE1; TWNK; DNAJC1; SLC16A9; PRKG1; TSPAN15; SYT15; SFMBT2; ABCC2; DNAJC9; DUSP5; AL732437.3; PRR26","ADRA2A; KCNMA1; PPIF; MYPN; ZWINT; SVIL; SFTPA2; CEP55; KIF20B; NEBL; ASB13; MASTL; CALML5; AKR1C3; KIF11; ALOX5; AKR1C2; CDK1; SCD; UNC5B; AKR1C1; MMRN2; FAM107B; ANK3; ITGB1; NOLC1; NPM3; USP54; LINC00595; SNCG; HECTD2; ZMYND11; GATA3; PPRC1; ARL3; AL391421.1; DDIT4; TASOR2; RBM20; GLUD1; SVIL2P; RPS24; MAP3K8; ADIRF-AS1; USP6NL; ZNF488; MSS51; STOX1; STN1; MALRD1; FRMPD2; SLF2; SFXN2; SLC16A12; CACNB2; SRP9P1; ANXA11; HERC4; SEMA4G; ASCC1; LHPP; PDCD11; ZMIZ1-AS1; AC022400.6; GSTO1; PDZD7; KIF5B; ADAM8; DCLRE1C; CNNM2; AKR1C4; PPP3CB-AS1; TWNK; DNAJC1; SLC29A3; PRKG1; MPP7; AFAP1L2; SYT15; SFMBT2; PSD; ABCC2; SLC25A16; RPL12P29; KAZALD1; DNAJC9; AL732437.3; HNRNPF; PRR26","KCNMA1; PPIF; CEP55; KIF11; OLMALINC; SCD; LINC00595; HECTD2; HHEX; STN1","KCNMA1; CEP55; RHOBTB1; OLMALINC; SCD; MMRN2; FAM107B; ANK3; LINC00595; SNCG; ZMYND11; FGFR2; DDIT4; GLUD1; ADIRF-AS1; SLF2; P4HA1; CACNB2; ASCC1; PDZD7; TWNK; DNAJC1; SLC16A9; TSPAN15; MPP7; SYT15; SFMBT2; KAZALD1; DNAJC9; AL732437.3; AL356056.2; C10orf25; ST8SIA6; ZNF438; BLOC1S2"]},"columns":[{"accessor":"AR","name":"AR","type":"character","cell":["⇧ AR Up"," AR Undetected","⇧ AR Up","⇧ AR Up"],"maxWidth":150,"style":[{"color":"#CA0020"},{"color":"#7F7F7F"},{"color":"#CA0020"},{"color":"#CA0020"}]},{"accessor":"ER","name":"ER","type":"character","cell":[" ER Undetected"," ER Unchanged"," ER Unchanged","⇩ ER Down"],"maxWidth":150,"style":[{"color":"#7F7F7F"},{"color":"#7F7F7F"},{"color":"#7F7F7F"},{"color":"#0571B0"}]},{"accessor":"Windows","name":"Windows","type":"numeric","maxWidth":80},{"accessor":"p","name":"p","type":"numeric","cell":["1.33e-04","0.002","0.009","0.033"],"maxWidth":80},{"accessor":"FDR","name":"FDR","type":"numeric","cell":["7.96e-04","0.006","0.018","0.049"],"maxWidth":80},{"accessor":"Edge Size","name":"Edge Size","type":"numeric","maxWidth":80},{"accessor":"Leading Edge","name":"Leading Edge","type":"character","cell":[{"name":"span","attribs":{"title":"ADRA2A; MYPN; ZWINT; SVIL; CEP55; KIF20B; NEBL; ASB13; RHOBTB1; CALML5; RET; KIF11; OLMALINC; ALOX5; CDK1; SCD; MMRN2; FAM107B; ANK3; RASGEF1A; RTKN2; USP54; LINC00595; SNCG; HECTD2; ZMYND11; GATA3; DDIT4; TET1; GLUD1; SVIL2P; ADIRF-AS1; USP6NL; STOX1; CTNNA3; HHEX; STN1; FRMPD2; IDI1; NOC3L; SLF2; SLC16A12; CACNB2; FAM241B; SEMA4G; ASCC1; NUTM2A; AC022400.6; GSTO1; PDZD7; IDI2-AS1; DCLRE1C; CNNM2; PPP3CB-AS1; PLCE1; TWNK; DNAJC1; SLC16A9; PRKG1; TSPAN15; SYT15; SFMBT2; ABCC2; DNAJC9; DUSP5; AL732437.3; PRR26"},"children":["ADRA2A; MYPN; ZWINT; SVIL; CEP55; KIF20B; NEBL;..."]},{"name":"span","attribs":{"title":"ADRA2A; KCNMA1; PPIF; MYPN; ZWINT; SVIL; SFTPA2; CEP55; KIF20B; NEBL; ASB13; MASTL; CALML5; AKR1C3; KIF11; ALOX5; AKR1C2; CDK1; SCD; UNC5B; AKR1C1; MMRN2; FAM107B; ANK3; ITGB1; NOLC1; NPM3; USP54; LINC00595; SNCG; HECTD2; ZMYND11; GATA3; PPRC1; ARL3; AL391421.1; DDIT4; TASOR2; RBM20; GLUD1; SVIL2P; RPS24; MAP3K8; ADIRF-AS1; USP6NL; ZNF488; MSS51; STOX1; STN1; MALRD1; FRMPD2; SLF2; SFXN2; SLC16A12; CACNB2; SRP9P1; ANXA11; HERC4; SEMA4G; ASCC1; LHPP; PDCD11; ZMIZ1-AS1; AC022400.6; GSTO1; PDZD7; KIF5B; ADAM8; DCLRE1C; CNNM2; AKR1C4; PPP3CB-AS1; TWNK; DNAJC1; SLC29A3; PRKG1; MPP7; AFAP1L2; SYT15; SFMBT2; PSD; ABCC2; SLC25A16; RPL12P29; KAZALD1; DNAJC9; AL732437.3; HNRNPF; PRR26"},"children":["ADRA2A; KCNMA1; PPIF; MYPN; ZWINT; SVIL; SFTPA2..."]},{"name":"span","attribs":{"title":"KCNMA1; PPIF; CEP55; KIF11; OLMALINC; SCD; LINC00595; HECTD2; HHEX; STN1"},"children":["KCNMA1; PPIF; CEP55; KIF11; OLMALINC; SCD; LINC..."]},{"name":"span","attribs":{"title":"KCNMA1; CEP55; RHOBTB1; OLMALINC; SCD; MMRN2; FAM107B; ANK3; LINC00595; SNCG; ZMYND11; FGFR2; DDIT4; GLUD1; ADIRF-AS1; SLF2; P4HA1; CACNB2; ASCC1; PDZD7; TWNK; DNAJC1; SLC16A9; TSPAN15; MPP7; SYT15; SFMBT2; KAZALD1; DNAJC9; AL732437.3; AL356056.2; C10orf25; ST8SIA6; ZNF438; BLOC1S2"},"children":["KCNMA1; CEP55; RHOBTB1; OLMALINC; SCD; MMRN2; F..."]}],"minWidth":150}],"filterable":true,"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"dataKey":"c658ca258042d9c9f1577a902b08db31","key":"c658ca258042d9c9f1577a902b08db31"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<pre class="r"><code>plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))</code></pre>
+<div class="figure" style="text-align: center">
+<img src="AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison_files/figure-html/barcode-gsea-nondir-sig-1.png" alt="*Barcode plots for the top 4 sets of windows associated with __non-directional__ changes in gene expression.*" width="960" />
+<p class="caption">
+<em>Barcode plots for the top 4 sets of windows associated with <strong>non-directional</strong> changes in gene expression.</em>
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="data-export" class="section level1">
+<h1>Data Export</h1>
+<pre class="r"><code>out_path &lt;- here::here(&quot;output&quot;, paste(targets, collapse = &quot;_&quot;))
+if (!dir.exists(out_path)) dir.create(out_path)
+all_out &lt;- list(
+  csv = file.path(
+    out_path,
+    glue(
+      &quot;{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_&quot;, 
+      &quot;{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_&quot;,
+      &quot;pairwise_comparison.csv&quot;
+    )
+  ),
+  results = file.path(
+    out_path,
+    glue(
+      &quot;{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_&quot;, 
+      &quot;{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_&quot;,
+      &quot;all_windows.rds&quot;
+    )
+  ),
+  renv = here::here(
+    &quot;output&quot;, &quot;envs&quot;,
+    glue(
+      &quot;{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_&quot;, 
+      &quot;{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_&quot;,
+      &quot;pairwise_comparison.RData&quot;
+    )
+  )
+)
+write_rds(all_windows, all_out$results, compress = &quot;gz&quot;)
+save.image(all_out$renv)</code></pre>
+<pre class="r"><code>all_windows %&gt;% 
+  as_tibble() %&gt;% 
+  dplyr::select(-detected) %&gt;% 
+  unnest(all_of(&quot;gene_id&quot;)) %&gt;% # This ensures correct id2gene mappings
+  mutate(gene_name = id2gene[gene_id]) %&gt;% 
+  dplyr::select(
+    starts_with(&quot;gene&quot;), everything()
+  ) %&gt;% 
+  write_csv(all_out$csv)</code></pre>
+<p>During this workflow, the following files were exported:</p>
+<ul>
+<li><strong>csv</strong>: output/AR_ER/AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison.csv</li>
+<li><strong>results</strong>: output/AR_ER/AR_Veh_DHT_ER_Veh_DHT_all_windows.rds</li>
+<li><strong>renv</strong>: output/envs/AR_Veh_DHT_ER_Veh_DHT_pairwise_comparison.RData</li>
+</ul>
+<!-- end of list -->
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+<p><strong>R version 4.1.1 (2021-08-10)</strong></p>
+<p><strong>Platform:</strong> x86_64-conda-linux-gnu (64-bit)</p>
+<p><strong>locale:</strong> <em>LC_CTYPE=en_AU.UTF-8</em>, <em>LC_NUMERIC=C</em>, <em>LC_TIME=en_AU.UTF-8</em>, <em>LC_COLLATE=en_AU.UTF-8</em>, <em>LC_MONETARY=en_AU.UTF-8</em>, <em>LC_MESSAGES=en_AU.UTF-8</em>, <em>LC_PAPER=en_AU.UTF-8</em>, <em>LC_NAME=C</em>, <em>LC_ADDRESS=C</em>, <em>LC_TELEPHONE=C</em>, <em>LC_MEASUREMENT=en_AU.UTF-8</em> and <em>LC_IDENTIFICATION=C</em></p>
+<p><strong>attached base packages:</strong> <em>parallel</em>, <em>grid</em>, <em>stats4</em>, <em>stats</em>, <em>graphics</em>, <em>grDevices</em>, <em>utils</em>, <em>datasets</em>, <em>methods</em> and <em>base</em></p>
+<p><strong>other attached packages:</strong> <em>cowplot(v.1.1.1)</em>, <em>fgsea(v.1.20.0)</em>, <em>extraChIPs(v.0.99.0)</em>, <em>GenomicInteractions(v.1.28.0)</em>, <em>InteractionSet(v.1.22.0)</em>, <em>SummarizedExperiment(v.1.24.0)</em>, <em>Biobase(v.2.54.0)</em>, <em>MatrixGenerics(v.1.6.0)</em>, <em>matrixStats(v.0.61.0)</em>, <em>goseq(v.1.46.0)</em>, <em>geneLenDataBase(v.1.30.0)</em>, <em>BiasedUrn(v.1.07)</em>, <em>htmltools(v.0.5.2)</em>, <em>msigdbr(v.7.5.1)</em>, <em>ggside(v.0.2.0)</em>, <em>rlang(v.1.0.2)</em>, <em>ggrepel(v.0.9.1)</em>, <em>scales(v.1.1.1)</em>, <em>magrittr(v.2.0.3)</em>, <em>UpSetR(v.1.4.0)</em>, <em>VennDiagram(v.1.7.1)</em>, <em>futile.logger(v.1.4.3)</em>, <em>rtracklayer(v.1.54.0)</em>, <em>plyranges(v.1.14.0)</em>, <em>GenomicRanges(v.1.46.1)</em>, <em>GenomeInfoDb(v.1.30.1)</em>, <em>IRanges(v.2.28.0)</em>, <em>S4Vectors(v.0.32.4)</em>, <em>BiocGenerics(v.0.40.0)</em>, <em>reactable(v.0.2.3)</em>, <em>yaml(v.2.3.5)</em>, <em>pander(v.0.6.5)</em>, <em>glue(v.1.6.2)</em>, <em>forcats(v.0.5.1)</em>, <em>stringr(v.1.4.0)</em>, <em>dplyr(v.1.0.8)</em>, <em>purrr(v.0.3.4)</em>, <em>readr(v.2.1.2)</em>, <em>tidyr(v.1.2.0)</em>, <em>tibble(v.3.1.6)</em>, <em>ggplot2(v.3.3.5)</em> and <em>tidyverse(v.1.3.1)</em></p>
+<p><strong>loaded via a namespace (and not attached):</strong> <em>utf8(v.1.2.2)</em>, <em>tidyselect(v.1.1.2)</em>, <em>RSQLite(v.2.2.12)</em>, <em>AnnotationDbi(v.1.56.2)</em>, <em>htmlwidgets(v.1.5.4)</em>, <em>BiocParallel(v.1.28.3)</em>, <em>scatterpie(v.0.1.7)</em>, <em>munsell(v.0.5.0)</em>, <em>codetools(v.0.2-18)</em>, <em>withr(v.2.5.0)</em>, <em>colorspace(v.2.0-3)</em>, <em>filelock(v.1.0.2)</em>, <em>highr(v.0.9)</em>, <em>knitr(v.1.38)</em>, <em>rstudioapi(v.0.13)</em>, <em>labeling(v.0.4.2)</em>, <em>GenomeInfoDbData(v.1.2.7)</em>, <em>polyclip(v.1.10-0)</em>, <em>farver(v.2.1.0)</em>, <em>bit64(v.4.0.5)</em>, <em>rprojroot(v.2.0.3)</em>, <em>vctrs(v.0.4.0)</em>, <em>generics(v.0.1.2)</em>, <em>lambda.r(v.1.2.4)</em>, <em>xfun(v.0.30)</em>, <em>csaw(v.1.28.0)</em>, <em>biovizBase(v.1.42.0)</em>, <em>BiocFileCache(v.2.2.1)</em>, <em>doParallel(v.1.0.17)</em>, <em>R6(v.2.5.1)</em>, <em>clue(v.0.3-60)</em>, <em>locfit(v.1.5-9.5)</em>, <em>AnnotationFilter(v.1.18.0)</em>, <em>bitops(v.1.0-7)</em>, <em>cachem(v.1.0.6)</em>, <em>DelayedArray(v.0.20.0)</em>, <em>assertthat(v.0.2.1)</em>, <em>vroom(v.1.5.7)</em>, <em>BiocIO(v.1.4.0)</em>, <em>nnet(v.7.3-17)</em>, <em>gtable(v.0.3.0)</em>, <em>ensembldb(v.2.18.4)</em>, <em>GlobalOptions(v.0.1.2)</em>, <em>splines(v.4.1.1)</em>, <em>lazyeval(v.0.2.2)</em>, <em>dichromat(v.2.0-0)</em>, <em>broom(v.0.7.12)</em>, <em>checkmate(v.2.0.0)</em>, <em>modelr(v.0.1.8)</em>, <em>crosstalk(v.1.2.0)</em>, <em>GenomicFeatures(v.1.46.5)</em>, <em>backports(v.1.4.1)</em>, <em>Hmisc(v.4.6-0)</em>, <em>EnrichedHeatmap(v.1.24.0)</em>, <em>tools(v.4.1.1)</em>, <em>ellipsis(v.0.3.2)</em>, <em>jquerylib(v.0.1.4)</em>, <em>RColorBrewer(v.1.1-2)</em>, <em>Rcpp(v.1.0.8.3)</em>, <em>plyr(v.1.8.7)</em>, <em>base64enc(v.0.1-3)</em>, <em>progress(v.1.2.2)</em>, <em>zlibbioc(v.1.40.0)</em>, <em>RCurl(v.1.98-1.6)</em>, <em>prettyunits(v.1.1.1)</em>, <em>rpart(v.4.1.16)</em>, <em>GetoptLong(v.1.0.5)</em>, <em>reactR(v.0.4.4)</em>, <em>haven(v.2.4.3)</em>, <em>cluster(v.2.1.3)</em>, <em>fs(v.1.5.2)</em>, <em>here(v.1.0.1)</em>, <em>data.table(v.1.14.2)</em>, <em>futile.options(v.1.0.1)</em>, <em>circlize(v.0.4.14)</em>, <em>reprex(v.2.0.1)</em>, <em>ProtGenerics(v.1.26.0)</em>, <em>hms(v.1.1.1)</em>, <em>evaluate(v.0.15)</em>, <em>XML(v.3.99-0.9)</em>, <em>jpeg(v.0.1-9)</em>, <em>readxl(v.1.4.0)</em>, <em>shape(v.1.4.6)</em>, <em>gridExtra(v.2.3)</em>, <em>compiler(v.4.1.1)</em>, <em>biomaRt(v.2.50.3)</em>, <em>crayon(v.1.5.1)</em>, <em>ggfun(v.0.0.6)</em>, <em>mgcv(v.1.8-40)</em>, <em>tzdb(v.0.3.0)</em>, <em>Formula(v.1.2-4)</em>, <em>lubridate(v.1.8.0)</em>, <em>DBI(v.1.1.2)</em>, <em>tweenr(v.1.0.2)</em>, <em>formatR(v.1.12)</em>, <em>ComplexHeatmap(v.2.10.0)</em>, <em>dbplyr(v.2.1.1)</em>, <em>MASS(v.7.3-56)</em>, <em>rappdirs(v.0.3.3)</em>, <em>babelgene(v.22.3)</em>, <em>Matrix(v.1.4-1)</em>, <em>cli(v.3.2.0)</em>, <em>metapod(v.1.2.0)</em>, <em>Gviz(v.1.38.3)</em>, <em>igraph(v.1.3.0)</em>, <em>pkgconfig(v.2.0.3)</em>, <em>GenomicAlignments(v.1.30.0)</em>, <em>foreign(v.0.8-82)</em>, <em>foreach(v.1.5.2)</em>, <em>xml2(v.1.3.3)</em>, <em>bslib(v.0.3.1)</em>, <em>XVector(v.0.34.0)</em>, <em>rvest(v.1.0.2)</em>, <em>VariantAnnotation(v.1.40.0)</em>, <em>digest(v.0.6.29)</em>, <em>Biostrings(v.2.62.0)</em>, <em>fastmatch(v.1.1-3)</em>, <em>rmarkdown(v.2.13)</em>, <em>cellranger(v.1.1.0)</em>, <em>htmlTable(v.2.4.0)</em>, <em>edgeR(v.3.36.0)</em>, <em>restfulr(v.0.0.13)</em>, <em>curl(v.4.3.2)</em>, <em>Rsamtools(v.2.10.0)</em>, <em>rjson(v.0.2.21)</em>, <em>lifecycle(v.1.0.1)</em>, <em>nlme(v.3.1-157)</em>, <em>jsonlite(v.1.8.0)</em>, <em>viridisLite(v.0.4.0)</em>, <em>limma(v.3.50.1)</em>, <em>BSgenome(v.1.62.0)</em>, <em>fansi(v.1.0.3)</em>, <em>pillar(v.1.7.0)</em>, <em>lattice(v.0.20-45)</em>, <em>KEGGREST(v.1.34.0)</em>, <em>fastmap(v.1.1.0)</em>, <em>httr(v.1.4.2)</em>, <em>survival(v.3.3-1)</em>, <em>GO.db(v.3.14.0)</em>, <em>iterators(v.1.0.14)</em>, <em>png(v.0.1-7)</em>, <em>bit(v.4.0.4)</em>, <em>ggforce(v.0.3.3)</em>, <em>stringi(v.1.7.6)</em>, <em>sass(v.0.4.1)</em>, <em>blob(v.1.2.2)</em>, <em>latticeExtra(v.0.6-29)</em> and <em>memoise(v.2.0.1)</em></p>
+</div>
+</div>
+
+<div class="footer">
+  Workflow developed by:<br>
+  Dr Stephen Pederson<br>
+  Dame Roma Mitchell Cancer Research Laboratories<br>
+  Adelaide Medical School, University of Adelaide, SA, Australia
+</div>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
