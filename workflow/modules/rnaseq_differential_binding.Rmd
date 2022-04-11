@@ -185,6 +185,270 @@ if (has_features) {
 }
 ```
 
+### DE Genes Associated with Changed `r target` Binding
+
+```{r de-genes-db-regions}
+cmn_genes <- intersect(
+  rnaseq %>% dplyr::filter(!!sym(rna_fdr_col) < fdr_alpha) %>% pull("gene_id"),
+  merged_results %>% 
+    filter(!!sym(fdr_column) < fdr_alpha) %>% 
+    as_tibble() %>% 
+    pull("gene_id") %>% 
+    unlist()
+)
+de_genes_db_regions <- merged_results %>% 
+  filter(!!sym(fdr_column) < fdr_alpha) %>% 
+  filter(vapply(gene_id, function(x) any(x %in% cmn_genes), logical(1))) %>% 
+  as_tibble() %>% 
+  dplyr::select(
+    range, ChIP_logCPM = AveExpr, ChIP_logFC = logFC, ChIP_FDR := !!sym(fdr_column), overlaps_ref,
+    status, any_of(c("region", "feature")), gene_id
+  ) %>% 
+  unnest(gene_id) %>% 
+  dplyr::filter(gene_id %in% cmn_genes) %>% 
+  left_join(
+    rnaseq %>% 
+      dplyr::filter(gene_id %in% cmn_genes) %>% 
+      dplyr::select(
+        all_of(c("gene_id", "gene_name")), 
+        RNA_logFC := !!sym(rna_lfc_col), RNA_FDR := !!sym(rna_fdr_col)
+      ),
+    by = "gene_id"
+  ) %>% 
+  arrange(RNA_FDR) %>% 
+  # dplyr::slice(1:20) %>%
+  mutate(
+    dist2Gene = mapply(
+      function(x, y) {
+        distance(GRanges(x), subset(genes_gr, gene_id == y)) 
+      },
+      x = range,
+      y = gene_id
+    )
+  ) %>% 
+  mutate(
+    region = case_when(
+      dist2Gene > params$gene_regions$upstream & str_detect(region, "Promoter|Exon|Intron") ~ paste(
+        str_extract(region, ".*(Promoter|Exon|Intron)"), "(Other Gene)"),
+      TRUE ~ as.character(region)
+    ),
+    region = factor(
+      region, 
+      levels = c(
+        levels(merged_results$region), 
+        paste(
+          str_extract(levels(merged_results$region), ".*(Promoter|Exon|Intron)"), 
+          "(Other Gene)"
+        )
+      ) %>% 
+        unique()
+    )
+  ) %>% 
+  dplyr::select(
+    gene_name, gene_id, starts_with("RNA"), range, dist2Gene, 
+    starts_with("ChIP"), everything()
+  ) %>% 
+  droplevels()
+```
+
+```{r tab-de-genes-db-regions, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0}
+range_js <- JS(
+  "function(values) {
+    var min_val = Math.round(100 * Math.min(...values)) / 100
+    var max_val = Math.round(100 * Math.max(...values)) / 100
+    if (min_val == max_val) {
+      var ret_val = min_val.toString()
+    } else {
+      var ret_val = '[' + min_val.toString() + ', ' + max_val.toString() + ']'
+    }
+    return ret_val
+  }"
+)
+feat_def <- NULL
+if (has_features) feat_def = list(
+  feature = colDef (
+    name = "Feature",
+    aggregate = "unique"
+  )
+)
+cp <-  htmltools::em(
+  glue(
+    "
+    Differentially Expressed (DE) genes were checked for {target} binding
+    regions which showed evidence of changed binding. 
+    {comma(length(unique(de_genes_db_regions$range)), 1)} unique regions were 
+    mapped to {comma(length(unique(de_genes_db_regions$gene_id)), 1)} DE genes. 
+    These were exported as {basename(all_out$de_genes)}.
+    "
+  )
+)
+tbl <- de_genes_db_regions %>% 
+  reactable(
+    groupBy = "gene_name",
+    filterable = TRUE,
+    borderless = TRUE,
+    columns = c(
+      list(
+        gene_name = colDef(
+          name = "Gene", maxWidth = 150,
+          style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+        ),
+        gene_id = colDef(
+          name = "ID", aggregate = "unique", cell = function(value) "",
+          show = FALSE
+        ),
+        RNA_logFC = colDef(
+          name = "logFC (RNA)",
+          aggregate = "mean", 
+          style = JS(
+            glue(
+            "function(rowInfo) {
+              var value = rowInfo.row['RNA_logFC']
+              if (value < 0) {
+                var color = '{{direction_colours[['Down']]}}'
+              } else if (value > 0) {
+                var color = '{{direction_colours[['Up']]}}'
+              } else {
+                var color = '#000000'
+              }
+              return { color: color}
+            }",
+            .open = "{{", .close = "}}"
+            )
+          ),
+          format = colFormat(digits= 2),
+          maxWidth = 80,
+          cell = function(value) ""
+        ),
+        RNA_FDR = colDef(
+          name = "FDR (RNA)",
+          aggregate = "min",
+          format = colFormat(digits = 4),
+          maxWidth = 80,
+          cell = function(value) "",
+          style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+        ),
+        range = colDef(
+          name = "Range",
+          minWidth = 200,
+          aggregate = JS(
+            "function(values){
+              var chrom = [];
+              var rng = [];
+              var start = [];
+              var end = [];
+              for (i = 0; i < values.length; i++) {
+                chrom[i] = values[i].split(':')[0];
+                rng[i] = values[i].split(':')[1];
+                start[i] = rng[i].split('-')[0];
+                end[i] = rng[i].split('-')[1];
+              }
+              
+              min_start = Math.min(...start);
+              max_end = Math.max(...end);
+              var ret_val = [...new Set(chrom)] + ':' + min_start.toString() + '-' + max_end.toString();
+              
+              return ret_val
+              
+            }"
+          )
+        ),
+        dist2Gene = colDef(
+          name = "Distance to Gene",
+          aggregate = range_js,
+          format = colFormat(digits = 0, separators = TRUE),
+          maxWidth = 100,
+          style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)"),
+        ),
+        ChIP_logCPM = colDef(
+          name = paste(target, "signal (logCPM)"),
+          maxWidth = 100,
+          aggregate = range_js,
+          format = colFormat(digits = 2),
+          style = function(value) bar_style(width = value / max(merged_results$AveExpr))
+        ),
+        ChIP_logFC = colDef(
+          name = paste0("logFC (", target, ")"),
+          aggregate = "mean",
+          maxWidth = 80,
+          format = colFormat(digits = 2),
+          cell = function(value) sprintf("%.2f", value),
+          style =  JS(
+            glue(
+            "function(rowInfo) {
+              var value = rowInfo.row['ChIP_logFC']
+              if (value < 0) {
+                var color = '{{direction_colours[['Down']]}}'
+              } else if (value > 0) {
+                var color = '{{direction_colours[['Up']]}}'
+              } else {
+                var color = '#000000'
+              }
+              return { color: color}
+            }",
+            .open = "{{", .close = "}}"
+            )
+          )
+        ),
+        ChIP_FDR = colDef(
+          name = paste0("FDR (", target, ")"),
+          aggregate = "max",
+          maxWidth = 80,
+          format = colFormat(prefix = "< ", digits = 4),
+          cell = function(value) ifelse(
+            value < 0.001,
+            sprintf("%.2e", value),
+            sprintf("%.3f", value)
+          )
+        ),
+        overlaps_ref = colDef(
+          name = "Macs Peak",
+          aggregate = "frequency",
+          cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
+          style = function(value) {
+            color <- ifelse(value, "#008000", "#e00000")
+            list(color = color)
+          },
+          maxWidth = 70
+        ),
+        status = colDef(
+          name = paste(target, "Status"),
+          aggregate = "frequency",
+          maxWidth = 80,
+          cell = function(value) {
+            html_symbol <- ""
+            if (str_detect(value, "Up")) html_symbol <- "\u21E7"
+            if (str_detect(value, "Down")) html_symbol <- "\u21E9"
+            paste(html_symbol, value)
+          },
+          style = function(value) {
+            colour <- case_when(
+              str_detect(value, "Up") ~ colours$direction[["up"]],
+              str_detect(value, "Down") ~ colours$direction[["down"]],
+              TRUE ~ colours$direction[["unchanged"]]
+            )
+            list(
+              color = colour, 
+              borderRight = "1px solid rgba(0, 0, 0, 0.1)"
+            )
+          }
+        ),
+        region = colDef(
+          name = "Binding Region",
+          aggregate = "unique"
+        )
+      ),
+      feat_def
+    )
+  )
+div(class = "table",
+  div(class = "table-header",
+      div(class = "caption", cp),
+      tbl
+  )
+)
+```
+
 
 ### P-Values By `r target` Status
 

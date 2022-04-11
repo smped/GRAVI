@@ -76,9 +76,11 @@ rule differential_binding:
 			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),
 			file = ['differential_binding.rds', 'down.bed', 'up.bed']
 		),
-		csv = os.path.join(
-			"output", 
-			"{target}", "{target}_{ref}_{treat}_differential_binding.csv.gz"
+		csv = expand(
+		  os.path.join(
+		    "output", "{{target}}", "{{target}}_{{ref}}_{{treat}_{file}"
+		  ),
+		  file = ['differential_binding.csv.gz', 'DE_genes.csv']
 		),
 		win = os.path.join(
 			"output", "{target}", "{ref}_{treat}_filtered_windows.rds"
