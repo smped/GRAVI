@@ -77,9 +77,7 @@ rule differential_binding:
 			file = ['differential_binding.rds', 'down.bed', 'up.bed']
 		),
 		csv = expand(
-		  os.path.join(
-		    "output", "{{target}}", "{{target}}_{{ref}}_{{treat}_{file}"
-		  ),
+		  os.path.join("output", "{{target}}", "{{target}}_{{ref}}_{{treat}}_{file}"),
 		  file = ['differential_binding.csv.gz', 'DE_genes.csv']
 		),
 		win = os.path.join(
