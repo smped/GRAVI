@@ -264,6 +264,7 @@ range_js <- JS(
     return ret_val
   }"
 )
+max_signal <- max(merged_results$AveExpr)
 feat_def <- NULL
 if (has_features) feat_def = list(
   feature = colDef (
@@ -279,9 +280,18 @@ cp <-  htmltools::em(
     {comma(length(unique(de_genes_db_regions$range)), 1)} unique regions were 
     mapped to {comma(length(unique(de_genes_db_regions$gene_id)), 1)} DE genes. 
     These were exported as {basename(all_out$de_genes)}.
+    Data are presented in a gene-centric manner and ranges may map to multiple
+    genes. The full set of ranges considered to be showing eveidence of altered 
+    {target} binding are shown for each gene. The summarised range containing 
+    all mapped ranges is given in the collapsed row, along with the range of 
+    distances to gene and the range of signal levels. In the cllapsed row, the 
+    value for logFC represents the average aross all mapped regions, with the 
+    maximum FDR also shown. If {target} binding occurs within another gene this 
+    is indicated in the 'Region' column.
     "
   )
 )
+fs <- 14
 tbl <- de_genes_db_regions %>% 
   reactable(
     groupBy = "gene_name",
@@ -290,8 +300,11 @@ tbl <- de_genes_db_regions %>%
     columns = c(
       list(
         gene_name = colDef(
-          name = "Gene", maxWidth = 150,
-          style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+          name = "Gene", maxWidth = fs*11,
+          style = list(
+            borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+            fontSize = fs
+          )
         ),
         gene_id = colDef(
           name = "ID", aggregate = "unique", cell = function(value) "",
@@ -311,22 +324,25 @@ tbl <- de_genes_db_regions %>%
               } else {
                 var color = '#000000'
               }
-              return { color: color}
+              return { color: color, fontSize: {{fs}} }
             }",
             .open = "{{", .close = "}}"
             )
           ),
           format = colFormat(digits= 2),
-          maxWidth = 80,
+          maxWidth = fs*6,
           cell = function(value) ""
         ),
         RNA_FDR = colDef(
           name = "FDR (RNA)",
           aggregate = "min",
           format = colFormat(digits = 4),
-          maxWidth = 80,
+          maxWidth = fs*6,
           cell = function(value) "",
-          style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+          style = list(
+            borderRight = "1px solid rgba(0, 0, 0, 0.1)", 
+            fontSize = fs
+          )
         ),
         range = colDef(
           name = "Range",
@@ -357,20 +373,25 @@ tbl <- de_genes_db_regions %>%
           name = "Distance to Gene",
           aggregate = range_js,
           format = colFormat(digits = 0, separators = TRUE),
-          maxWidth = 100,
-          style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)"),
+          maxWidth = fs*7,
+          style = list(
+            borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+            fontSize = fs
+          ),
         ),
         ChIP_logCPM = colDef(
           name = paste(target, "signal (logCPM)"),
-          maxWidth = 100,
+          maxWidth = fs*6,
           aggregate = range_js,
           format = colFormat(digits = 2),
-          style = function(value) bar_style(width = value / max(merged_results$AveExpr))
+          style = function(value) bar_style(
+            width = value / max_signal, fontSize = fs
+          )
         ),
         ChIP_logFC = colDef(
-          name = paste0("logFC (", target, ")"),
+          name = paste(target, "logFC"),
           aggregate = "mean",
-          maxWidth = 80,
+          maxWidth = fs*5,
           format = colFormat(digits = 2),
           cell = function(value) sprintf("%.2f", value),
           style =  JS(
@@ -384,7 +405,7 @@ tbl <- de_genes_db_regions %>%
               } else {
                 var color = '#000000'
               }
-              return { color: color}
+              return { color: color, fontSize: {{fs}} }
             }",
             .open = "{{", .close = "}}"
             )
@@ -393,7 +414,7 @@ tbl <- de_genes_db_regions %>%
         ChIP_FDR = colDef(
           name = paste0("FDR (", target, ")"),
           aggregate = "max",
-          maxWidth = 80,
+          maxWidth = fs*5,
           format = colFormat(prefix = "< ", digits = 4),
           cell = function(value) ifelse(
             value < 0.001,
@@ -407,14 +428,14 @@ tbl <- de_genes_db_regions %>%
           cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
           style = function(value) {
             color <- ifelse(value, "#008000", "#e00000")
-            list(color = color)
+            list(color = color, fontSize = fs)
           },
-          maxWidth = 70
+          maxWidth = fs*5
         ),
         status = colDef(
           name = paste(target, "Status"),
           aggregate = "frequency",
-          maxWidth = 80,
+          maxWidth = fs*6,
           cell = function(value) {
             html_symbol <- ""
             if (str_detect(value, "Up")) html_symbol <- "\u21E7"
@@ -429,7 +450,8 @@ tbl <- de_genes_db_regions %>%
             )
             list(
               color = colour, 
-              borderRight = "1px solid rgba(0, 0, 0, 0.1)"
+              borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+              fontSize = fs
             )
           }
         ),
@@ -439,7 +461,8 @@ tbl <- de_genes_db_regions %>%
         )
       ),
       feat_def
-    )
+    ),
+    theme = reactableTheme(style = list(fontSize = fs))
   )
 div(class = "table",
   div(class = "table-header",

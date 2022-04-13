@@ -112,7 +112,7 @@ blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
 cb <- config$genome$build %>% 
   str_to_lower() %>% 
   paste0(".cytobands") 
-data(list = list(cb))
+data(list = cb)
 bands_df <- mget(cb)[[cb]]
 
 stopifnot(
@@ -283,6 +283,9 @@ all_out <- list(
   ),
   down_regions = file.path(
     out_path, glue("{treat_levels[[1]]}_{treat_levels[[2]]}_down.bed")
+  ),
+  de_genes = file.path(
+    out_path, glue("{target}_{treat_levels[1]}_{treat_levels[2]}_DE_genes.csv")
   ),
   renv = here::here(
     "output/envs",
@@ -504,21 +507,6 @@ list(
   )
 ```
 
-```{r todo, echo=FALSE, eval=FALSE}
-## TODO
-## Figure a way to add a Venn/UpSet for the shared regions between filtered & consensus
-## The easiest would be:
-grid::grid.newpage()
-VennDiagram::draw.pairwise.venn(
-  area1 = granges(filtered_counts) %>% reduce() %>% width() %>% sum() %>% divide_by(1e3) %>% round(0),
-  area2 = consensus_peaks %>% width() %>% sum() %>% divide_by(1e3) %>% round(0),
-  cross.area = granges(filtered_counts) %>% intersect(consensus_peaks) %>% width() %>% sum() %>% divide_by(1e3) %>% round(0),
-  category = c("Retained Windows", "Consensus Peaks")
-  # print.mode = "percent"
-)
-```
-
-
 
 ## Normalisation {.tabset}
 
@@ -657,15 +645,23 @@ fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
 fit <- assay(filtered_counts, "qsmooth") %>%
   lmFit(design = X, block = block, correlation = paired_cors) %>% 
   treat(fc = fc, trend = TRUE, robust = FALSE)
+fit_mu0 <- assay(filtered_counts, "qsmooth") %>%
+  lmFit(design = X, block = block, correlation = paired_cors) %>% 
+  treat(fc = 1, trend = TRUE, robust = FALSE)
 res_cols <- c("logFC", "AveExpr", "t", "P.Value", "fdr")
 rowData(filtered_counts) <- rowData(filtered_counts) %>% 
   .[!colnames(.) %in% res_cols] %>% 
   cbind(
     fit %>% 
       topTable(sort.by = "none", number = Inf) %>% 
-      DataFrame() %>% 
-      setNames(res_cols)
-  )
+      as.list %>% 
+      setNames(res_cols) %>% 
+      c(
+        list(
+          p_mu0 = topTable(fit_mu0, sort.by = "none", number = Inf)$P.Value
+        )
+      )
+  ) 
 ```
 
 
@@ -684,10 +680,13 @@ where $\mu$ represents the true mean change in `r target` binding.
 The value $\lambda =$ `r round(log2(fc), 2)` was chosen as this corresponds to a `r percent(fc - 1)` change in detected signal on the log~2~ scale.
 This is the `treat` methodology as developed by McCarthy & Smyth, and p-values were obtained for each initial window, before merging adjoining windows.
 
+For subsequent classification when combining ChIP targets, an additional p-value testing $\mu = 0$ was added, however this is not used for detection of sites showing evidence of altered `r target` binding.
+
 
 ```{r merged-results}
 merged_results <- mergeByCol(
-  filtered_counts, col = "AveExpr", merge_within = 2 * win_step
+  filtered_counts, col = "AveExpr", merge_within = 2 * win_step,
+  inc_cols = "p_mu0"
 ) %>% 
   mutate(
     overlaps_ref = overlapsAny(., consensus_peaks),
@@ -2112,6 +2111,9 @@ gs_by_geneid <- msigdb %>%
   split(.$gene_id) %>% 
   lapply(pull, "gs_name") %>% 
   lapply(unique)
+gs_url <- msigdb %>% 
+  distinct(gs_name, gs_url) %>%
+  with(setNames(gs_url, gs_name))
 ```
 
 As an initial exploration, the retained windows were compared to pre-defined gene-sets.
@@ -2213,7 +2215,6 @@ tbl <- goseq_mapped %>%
     gene_name = vapply(gene_name, paste, character(1), collapse = "; "),
     `%` = numDEInCat / numInCat
   ) %>% 
-  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, 
@@ -2226,8 +2227,9 @@ tbl <- goseq_mapped %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", 
-          str_replace_all(value$gs_name, "_", " ")
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
         ),
         html = TRUE
       ),
@@ -2338,7 +2340,6 @@ tbl <- goseq_diff %>%
     gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
     `%` = numDEInCat / numInCat
   ) %>% 
-  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
@@ -2350,8 +2351,9 @@ tbl <- goseq_diff %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", 
-          str_replace_all(value$gs_name, "_", " ")
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
         ),
         html = TRUE
       ),
@@ -2463,7 +2465,6 @@ tbl <- goseq_up %>%
     gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
     `%` = numDEInCat / numInCat
   ) %>% 
-  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
@@ -2475,8 +2476,9 @@ tbl <- goseq_up %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank", 
-          str_replace_all(value$gs_name, "_", " ")
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
         ),
         html = TRUE
       ),
@@ -2587,7 +2589,6 @@ tbl <- goseq_down %>%
     gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
     `%` = numDEInCat / numInCat
   ) %>% 
-  nest(gs_name = all_of(c("gs_name", "gs_url"))) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
@@ -2599,8 +2600,9 @@ tbl <- goseq_down %>%
       "Gene Set" = colDef(
         minWidth = 150,
         cell = function(value) htmltools::tags$a(
-          href = value$gs_url, target = "_blank",
-          str_replace_all(value$gs_name, "_", " ")
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
         ),
         html = TRUE
       ),
@@ -2679,6 +2681,8 @@ merged_results %>%
 ```{r data-export, results='hide'}
 write_rds(merged_results, all_out$results, compress = "gz")
 write_rds(filtered_counts, all_out$windows, compress = "gz")
+file.create(all_out$de_genes)
+if (any_detected) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
 if (length(sig_ranges$Up) > 0) 
