@@ -99,7 +99,7 @@ treat_colours <- unlist(colours$treat[levels(samples$treat)])
 cb <- config$genome$build %>% 
   str_to_lower() %>% 
   paste0(".cytobands") 
-data(list = list(cb))
+data(list = cb)
 bands_df <- mget(cb)[[cb]]
 annotation_path <- here::here("output", "annotations")
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
@@ -587,7 +587,7 @@ direction_colours <- names(colours$direction) %>%
   pull("rgb")
 ```
 
-A set of common windows was formed by obtaining the union of windows produced during the analysis of `r collapseGenes(comps)` individually.
+A set of common windows was formed by obtaining the union of windows produced during the analysis of `r glue_collapse(comps, sep = ", ", last = " and ")` individually.
 These common windows were formed using any overlap between target-specific windows.
 The window-to-gene mappings and the best overlap with genomic regions was also reformed.
 `r if (has_features) "The best overlap with external features was also reformed."`

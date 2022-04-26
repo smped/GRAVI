@@ -291,7 +291,7 @@ cp <-  htmltools::em(
     "
   )
 )
-fs <- 14
+fs <- 12
 tbl <- de_genes_db_regions %>% 
   reactable(
     groupBy = "gene_name",
@@ -1516,7 +1516,7 @@ tbl <- goseq_diff %>%
     )
   ) %>% 
   left_join(
-    distinct(msigdb, gs_name, gs_description)
+    distinct(msigdb, gs_name, gs_description), by = "gs_name"
   ) %>% 
   dplyr::select(
     gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
@@ -1527,7 +1527,11 @@ tbl <- goseq_diff %>%
     columns = list(
       gs_name = colDef(
         name = "Gene Set",
-        cell = function(value) str_replace_all(value, "_", " "),
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
         minWidth = 120
       ),
       gs_description = colDef(
@@ -1640,7 +1644,11 @@ tbl <- goseq_diff %>%
     columns = list(
       gs_name = colDef(
         name = "Gene Set",
-        cell = function(value) str_replace_all(value, "_", " "),
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
         minWidth = 120
       ),
       gs_description = colDef(
@@ -1742,7 +1750,7 @@ tbl <- goseq_diff %>%
     )
   ) %>% 
   left_join(
-    distinct(msigdb, gs_name, gs_description)
+    distinct(msigdb, gs_name, gs_description), by = "gs_name"
   ) %>% 
   dplyr::select(
     gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
@@ -1753,7 +1761,11 @@ tbl <- goseq_diff %>%
     columns = list(
       gs_name = colDef(
         name = "Gene Set",
-        cell = function(value) str_replace_all(value, "_", " "),
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
         minWidth = 120
       ),
       gs_description = colDef(

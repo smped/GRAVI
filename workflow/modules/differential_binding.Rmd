@@ -738,7 +738,9 @@ merged_results %>%
 tibble(A = fit$Amean, pre = fit$sigma, post = sqrt(fit$s2.post)) %>% 
   sample_n(n_max) %>% 
   pivot_longer(c("pre", "post"), names_to = "step", values_to = "sigma") %>%
-  mutate(step = factor(step, levels = c("pre", "post"))) %>% 
+  mutate(
+    step = factor(step, levels = c("pre", "post"))
+  ) %>% 
   ggplot(aes(A, sigma, colour = step)) +
   geom_point(size = 1, alpha = 0.5) +
   geom_smooth(
@@ -748,7 +750,7 @@ tibble(A = fit$Amean, pre = fit$sigma, post = sqrt(fit$s2.post)) %>%
     show.legend = FALSE
   ) +
   labs(
-    x = "logCPM", y = expression(hat(sigma)), colour = "Analytic\nStep"
+    x = "logCPM", y = expression(hat(sigma)), colour = "limma-trend"
   ) +
   scale_colour_manual(values = c(pre = "black", post = "red")) +
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5))
@@ -1524,6 +1526,7 @@ cp <- htmltools::em(
   )
 )
 gene_col <- ifelse(any_detected, "detected", "gene_name")
+fs <- 12
 tbl <- merged_results %>%
   mutate(w = width) %>% 
   arrange(!!sym(fdr_column)) %>% 
@@ -1545,7 +1548,7 @@ tbl <- merged_results %>%
     borderless  = TRUE,
     columns = list(
       Range = colDef(
-        minWidth = 150,
+        minWidth = 10 * fs,
         cell = function(value) {
           str_replace_all(value, ":", ": ")
         }
@@ -1560,7 +1563,7 @@ tbl <- merged_results %>%
             borderRight = "1px solid rgba(0, 0, 0, 0.1)"
           )
         },
-        maxWidth = 70
+        maxWidth = 5 * fs
       ),
       AveExpr = colDef(
         cell = function(value) round(value, 2),
@@ -1569,7 +1572,7 @@ tbl <- merged_results %>%
           colour = expr_col(x)
           list(background = colour)
         },
-        maxWidth = 80
+        maxWidth = 5.5 * fs
       ),
       logFC = colDef(
         cell = function(value) round(value, 2),
@@ -1578,12 +1581,12 @@ tbl <- merged_results %>%
           colour <- lfc_col(x)
           list(background = colour)
         },
-        maxWidth = 70
+        maxWidth = 5.5 * fs
       ),
       FDR = colDef(
         cell = function(value) sprintf("%.2e", value),
         style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)"),
-        maxWidth = 80
+        maxWidth = 5.5 * fs
       ),
       `Macs2 Peak` = colDef(
         cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
@@ -1591,14 +1594,15 @@ tbl <- merged_results %>%
           color <- ifelse(value, "#008000", "#e00000")
           list(color = color, borderRight = "1px solid rgba(0, 0, 0, 0.1)")
         },
-        maxWidth = 70
+        maxWidth = 5 * fs
       ),
       Region = colDef(maxWidth = 150),
       Genes = colDef(
         cell = function(value) with_tooltip(value),
-        minWidth = 150
+        minWidth = 11 * fs
       )
-    )
+    ),
+    theme = reactableTheme(style = list(fontSize = fs))
   )
 div(class = "table",
   div(class = "table-header",
