@@ -1,0 +1,116 @@
+---
+title: "Outline Of Analysis"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r set-knitr-opts, echo=FALSE, child = here::here('workflow/modules/setup_chunk.Rmd')}
+```
+
+```{r packages}
+library(tidyverse)
+library(DiagrammeR)
+library(pander)
+library(yaml)
+library(scales)
+source(
+  here::here("workflow/scripts/plot_dag_functions.R")
+)
+```
+
+```{r config}
+config <- here::here("config/config.yml") %>%
+  read_yaml()
+samples <- config$samples$file %>%
+  here::here() %>%
+  read_tsv()
+```
+
+
+## Description
+
+This is a standardised workflow for beginning the comparison between two or ChIP targets, using BAM files as the starting point.
+Treatment groups and targets are specified using `config/config.yml`.
+
+## Workflow
+
+```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Summary of processing workflow. The primary data pipeline is shown in red, preparatory steps are shown in blue whilst collation of final output is in green.*"}
+here::here("workflow", "rules", "rulegraph.dot") %>%
+  readLines() %>%
+  rm_dot_node(node = "\"all\"") %>%
+  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install)") %>%
+  change_node_colour("(setup|index|macs2|bedgraph|identify|binding|install)", "red") %>%
+  change_node_colour("(download|write|copy|install)", "blue") %>%
+  change_node_colour("(site|create|build|differential|pairwise)", "forestgreen") %>%
+  str_replace_all("_", "\n") %>%
+  str_replace_all("snakemake\ndag", "snakemake_dag") %>%
+  str_replace_all("fontsize=[0-9]+", "fontsize=16") %>%
+  str_replace_all("(.+graph.+)(\\];)", "\\1, rankdir = LR\\2") %>%
+  grViz()
+```
+
+## Targets
+
+```{r}
+samples %>% 
+  group_by(target, treat) %>%
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  rename_all(str_to_title) %>% 
+  pander(
+    justify = "llr",
+    caption = "Summary of supplied ChIP targets and treatment groups"
+  )
+```
+
+## Differential Binding
+
+The specified comparisons are given below, where 'Vs.' can be interpreted as a '-' sign.
+This effectively makes the first listed group as the treatment and the second listed as the reference or control.
+Differential binding analysis will be performed for every ChIP target where both treatment groups are present.
+
+`r pander(lapply(config$comparisons$contrasts, function(x) paste(rev(x), collapse = " Vs. ")))`
+
+## Pairwise Comparisons
+
+All combinations of the comparisons defined above will will be used to perform pairwise comparisions.
+
+## Settings
+
+### Genome
+
+- The genome build (`r config$genome$build`) was sourced from Gencode release `r config$genome$gencode`
+- Blacklisted sites were sourced from [https://github.com/boyle-lab/Blacklist/](ENCODE) for this specific genome build
+
+### External Data
+
+```{r, echo = FALSE}
+ext_data <- config$external[map_int(config$external, length) > 0] %>% 
+  lapply(unlist) %>% 
+  lapply(basename)
+```
+
+`r ifelse(length(ext_data) > 0, "The external data was:", "No external data was included")`
+
+`r if (length(ext_data) > 0) pander(ext_data)`
+
+### Peak Detection
+
+Macs2 callpeak settings were default with the following exceptions:
+
+`r pander(config$peaks$macs2[!str_detect(names(config$peaks$macs2), "min_prop")])`
+
+Two additional QC settings were incorporated for peak filtering.
+
+- For a sample to pass initial QC, at least `r percent(config$peaks$qc$min_prop_peaks)` of the peaks identified in the sample identifying the highest number of peaks need to be returned. Any many instances, no peaks will be returned in any condition and whilst in this situation all samples will be retained. However, samples significantly diverging from the 'best' sample will be excluded.
+- For a peak to be included in the set of "Oracle Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
+
+
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>

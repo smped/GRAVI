@@ -1,0 +1,52 @@
+INFO  @ Wed, 16 Feb 2022 14:05:32: 
+# Command line: callpeak -t data/aligned/ER/ER_DHT_3.bam -c data/aligned/Input/ER_Input.bam -f BAM -g hs --keep-dup all -q 0.05 -n ER_DHT_3 --bdg --SPMR --outdir data/macs2/ER
+# ARGUMENTS LIST:
+# name = ER_DHT_3
+# format = BAM
+# ChIP-seq file = ['data/aligned/ER/ER_DHT_3.bam']
+# control file = ['data/aligned/Input/ER_Input.bam']
+# effective genome size = 2.70e+09
+# band width = 300
+# model fold = [5, 50]
+# qvalue cutoff = 5.00e-02
+# The maximum gap between significant sites is assigned as the read length/tag size.
+# The minimum length of peaks is assigned as the predicted fragment length "d".
+# Larger dataset will be scaled towards smaller dataset.
+# Range for calculating regional lambda is: 1000 bps and 10000 bps
+# Broad region calling is off
+# Paired-End mode is off
+# MACS will save fragment pileup signal per million reads
+ 
+INFO  @ Wed, 16 Feb 2022 14:05:32: #1 read tag files... 
+INFO  @ Wed, 16 Feb 2022 14:05:32: #1 read treatment tags... 
+INFO  @ Wed, 16 Feb 2022 14:05:34:  1000000 
+INFO  @ Wed, 16 Feb 2022 14:05:35: 1297230 reads have been read. 
+INFO  @ Wed, 16 Feb 2022 14:05:35: #1.2 read input tags... 
+INFO  @ Wed, 16 Feb 2022 14:05:38:  1000000 
+INFO  @ Wed, 16 Feb 2022 14:05:39: 1182276 reads have been read. 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #1 tag size is determined as 76 bps 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #1 tag size = 76.0 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #1  total tags in treatment: 1297230 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #1  total tags in control: 1182276 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #1 finished! 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #2 Build Peak Model... 
+INFO  @ Wed, 16 Feb 2022 14:05:39: #2 looking for paired plus/minus strand peaks... 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #2 number of paired peaks: 65748 
+INFO  @ Wed, 16 Feb 2022 14:05:40: start model_add_line... 
+INFO  @ Wed, 16 Feb 2022 14:05:40: start X-correlation... 
+INFO  @ Wed, 16 Feb 2022 14:05:40: end of X-cor 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #2 finished! 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #2 predicted fragment length is 298 bps 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #2 alternative fragment length(s) may be 298 bps 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #2.2 Generate R script for model : data/macs2/ER/ER_DHT_3_model.r 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #3 Call peaks... 
+INFO  @ Wed, 16 Feb 2022 14:05:40: #3 Pre-compute pvalue-qvalue table... 
+INFO  @ Wed, 16 Feb 2022 14:05:55: #3 In the peak calling step, the following will be performed simultaneously: 
+INFO  @ Wed, 16 Feb 2022 14:05:55: #3   Write bedGraph files for treatment pileup (after scaling if necessary)... ER_DHT_3_treat_pileup.bdg 
+INFO  @ Wed, 16 Feb 2022 14:05:55: #3   Write bedGraph files for control lambda (after scaling if necessary)... ER_DHT_3_control_lambda.bdg 
+INFO  @ Wed, 16 Feb 2022 14:05:55: #3   --SPMR is requested, so pileup will be normalized by sequencing depth in million reads. 
+INFO  @ Wed, 16 Feb 2022 14:05:55: #3 Call peaks for each chromosome... 
+INFO  @ Wed, 16 Feb 2022 14:06:02: #4 Write output xls file... data/macs2/ER/ER_DHT_3_peaks.xls 
+INFO  @ Wed, 16 Feb 2022 14:06:02: #4 Write peak in narrowPeak format file... data/macs2/ER/ER_DHT_3_peaks.narrowPeak 
+INFO  @ Wed, 16 Feb 2022 14:06:02: #4 Write summits bed file... data/macs2/ER/ER_DHT_3_summits.bed 
+INFO  @ Wed, 16 Feb 2022 14:06:02: Done! 
