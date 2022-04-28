@@ -1,4 +1,4 @@
-{:toc}
+* TOC {:toc}
 
 # Using the GRAVI Workflow
 
