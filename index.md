@@ -18,11 +18,11 @@ These can be distinct ChIP targets within the same biological sample, or the sam
 
 ## Quickstart
 
-You will need a snakemake conda environment to begin. 
+You will need a `snakemake` installation to begin. 
 Please see [here](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) for help setting this up.
 
 1. Create a new `github` repository on your account by going to [the github template repository](https://github.com/steveped/GRAVI/generate)
-2. Download the repository to your local server or HPC using `git clone <myrepository>`
+2. Download your new repository to your local server or HPC using `git clone <myrepository>`
 3. Place your bam files in the subdirectory `data/bam` or `data/aligned`
     + These should be placed in separate directories for each target, such `data/bam/target1` and `data/bam/target2`
 4. Edit `samples.tsv` in the `config` directory. Required columns are: `sample`, `target`, `treat`, `input`
@@ -34,3 +34,38 @@ To run using 16 cores without any queuing system (e.g. on a local machine), ente
 snakemake -p --use-conda --notemp --keep-going --cores 16
 ```
 
+# Detailed Instructions
+
+## Workflow Outline
+
+## Required Input
+
+### Alignments
+
+### `samples.tsv`
+
+## Optional Input
+
+### RNA-Seq data
+
+### External Features
+
+### HiC Interactions
+
+### Additional Coverage
+
+## YAML Parameters
+
+### `config.yml`
+
+### `colours.yml`
+
+### `params.yml`
+
+### `rmarkdown.yml`
+
+## Expected Output
+
+## Running the Pipeline
+
+## Integration With `git`
