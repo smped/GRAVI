@@ -27,7 +27,7 @@ These settings determine how the differential binding analysis is performed.
 
 - `fc` (Default: 1.2) The setting of 1.2 indicates a 20% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to `limma::treat()` in all differential binding analyses.
 - `fdr` (Default: 0.05) Windows with significance below this threshold are considered to represent evidence of differential binding.
-- `paired` (Default: `false`) If set to `true` the values in the optional column (e.g. replicate, passage etc) are used to perform a paired analysis as described in the `limma` manual
+- `paired` (Default: `false`) If set to `true` the values in the optional column (e.g. replicate, passage etc.) are used to perform a paired analysis as described in the `limma` manual
 - `filter_q` (Default: 0.6) Passed to `extraChIPs::dualFilter()`. When filtering (i.e. discarding) genomic sliding windows which are unlikely to contain true binding signal, determine thresholds which will retain this proportion of windows which overlap a peak identified by `macs2 callpeak`.
 - `contrasts`: Define all contrasts for differential binding. Any ChIP target containing both treatment groups will be included for differential binding. Values must match those in the `treat` column of `samples.tsv`
 - `ihw` (Default: "regions") Used to stratify p-values for Independent Hypothesis Weighting for differential binding results. Can take values `"regions"`, `"features"`, `"targets"` or `"none"`
@@ -60,7 +60,7 @@ Please see the [`macs2` manual](https://macs3-project.github.io/MACS/) for more 
 `qc` parameters are used for determining if samples are of a high enough quality, and how to determine consensus/oracle peaks for each target and treatment group.
 
 - `min_prop_peaks:` (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the "best" sample within the relevant treatment group, i.e. the sample with the most number of peaks identified by `macs2 callpeak`
-- `min_prop_reps` (Default: 0.3) When forming *oracle* peaks within each target and treatment group, peaks must be represented in at least this proportion of samples. This defaults to 0.3 or 1 of 2, 1 of 3, 2 of 4 etc
+- `min_prop_reps` (Default: 0.3) When forming *oracle* peaks within each target and treatment group, peaks must be represented in at least this proportion of samples. This defaults to 0.3 or 1 of 2, 1 of 3, 2 of 4 etc.
 
 ## `colours.yml`: Visualisation Settings
 
@@ -74,4 +74,4 @@ Default settings for annotations and enrichment testing
 
 ## `rmarkdown.yml`: HTML Settings
 
-Default settings for rmakrdown documents
+Default settings for rmarkdown documents
