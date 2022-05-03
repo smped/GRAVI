@@ -4,19 +4,74 @@ title: Editing The YAML Configuration Files
 
 All YAML files which ruin the workflow are located in the `project_home/config` directory.
 
-## The Main Workflow Configuration `config.yml`
+## `config.yml`: The Main Configuration
 
 This file sets many of the primary parameters and is the file which *will need editing for any new dataset.*
 
 ### Settings Which Shouldn't Change
 
-`samples:` 
+`samples:` (Default: "config/samples.tsv")
 
 By default, the file which contains all sample-level information is defined as `config/samples.tsv`.
 In theory, this can be changed but this may adversely impact the pipeline.
 
 `paths:`
 
-- `bam:` Alignments can be placed in `data/aligned` as advised, although this can be changed to `data/bam` or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline
-- `macs2:` Output from macs2 will be placed in this directory, mirroring the input structure from `data/aligned` where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.
-- `bigwig:` After running `macs2 callpeak`, `bedGraph` file will be converted to the more space efficient `bigwig` files. The directory structure from both `data/aligned` and `data/macs2` will again be mirrored such that each ChIP target has all samples written to the same directory
+- `bam:` (Default: "data/aligned") Alignments should be placed in `data/aligned` [as advised](input_files.html), although this can be changed to `data/bam` or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline
+- `macs2:` (Default: "data/macs2") Output from `macs2 callpeak` will be placed in this directory, mirroring the input structure from `data/aligned` where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.
+- `bigwig:` (Default: "data/bigwig") After running `macs2 callpeak`, `bedGraph` files will be converted to the more space efficient `bigwig` files. The directory structure from both `data/aligned` and `data/macs2` will again be mirrored such that each ChIP target has all samples written to the same directory
+
+`comparisons:`
+
+These settings determine how the differential binding analysis is performed.
+
+- `fc` (Default: 1.2) The setting of 1.2 indicates a 20% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to `limma::treat()` in all differential binding analyses.
+- `fdr` (Default: 0.05) Windows with significance below this threshold are considered to represent evidence of differential binding.
+- `paired` (Default: `false`) If set to `true` the values in the optional column (e.g. replicate, passage etc) are used to perform a paired analysis as described in the `limma` manual
+- `filter_q` (Default: 0.6) Passed to `extraChIPs::dualFilter()`. When filtering (i.e. discarding) genomic sliding windows which are unlikely to contain true binding signal, determine thresholds which will retain this proportion of windows which overlap a peak identified by `macs2 callpeak`.
+- `contrasts`: Define all contrasts for differential binding. Any ChIP target containing both treatment groups will be included for differential binding. Values must match those in the `treat` column of `samples.tsv`
+- `ihw` (Default: "regions") Used to stratify p-values for Independent Hypothesis Weighting for differential binding results. Can take values `"regions"`, `"features"`, `"targets"` or `"none"`
+    + `"regions"` P-values will be stratified by annotated genomic regions as determined in the initial steps of the workflow
+    + `"features"` P-values will be stratified by provided external features
+    + `"targets"` P-values will be stratified by the presence of a `macs2` consensus peak using all other ChIP targets in combination
+    + `"none"` No Independent Hypothesis Weighting will be performed on the results from differential binding
+
+`genome:`
+
+Specify the genome build used for alignments and for gene annotations.
+Build must match that used exactly for performing alignments.
+The gtf corresponding to the specified [Gencode release](https://www.gencodegenes.org/) will be downloaded as part of the workflow
+
+`external:`
+
+Provide paths to all optional data files here.
+Only files provided will be included in the workflow.
+
+- `rnaseq` should be the results as output by `limma::topTable()` or similar. Gene IDs should match those provided in the Gencode GTF. Should be in `csv` or `tsv` format.
+- `features` can be determined by any method, with common choices being relevant histone marks, or promoters, enhancers and super-enhancers determined by H3K27ac marks. Features should be non-overlapping. Must be provided in GTF format.
+- `hic` HiC interactions must be provided as a `bedpe` file
+- `coverage` Tracks provided in this argument will be added to all genomic plots showing binding peaks or differential binding. Multiple files provided within each YAML list element will be overlaid as a single track. There is no upper limit to the number of tracks, however more tracks generally detract from an informative figure.
+
+`peaks`
+
+`macs2` settings are passed to `macs2 callpeak`. Only the arguments `gsize`, `fdr` and `keep_duplicates` are accepted.
+Please see the [`macs2` manual](https://macs3-project.github.io/MACS/) for more detailed explanations.
+
+`qc` parameters are used for determining if samples are of a high enough quality, and how to determine consensus/oracle peaks for each target and treatment group.
+
+- `min_prop_peaks:` (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the "best" sample within the relevant treatment group, i.e. the sample with the most number of peaks identified by `macs2 callpeak`
+- `min_prop_reps` (Default: 0.3) When forming *oracle* peaks within each target and treatment group, peaks must be represented in at least this proportion of samples. This defaults to 0.3 or 1 of 2, 1 of 3, 2 of 4 etc
+
+## `colours.yml`: Visualisation Settings
+
+Defines all colour schemes for plots.
+Required YAML list elements are `qc`, `regions`, `direction` and `treat`. 
+Optional colours can be provided for `features`.
+
+## `params.yml`: Additional Parameters 
+
+Default settings for annotations and enrichment testing
+
+## `rmarkdown.yml`: HTML Settings
+
+Default settings for rmakrdown documents

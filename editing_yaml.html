@@ -411,35 +411,140 @@ div.tocify {
 
 <p>All YAML files which ruin the workflow are located in the
 <code>project_home/config</code> directory.</p>
-<div id="the-main-workflow-configuration-config.yml"
-class="section level2">
-<h2>The Main Workflow Configuration <code>config.yml</code></h2>
+<div id="config.yml-the-main-configuration" class="section level2">
+<h2><code>config.yml</code>: The Main Configuration</h2>
 <p>This file sets many of the primary parameters and is the file which
 <em>will need editing for any new dataset.</em></p>
 <div id="settings-which-shouldnt-change" class="section level3">
 <h3>Settings Which Shouldn’t Change</h3>
-<p><code>samples:</code></p>
+<p><code>samples:</code> (Default: “config/samples.tsv”)</p>
 <p>By default, the file which contains all sample-level information is
 defined as <code>config/samples.tsv</code>. In theory, this can be
 changed but this may adversely impact the pipeline.</p>
 <p><code>paths:</code></p>
 <ul>
-<li><code>bam:</code> Alignments can be placed in
-<code>data/aligned</code> as advised, although this can be changed to
-<code>data/bam</code> or any other relative path as desired. Again,
-changes to the default layout may adversely affect the pipeline</li>
-<li><code>macs2:</code> Output from macs2 will be placed in this
-directory, mirroring the input structure from <code>data/aligned</code>
-where each ChIP target (e.g. TF1, TF2) will have results written to
-separate directories.</li>
-<li><code>bigwig:</code> After running <code>macs2 callpeak</code>,
-<code>bedGraph</code> file will be converted to the more space efficient
-<code>bigwig</code> files. The directory structure from both
-<code>data/aligned</code> and <code>data/macs2</code> will again be
-mirrored such that each ChIP target has all samples written to the same
-directory</li>
+<li><code>bam:</code> (Default: “data/aligned”) Alignments should be
+placed in <code>data/aligned</code> <a href="input_files.html">as
+advised</a>, although this can be changed to <code>data/bam</code> or
+any other relative path as desired. Again, changes to the default layout
+may adversely affect the pipeline</li>
+<li><code>macs2:</code> (Default: “data/macs2”) Output from
+<code>macs2 callpeak</code> will be placed in this directory, mirroring
+the input structure from <code>data/aligned</code> where each ChIP
+target (e.g. TF1, TF2) will have results written to separate
+directories.</li>
+<li><code>bigwig:</code> (Default: “data/bigwig”) After running
+<code>macs2 callpeak</code>, <code>bedGraph</code> files will be
+converted to the more space efficient <code>bigwig</code> files. The
+directory structure from both <code>data/aligned</code> and
+<code>data/macs2</code> will again be mirrored such that each ChIP
+target has all samples written to the same directory</li>
+</ul>
+<p><code>comparisons:</code></p>
+<p>These settings determine how the differential binding analysis is
+performed.</p>
+<ul>
+<li><code>fc</code> (Default: 1.2) The setting of 1.2 indicates a 20%
+change in binding as the threshold below which we are not interested, or
+below which we consider binding changes to be inconsequential. This
+parameters is passed to <code>limma::treat()</code> in all differential
+binding analyses.</li>
+<li><code>fdr</code> (Default: 0.05) Windows with significance below
+this threshold are considered to represent evidence of differential
+binding.</li>
+<li><code>paired</code> (Default: <code>false</code>) If set to
+<code>true</code> the values in the optional column (e.g. replicate,
+passage etc) are used to perform a paired analysis as described in the
+<code>limma</code> manual</li>
+<li><code>filter_q</code> (Default: 0.6) Passed to
+<code>extraChIPs::dualFilter()</code>. When filtering (i.e. discarding)
+genomic sliding windows which are unlikely to contain true binding
+signal, determine thresholds which will retain this proportion of
+windows which overlap a peak identified by
+<code>macs2 callpeak</code>.</li>
+<li><code>contrasts</code>: Define all contrasts for differential
+binding. Any ChIP target containing both treatment groups will be
+included for differential binding. Values must match those in the
+<code>treat</code> column of <code>samples.tsv</code></li>
+<li><code>ihw</code> (Default: “regions”) Used to stratify p-values for
+Independent Hypothesis Weighting for differential binding results. Can
+take values <code>"regions"</code>, <code>"features"</code>,
+<code>"targets"</code> or <code>"none"</code>
+<ul>
+<li><code>"regions"</code> P-values will be stratified by annotated
+genomic regions as determined in the initial steps of the workflow</li>
+<li><code>"features"</code> P-values will be stratified by provided
+external features</li>
+<li><code>"targets"</code> P-values will be stratified by the presence
+of a <code>macs2</code> consensus peak using all other ChIP targets in
+combination</li>
+<li><code>"none"</code> No Independent Hypothesis Weighting will be
+performed on the results from differential binding</li>
+</ul></li>
+</ul>
+<p><code>genome:</code></p>
+<p>Specify the genome build used for alignments and for gene
+annotations. Build must match that used exactly for performing
+alignments. The gtf corresponding to the specified <a
+href="https://www.gencodegenes.org/">Gencode release</a> will be
+downloaded as part of the workflow</p>
+<p><code>external:</code></p>
+<p>Provide paths to all optional data files here. Only files provided
+will be included in the workflow.</p>
+<ul>
+<li><code>rnaseq</code> should be the results as output by
+<code>limma::topTable()</code> or similar. Gene IDs should match those
+provided in the Gencode GTF. Should be in <code>csv</code> or
+<code>tsv</code> format.</li>
+<li><code>features</code> can be determined by any method, with common
+choices being relevant histone marks, or promoters, enhancers and
+super-enhancers determined by H3K27ac marks. Features should be
+non-overlapping. Must be provided in GTF format.</li>
+<li><code>hic</code> HiC interactions must be provided as a
+<code>bedpe</code> file</li>
+<li><code>coverage</code> Tracks provided in this argument will be added
+to all genomic plots showing binding peaks or differential binding.
+Multiple files provided within each YAML list element will be overlaid
+as a single track. There is no upper limit to the number of tracks,
+however more tracks generally detract from an informative figure.</li>
+</ul>
+<p><code>peaks</code></p>
+<p><code>macs2</code> settings are passed to
+<code>macs2 callpeak</code>. Only the arguments <code>gsize</code>,
+<code>fdr</code> and <code>keep_duplicates</code> are accepted. Please
+see the <a
+href="https://macs3-project.github.io/MACS/"><code>macs2</code>
+manual</a> for more detailed explanations.</p>
+<p><code>qc</code> parameters are used for determining if samples are of
+a high enough quality, and how to determine consensus/oracle peaks for
+each target and treatment group.</p>
+<ul>
+<li><code>min_prop_peaks:</code> (Default: 0.1) Samples within a
+treatment group must contain more than this proportion of peaks which
+overlap peaks from the “best” sample within the relevant treatment
+group, i.e. the sample with the most number of peaks identified by
+<code>macs2 callpeak</code></li>
+<li><code>min_prop_reps</code> (Default: 0.3) When forming
+<em>oracle</em> peaks within each target and treatment group, peaks must
+be represented in at least this proportion of samples. This defaults to
+0.3 or 1 of 2, 1 of 3, 2 of 4 etc</li>
 </ul>
 </div>
+</div>
+<div id="colours.yml-visualisation-settings" class="section level2">
+<h2><code>colours.yml</code>: Visualisation Settings</h2>
+<p>Defines all colour schemes for plots. Required YAML list elements are
+<code>qc</code>, <code>regions</code>, <code>direction</code> and
+<code>treat</code>. Optional colours can be provided for
+<code>features</code>.</p>
+</div>
+<div id="params.yml-additional-parameters" class="section level2">
+<h2><code>params.yml</code>: Additional Parameters</h2>
+<p>Default settings for annotations and enrichment testing</p>
+</div>
+<div id="rmarkdown.yml-html-settings" class="section level2">
+<h2><code>rmarkdown.yml</code>: HTML Settings</h2>
+<p>Default settings for rmakrdown documents</p>
 </div>
 
 <div class="footer">
