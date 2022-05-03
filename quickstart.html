@@ -11,7 +11,7 @@
 
 
 
-<title>GRAVI: Gene Regulatory Analysis using Variable Inputs</title>
+<title>Quick Start Guide</title>
 
 <script src="site_libs/header-attrs-2.14/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -404,48 +404,58 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">GRAVI: Gene Regulatory Analysis using
-Variable Inputs</h1>
+<h1 class="title toc-ignore">Quick Start Guide</h1>
 
 </div>
 
 
-<div id="introduction" class="section level2">
-<h2>Introduction</h2>
-<p>This site contains the documentation for running the GRAVI (Gene
-Regulatory Analysis using Variable Inputs) workflow. This workflow is
-managed using <code>snakemake</code>, for running locally or on any HPC,
-and is designed to minimally take one ChIP target under at least two
-conditions. There is no theoretical upper limit to the number of ChIP
-targets which can be analysed, although the practicalities of
-interpretation will dictate this.</p>
-<p>In addition to ≥ 1 ChIP targets, <strong>optional</strong> input
-includes:</p>
+<div id="snakemake" class="section level2">
+<h2>Snakemake</h2>
+<p>You will need a <code>snakemake</code> installation to begin. Please
+see <a
+href="https://snakemake.readthedocs.io/en/stable/getting_started/installation.html">here</a>
+for help setting this up. If you are running the pipeline on an HPC and
+are unsure, please consult with your HPC support team about setting up
+<code>snakemake</code> on your specific cluster. <code>Snakemake</code>
+itself is in widespread use globally, so they should be able to provide
+the support you need.</p>
+</div>
+<div id="create-the-directory-structure" class="section level2">
+<h2>Create the Directory Structure</h2>
+<ol style="list-style-type: decimal">
+<li>Create a new <code>github</code> repository on your account by going
+to <a href="https://github.com/steveped/GRAVI/generate">the github
+template repository</a></li>
+<li>Download your new repository to your local server or HPC using
+<code>git clone &lt;myrepository&gt;</code></li>
+<li>Place your bam files in the subdirectory <code>data/aligned</code>
 <ul>
-<li>Results from a single RNA-Seq experiment</li>
-<li>Any type of genomic feature derived or obtained externally
-(<code>*gtf</code>)</li>
-<li>HiC Interactions (<code>*.bedpe</code>)</li>
-<li>Additional coverage tracks for visualisation, such as those produced
-by key histone marks (<code>*bigwig</code>)</li>
-</ul>
-<p>The GRAVI workflow itself will</p>
-<ul>
-<li>Annotate the genome using a custom, transcript-focussed
-approach</li>
-<li>Identify peaks using <code>macs2 callpeak</code></li>
-<li>Perform differential binding analysis for each ChIP target &amp;
-requested comparisons</li>
-<li>Compare differential binding results across ChIP targets or samples
-(Pair-wise comparisons)</li>
-<li>Perform enrichment analyses at all steps of the workflow</li>
-<li><em>TO BE COMPLETED</em>: Perform motif analysis based on key
-binding patterns within and across ChIP targets</li>
-<li>Add key output files to any local <code>git</code> repository</li>
-</ul>
-<p>The primary output is a series of <code>html</code> pages generated
-from <code>rmarkdown</code> files, along with key figures and tables
-able to be shared and incorporated directly into publications.</p>
+<li>These should be placed in separate directories for each target, such
+<code>data/bam/target1</code> and <code>data/bam/target2</code></li>
+<li>For greater detail on this structure please see <a
+href="input_files.html">here</a></li>
+</ul></li>
+<li>Edit <code>samples.tsv</code> in the <code>config</code> directory.
+Required columns are: <code>sample</code>, <code>target</code>,
+<code>treat</code>, <code>input</code></li>
+<li>Modify any parameters in <code>config/config.yml</code></li>
+</ol>
+</div>
+<div id="run-the-pipeline" class="section level2">
+<h2>Run the Pipeline</h2>
+<div id="run-on-a-local-server" class="section level3">
+<h3>Run On A Local Server</h3>
+<p>To run using 16 cores without any queuing system (e.g. on a local
+machine), enter the following</p>
+<pre><code>snakemake -p --use-conda --notemp --keep-going --cores 16</code></pre>
+</div>
+<div id="run-on-an-hpc" class="section level3">
+<h3>Run On An HPC</h3>
+<p>Please consult with your local support team for their advice running
+a <code>snakemake</code> workflow. In essence, the above command will
+need to be provided to your queuing system through the preferred
+strategy.</p>
+</div>
 </div>
 
 <div class="footer">
