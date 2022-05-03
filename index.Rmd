@@ -1,5 +1,5 @@
 ---
-title: "GRAVIL Gene Regulatory Analysis using Variable Inputs"
+title: "GRAVI: Gene Regulatory Analysis using Variable Inputs"
 editor_options:
   chunk_output_type: console
 ---
@@ -8,4 +8,25 @@ editor_options:
 knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
-Put things here
+This site contains the documentation for running the GRAVI (Gene Regulatory Analysis using Variable Inputs) workflow.
+This workflow is managed using `snakemake`, for running locally or on any HPC, and is designed to minimally take one ChIP target under at least two conditions.
+There is no theoretical upper limit to the number of ChIP targets which can be analysed, althouogh the practicalities of interpretation will dictate this.
+In addition to &#8805; 1 ChIP targets, optional input includes:
+
+- Results from a single RNA-Seq experiment
+- Any type of genomic feature derived or obtained externally
+- HiC Interactions (`*.bedpe`)
+- Additional coverage tracks for visualisation, such as those produced by key histone marks
+
+The GRAVI workflow itself will
+
+- Annotate the genome using a custom, transcript-focussed approach
+- Identify peaks using `macs2 callpeak`
+- Perform diferential binding analysis for each ChIP target & requested comparisons
+- Compare differential binding results across ChIP targets or samples (Pairwise coomparisons)
+- Perform enrichment analyses at all steps of the workflow
+- *TO BE COMPLETED*: Perform motif analysis based on key binding patterns within and across ChIP targets
+- Add key output files to any local `git` repository
+
+The primary output is a series of `html` pages generated from `rmarkdown` files, along with key figures and tables able to be shared and incorporated directly into publications.
+
