@@ -1,0 +1,82 @@
+---
+title: "Input Files"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r set-knitr-opts, echo=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = FALSE)
+```
+
+```{r packages}
+library(data.tree)
+library(tidyverse)
+```
+
+## Directory Structure
+
+The GRAVI workflow requires a set directory structure. 
+If using the template repository [as advised](quickstart.html) this will be mostly taken care of.
+The required directory structure is
+
+```{r}
+data.frame(
+    pathString = file.path(
+        "project_home/", c("analysis", "config", "data", "docs", "output", "workflow")
+    )
+) %>% 
+    as.Node()
+```
+
+- Rmarkdown scripts will be added and executed from the `analysis` directory
+- Key configuration files are provided in the `config` directory
+- *Your data* should be placed in the `data` directory as described below
+- The `html` output summarising all results will be produced in the `docs` directory
+- Additional output files will be placed in `output`
+- The workflow itself is run by all code supplied in the `workflow` directory
+
+## Alignments
+
+The GRAVI workflow currently takes `bam` files as the primary input.
+Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.
+
+Files should be placed in the `data/aligned` directory as set in `config.yml`, although this can be changed if desired.
+Each ChIP target should be placed in a separate directory using the example layout as given below.
+As IgG input may be shared between ChIP targets, these can all be placed in the directory `data/Input` and this is effectively hard-wired into the workflow.
+
+```{r, echo = FALSE, results='markup'}
+file.path(
+    "project_home", "data", "aligned", 
+    c(
+        "TF1/control_rep1.bam", "TF1/control_rep2.bam", "TF1/control_rep3.bam",
+        "TF1/treat_rep1.bam", "TF1/treat_rep2.bam", "TF1/treat_rep3.bam",
+        "TF2/control_rep1.bam", "TF2/control_rep2.bam", "TF2/control_rep3.bam",
+        "TF2/treat_rep1.bam", "TF2/treat_rep2.bam", "TF2/treat_rep3.bam",
+        "Input/pooled_input.bam"
+    )
+) %>% 
+    data.frame() %>% 
+    setNames("pathString") %>% 
+    as.Node()
+```
+
+## Additional Files
+
+Optional files can also be supplied and is it customary to place these in `data/external` with relative paths (to `project_home`) added to `config.yml`
+
+```{r}
+file.path(
+    "project_home", "data",
+    c(
+        "aligned/TF1", "aligned/TF2",
+        "external/rnaseq_topTable.tsv",
+        "external/external_features.gtf",
+        "external/hic_interactions.bedpe",
+        "external/additional_coverage.bw"
+    )
+)%>% 
+    data.frame() %>% 
+    setNames("pathString") %>% 
+    as.Node()
+```
+

@@ -11,7 +11,7 @@
 
 
 
-<title>GRAVI: Gene Regulatory Analysis using Variable Inputs</title>
+<title>Input Files</title>
 
 <script src="site_libs/header-attrs-2.14/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -404,48 +404,89 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">GRAVI: Gene Regulatory Analysis using
-Variable Inputs</h1>
+<h1 class="title toc-ignore">Input Files</h1>
 
 </div>
 
 
-<div id="introduction" class="section level2">
-<h2>Introduction</h2>
-<p>This site contains the documentation for running the GRAVI (Gene
-Regulatory Analysis using Variable Inputs) workflow. This workflow is
-managed using <code>snakemake</code>, for running locally or on any HPC,
-and is designed to minimally take one ChIP target under at least two
-conditions. There is no theoretical upper limit to the number of ChIP
-targets which can be analysed, although the practicalities of
-interpretation will dictate this.</p>
-<p>In addition to ≥ 1 ChIP targets, <strong>optional</strong> input
-includes:</p>
+<div id="directory-structure" class="section level2">
+<h2>Directory Structure</h2>
+<p>The GRAVI workflow requires a set directory structure. If using the
+template repository <a href="quickstart.html">as advised</a> this will
+be mostly taken care of. The required directory structure is</p>
+<pre><code>##      levelName
+## 1 project_home
+## 2  ¦--analysis
+## 3  ¦--config  
+## 4  ¦--data    
+## 5  ¦--docs    
+## 6  ¦--output  
+## 7  °--workflow</code></pre>
 <ul>
-<li>Results from a single RNA-Seq experiment</li>
-<li>Any type of genomic feature derived or obtained externally
-(<code>*gtf</code>)</li>
-<li>HiC Interactions (<code>*.bedpe</code>)</li>
-<li>Additional coverage tracks for visualisation, such as those produced
-by key histone marks (<code>*bigwig</code>)</li>
+<li>Rmarkdown scripts will be added and executed from the
+<code>analysis</code> directory</li>
+<li>Key configuration files are provided in the <code>config</code>
+directory</li>
+<li><em>Your data</em> should be placed in the <code>data</code>
+directory as described below</li>
+<li>The <code>html</code> output summarising all results will be
+produced in the <code>docs</code> directory</li>
+<li>Additional output files will be placed in <code>output</code></li>
+<li>The workflow itself is run by all code supplied in the
+<code>workflow</code> directory</li>
 </ul>
-<p>The GRAVI workflow itself will</p>
-<ul>
-<li>Annotate the genome using a custom, transcript-focussed
-approach</li>
-<li>Identify peaks using <code>macs2 callpeak</code></li>
-<li>Perform differential binding analysis for each ChIP target &amp;
-requested comparisons</li>
-<li>Compare differential binding results across ChIP targets or samples
-(Pair-wise comparisons)</li>
-<li>Perform enrichment analyses at all steps of the workflow</li>
-<li><em>TO BE COMPLETED</em>: Perform motif analysis based on key
-binding patterns within and across ChIP targets</li>
-<li>Add key output files to any local <code>git</code> repository</li>
-</ul>
-<p>The primary output is a series of <code>html</code> pages generated
-from <code>rmarkdown</code> files, along with key figures and tables
-able to be shared and incorporated directly into publications.</p>
+</div>
+<div id="alignments" class="section level2">
+<h2>Alignments</h2>
+<p>The GRAVI workflow currently takes <code>bam</code> files as the
+primary input. Multiple workflows exist for quality control, adapter
+removal and de-duplication and it is assumed that supplied reads will
+have been pre-processed with the above steps, then aligned to the genome
+of interest.</p>
+<p>Files should be placed in the <code>data/aligned</code> directory as
+set in <code>config.yml</code>, although this can be changed if desired.
+Each ChIP target should be placed in a separate directory using the
+example layout as given below. As IgG input may be shared between ChIP
+targets, these can all be placed in the directory
+<code>data/Input</code> and this is effectively hard-wired into the
+workflow.</p>
+<pre><code>##                           levelName
+## 1  project_home                    
+## 2   °--data                        
+## 3       °--aligned                 
+## 4           ¦--TF1                 
+## 5           ¦   ¦--control_rep1.bam
+## 6           ¦   ¦--control_rep2.bam
+## 7           ¦   ¦--control_rep3.bam
+## 8           ¦   ¦--treat_rep1.bam  
+## 9           ¦   ¦--treat_rep2.bam  
+## 10          ¦   °--treat_rep3.bam  
+## 11          ¦--TF2                 
+## 12          ¦   ¦--control_rep1.bam
+## 13          ¦   ¦--control_rep2.bam
+## 14          ¦   ¦--control_rep3.bam
+## 15          ¦   ¦--treat_rep1.bam  
+## 16          ¦   ¦--treat_rep2.bam  
+## 17          ¦   °--treat_rep3.bam  
+## 18          °--Input               
+## 19              °--pooled_input.bam</code></pre>
+</div>
+<div id="additional-files" class="section level2">
+<h2>Additional Files</h2>
+<p>Optional files can also be supplied and is it customary to place
+these in <code>data/external</code> with relative paths (to
+<code>project_home</code>) added to <code>config.yml</code></p>
+<pre><code>##                             levelName
+## 1  project_home                      
+## 2   °--data                          
+## 3       ¦--aligned                   
+## 4       ¦   ¦--TF1                   
+## 5       ¦   °--TF2                   
+## 6       °--external                  
+## 7           ¦--rnaseq_topTable.tsv   
+## 8           ¦--external_features.gtf 
+## 9           ¦--hic_interactions.bedpe
+## 10          °--additional_coverage.bw</code></pre>
 </div>
 
 <div class="footer">
