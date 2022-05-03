@@ -58,6 +58,44 @@ file.path(
     as.Node()
 ```
 
+## Sample Descriptions
+
+The file `samples.tsv` defines the set of files which the workflow will be applied to.
+Any files placed in the `data/aligned` directory, but not specified in this file will be ignored.
+The desired layout should be a *tab-delimited file* (i.e. tsv).
+These can be generated using Excel, Notepad++, R, Visual Studio, or any other software you are comfortable with.
+A brief example would follow the layout
+
+```{r}
+tribble(
+    ~sample, ~target, ~treat, ~replicate, ~input,
+    "control_rep1", "TF1", "Control", 1, "pooled_input",
+    "control_rep2", "TF1", "Control", 2, "pooled_input",
+    "control_rep3", "TF1", "Control", 3, "pooled_input",
+    "treat_rep1", "TF1", "Treatment", 1, "pooled_input",
+    "treat_rep2", "TF1", "Treatment", 2, "pooled_input",
+    "treat_rep3", "TF1", "Treatment", 3, "pooled_input"
+)
+```
+
+
+### Required columns
+
+This file must contain all four of the columns `sample`, `target`, `treat`, `input`.
+If supplied, optional columns such as `replicate`, `passage` etc can be referenced in the workflow.
+As well as defining all required steps for the workflow, labels for plots will be generated from combinations of these columns.
+
+- `sample`: This **must** be identical to the filename, but without the `bam` extension.
+- `target`: This **must** be the directory name within `data/aligned` which contains the sample
+- `treat`: This is used to define all comparisons 
+- `input`: All files must correspond to a file in `data/aligned/Input` but without the `bam` suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.
+
+### Optional Columns
+
+Any additional columns can be used to denote batches, or passages if running a nested/paired model.
+These column names will be automatically detected at the appropriate steps of the workflow and incorporated into figures and tables.
+Common column names may be `replicate` or `passage` (for cell lines)
+
 ## Additional Files
 
 Optional files can also be supplied and is it customary to place these in `data/external` with relative paths (to `project_home`) added to `config.yml`

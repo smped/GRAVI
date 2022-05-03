@@ -1,0 +1,22 @@
+---
+title: Editing The YAML Configuration Files
+---
+
+All YAML files which ruin the workflow are located in the `project_home/config` directory.
+
+## The Main Workflow Configuration `config.yml`
+
+This file sets many of the primary parameters and is the file which *will need editing for any new dataset.*
+
+### Settings Which Shouldn't Change
+
+`samples:` 
+
+By default, the file which contains all sample-level information is defined as `config/samples.tsv`.
+In theory, this can be changed but this may adversely impact the pipeline.
+
+`paths:`
+
+- `bam:` Alignments can be placed in `data/aligned` as advised, although this can be changed to `data/bam` or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline
+- `macs2:` Output from macs2 will be placed in this directory, mirroring the input structure from `data/aligned` where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.
+- `bigwig:` After running `macs2 callpeak`, `bedGraph` file will be converted to the more space efficient `bigwig` files. The directory structure from both `data/aligned` and `data/macs2` will again be mirrored such that each ChIP target has all samples written to the same directory

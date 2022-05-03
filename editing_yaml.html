@@ -11,7 +11,7 @@
 
 
 
-<title>Input Files</title>
+<title>Editing The YAML Configuration Files</title>
 
 <script src="site_libs/header-attrs-2.14/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -404,136 +404,42 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Input Files</h1>
+<h1 class="title toc-ignore">Editing The YAML Configuration Files</h1>
 
 </div>
 
 
-<div id="directory-structure" class="section level2">
-<h2>Directory Structure</h2>
-<p>The GRAVI workflow requires a set directory structure. If using the
-template repository <a href="quickstart.html">as advised</a> this will
-be mostly taken care of. The required directory structure is</p>
-<pre><code>##      levelName
-## 1 project_home
-## 2  ¦--analysis
-## 3  ¦--config  
-## 4  ¦--data    
-## 5  ¦--docs    
-## 6  ¦--output  
-## 7  °--workflow</code></pre>
+<p>All YAML files which ruin the workflow are located in the
+<code>project_home/config</code> directory.</p>
+<div id="the-main-workflow-configuration-config.yml"
+class="section level2">
+<h2>The Main Workflow Configuration <code>config.yml</code></h2>
+<p>This file sets many of the primary parameters and is the file which
+<em>will need editing for any new dataset.</em></p>
+<div id="settings-which-shouldnt-change" class="section level3">
+<h3>Settings Which Shouldn’t Change</h3>
+<p><code>samples:</code></p>
+<p>By default, the file which contains all sample-level information is
+defined as <code>config/samples.tsv</code>. In theory, this can be
+changed but this may adversely impact the pipeline.</p>
+<p><code>paths:</code></p>
 <ul>
-<li>Rmarkdown scripts will be added and executed from the
-<code>analysis</code> directory</li>
-<li>Key configuration files are provided in the <code>config</code>
+<li><code>bam:</code> Alignments can be placed in
+<code>data/aligned</code> as advised, although this can be changed to
+<code>data/bam</code> or any other relative path as desired. Again,
+changes to the default layout may adversely affect the pipeline</li>
+<li><code>macs2:</code> Output from macs2 will be placed in this
+directory, mirroring the input structure from <code>data/aligned</code>
+where each ChIP target (e.g. TF1, TF2) will have results written to
+separate directories.</li>
+<li><code>bigwig:</code> After running <code>macs2 callpeak</code>,
+<code>bedGraph</code> file will be converted to the more space efficient
+<code>bigwig</code> files. The directory structure from both
+<code>data/aligned</code> and <code>data/macs2</code> will again be
+mirrored such that each ChIP target has all samples written to the same
 directory</li>
-<li><em>Your data</em> should be placed in the <code>data</code>
-directory as described below</li>
-<li>The <code>html</code> output summarising all results will be
-produced in the <code>docs</code> directory</li>
-<li>Additional output files will be placed in <code>output</code></li>
-<li>The workflow itself is run by all code supplied in the
-<code>workflow</code> directory</li>
 </ul>
 </div>
-<div id="alignments" class="section level2">
-<h2>Alignments</h2>
-<p>The GRAVI workflow currently takes <code>bam</code> files as the
-primary input. Multiple workflows exist for quality control, adapter
-removal and de-duplication and it is assumed that supplied reads will
-have been pre-processed with the above steps, then aligned to the genome
-of interest.</p>
-<p>Files should be placed in the <code>data/aligned</code> directory as
-set in <code>config.yml</code>, although this can be changed if desired.
-Each ChIP target should be placed in a separate directory using the
-example layout as given below. As IgG input may be shared between ChIP
-targets, these can all be placed in the directory
-<code>data/Input</code> and this is effectively hard-wired into the
-workflow.</p>
-<pre><code>##                           levelName
-## 1  project_home                    
-## 2   °--data                        
-## 3       °--aligned                 
-## 4           ¦--TF1                 
-## 5           ¦   ¦--control_rep1.bam
-## 6           ¦   ¦--control_rep2.bam
-## 7           ¦   ¦--control_rep3.bam
-## 8           ¦   ¦--treat_rep1.bam  
-## 9           ¦   ¦--treat_rep2.bam  
-## 10          ¦   °--treat_rep3.bam  
-## 11          ¦--TF2                 
-## 12          ¦   ¦--control_rep1.bam
-## 13          ¦   ¦--control_rep2.bam
-## 14          ¦   ¦--control_rep3.bam
-## 15          ¦   ¦--treat_rep1.bam  
-## 16          ¦   ¦--treat_rep2.bam  
-## 17          ¦   °--treat_rep3.bam  
-## 18          °--Input               
-## 19              °--pooled_input.bam</code></pre>
-</div>
-<div id="sample-descriptions" class="section level2">
-<h2>Sample Descriptions</h2>
-<p>The file <code>samples.tsv</code> defines the set of files which the
-workflow will be applied to. Any files placed in the
-<code>data/aligned</code> directory, but not specified in this file will
-be ignored. The desired layout should be a <em>tab-delimited file</em>
-(i.e. tsv). These can be generated using Excel, Notepad++, R, Visual
-Studio, or any other software you are comfortable with. A brief example
-would follow the layout</p>
-<pre><code>## # A tibble: 6 × 5
-##   sample       target treat     replicate input       
-##   &lt;chr&gt;        &lt;chr&gt;  &lt;chr&gt;         &lt;dbl&gt; &lt;chr&gt;       
-## 1 control_rep1 TF1    Control           1 pooled_input
-## 2 control_rep2 TF1    Control           2 pooled_input
-## 3 control_rep3 TF1    Control           3 pooled_input
-## 4 treat_rep1   TF1    Treatment         1 pooled_input
-## 5 treat_rep2   TF1    Treatment         2 pooled_input
-## 6 treat_rep3   TF1    Treatment         3 pooled_input</code></pre>
-<div id="required-columns" class="section level3">
-<h3>Required columns</h3>
-<p>This file must contain all four of the columns <code>sample</code>,
-<code>target</code>, <code>treat</code>, <code>input</code>. If
-supplied, optional columns such as <code>replicate</code>,
-<code>passage</code> etc can be referenced in the workflow. As well as
-defining all required steps for the workflow, labels for plots will be
-generated from combinations of these columns.</p>
-<ul>
-<li><code>sample</code>: This <strong>must</strong> be identical to the
-filename, but without the <code>bam</code> extension.</li>
-<li><code>target</code>: This <strong>must</strong> be the directory
-name within <code>data/aligned</code> which contains the sample</li>
-<li><code>treat</code>: This is used to define all comparisons</li>
-<li><code>input</code>: All files must correspond to a file in
-<code>data/aligned/Input</code> but without the <code>bam</code> suffix.
-Each sample can have a separate input sample, or input samples can be
-shared across all or some of the samples.</li>
-</ul>
-</div>
-<div id="optional-columns" class="section level3">
-<h3>Optional Columns</h3>
-<p>Any additional columns can be used to denote batches, or passages if
-running a nested/paired model. These column names will be automatically
-detected at the appropriate steps of the workflow and incorporated into
-figures and tables. Common column names may be <code>replicate</code> or
-<code>passage</code> (for cell lines)</p>
-</div>
-</div>
-<div id="additional-files" class="section level2">
-<h2>Additional Files</h2>
-<p>Optional files can also be supplied and is it customary to place
-these in <code>data/external</code> with relative paths (to
-<code>project_home</code>) added to <code>config.yml</code></p>
-<pre><code>##                             levelName
-## 1  project_home                      
-## 2   °--data                          
-## 3       ¦--aligned                   
-## 4       ¦   ¦--TF1                   
-## 5       ¦   °--TF2                   
-## 6       °--external                  
-## 7           ¦--rnaseq_topTable.tsv   
-## 8           ¦--external_features.gtf 
-## 9           ¦--hic_interactions.bedpe
-## 10          °--additional_coverage.bw</code></pre>
 </div>
 
 <div class="footer">
