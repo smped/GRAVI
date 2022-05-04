@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+<head>
+
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Chapter 3 Quick Start Guide | GRAVI User Guide (Under Development)</title>
+  <meta name="description" content="This is the main documentation for the GRAVI workflow" />
+  <meta name="generator" content="bookdown 0.26 and GitBook 2.6.7" />
+
+  <meta property="og:title" content="Chapter 3 Quick Start Guide | GRAVI User Guide (Under Development)" />
+  <meta property="og:type" content="book" />
+  
+  <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
+  <meta name="github-repo" content="steveped/GRAVI" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Chapter 3 Quick Start Guide | GRAVI User Guide (Under Development)" />
+  
+  <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
+  
+
+<meta name="author" content="Stephen Pederson" />
+
+
+<meta name="date" content="2022-05-04" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  
+  
+<link rel="prev" href="input-files.html"/>
+<link rel="next" href="editing-yaml.html"/>
+<script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
+<link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-table.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-bookdown.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-highlight.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-search.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-fontsettings.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-clipboard.css" rel="stylesheet" />
+
+
+
+
+
+
+
+
+<link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
+<link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
+<script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+
+
+
+<style type="text/css">
+/* Used with Pandoc 2.11+ new --citeproc when CSL is used */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+<link rel="stylesheet" href="style.css" type="text/css" />
+</head>
+
+<body>
+
+
+
+  <div class="book without-animation with-summary font-size-2 font-family-1" data-basepath=".">
+
+    <div class="book-summary">
+      <nav role="navigation">
+
+<ul class="summary">
+<li><a href="./">GRAVI User Guide</a></li>
+
+<li class="divider"></li>
+<li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> Introduction</a></li>
+<li class="chapter" data-level="2" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>2</b> Input Files and Directories</a>
+<ul>
+<li class="chapter" data-level="2.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>2.1</b> Directory Structure</a></li>
+<li class="chapter" data-level="2.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>2.2</b> Alignments</a></li>
+<li class="chapter" data-level="2.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>2.3</b> Sample Descriptions</a>
+<ul>
+<li class="chapter" data-level="2.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>2.3.1</b> Required columns</a></li>
+<li class="chapter" data-level="2.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>2.3.2</b> Optional Columns</a></li>
+</ul></li>
+<li class="chapter" data-level="2.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>2.4</b> Additional Files</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>2.4.1</b> RNA-Seq</a></li>
+<li class="chapter" data-level="2.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>2.4.2</b> External Features</a></li>
+<li class="chapter" data-level="2.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>2.4.3</b> HiC Interactions</a></li>
+<li class="chapter" data-level="2.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>2.4.4</b> External Coverage</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
+<ul>
+<li class="chapter" data-level="3.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>3.1</b> Install Snakemake</a></li>
+<li class="chapter" data-level="3.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>3.2</b> Create the Directory Structure</a></li>
+<li class="chapter" data-level="3.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>3.3</b> Run the Pipeline</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
+<li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="4" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>4</b> Editing The YAML Configuration Files</a>
+<ul>
+<li class="chapter" data-level="4.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>4.1</b> The Main Configuration: <code>config.yml</code></a>
+<ul>
+<li class="chapter" data-level="4.1.1" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-dont-need-to-be-modified"><i class="fa fa-check"></i><b>4.1.1</b> Settings Which Don’t Need To Be Modified</a></li>
+<li class="chapter" data-level="4.1.2" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-should-be-modified"><i class="fa fa-check"></i><b>4.1.2</b> Settings Which Should Be Modified</a></li>
+</ul></li>
+<li class="chapter" data-level="4.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colours.yml-visualisation-settings"><i class="fa fa-check"></i><b>4.2</b> <code>colours.yml</code>: Visualisation Settings</a></li>
+<li class="chapter" data-level="4.3" data-path="editing-yaml.html"><a href="editing-yaml.html#params.yml-additional-parameters"><i class="fa fa-check"></i><b>4.3</b> <code>params.yml</code>: Additional Parameters</a></li>
+<li class="chapter" data-level="4.4" data-path="editing-yaml.html"><a href="editing-yaml.html#rmarkdown.yml-html-settings"><i class="fa fa-check"></i><b>4.4</b> <code>rmarkdown.yml</code>: HTML Settings</a></li>
+</ul></li>
+<li class="chapter" data-level="" data-path="references.html"><a href="references.html"><i class="fa fa-check"></i>References</a></li>
+<li class="divider"></li>
+<li><a href="https://github.com/rstudio/bookdown" target="blank">Published with bookdown</a></li>
+
+</ul>
+
+      </nav>
+    </div>
+
+    <div class="book-body">
+      <div class="body-inner">
+        <div class="book-header" role="navigation">
+          <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (Under Development)</a>
+          </h1>
+        </div>
+
+        <div class="page-wrapper" tabindex="-1" role="main">
+          <div class="page-inner">
+
+            <section class="normal" id="section-">
+<div id="quick-start" class="section level1 hasAnchor" number="3">
+<h1><span class="header-section-number">Chapter 3</span> Quick Start Guide<a href="quick-start.html#quick-start" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div id="snakemake" class="section level2 hasAnchor" number="3.1">
+<h2><span class="header-section-number">3.1</span> Install Snakemake<a href="quick-start.html#snakemake" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>You will need a <code>snakemake</code> installation to begin.
+Please see <a href="https://snakemake.readthedocs.io/en/stable/getting_started/installation.html">here</a> for help setting this up.
+If you are running the pipeline on an HPC and are unsure, please consult with your HPC support team about setting up <code>snakemake</code> on your specific cluster.
+<code>Snakemake</code> itself is in widespread use globally, so they should be able to provide the support you need.</p>
+</div>
+<div id="quick-directories" class="section level2 hasAnchor" number="3.2">
+<h2><span class="header-section-number">3.2</span> Create the Directory Structure<a href="quick-start.html#quick-directories" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<ol style="list-style-type: decimal">
+<li>Create a new <code>github</code> repository on your account by going to <a href="https://github.com/steveped/GRAVI/generate">the github template repository</a></li>
+<li>Download your new repository to your local server or HPC using <code>git clone &lt;myrepository&gt;</code></li>
+<li>Place your bam files in the subdirectory <code>data/aligned</code> as described in section <a href="input-files.html#alignments">2.2</a>
+<ul>
+<li>These should be placed in separate directories for each target, such <code>data/bam/target1</code> and <code>data/bam/target2</code></li>
+</ul></li>
+<li>Edit <code>samples.tsv</code> in the <code>config</code> directory as described in section <a href="input-files.html#sample-descriptions">2.3</a></li>
+<li>Modify any parameters in <code>config/config.yml</code></li>
+</ol>
+</div>
+<div id="quick-run" class="section level2 hasAnchor" number="3.3">
+<h2><span class="header-section-number">3.3</span> Run the Pipeline<a href="quick-start.html#quick-run" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<div id="run-on-a-local-server" class="section level3 hasAnchor" number="3.3.1">
+<h3><span class="header-section-number">3.3.1</span> Run On A Local Server<a href="quick-start.html#run-on-a-local-server" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>To run using 16 cores without any queuing system (e.g. on a local machine), enter the following</p>
+<pre><code>snakemake -p --use-conda --notemp --keep-going --cores 16</code></pre>
+</div>
+<div id="run-on-an-hpc" class="section level3 hasAnchor" number="3.3.2">
+<h3><span class="header-section-number">3.3.2</span> Run On An HPC<a href="quick-start.html#run-on-an-hpc" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Please consult with your local support team for their advice running a <code>snakemake</code> workflow.
+In essence, the above command will need to be provided to your queuing system through the preferred strategy.</p>
+
+</div>
+</div>
+</div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+<a href="input-files.html" class="navigation navigation-prev " aria-label="Previous page"><i class="fa fa-angle-left"></i></a>
+<a href="editing-yaml.html" class="navigation navigation-next " aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+    </div>
+  </div>
+<script src="libs/gitbook-2.6.7/js/app.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/clipboard.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-search.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-sharing.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-fontsettings.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-bookdown.js"></script>
+<script src="libs/gitbook-2.6.7/js/jquery.highlight.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-clipboard.js"></script>
+<script>
+gitbook.require(["gitbook"], function(gitbook) {
+gitbook.start({
+"sharing": {
+"github": false,
+"facebook": true,
+"twitter": true,
+"linkedin": false,
+"weibo": false,
+"instapaper": false,
+"vk": false,
+"whatsapp": false,
+"all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
+},
+"fontsettings": {
+"theme": "white",
+"family": "sans",
+"size": 2
+},
+"edit": {
+"link": "https://github.com/steveped/GRAVI/edit/gh-pages/quickstart.Rmd",
+"text": "Edit"
+},
+"history": {
+"link": null,
+"text": null
+},
+"view": {
+"link": null,
+"text": null
+},
+"download": ["_main.pdf", "_main.epub"],
+"search": {
+"engine": "fuse",
+"options": null
+},
+"toc": {
+"collapse": "subsection"
+}
+});
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+</body>
+
+</html>

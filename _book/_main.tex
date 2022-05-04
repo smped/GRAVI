@@ -1,0 +1,533 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{book}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={GRAVI User Guide (Under Development)},
+  pdfauthor={Stephen Pederson},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{5}
+\usepackage{booktabs}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\usepackage[]{natbib}
+\bibliographystyle{plainnat}
+
+\title{GRAVI User Guide (Under Development)}
+\author{Stephen Pederson}
+\date{2022-05-04}
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{1}
+\tableofcontents
+}
+\hypertarget{introduction}{%
+\chapter{Introduction}\label{introduction}}
+
+This book is the primary documentation for running the GRAVI (Gene Regulatory Analysis using Variable Inputs) workflow.
+This workflow is managed using \texttt{snakemake} for running locally or on any HPC, and is designed to minimally take one ChIP target under at least two conditions.
+There is no theoretical upper limit to the number of ChIP targets which can be analysed, although the practicalities of interpretation will dictate this.
+
+In addition to \(\geq 1\) ChIP targets, \textbf{optional} input includes:
+
+\begin{itemize}
+\tightlist
+\item
+  Results from a single RNA-Seq experiment
+\item
+  Any type of genomic feature derived or obtained externally (\texttt{*gtf})
+\item
+  HiC Interactions (\texttt{*.bedpe})
+\item
+  Additional coverage tracks for visualisation, such as those produced by key histone marks (\texttt{*bigwig})
+\end{itemize}
+
+The GRAVI workflow itself will
+
+\begin{itemize}
+\tightlist
+\item
+  Annotate the genome using a custom, transcript-focussed approach
+\item
+  Identify peaks using \texttt{macs2\ callpeak}
+\item
+  Perform differential binding analysis for each ChIP target \& requested comparisons
+\item
+  Compare differential binding results across ChIP targets or samples (Pair-wise comparisons)
+\item
+  Perform enrichment analyses at all steps of the workflow
+\item
+  \emph{TO BE COMPLETED}: Perform motif analysis based on key binding patterns within and across ChIP targets
+\item
+  Add key output files to any local \texttt{git} repository
+\end{itemize}
+
+The primary output is a series of \texttt{html} pages generated from \texttt{rmarkdown} files, along with key figures and tables able to be shared amongst collaborators and incorporated directly into publications.
+
+\hypertarget{input-files}{%
+\chapter{Input Files and Directories}\label{input-files}}
+
+\hypertarget{directories}{%
+\section{Directory Structure}\label{directories}}
+
+The GRAVI workflow requires a set directory structure.
+If using the template repository, as advised, this will be mostly taken care of.
+The required directory structure is
+
+\begin{verbatim}
+project_home/
+ ├── analysis
+ ├── config
+ ├── data
+ ├── docs
+ ├── output
+ └── workflow
+\end{verbatim}
+
+\begin{itemize}
+\tightlist
+\item
+  Rmarkdown scripts will be added and executed from the \texttt{analysis} directory
+\item
+  Key configuration files are provided in the \texttt{config} directory
+\item
+  \emph{Your data} should be placed in the \texttt{data} directory as described below
+\item
+  The \texttt{html} output summarising all results will be produced in the \texttt{docs} directory
+\item
+  Additional output files will be placed in \texttt{output}
+\item
+  The workflow itself is run by all code supplied in the \texttt{workflow} directory
+\end{itemize}
+
+\hypertarget{alignments}{%
+\section{Alignments}\label{alignments}}
+
+The GRAVI workflow currently takes \texttt{bam} files as the primary input.
+Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.
+
+Files should be placed in the \texttt{data/aligned} directory as set in \texttt{config.yml}, although this can be changed if desired.
+Each ChIP target should be placed in a separate directory using the example layout as given below.
+As IgG input may be shared between ChIP targets, these can all be placed in the directory \texttt{data/Input} and this is hard-wired into the workflow.
+
+\begin{verbatim}
+project_home/
+ └── data
+      └── aligned 
+           ├── TF1 
+           │    ├── control_rep1.bam
+           │    ├── control_rep2.bam
+           │    ├── control_rep3.bam
+           │    ├── treat_rep1.bam
+           │    ├── treat_rep2.bam
+           │    └── treat_rep3.bam
+           ├── TF2 
+           │    ├── control_rep1.bam
+           │    ├── control_rep2.bam
+           │    ├── control_rep3.bam
+           │    ├── treat_rep1.bam
+           │    ├── treat_rep2.bam
+           │    └── treat_rep3.bam           
+           └── Input
+                └── pooled_input.bam 
+\end{verbatim}
+
+\hypertarget{sample-descriptions}{%
+\section{Sample Descriptions}\label{sample-descriptions}}
+
+The file \texttt{samples.tsv} defines the set of files which the workflow will be applied to.
+Any files placed in the \texttt{data/aligned} directory, but not specified in this file will be ignored.
+The desired layout should be a \emph{tab-delimited file} (i.e.~tsv).
+These can be generated using Excel, Notepad++, R, Visual Studio, or any other software you are comfortable with.
+A brief example would follow the layout
+
+\begin{longtable}[]{@{}
+  >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2083}}
+  >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.1250}}
+  >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.1667}}
+  >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.1667}}
+  >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2083}}@{}}
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+sample
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+target
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+treat
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+replicate
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+input
+\end{minipage} \\
+\midrule
+\endhead
+control\_rep1 & TF1 & Control & 1 & pooled\_input \\
+control\_rep2 & TF1 & Control & 2 & pooled\_input \\
+control\_rep3 & TF1 & Control & 3 & pooled\_input \\
+treat\_rep1 & TF1 & Treatment & 1 & pooled\_input \\
+treat\_rep2 & TF1 & Treatment & 2 & pooled\_input \\
+treat\_rep3 & TF1 & Treatment & 3 & pooled\_input \\
+\bottomrule
+\end{longtable}
+
+\hypertarget{required-columns}{%
+\subsection{Required columns}\label{required-columns}}
+
+This file must contain all four of the columns \texttt{sample}, \texttt{target}, \texttt{treat}, \texttt{input}, in any order.
+If supplied, optional columns such as \texttt{replicate}, \texttt{passage} etc can be referenced in the workflow.
+As well as defining all required steps for the workflow, labels for plots will be generated from combinations of these columns.
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{sample}: This \textbf{must} be identical to the filename, but without the \texttt{bam} extension.
+\item
+  \texttt{target}: This \textbf{must} be the directory name within \texttt{data/aligned} which contains the sample
+\item
+  \texttt{treat}: This is used to define all comparisons
+\item
+  \texttt{input}: All files must correspond to a file in \texttt{data/aligned/Input} but without the \texttt{bam} suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.
+\end{itemize}
+
+\hypertarget{optional-columns}{%
+\subsection{Optional Columns}\label{optional-columns}}
+
+Any additional columns can be used to denote batches, or passages if running a nested/paired model.
+These column names will be automatically detected at the appropriate steps of the workflow and incorporated into figures and tables.
+Common column names may be \texttt{replicate} or \texttt{passage} (for cell lines)
+
+\hypertarget{additional-files}{%
+\section{Additional Files}\label{additional-files}}
+
+Additional, optional files can also be supplied and is it customary to place these in \texttt{data/external} with paths (relative to \texttt{project\_home}) added to \texttt{config.yml}.
+Names can be any informative name chosen by the user.
+
+\begin{verbatim}
+project_home/
+ └── data
+      ├── aligned 
+      │    ├── TF1 
+      │    ├── TF2 
+      │    └── Input
+      └── external
+           ├── rnaseq_topTable.tsv
+           ├── external_features.gtf
+           ├── hic_interactions.bedpe
+           ├── additional_coverage_control.bw
+           └── additional_coverage_treat.bw
+\end{verbatim}
+
+\hypertarget{rna-seq}{%
+\subsection{RNA-Seq}\label{rna-seq}}
+
+Files provided with differential expression analysis results from a relevant RNA-Seq experiment should follow the layout as produced by \texttt{topTable()} from the \texttt{limma} package\citep{limma}.
+Gene IDs should match those in the Gencode GTF (Ensembl IDs) and should be contained in a column called \texttt{gene\_id}.
+Additional expected columns will be \texttt{logFC} and \texttt{FDR} or similar names which could be reasonably found by \texttt{regex} matching within the workflow.
+
+\hypertarget{external-features}{%
+\subsection{External Features}\label{external-features}}
+
+These must be provided as a GTF which can be prepared by any method.
+The feature types should be defined in a field named \texttt{feature}.
+Non-overlapping features are optimal but not essential, and this is left to the users discretion.
+For example, if providing features such as enhancers and super-enhancers\citep{rose}, it may be more sensible to provide these as mutually exclusive groups.
+
+\hypertarget{hic-interactions}{%
+\subsection{HiC Interactions}\label{hic-interactions}}
+
+Significant interactions can be sourced using any methodology, however these must be provided in \texttt{bedpe} format.
+
+\hypertarget{external-coverage}{%
+\subsection{External Coverage}\label{external-coverage}}
+
+Additional coverage files should be provided in \texttt{bigwig} format.
+
+\hypertarget{quick-start}{%
+\chapter{Quick Start Guide}\label{quick-start}}
+
+\hypertarget{snakemake}{%
+\section{Install Snakemake}\label{snakemake}}
+
+You will need a \texttt{snakemake} installation to begin.
+Please see \href{https://snakemake.readthedocs.io/en/stable/getting_started/installation.html}{here} for help setting this up.
+If you are running the pipeline on an HPC and are unsure, please consult with your HPC support team about setting up \texttt{snakemake} on your specific cluster.
+\texttt{Snakemake} itself is in widespread use globally, so they should be able to provide the support you need.
+
+\hypertarget{quick-directories}{%
+\section{Create the Directory Structure}\label{quick-directories}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Create a new \texttt{github} repository on your account by going to \href{https://github.com/steveped/GRAVI/generate}{the github template repository}
+\item
+  Download your new repository to your local server or HPC using \texttt{git\ clone\ \textless{}myrepository\textgreater{}}
+\item
+  Place your bam files in the subdirectory \texttt{data/aligned} as described in section \ref{alignments}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    These should be placed in separate directories for each target, such \texttt{data/bam/target1} and \texttt{data/bam/target2}
+  \end{itemize}
+\item
+  Edit \texttt{samples.tsv} in the \texttt{config} directory as described in section \ref{sample-descriptions}
+\item
+  Modify any parameters in \texttt{config/config.yml}
+\end{enumerate}
+
+\hypertarget{quick-run}{%
+\section{Run the Pipeline}\label{quick-run}}
+
+\hypertarget{run-on-a-local-server}{%
+\subsection{Run On A Local Server}\label{run-on-a-local-server}}
+
+To run using 16 cores without any queuing system (e.g.~on a local machine), enter the following
+
+\begin{verbatim}
+snakemake -p --use-conda --notemp --keep-going --cores 16
+\end{verbatim}
+
+\hypertarget{run-on-an-hpc}{%
+\subsection{Run On An HPC}\label{run-on-an-hpc}}
+
+Please consult with your local support team for their advice running a \texttt{snakemake} workflow.
+In essence, the above command will need to be provided to your queuing system through the preferred strategy.
+
+\hypertarget{editing-yaml}{%
+\chapter{Editing The YAML Configuration Files}\label{editing-yaml}}
+
+All YAML files which ruin the workflow are located in the \texttt{project\_home/config} directory.
+The standard YAML structure is used in all files with the primary objective being passing workflow parameters to the various steps of the workflow
+
+\hypertarget{config-yml}{%
+\section{\texorpdfstring{The Main Configuration: \texttt{config.yml}}{The Main Configuration: config.yml}}\label{config-yml}}
+
+This file sets many of the primary parameters and is the file which \emph{will need editing for any new dataset.}
+Many settings should remain unchanged as changing default locations of files may lead to unexpected instability in the workflow, whilst other setting \textbf{should} be changed, such as those which determine which comparisons to perform.
+
+An example layout of \texttt{config.yml} is:
+
+\begin{verbatim}
+samples:
+  file: "config/samples.tsv"
+
+paths:
+  bam: "data/aligned"
+  bigwig: "data/bigwig"
+  macs2: "data/macs2"
+
+genome:
+  build: "GRCh37"
+  gencode: "33"
+
+external:
+  rnaseq: "data/external/results.tsv"
+  features: "data/external/h3k27ac_features.gtf"
+  hic: "data/external/encode_hic.bedpe"
+  coverage:
+    H3K27Ac:
+      control: "data/external/H3K27Ac_control.bw"
+      treat: "data/external/H3K27Ac_treat.bw"
+
+comparisons:
+  fc: 1.2
+  fdr: 0.05
+  paired: false
+  filter_q: 0.6
+  contrasts:
+    - ["control", "treat"]
+  ihw: "regions"
+
+peaks:
+  macs2:
+    gsize: "hs"
+    fdr: 0.05
+    keep_duplicates: "all"
+  qc:
+    min_prop_peaks: 0.1
+    min_prop_reps: 0.3
+\end{verbatim}
+
+\hypertarget{settings-which-dont-need-to-be-modified}{%
+\subsection{Settings Which Don't Need To Be Modified}\label{settings-which-dont-need-to-be-modified}}
+
+In general, the paths to key files don't need to be changed and default configurations are well tested.
+Whilst varying these has been intermittently attempted successfully, unexpected instability may occur and as such, is discouraged.
+
+\texttt{samples:} (Default: ``config/samples.tsv'')
+
+By default, the file which contains all sample-level information is defined as \texttt{config/samples.tsv}.
+In theory, this can be changed but this may adversely impact the pipeline.
+
+\texttt{paths:}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{bam:} (Default: ``data/aligned'') Alignments should be placed in \texttt{data/aligned} as advised in section \ref{alignments}, although this can be changed to \texttt{data/bam} or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability
+\item
+  \texttt{macs2:} (Default: ``data/macs2'') Output from \texttt{macs2\ callpeak} will be placed in this directory, mirroring the input structure from \texttt{data/aligned} where each ChIP target (e.g.~TF1, TF2) will have results written to separate directories.
+\item
+  \texttt{bigwig:} (Default: ``data/bigwig'') After running \texttt{macs2\ callpeak}, \texttt{bedGraph} files will be converted to the more space efficient \texttt{bigwig} files. The directory structure from both \texttt{data/aligned} and \texttt{data/macs2} will again be mirrored such that each ChIP target has all samples written to the same directory
+\end{itemize}
+
+\hypertarget{settings-which-should-be-modified}{%
+\subsection{Settings Which Should Be Modified}\label{settings-which-should-be-modified}}
+
+\texttt{genome:}
+
+Specify the genome build used for alignments and for gene annotations.
+Build must match that used exactly for performing alignments.
+The gtf corresponding to the specified \href{https://www.gencodegenes.org/}{Gencode release} will be downloaded as part of the workflow
+
+\texttt{external:}
+
+Provide paths to all optional data files here.
+Only files provided will be included in the workflow.
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{rnaseq} should be the results as output by \texttt{limma::topTable()} or similar. Gene IDs should match those provided in the Gencode GTF (e.g.~Ensembl IDs) and these should be in a column names \texttt{gene\_id}. Columns such as \texttt{logFC} and \texttt{FDR} will be searched for during the workflow using regular expressions to find the best match. Can be in \texttt{csv} or \texttt{tsv} format. Excel-specific (\texttt{xls}, \texttt{xlsx}) formats are not supported.
+\item
+  \texttt{features} can be determined by any method, with common choices being relevant histone marks, or promoters, enhancers and super-enhancers determined by H3K27ac marks. Features should be non-overlapping with the field \texttt{feature} defining the different feature types. Must be provided in GTF format.
+\item
+  \texttt{hic} HiC interactions must be provided as a \texttt{bedpe} file
+\item
+  \texttt{coverage} Tracks provided in this argument will be added to all genomic plots showing binding peaks or differential binding. Multiple files provided within each YAML list element will be overlaid as a single track. There is no upper limit to the number of tracks, however more tracks generally detract from an informative figure.
+\end{itemize}
+
+\texttt{comparisons:}
+
+These settings determine how the differential binding analysis is performed.
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{fc} (Default: 1.2) The setting of 1.2 indicates a 20\% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to \texttt{limma::treat()} \citep{treat} in all differential binding analyses.
+\item
+  \texttt{fdr} (Default: 0.05) Windows with significance below this threshold are considered to provide supporting evidence of differential binding.
+\item
+  \texttt{paired} (Default: \texttt{false}) If set to \texttt{true} the values in the optional column (e.g.~replicate, passage etc.) are used to perform a paired analysis as described in the \texttt{limma} manual
+\item
+  \texttt{filter\_q} (Default: 0.6) Passed to \texttt{extraChIPs::dualFilter()}. When filtering (i.e.~discarding) genomic sliding windows which are unlikely to contain true binding signal, determine thresholds which will retain this proportion of windows which overlap a peak identified by \texttt{macs2\ callpeak}.
+\item
+  \texttt{contrasts}: Define all contrasts for differential binding. Any ChIP target containing both treatment groups will be included for differential binding. Values must match those in the \texttt{treat} column of \texttt{samples.tsv}. Each differential binding analysis will be performed using the limma-trend method in the context of A vs B, such that complex models are not supported.
+\item
+  \texttt{ihw} (Default: ``regions'') Options used to stratify p-values for Independent Hypothesis Weighting\citep{ihw} of differential binding results. Can take values \texttt{"regions"}, \texttt{"features"}, \texttt{"targets"} or \texttt{"none"}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \texttt{"regions"} P-values will be stratified by annotated genomic regions as determined in the initial steps of the workflow
+  \item
+    \texttt{"features"} P-values will be stratified by provided external features
+  \item
+    \texttt{"targets"} P-values will be stratified by the presence of a \texttt{macs2} consensus peak using all other ChIP targets in combination
+  \item
+    \texttt{"none"} No Independent Hypothesis Weighting will be performed on the results from differential binding
+  \end{itemize}
+\end{itemize}
+
+\texttt{peaks}
+
+\texttt{macs2} settings are passed to \texttt{macs2\ callpeak}. Only the arguments \texttt{gsize}, \texttt{fdr} and \texttt{keep\_duplicates} are accepted.
+Please see the \href{https://macs3-project.github.io/MACS/}{\texttt{macs2} manual} for more detailed explanations.
+
+\texttt{qc} parameters are used for determining if samples are of a high enough quality, and how to determine consensus/oracle peaks for each target and treatment group.
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{min\_prop\_peaks:} (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the ``best'' sample within the relevant treatment group, i.e.~the sample with the most number of peaks identified by \texttt{macs2\ callpeak}. This is an inclusive threshold which will only discard clearly poor samples, which themselves are more likely to occur in tissue/organoid than in cell-line derived data.
+\item
+  \texttt{min\_prop\_reps} (Default: 0.3) When forming \textbf{oracle} peaks within each \emph{target and treatment group}, peaks must be represented in at least this proportion of samples. This defaults to 0.3 which would equate to 1 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.
+\end{itemize}
+
+\hypertarget{colours.yml-visualisation-settings}{%
+\section{\texorpdfstring{\texttt{colours.yml}: Visualisation Settings}{colours.yml: Visualisation Settings}}\label{colours.yml-visualisation-settings}}
+
+Defines all colour schemes for plots.
+Required YAML list elements are \texttt{qc}, \texttt{regions}, \texttt{direction} and \texttt{treat}.
+Optional colours can be provided for \texttt{features}.
+
+\hypertarget{params.yml-additional-parameters}{%
+\section{\texorpdfstring{\texttt{params.yml}: Additional Parameters}{params.yml: Additional Parameters}}\label{params.yml-additional-parameters}}
+
+Default settings for annotations and enrichment testing
+
+\hypertarget{rmarkdown.yml-html-settings}{%
+\section{\texorpdfstring{\texttt{rmarkdown.yml}: HTML Settings}{rmarkdown.yml: HTML Settings}}\label{rmarkdown.yml-html-settings}}
+
+Default settings for rmarkdown documents
+
+  \bibliography{book.bib,packages.bib}
+
+\end{document}

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+<head>
+
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Chapter 2 Input Files and Directories | GRAVI User Guide (Under Development)</title>
+  <meta name="description" content="This is the main documentation for the GRAVI workflow" />
+  <meta name="generator" content="bookdown 0.26 and GitBook 2.6.7" />
+
+  <meta property="og:title" content="Chapter 2 Input Files and Directories | GRAVI User Guide (Under Development)" />
+  <meta property="og:type" content="book" />
+  
+  <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
+  <meta name="github-repo" content="steveped/GRAVI" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Chapter 2 Input Files and Directories | GRAVI User Guide (Under Development)" />
+  
+  <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
+  
+
+<meta name="author" content="Stephen Pederson" />
+
+
+<meta name="date" content="2022-05-04" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  
+  
+<link rel="prev" href="index.html"/>
+<link rel="next" href="quick-start.html"/>
+<script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
+<link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-table.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-bookdown.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-highlight.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-search.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-fontsettings.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-clipboard.css" rel="stylesheet" />
+
+
+
+
+
+
+
+
+<link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
+<link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
+<script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+
+
+
+<style type="text/css">
+/* Used with Pandoc 2.11+ new --citeproc when CSL is used */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+<link rel="stylesheet" href="style.css" type="text/css" />
+</head>
+
+<body>
+
+
+
+  <div class="book without-animation with-summary font-size-2 font-family-1" data-basepath=".">
+
+    <div class="book-summary">
+      <nav role="navigation">
+
+<ul class="summary">
+<li><a href="./">GRAVI User Guide</a></li>
+
+<li class="divider"></li>
+<li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> Introduction</a></li>
+<li class="chapter" data-level="2" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>2</b> Input Files and Directories</a>
+<ul>
+<li class="chapter" data-level="2.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>2.1</b> Directory Structure</a></li>
+<li class="chapter" data-level="2.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>2.2</b> Alignments</a></li>
+<li class="chapter" data-level="2.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>2.3</b> Sample Descriptions</a>
+<ul>
+<li class="chapter" data-level="2.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>2.3.1</b> Required columns</a></li>
+<li class="chapter" data-level="2.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>2.3.2</b> Optional Columns</a></li>
+</ul></li>
+<li class="chapter" data-level="2.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>2.4</b> Additional Files</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>2.4.1</b> RNA-Seq</a></li>
+<li class="chapter" data-level="2.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>2.4.2</b> External Features</a></li>
+<li class="chapter" data-level="2.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>2.4.3</b> HiC Interactions</a></li>
+<li class="chapter" data-level="2.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>2.4.4</b> External Coverage</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
+<ul>
+<li class="chapter" data-level="3.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>3.1</b> Install Snakemake</a></li>
+<li class="chapter" data-level="3.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>3.2</b> Create the Directory Structure</a></li>
+<li class="chapter" data-level="3.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>3.3</b> Run the Pipeline</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
+<li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="4" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>4</b> Editing The YAML Configuration Files</a>
+<ul>
+<li class="chapter" data-level="4.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>4.1</b> The Main Configuration: <code>config.yml</code></a>
+<ul>
+<li class="chapter" data-level="4.1.1" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-dont-need-to-be-modified"><i class="fa fa-check"></i><b>4.1.1</b> Settings Which Don’t Need To Be Modified</a></li>
+<li class="chapter" data-level="4.1.2" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-should-be-modified"><i class="fa fa-check"></i><b>4.1.2</b> Settings Which Should Be Modified</a></li>
+</ul></li>
+<li class="chapter" data-level="4.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colours.yml-visualisation-settings"><i class="fa fa-check"></i><b>4.2</b> <code>colours.yml</code>: Visualisation Settings</a></li>
+<li class="chapter" data-level="4.3" data-path="editing-yaml.html"><a href="editing-yaml.html#params.yml-additional-parameters"><i class="fa fa-check"></i><b>4.3</b> <code>params.yml</code>: Additional Parameters</a></li>
+<li class="chapter" data-level="4.4" data-path="editing-yaml.html"><a href="editing-yaml.html#rmarkdown.yml-html-settings"><i class="fa fa-check"></i><b>4.4</b> <code>rmarkdown.yml</code>: HTML Settings</a></li>
+</ul></li>
+<li class="chapter" data-level="" data-path="references.html"><a href="references.html"><i class="fa fa-check"></i>References</a></li>
+<li class="divider"></li>
+<li><a href="https://github.com/rstudio/bookdown" target="blank">Published with bookdown</a></li>
+
+</ul>
+
+      </nav>
+    </div>
+
+    <div class="book-body">
+      <div class="body-inner">
+        <div class="book-header" role="navigation">
+          <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (Under Development)</a>
+          </h1>
+        </div>
+
+        <div class="page-wrapper" tabindex="-1" role="main">
+          <div class="page-inner">
+
+            <section class="normal" id="section-">
+<div id="input-files" class="section level1 hasAnchor" number="2">
+<h1><span class="header-section-number">Chapter 2</span> Input Files and Directories<a href="input-files.html#input-files" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div id="directories" class="section level2 hasAnchor" number="2.1">
+<h2><span class="header-section-number">2.1</span> Directory Structure<a href="input-files.html#directories" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>The GRAVI workflow requires a set directory structure.
+If using the template repository, as advised, this will be mostly taken care of.
+The required directory structure is</p>
+<pre><code>project_home/
+ ├── analysis
+ ├── config
+ ├── data
+ ├── docs
+ ├── output
+ └── workflow</code></pre>
+<ul>
+<li>Rmarkdown scripts will be added and executed from the <code>analysis</code> directory</li>
+<li>Key configuration files are provided in the <code>config</code> directory</li>
+<li><em>Your data</em> should be placed in the <code>data</code> directory as described below</li>
+<li>The <code>html</code> output summarising all results will be produced in the <code>docs</code> directory</li>
+<li>Additional output files will be placed in <code>output</code></li>
+<li>The workflow itself is run by all code supplied in the <code>workflow</code> directory</li>
+</ul>
+</div>
+<div id="alignments" class="section level2 hasAnchor" number="2.2">
+<h2><span class="header-section-number">2.2</span> Alignments<a href="input-files.html#alignments" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>The GRAVI workflow currently takes <code>bam</code> files as the primary input.
+Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.</p>
+<p>Files should be placed in the <code>data/aligned</code> directory as set in <code>config.yml</code>, although this can be changed if desired.
+Each ChIP target should be placed in a separate directory using the example layout as given below.
+As IgG input may be shared between ChIP targets, these can all be placed in the directory <code>data/Input</code> and this is hard-wired into the workflow.</p>
+<pre><code>project_home/
+ └── data
+      └── aligned 
+           ├── TF1 
+           │    ├── control_rep1.bam
+           │    ├── control_rep2.bam
+           │    ├── control_rep3.bam
+           │    ├── treat_rep1.bam
+           │    ├── treat_rep2.bam
+           │    └── treat_rep3.bam
+           ├── TF2 
+           │    ├── control_rep1.bam
+           │    ├── control_rep2.bam
+           │    ├── control_rep3.bam
+           │    ├── treat_rep1.bam
+           │    ├── treat_rep2.bam
+           │    └── treat_rep3.bam           
+           └── Input
+                └── pooled_input.bam </code></pre>
+</div>
+<div id="sample-descriptions" class="section level2 hasAnchor" number="2.3">
+<h2><span class="header-section-number">2.3</span> Sample Descriptions<a href="input-files.html#sample-descriptions" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>The file <code>samples.tsv</code> defines the set of files which the workflow will be applied to.
+Any files placed in the <code>data/aligned</code> directory, but not specified in this file will be ignored.
+The desired layout should be a <em>tab-delimited file</em> (i.e. tsv).
+These can be generated using Excel, Notepad++, R, Visual Studio, or any other software you are comfortable with.
+A brief example would follow the layout</p>
+<table style="width:88%;">
+<colgroup>
+<col width="20%" />
+<col width="12%" />
+<col width="16%" />
+<col width="16%" />
+<col width="20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="center">sample</th>
+<th align="center">target</th>
+<th align="center">treat</th>
+<th align="center">replicate</th>
+<th align="center">input</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">control_rep1</td>
+<td align="center">TF1</td>
+<td align="center">Control</td>
+<td align="center">1</td>
+<td align="center">pooled_input</td>
+</tr>
+<tr class="even">
+<td align="center">control_rep2</td>
+<td align="center">TF1</td>
+<td align="center">Control</td>
+<td align="center">2</td>
+<td align="center">pooled_input</td>
+</tr>
+<tr class="odd">
+<td align="center">control_rep3</td>
+<td align="center">TF1</td>
+<td align="center">Control</td>
+<td align="center">3</td>
+<td align="center">pooled_input</td>
+</tr>
+<tr class="even">
+<td align="center">treat_rep1</td>
+<td align="center">TF1</td>
+<td align="center">Treatment</td>
+<td align="center">1</td>
+<td align="center">pooled_input</td>
+</tr>
+<tr class="odd">
+<td align="center">treat_rep2</td>
+<td align="center">TF1</td>
+<td align="center">Treatment</td>
+<td align="center">2</td>
+<td align="center">pooled_input</td>
+</tr>
+<tr class="even">
+<td align="center">treat_rep3</td>
+<td align="center">TF1</td>
+<td align="center">Treatment</td>
+<td align="center">3</td>
+<td align="center">pooled_input</td>
+</tr>
+</tbody>
+</table>
+<div id="required-columns" class="section level3 hasAnchor" number="2.3.1">
+<h3><span class="header-section-number">2.3.1</span> Required columns<a href="input-files.html#required-columns" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>This file must contain all four of the columns <code>sample</code>, <code>target</code>, <code>treat</code>, <code>input</code>, in any order.
+If supplied, optional columns such as <code>replicate</code>, <code>passage</code> etc can be referenced in the workflow.
+As well as defining all required steps for the workflow, labels for plots will be generated from combinations of these columns.</p>
+<ul>
+<li><code>sample</code>: This <strong>must</strong> be identical to the filename, but without the <code>bam</code> extension.</li>
+<li><code>target</code>: This <strong>must</strong> be the directory name within <code>data/aligned</code> which contains the sample</li>
+<li><code>treat</code>: This is used to define all comparisons</li>
+<li><code>input</code>: All files must correspond to a file in <code>data/aligned/Input</code> but without the <code>bam</code> suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.</li>
+</ul>
+</div>
+<div id="optional-columns" class="section level3 hasAnchor" number="2.3.2">
+<h3><span class="header-section-number">2.3.2</span> Optional Columns<a href="input-files.html#optional-columns" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Any additional columns can be used to denote batches, or passages if running a nested/paired model.
+These column names will be automatically detected at the appropriate steps of the workflow and incorporated into figures and tables.
+Common column names may be <code>replicate</code> or <code>passage</code> (for cell lines)</p>
+</div>
+</div>
+<div id="additional-files" class="section level2 hasAnchor" number="2.4">
+<h2><span class="header-section-number">2.4</span> Additional Files<a href="input-files.html#additional-files" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>Additional, optional files can also be supplied and is it customary to place these in <code>data/external</code> with paths (relative to <code>project_home</code>) added to <code>config.yml</code>.
+Names can be any informative name chosen by the user.</p>
+<pre><code>project_home/
+ └── data
+      ├── aligned 
+      │    ├── TF1 
+      │    ├── TF2 
+      │    └── Input
+      └── external
+           ├── rnaseq_topTable.tsv
+           ├── external_features.gtf
+           ├── hic_interactions.bedpe
+           ├── additional_coverage_control.bw
+           └── additional_coverage_treat.bw</code></pre>
+<div id="rna-seq" class="section level3 hasAnchor" number="2.4.1">
+<h3><span class="header-section-number">2.4.1</span> RNA-Seq<a href="input-files.html#rna-seq" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Files provided with differential expression analysis results from a relevant RNA-Seq experiment should follow the layout as produced by <code>topTable()</code> from the <code>limma</code> package<span class="citation">(<a href="#ref-limma" role="doc-biblioref">Ritchie et al. 2015</a>)</span>.
+Gene IDs should match those in the Gencode GTF (Ensembl IDs) and should be contained in a column called <code>gene_id</code>.
+Additional expected columns will be <code>logFC</code> and <code>FDR</code> or similar names which could be reasonably found by <code>regex</code> matching within the workflow.</p>
+</div>
+<div id="external-features" class="section level3 hasAnchor" number="2.4.2">
+<h3><span class="header-section-number">2.4.2</span> External Features<a href="input-files.html#external-features" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>These must be provided as a GTF which can be prepared by any method.
+The feature types should be defined in a field named <code>feature</code>.
+Non-overlapping features are optimal but not essential, and this is left to the users discretion.
+For example, if providing features such as enhancers and super-enhancers<span class="citation">(<a href="#ref-rose" role="doc-biblioref">Whyte et al. 2013</a>)</span>, it may be more sensible to provide these as mutually exclusive groups.</p>
+</div>
+<div id="hic-interactions" class="section level3 hasAnchor" number="2.4.3">
+<h3><span class="header-section-number">2.4.3</span> HiC Interactions<a href="input-files.html#hic-interactions" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Significant interactions can be sourced using any methodology, however these must be provided in <code>bedpe</code> format.</p>
+</div>
+<div id="external-coverage" class="section level3 hasAnchor" number="2.4.4">
+<h3><span class="header-section-number">2.4.4</span> External Coverage<a href="input-files.html#external-coverage" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Additional coverage files should be provided in <code>bigwig</code> format.</p>
+
+</div>
+</div>
+</div>
+<h3>References<a href="references.html#references" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-limma" class="csl-entry">
+Ritchie, Matthew E, Belinda Phipson, Di Wu, Yifang Hu, Charity W Law, Wei Shi, and Gordon K Smyth. 2015. <span>“<span class="nocase">limma</span> Powers Differential Expression Analyses for <span>RNA</span>-Sequencing and Microarray Studies.”</span> <em>Nucleic Acids Research</em> 43 (7): e47. <a href="https://doi.org/10.1093/nar/gkv007">https://doi.org/10.1093/nar/gkv007</a>.
+</div>
+<div id="ref-rose" class="csl-entry">
+Whyte, W. A., D. A. Orlando, D. Hnisz, B. J. Abraham, C. Y. Lin, M. H. Kagey, P. B. Rahl, T. I. Lee, and R. A. Young. 2013. <span>“<span class="nocase"><span>M</span>aster transcription factors and mediator establish super-enhancers at key cell identity genes</span>.”</span> <em>Cell</em> 153 (2): 307–19.
+</div>
+</div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+<a href="index.html" class="navigation navigation-prev " aria-label="Previous page"><i class="fa fa-angle-left"></i></a>
+<a href="quick-start.html" class="navigation navigation-next " aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+    </div>
+  </div>
+<script src="libs/gitbook-2.6.7/js/app.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/clipboard.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-search.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-sharing.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-fontsettings.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-bookdown.js"></script>
+<script src="libs/gitbook-2.6.7/js/jquery.highlight.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-clipboard.js"></script>
+<script>
+gitbook.require(["gitbook"], function(gitbook) {
+gitbook.start({
+"sharing": {
+"github": false,
+"facebook": true,
+"twitter": true,
+"linkedin": false,
+"weibo": false,
+"instapaper": false,
+"vk": false,
+"whatsapp": false,
+"all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
+},
+"fontsettings": {
+"theme": "white",
+"family": "sans",
+"size": 2
+},
+"edit": {
+"link": "https://github.com/steveped/GRAVI/edit/gh-pages/input_files.Rmd",
+"text": "Edit"
+},
+"history": {
+"link": null,
+"text": null
+},
+"view": {
+"link": null,
+"text": null
+},
+"download": ["_main.pdf", "_main.epub"],
+"search": {
+"engine": "fuse",
+"options": null
+},
+"toc": {
+"collapse": "subsection"
+}
+});
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+</body>
+
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+<head>
+
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Chapter 4 Editing The YAML Configuration Files | GRAVI User Guide (Under Development)</title>
+  <meta name="description" content="This is the main documentation for the GRAVI workflow" />
+  <meta name="generator" content="bookdown 0.26 and GitBook 2.6.7" />
+
+  <meta property="og:title" content="Chapter 4 Editing The YAML Configuration Files | GRAVI User Guide (Under Development)" />
+  <meta property="og:type" content="book" />
+  
+  <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
+  <meta name="github-repo" content="steveped/GRAVI" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Chapter 4 Editing The YAML Configuration Files | GRAVI User Guide (Under Development)" />
+  
+  <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
+  
+
+<meta name="author" content="Stephen Pederson" />
+
+
+<meta name="date" content="2022-05-04" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  
+  
+<link rel="prev" href="quick-start.html"/>
+<link rel="next" href="references.html"/>
+<script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
+<link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-table.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-bookdown.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-highlight.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-search.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-fontsettings.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-clipboard.css" rel="stylesheet" />
+
+
+
+
+
+
+
+
+<link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
+<link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
+<script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+
+
+
+<style type="text/css">
+/* Used with Pandoc 2.11+ new --citeproc when CSL is used */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+<link rel="stylesheet" href="style.css" type="text/css" />
+</head>
+
+<body>
+
+
+
+  <div class="book without-animation with-summary font-size-2 font-family-1" data-basepath=".">
+
+    <div class="book-summary">
+      <nav role="navigation">
+
+<ul class="summary">
+<li><a href="./">GRAVI User Guide</a></li>
+
+<li class="divider"></li>
+<li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> Introduction</a></li>
+<li class="chapter" data-level="2" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>2</b> Input Files and Directories</a>
+<ul>
+<li class="chapter" data-level="2.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>2.1</b> Directory Structure</a></li>
+<li class="chapter" data-level="2.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>2.2</b> Alignments</a></li>
+<li class="chapter" data-level="2.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>2.3</b> Sample Descriptions</a>
+<ul>
+<li class="chapter" data-level="2.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>2.3.1</b> Required columns</a></li>
+<li class="chapter" data-level="2.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>2.3.2</b> Optional Columns</a></li>
+</ul></li>
+<li class="chapter" data-level="2.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>2.4</b> Additional Files</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>2.4.1</b> RNA-Seq</a></li>
+<li class="chapter" data-level="2.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>2.4.2</b> External Features</a></li>
+<li class="chapter" data-level="2.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>2.4.3</b> HiC Interactions</a></li>
+<li class="chapter" data-level="2.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>2.4.4</b> External Coverage</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
+<ul>
+<li class="chapter" data-level="3.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>3.1</b> Install Snakemake</a></li>
+<li class="chapter" data-level="3.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>3.2</b> Create the Directory Structure</a></li>
+<li class="chapter" data-level="3.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>3.3</b> Run the Pipeline</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
+<li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="4" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>4</b> Editing The YAML Configuration Files</a>
+<ul>
+<li class="chapter" data-level="4.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>4.1</b> The Main Configuration: <code>config.yml</code></a>
+<ul>
+<li class="chapter" data-level="4.1.1" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-dont-need-to-be-modified"><i class="fa fa-check"></i><b>4.1.1</b> Settings Which Don’t Need To Be Modified</a></li>
+<li class="chapter" data-level="4.1.2" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-should-be-modified"><i class="fa fa-check"></i><b>4.1.2</b> Settings Which Should Be Modified</a></li>
+</ul></li>
+<li class="chapter" data-level="4.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colours.yml-visualisation-settings"><i class="fa fa-check"></i><b>4.2</b> <code>colours.yml</code>: Visualisation Settings</a></li>
+<li class="chapter" data-level="4.3" data-path="editing-yaml.html"><a href="editing-yaml.html#params.yml-additional-parameters"><i class="fa fa-check"></i><b>4.3</b> <code>params.yml</code>: Additional Parameters</a></li>
+<li class="chapter" data-level="4.4" data-path="editing-yaml.html"><a href="editing-yaml.html#rmarkdown.yml-html-settings"><i class="fa fa-check"></i><b>4.4</b> <code>rmarkdown.yml</code>: HTML Settings</a></li>
+</ul></li>
+<li class="chapter" data-level="" data-path="references.html"><a href="references.html"><i class="fa fa-check"></i>References</a></li>
+<li class="divider"></li>
+<li><a href="https://github.com/rstudio/bookdown" target="blank">Published with bookdown</a></li>
+
+</ul>
+
+      </nav>
+    </div>
+
+    <div class="book-body">
+      <div class="body-inner">
+        <div class="book-header" role="navigation">
+          <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (Under Development)</a>
+          </h1>
+        </div>
+
+        <div class="page-wrapper" tabindex="-1" role="main">
+          <div class="page-inner">
+
+            <section class="normal" id="section-">
+<div id="editing-yaml" class="section level1 hasAnchor" number="4">
+<h1><span class="header-section-number">Chapter 4</span> Editing The YAML Configuration Files<a href="editing-yaml.html#editing-yaml" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<p>All YAML files which ruin the workflow are located in the <code>project_home/config</code> directory.
+The standard YAML structure is used in all files with the primary objective being passing workflow parameters to the various steps of the workflow</p>
+<div id="config-yml" class="section level2 hasAnchor" number="4.1">
+<h2><span class="header-section-number">4.1</span> The Main Configuration: <code>config.yml</code><a href="editing-yaml.html#config-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>This file sets many of the primary parameters and is the file which <em>will need editing for any new dataset.</em>
+Many settings should remain unchanged as changing default locations of files may lead to unexpected instability in the workflow, whilst other setting <strong>should</strong> be changed, such as those which determine which comparisons to perform.</p>
+<p>An example layout of <code>config.yml</code> is:</p>
+<pre><code>samples:
+  file: &quot;config/samples.tsv&quot;
+
+paths:
+  bam: &quot;data/aligned&quot;
+  bigwig: &quot;data/bigwig&quot;
+  macs2: &quot;data/macs2&quot;
+
+genome:
+  build: &quot;GRCh37&quot;
+  gencode: &quot;33&quot;
+
+external:
+  rnaseq: &quot;data/external/results.tsv&quot;
+  features: &quot;data/external/h3k27ac_features.gtf&quot;
+  hic: &quot;data/external/encode_hic.bedpe&quot;
+  coverage:
+    H3K27Ac:
+      control: &quot;data/external/H3K27Ac_control.bw&quot;
+      treat: &quot;data/external/H3K27Ac_treat.bw&quot;
+
+comparisons:
+  fc: 1.2
+  fdr: 0.05
+  paired: false
+  filter_q: 0.6
+  contrasts:
+    - [&quot;control&quot;, &quot;treat&quot;]
+  ihw: &quot;regions&quot;
+
+peaks:
+  macs2:
+    gsize: &quot;hs&quot;
+    fdr: 0.05
+    keep_duplicates: &quot;all&quot;
+  qc:
+    min_prop_peaks: 0.1
+    min_prop_reps: 0.3</code></pre>
+<div id="settings-which-dont-need-to-be-modified" class="section level3 hasAnchor" number="4.1.1">
+<h3><span class="header-section-number">4.1.1</span> Settings Which Don’t Need To Be Modified<a href="editing-yaml.html#settings-which-dont-need-to-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>In general, the paths to key files don’t need to be changed and default configurations are well tested.
+Whilst varying these has been intermittently attempted successfully, unexpected instability may occur and as such, is discouraged.</p>
+<p><code>samples:</code> (Default: “config/samples.tsv”)</p>
+<p>By default, the file which contains all sample-level information is defined as <code>config/samples.tsv</code>.
+In theory, this can be changed but this may adversely impact the pipeline.</p>
+<p><code>paths:</code></p>
+<ul>
+<li><code>bam:</code> (Default: “data/aligned”) Alignments should be placed in <code>data/aligned</code> as advised in section <a href="input-files.html#alignments">2.2</a>, although this can be changed to <code>data/bam</code> or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability</li>
+<li><code>macs2:</code> (Default: “data/macs2”) Output from <code>macs2 callpeak</code> will be placed in this directory, mirroring the input structure from <code>data/aligned</code> where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.</li>
+<li><code>bigwig:</code> (Default: “data/bigwig”) After running <code>macs2 callpeak</code>, <code>bedGraph</code> files will be converted to the more space efficient <code>bigwig</code> files. The directory structure from both <code>data/aligned</code> and <code>data/macs2</code> will again be mirrored such that each ChIP target has all samples written to the same directory</li>
+</ul>
+</div>
+<div id="settings-which-should-be-modified" class="section level3 hasAnchor" number="4.1.2">
+<h3><span class="header-section-number">4.1.2</span> Settings Which Should Be Modified<a href="editing-yaml.html#settings-which-should-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p><code>genome:</code></p>
+<p>Specify the genome build used for alignments and for gene annotations.
+Build must match that used exactly for performing alignments.
+The gtf corresponding to the specified <a href="https://www.gencodegenes.org/">Gencode release</a> will be downloaded as part of the workflow</p>
+<p><code>external:</code></p>
+<p>Provide paths to all optional data files here.
+Only files provided will be included in the workflow.</p>
+<ul>
+<li><code>rnaseq</code> should be the results as output by <code>limma::topTable()</code> or similar. Gene IDs should match those provided in the Gencode GTF (e.g. Ensembl IDs) and these should be in a column names <code>gene_id</code>. Columns such as <code>logFC</code> and <code>FDR</code> will be searched for during the workflow using regular expressions to find the best match. Can be in <code>csv</code> or <code>tsv</code> format. Excel-specific (<code>xls</code>, <code>xlsx</code>) formats are not supported.</li>
+<li><code>features</code> can be determined by any method, with common choices being relevant histone marks, or promoters, enhancers and super-enhancers determined by H3K27ac marks. Features should be non-overlapping with the field <code>feature</code> defining the different feature types. Must be provided in GTF format.</li>
+<li><code>hic</code> HiC interactions must be provided as a <code>bedpe</code> file</li>
+<li><code>coverage</code> Tracks provided in this argument will be added to all genomic plots showing binding peaks or differential binding. Multiple files provided within each YAML list element will be overlaid as a single track. There is no upper limit to the number of tracks, however more tracks generally detract from an informative figure.</li>
+</ul>
+<p><code>comparisons:</code></p>
+<p>These settings determine how the differential binding analysis is performed.</p>
+<ul>
+<li><code>fc</code> (Default: 1.2) The setting of 1.2 indicates a 20% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to <code>limma::treat()</code> <span class="citation">(<a href="#ref-treat" role="doc-biblioref">McCarthy and Smyth 2009</a>)</span> in all differential binding analyses.</li>
+<li><code>fdr</code> (Default: 0.05) Windows with significance below this threshold are considered to provide supporting evidence of differential binding.</li>
+<li><code>paired</code> (Default: <code>false</code>) If set to <code>true</code> the values in the optional column (e.g. replicate, passage etc.) are used to perform a paired analysis as described in the <code>limma</code> manual</li>
+<li><code>filter_q</code> (Default: 0.6) Passed to <code>extraChIPs::dualFilter()</code>. When filtering (i.e. discarding) genomic sliding windows which are unlikely to contain true binding signal, determine thresholds which will retain this proportion of windows which overlap a peak identified by <code>macs2 callpeak</code>.</li>
+<li><code>contrasts</code>: Define all contrasts for differential binding. Any ChIP target containing both treatment groups will be included for differential binding. Values must match those in the <code>treat</code> column of <code>samples.tsv</code>. Each differential binding analysis will be performed using the limma-trend method in the context of A vs B, such that complex models are not supported.</li>
+<li><code>ihw</code> (Default: “regions”) Options used to stratify p-values for Independent Hypothesis Weighting<span class="citation">(<a href="#ref-ihw" role="doc-biblioref">Ignatiadis et al. 2016</a>)</span> of differential binding results. Can take values <code>"regions"</code>, <code>"features"</code>, <code>"targets"</code> or <code>"none"</code>
+<ul>
+<li><code>"regions"</code> P-values will be stratified by annotated genomic regions as determined in the initial steps of the workflow</li>
+<li><code>"features"</code> P-values will be stratified by provided external features</li>
+<li><code>"targets"</code> P-values will be stratified by the presence of a <code>macs2</code> consensus peak using all other ChIP targets in combination</li>
+<li><code>"none"</code> No Independent Hypothesis Weighting will be performed on the results from differential binding</li>
+</ul></li>
+</ul>
+<p><code>peaks</code></p>
+<p><code>macs2</code> settings are passed to <code>macs2 callpeak</code>. Only the arguments <code>gsize</code>, <code>fdr</code> and <code>keep_duplicates</code> are accepted.
+Please see the <a href="https://macs3-project.github.io/MACS/"><code>macs2</code> manual</a> for more detailed explanations.</p>
+<p><code>qc</code> parameters are used for determining if samples are of a high enough quality, and how to determine consensus/oracle peaks for each target and treatment group.</p>
+<ul>
+<li><code>min_prop_peaks:</code> (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the “best” sample within the relevant treatment group, i.e. the sample with the most number of peaks identified by <code>macs2 callpeak</code>. This is an inclusive threshold which will only discard clearly poor samples, which themselves are more likely to occur in tissue/organoid than in cell-line derived data.</li>
+<li><code>min_prop_reps</code> (Default: 0.3) When forming <strong>oracle</strong> peaks within each <em>target and treatment group</em>, peaks must be represented in at least this proportion of samples. This defaults to 0.3 which would equate to 1 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.</li>
+</ul>
+</div>
+</div>
+<div id="colours.yml-visualisation-settings" class="section level2 hasAnchor" number="4.2">
+<h2><span class="header-section-number">4.2</span> <code>colours.yml</code>: Visualisation Settings<a href="editing-yaml.html#colours.yml-visualisation-settings" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>Defines all colour schemes for plots.
+Required YAML list elements are <code>qc</code>, <code>regions</code>, <code>direction</code> and <code>treat</code>.
+Optional colours can be provided for <code>features</code>.</p>
+</div>
+<div id="params.yml-additional-parameters" class="section level2 hasAnchor" number="4.3">
+<h2><span class="header-section-number">4.3</span> <code>params.yml</code>: Additional Parameters<a href="editing-yaml.html#params.yml-additional-parameters" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>Default settings for annotations and enrichment testing</p>
+</div>
+<div id="rmarkdown.yml-html-settings" class="section level2 hasAnchor" number="4.4">
+<h2><span class="header-section-number">4.4</span> <code>rmarkdown.yml</code>: HTML Settings<a href="editing-yaml.html#rmarkdown.yml-html-settings" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>Default settings for rmarkdown documents</p>
+
+</div>
+</div>
+<h3>References<a href="references.html#references" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-ihw" class="csl-entry">
+Ignatiadis, N., B. Klaus, J. B. Zaugg, and W. Huber. 2016. <span>“<span class="nocase"><span>D</span>ata-driven hypothesis weighting increases detection power in genome-scale multiple testing</span>.”</span> <em>Nat Methods</em> 13 (7): 577–80.
+</div>
+<div id="ref-treat" class="csl-entry">
+McCarthy, Davis J., and Gordon K. Smyth. 2009. <span>“<span class="nocase">Testing significance relative to a fold-change threshold is a TREAT</span>.”</span> <em>Bioinformatics</em> 25 (6): 765–71. <a href="https://doi.org/10.1093/bioinformatics/btp053">https://doi.org/10.1093/bioinformatics/btp053</a>.
+</div>
+</div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+<a href="quick-start.html" class="navigation navigation-prev " aria-label="Previous page"><i class="fa fa-angle-left"></i></a>
+<a href="references.html" class="navigation navigation-next " aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+    </div>
+  </div>
+<script src="libs/gitbook-2.6.7/js/app.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/clipboard.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-search.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-sharing.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-fontsettings.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-bookdown.js"></script>
+<script src="libs/gitbook-2.6.7/js/jquery.highlight.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-clipboard.js"></script>
+<script>
+gitbook.require(["gitbook"], function(gitbook) {
+gitbook.start({
+"sharing": {
+"github": false,
+"facebook": true,
+"twitter": true,
+"linkedin": false,
+"weibo": false,
+"instapaper": false,
+"vk": false,
+"whatsapp": false,
+"all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
+},
+"fontsettings": {
+"theme": "white",
+"family": "sans",
+"size": 2
+},
+"edit": {
+"link": "https://github.com/steveped/GRAVI/edit/gh-pages/editing_yaml.Rmd",
+"text": "Edit"
+},
+"history": {
+"link": null,
+"text": null
+},
+"view": {
+"link": null,
+"text": null
+},
+"download": ["_main.pdf", "_main.epub"],
+"search": {
+"engine": "fuse",
+"options": null
+},
+"toc": {
+"collapse": "subsection"
+}
+});
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+</body>
+
+</html>
