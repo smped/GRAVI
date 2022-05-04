@@ -1,21 +1,26 @@
+--- 
+title: "GRAVI User Guide (Under Development)"
+author: "Stephen Pederson"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: [book.bib, packages.bib]
+url: https://steveped.github.io/GRAVI/
+# cover-image: path to the social sharing image like images/cover.jpg
+description: |
+  This is the main documentation for the GRAVI workflow
+link-citations: yes
+github-repo: steveped/GRAVI
 ---
-title: "GRAVI: Gene Regulatory Analysis using Variable Inputs"
-editor_options:
-  chunk_output_type: console
----
 
-```{r set-knitr-opts, echo=FALSE}
-knitr::opts_chunk$set(message = FALSE, warning = FALSE)
-```
+# Introduction
 
-## Introduction
-
-This site contains the documentation for running the GRAVI (Gene Regulatory Analysis using Variable Inputs) workflow.
-This workflow is managed using `snakemake`, for running locally or on any HPC, and is designed to minimally take one ChIP target under at least two conditions.
+This book is the primary documentation for running the GRAVI (Gene Regulatory Analysis using Variable Inputs) workflow.
+This workflow is managed using `snakemake` for running locally or on any HPC, and is designed to minimally take one ChIP target under at least two conditions.
 There is no theoretical upper limit to the number of ChIP targets which can be analysed, although the practicalities of interpretation will dictate this.
 
 
-In addition to &#8805; 1 ChIP targets, **optional** input includes:
+In addition to $\geq 1$ ChIP targets, **optional** input includes:
 
 - Results from a single RNA-Seq experiment
 - Any type of genomic feature derived or obtained externally (`*gtf`)
@@ -32,5 +37,5 @@ The GRAVI workflow itself will
 - *TO BE COMPLETED*: Perform motif analysis based on key binding patterns within and across ChIP targets
 - Add key output files to any local `git` repository
 
-The primary output is a series of `html` pages generated from `rmarkdown` files, along with key figures and tables able to be shared and incorporated directly into publications.
+The primary output is a series of `html` pages generated from `rmarkdown` files, along with key figures and tables able to be shared amongst collaborators and incorporated directly into publications.
 

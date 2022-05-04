@@ -1,29 +1,30 @@
----
-title: "Input Files"
----
+# Input Files and Directories {#input-files}
+
 
 ```{r set-knitr-opts, echo=FALSE}
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = FALSE)
 ```
 
 ```{r packages}
-library(data.tree)
 library(tidyverse)
+library(pander)
 ```
 
-## Directory Structure
+## Directory Structure {#directories}
+
 
 The GRAVI workflow requires a set directory structure. 
-If using the template repository [as advised](quickstart.html) this will be mostly taken care of.
+If using the template repository, as advised,  this will be mostly taken care of.
 The required directory structure is
 
-```{r}
-data.frame(
-    pathString = file.path(
-        "project_home/", c("analysis", "config", "data", "docs", "output", "workflow")
-    )
-) %>% 
-    as.Node()
+```
+project_home/
+ ├── analysis
+ ├── config
+ ├── data
+ ├── docs
+ ├── output
+ └── workflow
 ```
 
 - Rmarkdown scripts will be added and executed from the `analysis` directory
@@ -33,32 +34,38 @@ data.frame(
 - Additional output files will be placed in `output`
 - The workflow itself is run by all code supplied in the `workflow` directory
 
-## Alignments
+## Alignments {#alignments}
 
 The GRAVI workflow currently takes `bam` files as the primary input.
 Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.
 
 Files should be placed in the `data/aligned` directory as set in `config.yml`, although this can be changed if desired.
 Each ChIP target should be placed in a separate directory using the example layout as given below.
-As IgG input may be shared between ChIP targets, these can all be placed in the directory `data/Input` and this is effectively hard-wired into the workflow.
+As IgG input may be shared between ChIP targets, these can all be placed in the directory `data/Input` and this is hard-wired into the workflow.
 
-```{r, echo = FALSE, results='markup'}
-file.path(
-    "project_home", "data", "aligned", 
-    c(
-        "TF1/control_rep1.bam", "TF1/control_rep2.bam", "TF1/control_rep3.bam",
-        "TF1/treat_rep1.bam", "TF1/treat_rep2.bam", "TF1/treat_rep3.bam",
-        "TF2/control_rep1.bam", "TF2/control_rep2.bam", "TF2/control_rep3.bam",
-        "TF2/treat_rep1.bam", "TF2/treat_rep2.bam", "TF2/treat_rep3.bam",
-        "Input/pooled_input.bam"
-    )
-) %>% 
-    data.frame() %>% 
-    setNames("pathString") %>% 
-    as.Node()
+```
+project_home/
+ └── data
+      └── aligned 
+           ├── TF1 
+           │    ├── control_rep1.bam
+           │    ├── control_rep2.bam
+           │    ├── control_rep3.bam
+           │    ├── treat_rep1.bam
+           │    ├── treat_rep2.bam
+           │    └── treat_rep3.bam
+           ├── TF2 
+           │    ├── control_rep1.bam
+           │    ├── control_rep2.bam
+           │    ├── control_rep3.bam
+           │    ├── treat_rep1.bam
+           │    ├── treat_rep2.bam
+           │    └── treat_rep3.bam           
+           └── Input
+                └── pooled_input.bam 
 ```
 
-## Sample Descriptions
+## Sample Descriptions {#sample-descriptions}
 
 The file `samples.tsv` defines the set of files which the workflow will be applied to.
 Any files placed in the `data/aligned` directory, but not specified in this file will be ignored.
@@ -75,13 +82,14 @@ tribble(
     "treat_rep1", "TF1", "Treatment", 1, "pooled_input",
     "treat_rep2", "TF1", "Treatment", 2, "pooled_input",
     "treat_rep3", "TF1", "Treatment", 3, "pooled_input"
-)
+) %>% 
+    pander()
 ```
 
 
 ### Required columns
 
-This file must contain all four of the columns `sample`, `target`, `treat`, `input`.
+This file must contain all four of the columns `sample`, `target`, `treat`, `input`, in any order.
 If supplied, optional columns such as `replicate`, `passage` etc can be referenced in the workflow.
 As well as defining all required steps for the workflow, labels for plots will be generated from combinations of these columns.
 
@@ -96,23 +104,43 @@ Any additional columns can be used to denote batches, or passages if running a n
 These column names will be automatically detected at the appropriate steps of the workflow and incorporated into figures and tables.
 Common column names may be `replicate` or `passage` (for cell lines)
 
-## Additional Files
+## Additional Files {#additional-files}
 
-Optional files can also be supplied and is it customary to place these in `data/external` with relative paths (to `project_home`) added to `config.yml`
+Additional, optional files can also be supplied and is it customary to place these in `data/external` with paths (relative to `project_home`) added to `config.yml`.
+Names can be any informative name chosen by the user.
 
-```{r}
-file.path(
-    "project_home", "data",
-    c(
-        "aligned/TF1", "aligned/TF2",
-        "external/rnaseq_topTable.tsv",
-        "external/external_features.gtf",
-        "external/hic_interactions.bedpe",
-        "external/additional_coverage.bw"
-    )
-)%>% 
-    data.frame() %>% 
-    setNames("pathString") %>% 
-    as.Node()
+```
+project_home/
+ └── data
+      ├── aligned 
+      │    ├── TF1 
+      │    ├── TF2 
+      │    └── Input
+      └── external
+           ├── rnaseq_topTable.tsv
+           ├── external_features.gtf
+           ├── hic_interactions.bedpe
+           ├── additional_coverage_control.bw
+           └── additional_coverage_treat.bw
 ```
 
+### RNA-Seq
+
+Files provided with differential expression analysis results from a relevant RNA-Seq experiment should follow the layout as produced by `topTable()` from the `limma` package[@limma].
+Gene IDs should match those in the Gencode GTF (Ensembl IDs) and should be contained in a column called `gene_id`.
+Additional expected columns will be `logFC` and `FDR` or similar names which could be reasonably found by `regex` matching within the workflow.
+
+### External Features
+
+These must be provided as a GTF which can be prepared by any method.
+The feature types should be defined in a field named `feature`.
+Non-overlapping features are optimal but not essential, and this is left to the users discretion.
+For example, if providing features such as enhancers and super-enhancers[@rose], it may be more sensible to provide these as mutually exclusive groups.
+
+### HiC Interactions
+
+Significant interactions can be sourced using any methodology, however these must be provided in `bedpe` format.
+
+### External Coverage
+
+Additional coverage files should be provided in `bigwig` format.
