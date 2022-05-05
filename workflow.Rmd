@@ -1,0 +1,318 @@
+# Workflow Description {#workflow}
+
+```{r echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+library(DiagrammeR)
+```
+
+
+The GRAVI workflow performs multiple steps, most of which depend on those conducted previously.
+The workflow management software `snakemake`[@snakemake] is used to run the complete workflow, giving the capacity to be run on local servers or HPC systems.
+
+The `snakemake` DAG (directed acyclic graph) of the workflow is always included in the compiled document, however a simplified version is presented below.
+
+```{r fig.cap = "Simplified DAG of the GRAVI workflow. Key steps are numbered and shown in black. Inputs are shown in blue, whilst key outputs are shown in coral."}
+grViz("
+digraph {
+
+graph [compound = true rankdir = LR fontsize = 14]
+
+node [shape = rectangle]
+
+a [label = 'Alignments' shape = ellipse fontcolor = RoyalBlue color = RoyalBlue]
+b [label = '1. Annotations']
+c [label = '2. Peak Calling']
+d [label = 'Sample QC' shape = plaintext fontcolor = LightCoral]
+e [label = 'Oracle/Consensus\nPeaks' shape = plaintext fontcolor = LightCoral]
+f [label = '3. Differential Binding']
+g [label = 'Individual Changed\nBinding Sites' shape = plaintext fontcolor = LightCoral]
+h [label = 'Individual Enrichment\nAnalysis' shape = plaintext fontcolor = LightCoral]
+i [label = '4. Pairwise Comparisons']
+j [label = 'Pairwise Enrichment\nAnaysis' shape = plaintext fontcolor = LightCoral]
+k [label = 'Pairwise Changed\nBinding Sites' shape = plaintext fontcolor = LightCoral]
+
+subgraph annot {
+  ba [label = 'Defined Genomic\nRegions' shape = plaintext fontcolor = LightCoral]
+  b -> ba [color = LightCoral penwidth = 0.5 arrowsize = 0.8]
+}
+
+subgraph macs2 {
+    c -> {d e} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]
+}
+
+subgraph diffbinding {
+  f -> {g h} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]
+}
+
+subgraph pairwise {
+  i -> {j k} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]
+}
+
+
+a -> {c f} [color = RoyalBlue]
+b -> {c}
+c -> {f} [lhead = macs2]
+f -> i [lhead = diffbinding]
+
+}
+")
+```
+
+
+The workflow produces a series of HTML reports as a larger webpage, inspired by the excellent `workflowr`[@workflowr] package but instead relying directly on `rmarkdown::render_site()`[@R-rmarkdown].
+The compiled html pages will be placed in the `docs` directory, with all source `rmarkdown` files being placed in the `analysis` directory.
+Key additional outputs (e.g. bed/csv files) are placed in the `output` directory.
+The standardised directory layout is shown in Section \@ref(directories).
+The complete R environment from every compiled HTML page is also saved in `output/envs`
+
+## Annotation Setup {#annotation}
+
+### Genomic Regions {.unlisted .unnumbered}
+
+Defining genomic regions is a key part of the setup for analysis.
+Under the GRAVI workflow, a series of *non-overlapping genomic regions* are defined which characterise the most likely role/aspect for each specific region.
+As these will be unique to each Gencode build, and also include any optional RNA-Seq data, this step is performed for every experiment.
+However, it is a very time-consuming step and speeding up the process is an area of active development.
+
+1. *Promoters*: By default these are defined as -1500/+500bp from every distinct TSS. 
+If promoters from two or more transcripts overlap, they are merged into a single promoter.
+These ranges can be easily changed to increase or decrease the size using the YAML as described in Section \@ref(params-yml)
+2. *Upstream Promoters*: These are extended promoter regions up to 5kb upstream by default, which again can be changed to suit
+3. *Exons* are defined as any exon not overlapping a promoter or upstream promoter
+4. *Introns* are defined as any transcribed sequence not overlapping a promoter, upstream promoter or exon
+5. *Intergenic Regions*: are divided into two subsets, neither of which are premitted to overlap any previously defined regions
+    + Within 10kb of a gene. Again this distance is customisable
+    + Beyond 10kb of a gene.
+    
+During the characterisation of all the above regions, mappings to associated genes and transcripts is retained and included in the subsequent `GenomicRanges` object.
+An additional `mcols` field (`detected`) is included in this object which indicates if any of the mapped genes are detected within any provided RNA-Seq data.
+
+### Other Steps {.unlisted .unnumbered}
+
+Additional steps performed during preparation of the annotations are to ensure that all external features, treatment groups and defined genomic regions have colours assigned, which will then propagate through the workflow for consistency of visualisation.
+External features and/or HiC data is summarised if provided and the association between these datasets and defined genomic regions is also provided as part of the output.
+
+ENCODE blacklisted regions are also [obtained](https://github.com/Boyle-Lab/Blacklist) and prepared for exclusion through the workflow.
+
+
+## Peak Calling {#peak-calling}
+
+This section of the workflow uses `macs2 callpeak`[@macs2] with default parameters.
+Peaks are called on each individual sample and by merging samples within treatment groups for each provided ChIP target.
+One summary report will be produced each ChIP target specified in the `target` column of `samples.tsv`, which will assess all treatments within a ChIP target.
+
+### Quality Assessment {.unlisted .unnumbered}
+
+Basic QC statistics such as Library Size, Read Lengths, Total Detected Peaks and Fraction Of Reads In Peaks (FRIP) are provided in tabular and visual form.
+Plots showing sample-specific GC content and Cross Correlations are also provided to enable visual identification of any outlier samples which can be excluded manually, or handled in any other suitable manner.
+
+Taking the best sample from each treatment group (i.e. the one with the largest number of peaks, $n_\text{max}$), low quality samples can be *automatically excluded* if failing to capture $> p_\text{peaks} * n_\text{max}$ peaks, where $p_\text{peaks}$ represents the minimum acceptable proportion of peaks obtained in the best sample ($n_\text{max}$).
+The value $p_\text{peaks}$ can be defined in `config.yml` as the parameter `min_prop_peaks` (Section \@ref(config-yml)) and setting this to zero will ensure all samples are included.
+This can be particularly useful when dealing with difficult biological source material such as tissue samples or organoids, as opposed to cell lines where consistent results are more common.
+
+### Results {.unlisted .unnumbered}
+
+**Oracle Peaks**: During this step of the workflow a set of treatment-specific *oracle peaks* will be produced for each ChIP target. 
+The set of peaks obtained by merging samples will be compared to all individual samples, and only those peaks identified in at least $100*p_\text{reps}\%$ of the samples which passed QC will be included in the set of oracle peaks.
+This parameter can be set  in `config.yml` as the parameter `min_prop_reps` (Section \@ref(config-yml)) with the default of 0.3 indicating that peaks must be detected in 1 or more samples (if N = 2,3), two or more samples (if N = 4, 5) etc.
+
+**Consensus Peaks**: After defining the treatment-specific oracle peaks, these are combined to define the set of *consensus peaks*. 
+Oracle peaks are merged across conditions in an inclusive manner, such the the range of each consensus peak encompasses the entire region covered by all overlapping oracle peaks.
+Consensus peaks are then used as the 'universe' of peaks against which treatment-specific behaviours are compared.
+
+Peaks overlapping a blacklisted region are excluded at all steps of the analysis.
+
+The final HTML report produced for each target will contain:
+
+1. A VennDiagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot[@upsetr] will be produced instead
+2. Distance to TSS plots as actual and cumulative distributions using consensus peaks.
+3. A pie chart describing the distribution of consensus peaks within the genomic regions defined previously
+
+Additional plots will be produced in the presence of external data
+
+1. The distribution of consensus peaks which directly overlap a detected gene will be shown separated by genomic region, *if RNA-Seq data is provided*
+2. The distribution of consensus peaks within external features will be shown *if external features are provided*
+3. The distribution of consensus peaks within external features and genomic regions will be shown *if external features are provided*
+4. The distribution of consensus peaks which directly overlap a detected gene will be shown separated by external feature and genomic region
+
+### Key Outputs {.unlisted .unnumbered}
+
+- Consensus peaks will be exported as `output/<ChIP_target>/consensus_peaks.bed`
+- Oracle peaks will be exported as `output/<ChIP_target>/oracle_peaks.rds`
+
+
+## Differential Binding {#differential-binding}
+
+This step provides much of the uniqueness to the GRAVI workflow combining approaches from `macs2`[@macs2], `qsmooth`[@qsmooth], `csaw`[@csaw], `limma`[@limma] and `ihw`[@ihw] whilst relying heavily on the infrastructure provided by [`extraChIPs`](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html).
+A sliding window approach as advocated by Lun & Smyth (2014) is the strategy used here.
+
+All two-factor comparisons of interest can specified via the YAML file (Section \@ref(config-yml)) with more complicated layouts specified as below
+
+```
+contrasts:
+  - ["control", "treat1"]
+  - ["control", "treat2"]
+```
+
+Differential binding analysis will be performed for every ChIP target where both treatment groups are found from each specified contrast.
+
+```{r, fig.cap = "Overview of steps in the differential binding workflow. Primary R packages used for each step are indicated in brackets. Integration with differential expression results (RNA-Seq) is an option step only performed if RNA-Seq data is provided."}
+grViz("
+digraph {
+
+graph [compound = true fontsize = 14]
+
+node [shape = rectangle]
+
+a [label = 'Count Alignments: Sliding Windows\n(csaw)']
+b [label = 'Filter Windows\n(extraChIPs)']
+c [label = 'Normalisation\n(qsmooth)']
+d [label = 'Hypothesis Testing\n(limma)']
+e [label = 'Merge Neighbouring Regions\n(extraChIPs)']
+f [label = 'Independent Hypothesis Weighting\n(ihw)']
+g [label = 'Assign Genes To Windows\n(extraChIPs)']
+h [label = 'Enrichment Testing\n(msigdbr; goseq)']
+i [label = 'Comparison With RNA-Seq\n(fgsea)' color = RoyalBlue fontcolor = RoyalBlue]
+
+a -> b -> c -> d -> e -> f -> g -> h
+h -> i [color = RoyalBlue]
+
+}
+")
+```
+
+
+### Sliding Windows {.unlisted .unnumbered}
+
+By default, sliding windows will be defined based on the estimated fragment length so that the window size is slightly wider than the fragment length ($w_\text{size}$), and the step size is $w_\text{step} = w_\text{size} / 3$.
+This usually leads to window sizes which are multiples of 30nt, e.g. 150, 180, 210, 240 etc.
+
+Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, and discarding windows where the total number of alignments are $>n-1$, where $n$ represents the total number of samples in the current analysis.
+Windows which are more likely to contain noise than true binding signal are then discarded using `extraChIPs::dualFilter()` in combination with the *consensus peaks* from Section \@ref(peak-calling).
+The set of consensus peaks is used as a guide for setting the inclusion/exclusion thresholds which are based on 1) Overall signal intensity and 2) Enrichment over input.
+Thresholds for each measure are defined such that the proportion $q$ of windows which overlap a consensus peak are returned, with windows which pass *both* inclusion thresholds are returned.
+This parameter itself is set in `config.yml` as `filter_q` as described in Section \@ref(config-yml).
+In general, values in the range $0.4 < q < 0.6$ perform well as the sliding windows around the margins of the consensus peaks will be discarded at this point.
+Higher values will lead to large numbers of windows being retained which overlap peak margins and are relatively uninformative.
+
+### Normalisation {.unlisted .unnumbered}
+
+In order to accommodate ChIP targets which may vary considerably across treatments, such as in the case where the target is mainly cytoplasmic in one treatment group, logCPM values are used for differential binding analysis, after Smooth Quantile Normalisation[@qsmooth].
+Importantly, library sizes *across the entire set of alignments* are used for calculation of logCPM values as using only retained windows would introduce significant bias in low-signal samples.
+This strategy allows for normalisation both *within* and *across* treatment groups.
+Plots showing qsmooth weights, pre/post logCPM, pre/post RLE [@rle] and pre/post PCA are produced in this section of the workflow.
+
+### Hypothesis Testing {.unlisted .unnumbered}
+
+The *limma-trend*[@voom] method is used for differential binding analysis, including all retained windows.
+Instead of a point-based Null Hypothesis (i.e. $\mu = 0$) a range-based Null Hypothesis is the preferred approach[@treat].
+Under this approach, the Null Hypothesis would be
+
+$$
+H_0: -\lambda \leq \mu \leq \lambda
+$$
+with the alternate hypothesis being
+
+$$
+H_A: |\mu| > \lambda
+$$
+By default, the value $\lambda = \log_2(1.2)$ is used, which denotes a 20% change in binding signal as the point where sites become of interest.
+This values is set in `config.yml` as the parameter `fc` (Default: `fc = 1.2`), and setting `fc = 1` would return the statistical approach to be a point-based Null Hypothesis $H_0: \mu = 0$.
+
+After performing this statistical test, overlapping windows are *merged* taking the individual window with the **highest signal** as the representative window for the merged region.
+As this value is independent of the statistical test[@csaw], the resultant set of p-values is FDR-adjusted using the Benajmini-Hochberg approach[@fdr], giving a set of FDR-adjusted p-values for all merged regions.
+
+### Independent Hypothesis Weighting {.unlisted .unnumbered}
+
+The Independent Hypothesis Weighting approach[@ihw] suggests the a set of p-values can be partitioned by any independent variable, with weights assigned to each partition, and these weighted p-values can then be adjusted using conventional strategies, such as the FDR.
+Under the GRAVI workflow, four possibilities for partitioning the p-values obtained after merging regions are provided, and these can be specified in the `ihw` parameter of `config.yml`.
+The options are 
+
+1. `ihw: "targets"` where consensus peaks from all other ChIP targets included in the larger GRAVI workflow are used to partition p-values. As consensus peaks are treatment-agnostic, these simply provide a scaffold defining the presence/absence of all other ChIP targets under any treatment condition, in combination across all ChIP targets.
+2. `ihw: "regions"` where previously defined genomic regions are used to partition the p-values
+3. `ihw: "features"` where any external features supplied are used for the partitioning
+4. `ihw: "none"` where no partitioning is performed and the standard FDR-adjusted p-values are used to determine differential binding status
+
+The default approach implemented by the IHW authors suggests that p-value partitions must be > 1000, and as such, all the above approaches collapse smaller groups until the smallest group contains at least 1000 p-values (i.e. merged regions).
+In the case of ChIP targets which do not bind in a promiscuous manner, the IHW step may make minimal difference to the results.
+
+### Assigning Genes To Windows {.unlisted .unnumbered}
+
+After merging of neighbouring sliding windows, genes are assigned to each merged region.
+This is performed using annotated genomic regions, any external features and HiC data, via the function `extraChIPs::mapByFeatures()`.
+
+Under this approach:
+
+1. Regions which overlap a promoter are assigned to the *genes associated directly with that promoter*
+2. Regions which overlap an enhancer are assigned to *all genes within 100kb*
+3. Regions which overlap any HiC interactions are assigned to *all genes connected by the interactions*
+4. Regions with no assignment from steps 1-3 are assigned to *all directly overlapping genes*, or the *nearest gene within 100kb*
+
+If no HiC data is included, step 3 is not performed
+
+### Presentation of Key Results {.unlisted .unnumbered}
+
+The above steps essentially complete the detection of differentially bound regions and assignment of these to regulatory target genes.
+A series of visualisations are then provided including:
+
+1. MA & Volcano plots
+2. Profile Heatmaps for sites with Increased/Decreased target binding
+3. Results summarised by chromosome
+4. Signal/logFC/differential binding partitioned by genomic region
+
+If *external features are provided*, the plots from step 4 are replicated using external features to partition results.
+A combined summary of the results by genomic region and external features is also included.
+
+A series of summary tables, along with the 200 most highly ranked regions are included.
+Results of differentially bound windows and the genes assigned to them are also exported as a CSV for sharing with collaborators.
+Genomic plots for unique regions based on signal strength (logCPM), changed binding (logFC) and statistical support (FDR) are also provided as part of the default output.
+
+### Enrichment Testing {.unlisted .unnumbered}
+
+Using the gene-sets and pathways specified in `params.yml` four enrichment analyses are performed using `goseq`[@goseq].
+Gene-width is used as an offset for biased sampling, as longer genes are more likely to have a peak mapped to them.
+These are
+
+1. Comparison of genes mapped to a site with bound target and genes which are not mapped to a target-bound site
+2. Comparison of genes mapped to a differentially bound site against genes mapped to a binding site, but with no differentially bound sites
+3. Comparison of genes mapped to a site with increased binding against genes mapped to a binding site, but with no differentially bound sites
+4. Comparison of genes mapped to a site with decreased binding against genes mapped to a binding site, but with no differentially bound sites
+
+All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions
+
+### RNA-Seq Data {.unlisted .unnumbered}
+
+If results from a differential expression (DE) analysis are included, which can also be microarray results, a series of additional analyses are performed.
+Firstly, the relationship between detected genes and the genomic regions bound by the target are characterised.
+If external features are also provided, this is repeated for external features.
+
+P-values from DE analysis are partitioned by differential binding status.
+No further IHW is performed, but this can still provide a clear visual clue as to the relationship between differential target binding and differential gene expression.
+
+Given the unpredictability of an RNA-Seq dataset and the number of genes considered to be differentially expressed, bound and differentially bound windows are used as gene sets to perform GSEA[@fgsea] using sites directly, and sites partitioned by genomic region and external feature (if provided).
+GSEA is performed 1) taking direction of differential expression into account, 2) ranking genes purely by significance (i.e. without direction).
+
+Genomic regions for the 5 genes most highly ranked for differential expression, and with $>1$ target-bound window assigned to them are plotted.
+
+Finally, standalone GSEA results from the RNA-seq dataset (incorporating direction of change and all requested `MSigDB` pathways) are compared to enrichment (i.e. `goseq`) results for differentially bound regions.
+Any common pathways are given in an interactive HTML table
+
+### Key Outputs {.unlisted .unnumbered}
+
+Key output files produced by this step of the workflow are:
+
+- Differential binding results (by window): `output/<ChIP_target>/<control>_<treat>_differential_binding.rds`
+- Differential binding results (by gene): `output/<ChIP_target>/<ChIP_target>_<control>_<treat>_differential_binding.csv.gz`
+- Retained windows after filtering: `output/<ChIP_target>/<control>_<treat>_filtered_windows.rds`
+- Regions with increased target binding: `output/<ChIP_target>/<control>_<treat>_up.bed`
+- Regions with decreased target binding: `output/<ChIP_target>/<control>_<treat>_down.bed`
+
+## Pairwise Comparisons
+
+Last bit...
+

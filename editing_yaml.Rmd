@@ -54,7 +54,7 @@ peaks:
 ```
 
 
-### Settings Which Don't Need To Be Modified
+### Settings Which Don't Need To Be Modified {.unlisted .unnumbered}
 
 In general, the paths to key files don't need to be changed and default configurations are well tested.
 Whilst varying these has been intermittently attempted successfully, unexpected instability may occur and as such, is discouraged.
@@ -70,7 +70,7 @@ In theory, this can be changed but this may adversely impact the pipeline.
 - `macs2:` (Default: "data/macs2") Output from `macs2 callpeak` will be placed in this directory, mirroring the input structure from `data/aligned` where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.
 - `bigwig:` (Default: "data/bigwig") After running `macs2 callpeak`, `bedGraph` files will be converted to the more space efficient `bigwig` files. The directory structure from both `data/aligned` and `data/macs2` will again be mirrored such that each ChIP target has all samples written to the same directory
 
-### Settings Which Should Be Modified
+### Settings Which Should Be Modified {.unlisted .unnumbered}
 
 `genome:`
 
@@ -113,7 +113,7 @@ Please see the [`macs2` manual](https://macs3-project.github.io/MACS/) for more 
 - `min_prop_peaks:` (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the "best" sample within the relevant treatment group, i.e. the sample with the most number of peaks identified by `macs2 callpeak`. This is an inclusive threshold which will only discard clearly poor samples, which themselves are more likely to occur in tissue/organoid than in cell-line derived data.
 - `min_prop_reps` (Default: 0.3) When forming **oracle** peaks within each *target and treatment group*, peaks must be represented in at least this proportion of samples. This defaults to 0.3 which would equate to 1 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.
 
-## Colour Schemes: `colours.yml`
+## Colour Schemes: `colours.yml` [#colours-yml]
 
 Defines all plotting colour schemes for consistency throughout the entire workflow.
 Colours can be any standard colours able to be interpreted by `R`, such as `'blue'` or `'#0000FF'`.
@@ -149,7 +149,7 @@ features:
   no_feature: "#E5E5E5"
 ```
 
-## Additional Parameters: `params.yml`
+## Additional Parameters: `params.yml` {#params-yml}
 
 Default settings for defining initial annotations and enrichment testing. 
 In general, these will not need to be changed, but can be if required.
@@ -176,7 +176,7 @@ msigdb:
 ```
 
 
-## HTML Settings: `rmarkdown.yml`
+## HTML Settings: `rmarkdown.yml` {#rmarkdown-yml}
 
 The main workflow will produce a compiled set of HTML pages using `rmarkdown::render_site()`[@R-rmarkdown].
 The two available fields to supply here are:

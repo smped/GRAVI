@@ -31,7 +31,7 @@
   
   
 
-<link rel="next" href="input-files.html"/>
+<link rel="next" href="workflow.html"/>
 <script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
 <link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
@@ -52,6 +52,10 @@
 <link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
 <link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
 <script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+<script src="libs/htmlwidgets-1.5.4/htmlwidgets.js"></script>
+<script src="libs/viz-1.8.2/viz.js"></script>
+<link href="libs/DiagrammeR-styles-0.2/styles.css" rel="stylesheet" />
+<script src="libs/grViz-binding-1.0.9/grViz.js"></script>
 
 
 
@@ -95,43 +99,46 @@ div.csl-indent {
 
 <li class="divider"></li>
 <li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> Introduction</a></li>
-<li class="chapter" data-level="2" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>2</b> Input Files and Directories</a>
+<li class="chapter" data-level="2" data-path="workflow.html"><a href="workflow.html"><i class="fa fa-check"></i><b>2</b> Workflow Description</a>
 <ul>
-<li class="chapter" data-level="2.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>2.1</b> Directory Structure</a></li>
-<li class="chapter" data-level="2.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>2.2</b> Alignments</a></li>
-<li class="chapter" data-level="2.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>2.3</b> Sample Descriptions</a>
-<ul>
-<li class="chapter" data-level="2.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>2.3.1</b> Required columns</a></li>
-<li class="chapter" data-level="2.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>2.3.2</b> Optional Columns</a></li>
+<li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
+<li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
+<li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
+<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a></li>
 </ul></li>
-<li class="chapter" data-level="2.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>2.4</b> Additional Files</a>
+<li class="chapter" data-level="3" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>3</b> Input Files and Directories</a>
 <ul>
-<li class="chapter" data-level="2.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>2.4.1</b> RNA-Seq</a></li>
-<li class="chapter" data-level="2.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>2.4.2</b> External Features</a></li>
-<li class="chapter" data-level="2.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>2.4.3</b> HiC Interactions</a></li>
-<li class="chapter" data-level="2.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>2.4.4</b> External Coverage</a></li>
+<li class="chapter" data-level="3.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>3.1</b> Directory Structure</a></li>
+<li class="chapter" data-level="3.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>3.2</b> Alignments</a></li>
+<li class="chapter" data-level="3.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>3.3</b> Sample Descriptions</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>3.3.1</b> Required columns</a></li>
+<li class="chapter" data-level="3.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>3.3.2</b> Optional Columns</a></li>
 </ul></li>
-</ul></li>
-<li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
+<li class="chapter" data-level="3.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>3.4</b> Additional Files</a>
 <ul>
-<li class="chapter" data-level="3.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>3.1</b> Install Snakemake</a></li>
-<li class="chapter" data-level="3.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>3.2</b> Create the Directory Structure</a></li>
-<li class="chapter" data-level="3.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>3.3</b> Run the Pipeline</a>
-<ul>
-<li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
-<li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
+<li class="chapter" data-level="3.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>3.4.1</b> RNA-Seq</a></li>
+<li class="chapter" data-level="3.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>3.4.2</b> External Features</a></li>
+<li class="chapter" data-level="3.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>3.4.3</b> HiC Interactions</a></li>
+<li class="chapter" data-level="3.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>3.4.4</b> External Coverage</a></li>
 </ul></li>
 </ul></li>
-<li class="chapter" data-level="4" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>4</b> Editing The YAML Configuration Files</a>
+<li class="chapter" data-level="4" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>4</b> Quick Start Guide</a>
 <ul>
-<li class="chapter" data-level="4.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>4.1</b> The Main Configuration: <code>config.yml</code></a>
+<li class="chapter" data-level="4.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>4.1</b> Install Snakemake</a></li>
+<li class="chapter" data-level="4.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>4.2</b> Create the Directory Structure</a></li>
+<li class="chapter" data-level="4.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>4.3</b> Run the Pipeline</a>
 <ul>
-<li class="chapter" data-level="4.1.1" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-dont-need-to-be-modified"><i class="fa fa-check"></i><b>4.1.1</b> Settings Which Don’t Need To Be Modified</a></li>
-<li class="chapter" data-level="4.1.2" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-should-be-modified"><i class="fa fa-check"></i><b>4.1.2</b> Settings Which Should Be Modified</a></li>
+<li class="chapter" data-level="4.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>4.3.1</b> Run On A Local Server</a></li>
+<li class="chapter" data-level="4.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>4.3.2</b> Run On An HPC</a></li>
 </ul></li>
-<li class="chapter" data-level="4.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colours.yml-visualisation-settings"><i class="fa fa-check"></i><b>4.2</b> <code>colours.yml</code>: Visualisation Settings</a></li>
-<li class="chapter" data-level="4.3" data-path="editing-yaml.html"><a href="editing-yaml.html#params.yml-additional-parameters"><i class="fa fa-check"></i><b>4.3</b> <code>params.yml</code>: Additional Parameters</a></li>
-<li class="chapter" data-level="4.4" data-path="editing-yaml.html"><a href="editing-yaml.html#rmarkdown.yml-html-settings"><i class="fa fa-check"></i><b>4.4</b> <code>rmarkdown.yml</code>: HTML Settings</a></li>
+</ul></li>
+<li class="chapter" data-level="5" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>5</b> YAML Configuration Files</a>
+<ul>
+<li class="chapter" data-level="5.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>5.1</b> The Main Configuration: <code>config.yml</code></a></li>
+<li class="chapter" data-level="5.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colour-schemes-colours.yml-colours-yml"><i class="fa fa-check"></i><b>5.2</b> Colour Schemes: <code>colours.yml</code> [#colours-yml]</a></li>
+<li class="chapter" data-level="5.3" data-path="editing-yaml.html"><a href="editing-yaml.html#params-yml"><i class="fa fa-check"></i><b>5.3</b> Additional Parameters: <code>params.yml</code></a></li>
+<li class="chapter" data-level="5.4" data-path="editing-yaml.html"><a href="editing-yaml.html#rmarkdown-yml"><i class="fa fa-check"></i><b>5.4</b> HTML Settings: <code>rmarkdown.yml</code></a></li>
 </ul></li>
 <li class="chapter" data-level="" data-path="references.html"><a href="references.html"><i class="fa fa-check"></i>References</a></li>
 <li class="divider"></li>
@@ -190,7 +197,7 @@ There is no theoretical upper limit to the number of ChIP targets which can be a
         </div>
       </div>
 
-<a href="input-files.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+<a href="workflow.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
     </div>
   </div>
 <script src="libs/gitbook-2.6.7/js/app.min.js"></script>

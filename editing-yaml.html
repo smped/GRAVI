@@ -4,18 +4,18 @@
 
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Chapter 4 YAML Configuration Files | GRAVI User Guide (Under Development)</title>
+  <title>Chapter 5 YAML Configuration Files | GRAVI User Guide (Under Development)</title>
   <meta name="description" content="This is the main documentation for the GRAVI workflow" />
   <meta name="generator" content="bookdown 0.26 and GitBook 2.6.7" />
 
-  <meta property="og:title" content="Chapter 4 YAML Configuration Files | GRAVI User Guide (Under Development)" />
+  <meta property="og:title" content="Chapter 5 YAML Configuration Files | GRAVI User Guide (Under Development)" />
   <meta property="og:type" content="book" />
   
   <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
   <meta name="github-repo" content="steveped/GRAVI" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Chapter 4 YAML Configuration Files | GRAVI User Guide (Under Development)" />
+  <meta name="twitter:title" content="Chapter 5 YAML Configuration Files | GRAVI User Guide (Under Development)" />
   
   <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
   
@@ -52,6 +52,10 @@
 <link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
 <link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
 <script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+<script src="libs/htmlwidgets-1.5.4/htmlwidgets.js"></script>
+<script src="libs/viz-1.8.2/viz.js"></script>
+<link href="libs/DiagrammeR-styles-0.2/styles.css" rel="stylesheet" />
+<script src="libs/grViz-binding-1.0.9/grViz.js"></script>
 
 
 
@@ -94,44 +98,47 @@ div.csl-indent {
 <li><a href="./">GRAVI User Guide</a></li>
 
 <li class="divider"></li>
-<li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> cover-image: path to the social sharing image like images/cover.jpg</a></li>
-<li class="chapter" data-level="2" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>2</b> Input Files and Directories</a>
+<li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> Introduction</a></li>
+<li class="chapter" data-level="2" data-path="workflow.html"><a href="workflow.html"><i class="fa fa-check"></i><b>2</b> Workflow Description</a>
 <ul>
-<li class="chapter" data-level="2.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>2.1</b> Directory Structure</a></li>
-<li class="chapter" data-level="2.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>2.2</b> Alignments</a></li>
-<li class="chapter" data-level="2.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>2.3</b> Sample Descriptions</a>
-<ul>
-<li class="chapter" data-level="2.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>2.3.1</b> Required columns</a></li>
-<li class="chapter" data-level="2.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>2.3.2</b> Optional Columns</a></li>
+<li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
+<li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
+<li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
+<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a></li>
 </ul></li>
-<li class="chapter" data-level="2.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>2.4</b> Additional Files</a>
+<li class="chapter" data-level="3" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>3</b> Input Files and Directories</a>
 <ul>
-<li class="chapter" data-level="2.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>2.4.1</b> RNA-Seq</a></li>
-<li class="chapter" data-level="2.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>2.4.2</b> External Features</a></li>
-<li class="chapter" data-level="2.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>2.4.3</b> HiC Interactions</a></li>
-<li class="chapter" data-level="2.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>2.4.4</b> External Coverage</a></li>
+<li class="chapter" data-level="3.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>3.1</b> Directory Structure</a></li>
+<li class="chapter" data-level="3.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>3.2</b> Alignments</a></li>
+<li class="chapter" data-level="3.3" data-path="input-files.html"><a href="input-files.html#sample-descriptions"><i class="fa fa-check"></i><b>3.3</b> Sample Descriptions</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="input-files.html"><a href="input-files.html#required-columns"><i class="fa fa-check"></i><b>3.3.1</b> Required columns</a></li>
+<li class="chapter" data-level="3.3.2" data-path="input-files.html"><a href="input-files.html#optional-columns"><i class="fa fa-check"></i><b>3.3.2</b> Optional Columns</a></li>
 </ul></li>
-</ul></li>
-<li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
+<li class="chapter" data-level="3.4" data-path="input-files.html"><a href="input-files.html#additional-files"><i class="fa fa-check"></i><b>3.4</b> Additional Files</a>
 <ul>
-<li class="chapter" data-level="3.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>3.1</b> Install Snakemake</a></li>
-<li class="chapter" data-level="3.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>3.2</b> Create the Directory Structure</a></li>
-<li class="chapter" data-level="3.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>3.3</b> Run the Pipeline</a>
-<ul>
-<li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
-<li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
+<li class="chapter" data-level="3.4.1" data-path="input-files.html"><a href="input-files.html#rna-seq"><i class="fa fa-check"></i><b>3.4.1</b> RNA-Seq</a></li>
+<li class="chapter" data-level="3.4.2" data-path="input-files.html"><a href="input-files.html#external-features"><i class="fa fa-check"></i><b>3.4.2</b> External Features</a></li>
+<li class="chapter" data-level="3.4.3" data-path="input-files.html"><a href="input-files.html#hic-interactions"><i class="fa fa-check"></i><b>3.4.3</b> HiC Interactions</a></li>
+<li class="chapter" data-level="3.4.4" data-path="input-files.html"><a href="input-files.html#external-coverage"><i class="fa fa-check"></i><b>3.4.4</b> External Coverage</a></li>
 </ul></li>
 </ul></li>
-<li class="chapter" data-level="4" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>4</b> YAML Configuration Files</a>
+<li class="chapter" data-level="4" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>4</b> Quick Start Guide</a>
 <ul>
-<li class="chapter" data-level="4.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>4.1</b> The Main Configuration: <code>config.yml</code></a>
+<li class="chapter" data-level="4.1" data-path="quick-start.html"><a href="quick-start.html#snakemake"><i class="fa fa-check"></i><b>4.1</b> Install Snakemake</a></li>
+<li class="chapter" data-level="4.2" data-path="quick-start.html"><a href="quick-start.html#quick-directories"><i class="fa fa-check"></i><b>4.2</b> Create the Directory Structure</a></li>
+<li class="chapter" data-level="4.3" data-path="quick-start.html"><a href="quick-start.html#quick-run"><i class="fa fa-check"></i><b>4.3</b> Run the Pipeline</a>
 <ul>
-<li class="chapter" data-level="4.1.1" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-dont-need-to-be-modified"><i class="fa fa-check"></i><b>4.1.1</b> Settings Which Don’t Need To Be Modified</a></li>
-<li class="chapter" data-level="4.1.2" data-path="editing-yaml.html"><a href="editing-yaml.html#settings-which-should-be-modified"><i class="fa fa-check"></i><b>4.1.2</b> Settings Which Should Be Modified</a></li>
+<li class="chapter" data-level="4.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>4.3.1</b> Run On A Local Server</a></li>
+<li class="chapter" data-level="4.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>4.3.2</b> Run On An HPC</a></li>
 </ul></li>
-<li class="chapter" data-level="4.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colour-schemes-colours.yml"><i class="fa fa-check"></i><b>4.2</b> Colour Schemes: <code>colours.yml</code></a></li>
-<li class="chapter" data-level="4.3" data-path="editing-yaml.html"><a href="editing-yaml.html#additional-parameters-params.yml"><i class="fa fa-check"></i><b>4.3</b> Additional Parameters: <code>params.yml</code></a></li>
-<li class="chapter" data-level="4.4" data-path="editing-yaml.html"><a href="editing-yaml.html#html-settings-rmarkdown.yml"><i class="fa fa-check"></i><b>4.4</b> HTML Settings: <code>rmarkdown.yml</code></a></li>
+</ul></li>
+<li class="chapter" data-level="5" data-path="editing-yaml.html"><a href="editing-yaml.html"><i class="fa fa-check"></i><b>5</b> YAML Configuration Files</a>
+<ul>
+<li class="chapter" data-level="5.1" data-path="editing-yaml.html"><a href="editing-yaml.html#config-yml"><i class="fa fa-check"></i><b>5.1</b> The Main Configuration: <code>config.yml</code></a></li>
+<li class="chapter" data-level="5.2" data-path="editing-yaml.html"><a href="editing-yaml.html#colour-schemes-colours.yml-colours-yml"><i class="fa fa-check"></i><b>5.2</b> Colour Schemes: <code>colours.yml</code> [#colours-yml]</a></li>
+<li class="chapter" data-level="5.3" data-path="editing-yaml.html"><a href="editing-yaml.html#params-yml"><i class="fa fa-check"></i><b>5.3</b> Additional Parameters: <code>params.yml</code></a></li>
+<li class="chapter" data-level="5.4" data-path="editing-yaml.html"><a href="editing-yaml.html#rmarkdown-yml"><i class="fa fa-check"></i><b>5.4</b> HTML Settings: <code>rmarkdown.yml</code></a></li>
 </ul></li>
 <li class="chapter" data-level="" data-path="references.html"><a href="references.html"><i class="fa fa-check"></i>References</a></li>
 <li class="divider"></li>
@@ -154,13 +161,13 @@ div.csl-indent {
           <div class="page-inner">
 
             <section class="normal" id="section-">
-<div id="editing-yaml" class="section level1 hasAnchor" number="4">
-<h1><span class="header-section-number">Chapter 4</span> YAML Configuration Files<a href="editing-yaml.html#editing-yaml" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div id="editing-yaml" class="section level1 hasAnchor" number="5">
+<h1><span class="header-section-number">Chapter 5</span> YAML Configuration Files<a href="editing-yaml.html#editing-yaml" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <p>All YAML files which ruin the workflow are located in the <code>project_home/config</code> directory.
 The standard YAML structure is used in all files with the primary objective being passing workflow parameters to the various steps of the workflow.
 There are four files which control various aspects: <code>config.yml</code>, <code>colours.yml</code>, <code>params.yml</code> and <code>rmarkdown.yml</code></p>
-<div id="config-yml" class="section level2 hasAnchor" number="4.1">
-<h2><span class="header-section-number">4.1</span> The Main Configuration: <code>config.yml</code><a href="editing-yaml.html#config-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<div id="config-yml" class="section level2 hasAnchor" number="5.1">
+<h2><span class="header-section-number">5.1</span> The Main Configuration: <code>config.yml</code><a href="editing-yaml.html#config-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>This file sets many of the primary parameters and is the file which <em>will need editing for any new dataset.</em>
 Many settings should remain unchanged as changing default locations of files may lead to unexpected instability in the workflow, whilst other setting <strong>should</strong> be changed, such as those which determine which comparisons to perform.
 This is the only file parsed directly by <code>snakemake</code> and subsequent rules, whilst all others are used to pass parameters to <code>R</code> environments.</p>
@@ -203,8 +210,8 @@ peaks:
   qc:
     min_prop_peaks: 0.1
     min_prop_reps: 0.3</code></pre>
-<div id="settings-which-dont-need-to-be-modified" class="section level3 hasAnchor" number="4.1.1">
-<h3><span class="header-section-number">4.1.1</span> Settings Which Don’t Need To Be Modified<a href="editing-yaml.html#settings-which-dont-need-to-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<div id="settings-which-dont-need-to-be-modified" class="section level3 unlisted unnumbered hasAnchor">
+<h3>Settings Which Don’t Need To Be Modified<a href="editing-yaml.html#settings-which-dont-need-to-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>In general, the paths to key files don’t need to be changed and default configurations are well tested.
 Whilst varying these has been intermittently attempted successfully, unexpected instability may occur and as such, is discouraged.</p>
 <p><code>samples:</code> (Default: “config/samples.tsv”)</p>
@@ -212,13 +219,13 @@ Whilst varying these has been intermittently attempted successfully, unexpected 
 In theory, this can be changed but this may adversely impact the pipeline.</p>
 <p><code>paths:</code></p>
 <ul>
-<li><code>bam:</code> (Default: “data/aligned”) Alignments should be placed in <code>data/aligned</code> as advised in section <a href="input-files.html#alignments">2.2</a>, although this can be changed to <code>data/bam</code> or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability</li>
+<li><code>bam:</code> (Default: “data/aligned”) Alignments should be placed in <code>data/aligned</code> as advised in section <a href="input-files.html#alignments">3.2</a>, although this can be changed to <code>data/bam</code> or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability</li>
 <li><code>macs2:</code> (Default: “data/macs2”) Output from <code>macs2 callpeak</code> will be placed in this directory, mirroring the input structure from <code>data/aligned</code> where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.</li>
 <li><code>bigwig:</code> (Default: “data/bigwig”) After running <code>macs2 callpeak</code>, <code>bedGraph</code> files will be converted to the more space efficient <code>bigwig</code> files. The directory structure from both <code>data/aligned</code> and <code>data/macs2</code> will again be mirrored such that each ChIP target has all samples written to the same directory</li>
 </ul>
 </div>
-<div id="settings-which-should-be-modified" class="section level3 hasAnchor" number="4.1.2">
-<h3><span class="header-section-number">4.1.2</span> Settings Which Should Be Modified<a href="editing-yaml.html#settings-which-should-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<div id="settings-which-should-be-modified" class="section level3 unlisted unnumbered hasAnchor">
+<h3>Settings Which Should Be Modified<a href="editing-yaml.html#settings-which-should-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p><code>genome:</code></p>
 <p>Specify the genome build used for alignments and for gene annotations.
 Build must match that used exactly for performing alignments.
@@ -258,8 +265,8 @@ Please see the <a href="https://macs3-project.github.io/MACS/"><code>macs2</code
 </ul>
 </div>
 </div>
-<div id="colour-schemes-colours.yml" class="section level2 hasAnchor" number="4.2">
-<h2><span class="header-section-number">4.2</span> Colour Schemes: <code>colours.yml</code><a href="editing-yaml.html#colour-schemes-colours.yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<div id="colour-schemes-colours.yml-colours-yml" class="section level2 hasAnchor" number="5.2">
+<h2><span class="header-section-number">5.2</span> Colour Schemes: <code>colours.yml</code> [#colours-yml]<a href="editing-yaml.html#colour-schemes-colours.yml-colours-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Defines all plotting colour schemes for consistency throughout the entire workflow.
 Colours can be any standard colours able to be interpreted by <code>R</code>, such as <code>'blue'</code> or <code>'#0000FF'</code>.
 Recommended YAML list elements are <code>qc</code>, <code>regions</code>, <code>direction</code> and <code>treat</code>.
@@ -291,8 +298,8 @@ features:
   super_enhancer: &quot;#FFC34D&quot;
   no_feature: &quot;#E5E5E5&quot;</code></pre>
 </div>
-<div id="additional-parameters-params.yml" class="section level2 hasAnchor" number="4.3">
-<h2><span class="header-section-number">4.3</span> Additional Parameters: <code>params.yml</code><a href="editing-yaml.html#additional-parameters-params.yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<div id="params-yml" class="section level2 hasAnchor" number="5.3">
+<h2><span class="header-section-number">5.3</span> Additional Parameters: <code>params.yml</code><a href="editing-yaml.html#params-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Default settings for defining initial annotations and enrichment testing.
 In general, these will not need to be changed, but can be if required.</p>
 <p>Parameters for <code>msigdb</code> are passed to <code>msigdbr</code><span class="citation">(<a href="#ref-msigdbr" role="doc-biblioref">Dolgalev 2022</a>)</span> and fields should match this layout.
@@ -313,8 +320,8 @@ msigdb:
     - &quot;CP:WIKIPATHWAYS&quot;
     - &quot;TFT:GTRD&quot;</code></pre>
 </div>
-<div id="html-settings-rmarkdown.yml" class="section level2 hasAnchor" number="4.4">
-<h2><span class="header-section-number">4.4</span> HTML Settings: <code>rmarkdown.yml</code><a href="editing-yaml.html#html-settings-rmarkdown.yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<div id="rmarkdown-yml" class="section level2 hasAnchor" number="5.4">
+<h2><span class="header-section-number">5.4</span> HTML Settings: <code>rmarkdown.yml</code><a href="editing-yaml.html#rmarkdown-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>The main workflow will produce a compiled set of HTML pages using <code>rmarkdown::render_site()</code><span class="citation">(<a href="#ref-R-rmarkdown" role="doc-biblioref">Allaire et al. 2022</a>)</span>.
 The two available fields to supply here are:</p>
 <ol style="list-style-type: decimal">
@@ -430,6 +437,20 @@ gitbook.start({
 });
 </script>
 
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
 </body>
 
 </html>
