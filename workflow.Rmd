@@ -85,7 +85,7 @@ These ranges can be easily changed to increase or decrease the size using the YA
 2. *Upstream Promoters*: These are extended promoter regions up to 5kb upstream by default, which again can be changed to suit
 3. *Exons* are defined as any exon not overlapping a promoter or upstream promoter
 4. *Introns* are defined as any transcribed sequence not overlapping a promoter, upstream promoter or exon
-5. *Intergenic Regions*: are divided into two subsets, neither of which are premitted to overlap any previously defined regions
+5. *Intergenic Regions*: are divided into two subsets, neither of which are permitted to overlap any previously defined regions
     + Within 10kb of a gene. Again this distance is customisable
     + Beyond 10kb of a gene.
     
@@ -129,7 +129,7 @@ Peaks overlapping a blacklisted region are excluded at all steps of the analysis
 
 The final HTML report produced for each target will contain:
 
-1. A VennDiagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot[@upsetr] will be produced instead
+1. A Venn Diagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot[@upsetr] will be produced instead
 2. Distance to TSS plots as actual and cumulative distributions using consensus peaks.
 3. A pie chart describing the distribution of consensus peaks within the genomic regions defined previously
 
@@ -314,5 +314,54 @@ Key output files produced by this step of the workflow are:
 
 ## Pairwise Comparisons
 
-Last bit...
+By default, pair-wise comparisons are performed between all differential binding results.
+If ChIP target TF1 has samples in Control and Treat1, whilst ChIP target TF2 has samples in Control, Treat1 and Treat2, with comparisons being requested for Treat1 vs. Control and Treat2 Vs Control, the following pair-wise comparisons will be automatically performed:
+
+1. TF1 (Treat1 Vs Control) and TF2 (Treat1 Vs Control)
+2. TF1 (Treat1 Vs Control) and TF2 (Treat2 Vs Control)
+3. TF2 (Treat1 Vs Control) and TF2 (Treat2 Vs Control)
+
+Given the automated nature of the workflow, this represents the simplest approach and any redundant comparisons are simply able to be ignored by the user.
+
+### Comparison of Peaks {.unlisted .unnumbered}
+
+The pair-wise comparisons module initially compares consensus peaks between the two targets as a Venn Diagram, with the sets of four Oracle Peaks (i.e. treatment specific peaks) being compared using an UpSet plot.
+
+### Comparison of Differentially Bound Windows {.unlisted .unnumbered}
+
+Pair-wise comparison of two ChIP targets requires more nuance than simply looking for sites where both are changed.
+A universal set of windows is first obtained across all windows retained in both targets.
+These are then classified as Up, Down, Unchanged or Undetected for each ChIP target.
+Using both targets, the universal windows are then classified based on both targets.
+This is particularly important given the hypothesised role of ChIP targets which can act as pioneer factors[@pioneerfactors], or those which bind in complex and sequester other factors[@hickeynatmed].
+
+The combined behaviours of both ChIP targets is then compared directly, described by genomic region and external features (if provided).
+Distances between the windows with representative statistics (i.e. maximal signal) are determined where both targets are present.
+The combined changes in signal are then compared as a complete set for all windows where both targets are detected, as well as broken down by genomic region and external features.
+
+### Enrichment Analysis {.unlisted .unnumbered}
+
+The same gene-sets from MSigDB[@msigdb] as used previously are then used for enrichment testing, using genes as mapped to windows during previous steps.
+Enrichment testing again uses `goseq` with gene length as the biased-sampling term.
+Enrichment is performed at multiple levels:
+
+1. Genes Mapped To All Windows
+    1. Genes mapped to *either target*
+    2. Genes mapped to *target 1 but not the second target*
+    3. Genes mapped to *target 2 but not the first target*
+    4. Genes mapped to *both targets*
+2. Genes Mapped to Differentially Bound Windows
+    + All pair-wise combinations of Up/Down/Unchanged/Undetected are tested across both factors. If no enrichment is found, results are not presented.
+    
+### Combined Visualisations {.unlisted .unnumbered}
+
+The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
+Using only combinations of Up/Down/Unchanged, six windows for each are presented.
+As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.
+
+### Integration With RNA-Seq Results {.unlisted .unnumbered}
+
+The set of genes mapped to each pair-wise combination of Up/Down/Unchanged/Undetected are then compared to the external DE results using GSEA incorporating direction of change, and overall significance.
+Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for *all* significant combined-binding groups are also provided in the results table.
+
 
