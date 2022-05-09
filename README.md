@@ -1,52 +1,19 @@
-# GRAVI: Gene Regulatory Analysis using Variable IP
+# GRAVI: Gene Regulatory Analysis using Variable Inputs
 
 This is a `snakemake` workflow for:
 
 1. Performing sample QC
-2. calling ChIP peaks
-3. performing Differential Binding Analysis
-4. identifying TF motifs
+2. Calling ChIP peaks
+3. Performing Differential Binding Analysis
+4. Comparing results across ChIP targets
+5. Identifying TF motifs (to be added soon)
 
-At least two IP targets are required as worflows for a single ChIP target are well established.
+The minimum required input is one ChIP target with two conditions.
 
-## Config Setup
-
-### Samples
-
-This workflow requires a tsv file, nominally `samples.tsv` detailing:
-
-1. Each sample
-2. Which ChIP target each samples is associated with
-3. Which treatment group it is associated with, and
-4. Which Input/Control sample it is associated with
-
-Required columns are: `sample`, `target`, `treat` and `input` (all lower case).
-At least one additional column containing replicate information should also be included.
-A possible structure is as follows:
-
-```
-| sample | target | treat | passage | input |
-| ------ | ------ | ----- | ------- | ----- |
-| sample1 | AR | Veh | 1 | input1 |
-| sample2 | AR | E2  | 1 | input1 |
-```
-
-It is currently assumed that bam files will be placed in `data/aligned/bam/[target]` where the final directory is the individual ChIP target.
-Whilst the root directory can theoretically be changed via `config.yml`, it is not recommended.
-Bam files should be named as specified in the `sample` column, with the addition of the `.bam` suffix only.
-
-### Config
-
-The file `config/config.yml` is where users can edit a series of parameters with default values provided.
-The example provided should provide a clear guide to the structure.
-However, the file can be checked using
-
-```
-python scripts/check_yaml.py
-```
+Full documentation can be found [here](https://steveped.github.io/GRAVI/)
 
 
-## Snakemake implementation
+## Snakemake Implementation
 
 The basic workflow is written `snakemake` and can be called using the following steps.
 
