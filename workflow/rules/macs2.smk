@@ -174,9 +174,12 @@ rule macs2_merged:
 		narrow_peaks = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_peaks.narrowPeak"
 		),
-		bedgraph = temp(
-			os.path.join(
-				macs2_path, "{target}", "{treat}_merged_treat_pileup.bdg"
+    bedgraph = temp(
+			expand(
+				os.path.join(
+					macs2_path, "{{target}}", "{{treat}}_merged_{type}.bdg"
+				),
+				type = ['treat_pileup', 'control_lambda']
 			)
 		),
 		log = os.path.join(
@@ -353,7 +356,7 @@ rule build_macs2_summary:
 			{wildcards.target} \
 			{threads} \
 			{output.rmd} &>> {log}
-		
+
 		## Add the module directly as literal code
 		cat {input.module} >> {output.rmd}
 
