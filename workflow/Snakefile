@@ -12,6 +12,19 @@ configfile: "config/config.yml"
 ## Figure out how to run check_yaml from here if possible
 ## python scripts/check_yaml.py
 
+####################################
+## Check all external files exist ##
+####################################
+all_exist=True
+if config['external']['rnaseq'] != '':
+  if not os.path.isfile(config['external']['rnaseq']):
+    all_exist=False
+    print(config['external']['rnaseq'] + " does not exist")
+
+
+if not all_exist:
+  sys.exit(1)
+
 def get_ucsc_genome(x):
 	map = pd.Series(['hg19', 'hg38'], index = ['GRCh37', 'GRCh38'])
 	if not x in map.keys():
