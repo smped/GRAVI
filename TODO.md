@@ -8,6 +8,7 @@
 ## General Workflow
 
 - Setup chunk should be written to `analysis/setup_chunk.Rmd` not placed in `workflow/modules`
+- Move initiation of `index.Rmd` to be from `workflow/modules`. Same for `footer.html`
 - Change site classification to use secondary p-values from a point-based H~0~
 - Add the capacity to download key tables as a csv where viable
 - Check bias offsets for goseq (just check results). 
