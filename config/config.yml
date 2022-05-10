@@ -1,6 +1,4 @@
-## Add relevant sample information here.
-## The fields are essentially fixed, although multiple treatments can be
-## included
+## Please see https://steveped.github.io/GRAVI/editing-yaml.html for a description of this file
 samples:
   file: "config/samples.tsv"
 
@@ -9,14 +7,6 @@ paths:
   macs2: "data/macs2"
   bigwig: "data/bigwig"
 
-## These will be applied to **all** targets containing both levels specified in
-## the contrasts field. The first provided level will be considered as the
-## baseline/control/reference.
-## Fields provided in the ihw field can only be blank ("") or one of:
-## "targets": Will use all other ChIP targets in the samples file
-## "regions": Will use Genomic Regions as defined during the annotation setup
-## "features": Will use any ranges provided as external features (below)
-## This will be used for obtaining an IHW-adjusted FDR.
 comparisons:
   fc: 1.2
   fdr: 0.05
@@ -26,22 +16,10 @@ comparisons:
     - ["Veh", "DHT"]
   ihw: "regions"
 
-## Currently, this workflow assumes alignments are provided as bam files
-## Metadata is set to be obtained from gencode. This may need changing later.
-## Please use GRCh37/38 for the build argument. hg19/38 will be detected from
-## these
 genome:
   build: "GRCh37"
   gencode: "33"
 
-## Additional data to be incorporated. Fields are fixed.
-## `rnaseq` Should be of a similar form to the output from limma::topTable.
-## Either a tsv or csv or csv if acceptable.
-## `features` **must be provided as a gtf** with the attribute 'feature' in the final column
-## HiC data should be a bedpe file generated prior to this workflow
-## `coverage` must be bigwig files with each track specified as a new yaml layer
-## Each file within the layer must also be named, and these will be overlaid as
-## a single track within the plot. Multiple coverage tracks can be added
 external:
   rnaseq:
   features:
@@ -49,21 +27,11 @@ external:
   coverage:
 
 peaks:
-  ## Settings for macs2 callpeak
   macs2:
     gsize: "hs"
     fdr: 0.05
     keep_duplicates: "all"
   qc:
-    ## Any sample retaining fewer than *min_prop_peaks* relative to the sample
-    ## with the maximal number of retained peaks, will be considered as failing
-    ## QC. This will ensure samples will be retained in the absence of signal,
-    ## but discarded with an experimental failure
-    ## When determining oracle peaks, require peaks to be detected in more than
-    ## *min_prop_reps* of the replicates, after excluding failed replicates
-    ## using min_prop_peaks. Higher values are more applicable for cell lines
-    ## (e.g. >0.5) whilst PDX/organoid lines may need lower values (e.g. 0.3)
-    ## given the difficulty of working with solid tissue
     min_prop_peaks: 0.1
     min_prop_reps: 0.3
 
