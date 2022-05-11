@@ -7,6 +7,7 @@
 
 ## General Workflow
 
+- [] Calls to `setup_chunk.Rmd` use `here::here()` which depends on an *.Rproj file. This needs to be resolved intelligently, perhaps creating one, or incorporating the point below
 - [] Setup chunk should be written to `analysis/setup_chunk.Rmd` not placed in `workflow/modules`
 - [] Move initiation of `index.Rmd` to be from `workflow/modules`. Same for `footer.html`
 - [] Change site classification to use secondary p-values from a point-based H~0~
