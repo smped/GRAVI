@@ -128,6 +128,35 @@ rule compile_annotations_rmd:
 		fi
 	  """
 
+rule create_site_index:
+	input:
+		os.path.join("workflow", "modules", "index.Rmd")
+	output:
+		os.path.join(rmd_path, "index.Rmd")
+	threads: 1
+	params:
+		git = git_add,
+		interval = random.uniform(0, 1),
+		tries = 10
+	shell:
+		"""
+		cp {input} {output}
+
+		if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output}
+		fi		
+		"""
+
 rule compile_site_index:
 	input:
 		html = HTML_OUT,
