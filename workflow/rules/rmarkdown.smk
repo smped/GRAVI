@@ -44,7 +44,7 @@ rule create_setup_chunk:
 		config = "config/rmarkdown.yml",
 		r = "workflow/scripts/create_setup_chunk.R"
 	output:
-	  rmd = "workflow/modules/setup_chunk.Rmd"
+		rmd = "analysis/setup_chunk.Rmd"
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),

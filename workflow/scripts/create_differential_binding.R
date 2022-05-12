@@ -15,7 +15,7 @@ glue(
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	---
 
-	```{r set-knitr-opts, echo=FALSE, child = here::here('workflow/modules/setup_chunk.Rmd')}
+	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
 	```
 
 	```{r set-vals}
