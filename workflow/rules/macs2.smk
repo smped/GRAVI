@@ -297,7 +297,48 @@ rule get_coverage_summary:
 		fi
 		"""
 
-rule build_macs2_summary:
+rule create_macs2_summary_rmd:
+	input:
+		module = "workflow/modules/macs2_summary.Rmd",
+		r = "workflow/scripts/create_macs2_summary.R"
+	output:
+		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
+	params:
+		git = git_add,
+		interval = random.uniform(0, 1),
+		threads = lambda wildcards: len(df[df['target'] == wildcards.target]),
+		tries = 10
+	conda: "../envs/rmarkdown.yml"
+	threads: 1
+	shell:
+		"""
+		## Create the generic markdown
+		Rscript --vanilla \
+			{input.r} \
+			{wildcards.target} \
+			{params.threads} \
+			{output.rmd} &>> {log}
+
+		## Add the module directly as literal code
+		cat {input.module} >> {output.rmd}
+
+		if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output.rmd} 
+		fi
+		"""
+
+
+rule compile_macs2_summary_rmd:
 	input:
 		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(
@@ -321,14 +362,12 @@ rule build_macs2_summary:
 			treat = set(df[df.target == wildcards.target]['treat']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		module = "workflow/modules/macs2_summary.Rmd",
 		pkgs = rules.install_packages.output,
 		qc = os.path.join("output", "{target}", "qc_samples.tsv"),
-		r = "workflow/scripts/create_macs2_summary.R",
+		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output
 	output:
-		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		html = "docs/{target}_macs2_summary.html",
 		fig_path = directory(
 			os.path.join(
@@ -351,17 +390,7 @@ rule build_macs2_summary:
 	log: "workflow/logs/macs2_summmary/build_{target}_macs2_summary.log"
 	shell:
 		"""
-		## Create the generic markdown
-		Rscript --vanilla \
-			{input.r} \
-			{wildcards.target} \
-			{threads} \
-			{output.rmd} &>> {log}
-
-		## Add the module directly as literal code
-		cat {input.module} >> {output.rmd}
-
-		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
+		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
 
 		if [[ {params.git} == "True" ]]; then
 			TRIES={params.tries}
@@ -374,10 +403,6 @@ rule build_macs2_summary:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.rmd} \
-			  {output.html}\
-			  {output.fig_path} \
-			  {output.peaks} \
-			  {output.venn}
+			git add {output.html} {output.fig_path} {output.peaks} {output.venn}
 		fi
 		"""

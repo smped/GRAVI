@@ -79,7 +79,7 @@ rule create_here_file:
 		touch here_file
 		"""
 
-rule build_annotations_rmd:
+rule compile_annotations_rmd:
   input:
     blacklist = blacklist,
     here = here_file,
@@ -128,7 +128,7 @@ rule build_annotations_rmd:
 		fi
 	  """
 
-rule build_site_index:
+rule compile_site_index:
 	input:
 		html = HTML_OUT,
         here = here_file,		
