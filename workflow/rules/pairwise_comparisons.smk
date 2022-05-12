@@ -49,7 +49,7 @@ rule create_pairwise_comparisons_rmd:
         fi
 		"""
 
-rule compile_pairwise_comparisons_rmd:
+rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		config = "config/config.yml",

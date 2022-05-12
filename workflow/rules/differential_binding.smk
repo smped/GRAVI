@@ -47,7 +47,7 @@ rule create_differential_binding_rmd:
 		fi
 		"""
 
-rule compile_differential_binding_rmd:
+rule compile_differential_binding_html:
 	input:
 		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(

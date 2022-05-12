@@ -128,7 +128,7 @@ rule compile_annotations_rmd:
 		fi
 	  """
 
-rule create_site_index:
+rule create_index_rmd:
 	input:
 		os.path.join("workflow", "modules", "index.Rmd")
 	output:
@@ -157,7 +157,7 @@ rule create_site_index:
 		fi		
 		"""
 
-rule compile_site_index:
+rule compile_index_html:
 	input:
 		html = HTML_OUT,
         here = here_file,		

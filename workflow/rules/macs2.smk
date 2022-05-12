@@ -338,7 +338,7 @@ rule create_macs2_summary_rmd:
 		"""
 
 
-rule compile_macs2_summary_rmd:
+rule compile_macs2_summary_html:
 	input:
 		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(
