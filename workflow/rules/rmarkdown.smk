@@ -147,7 +147,7 @@ rule create_index_rmd:
 			while [[ -f .git/index.lock ]]
 			do
 				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					echo "ERROR: Timeout while waiting for removal of git index.lock" 
 					exit 1
 				fi
 				sleep {params.interval}
