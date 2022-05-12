@@ -3,7 +3,7 @@ rule install_packages:
   output: "output/packages.installed"
   conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/install_packages.log"
+	log: log_path + "/rmarkdown/install_packages.log"
 	shell:
 	  """
 	  Rscript --vanilla {input} {output} &>> {log}
@@ -20,7 +20,7 @@ rule create_site_yaml:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/create_site_yaml.log"
+	log: log_path + "/rmarkdown/create_site_yaml.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {output} &>> {log}
@@ -51,7 +51,7 @@ rule create_setup_chunk:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/create_setup_chunk.log"
+	log: log_path + "/rmarkdown/create_setup_chunk.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {output.rmd} &>> {log}
@@ -79,7 +79,7 @@ rule create_here_file:
 		touch here_file
 		"""
 
-rule compile_annotations_rmd:
+rule compile_annotations_html:
   input:
     blacklist = blacklist,
     here = here_file,
@@ -107,7 +107,7 @@ rule compile_annotations_rmd:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/build_annotations_rmd.log"
+	log: log_path + "/rmarkdown/compile_annotations_html.log"
 	shell:
 	  """
 	  cp {input.rmd} {output.rmd}
@@ -140,7 +140,7 @@ rule create_index_rmd:
 		tries = 10
 	shell:
 		"""
-		cp {input} {output}
+		cat {input} > {output}
 
 		if [[ {params.git} == "True" ]]; then
 			TRIES={params.tries}
@@ -173,7 +173,7 @@ rule compile_index_html:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/build_site_index.log"
+	log: log_path + "/rmarkdown/compile_index_html.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

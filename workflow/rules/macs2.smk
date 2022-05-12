@@ -69,7 +69,7 @@ rule macs2_individual:
 				]
 			)
 		)
-	log: "workflow/logs/macs2_individual/{target}/{sample}.log"
+	log: log_path + "/macs2_individual/{target}/{sample}.log"
 	conda: "../envs/macs2.yml"
 	params:
 		outdir = os.path.join(macs2_path, "{target}"),
@@ -139,7 +139,7 @@ rule macs2_qc:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
-	log: "workflow/logs/macs2_individual/{target}/{target}_macs2_qc.log"
+	log: log_path + "/macs2_individual/{target}/{target}_macs2_qc.log"
 	shell:
 		"""
 		## Run the QC script
@@ -185,7 +185,7 @@ rule macs2_merged:
 		log = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_callpeak.log"
 		),
-	log: "workflow/logs/macs2_merged/{target}/{treat}_merged.log"
+	log: log_path + "/macs2_merged/{target}/{treat}_merged.log"
 	conda: "../envs/macs2.yml"
 	params:
 		bamdir = bam_path,
@@ -242,7 +242,7 @@ rule bedgraph_to_bigwig:
 	output:
 		bigwig = os.path.join(bw_path, "{target}", "{sample}_treat_pileup.bw")
 	conda: "../envs/bedgraph_to_bigwig.yml"
-	log: "workflow/logs/bedgraph_to_bigwig/{target}/{sample}.log"
+	log: log_path + "/bedgraph_to_bigwig/{target}/{sample}.log"
 	threads: 1
 	shell:
 		"""
@@ -272,7 +272,7 @@ rule get_coverage_summary:
 		interval = random.uniform(0, 1),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
-	log: "workflow/logs/get_coverage_summary/{target}/{sample}.log"
+	log: log_path + "/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
 	shell:
 		"""
@@ -310,7 +310,7 @@ rule create_macs2_summary_rmd:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: log_path + "/create_rmd/create_{target}_macs2_summary.Rmd"
+	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	shell:
 		"""
 		## Create the generic markdown
@@ -388,7 +388,7 @@ rule compile_macs2_summary_html:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
-	log: "workflow/logs/macs2_summmary/compile_{target}_macs2_summary.log"
+	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
