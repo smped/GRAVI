@@ -2,15 +2,16 @@ rule pairwise_comparisons:
 	input:
 		annotations = ALL_RDS,
 		config = "config/config.yml",
-		pkgs = rules.install_packages.output,
-		r = "workflow/scripts/create_pairwise_comparison.R",
-		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output,
-		rmd_config = "config/rmarkdown.yml",
+		here = here_file,
 		module_pw = "workflow/modules/pairwise_comparison.Rmd",
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
+		pkgs = rules.install_packages.output,
+		r = "workflow/scripts/create_pairwise_comparison.R",
 		results_t1 = "docs/{t1}_{ref1}_{treat1}_differential_binding.html",
-		results_t2 = "docs/{t2}_{ref2}_{treat2}_differential_binding.html"
+		results_t2 = "docs/{t2}_{ref2}_{treat2}_differential_binding.html",
+		rmd_config = "config/rmarkdown.yml",
+		setup = rules.create_setup_chunk.output,
+		yaml = rules.create_site_yaml.output
 	output:
 		rmd = expand(
 			os.path.join(

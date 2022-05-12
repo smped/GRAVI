@@ -12,6 +12,34 @@ configfile: "config/config.yml"
 ## Figure out how to run check_yaml from here if possible
 ## python scripts/check_yaml.py
 
+## Set the here file as defined by here::here() for Rmarkdown files
+## In a valid Rproj file is found, use that. Otherwise use .here
+def get_here_file():
+	wd = os.getcwd()
+	rproj = os.path.basename(wd) + ".Rproj"
+	rproj_path = os.path.join(wd, rproj)
+	here_file = os.path.join(wd, ".here")
+	if os.path.isfile(rproj_path):
+		## Check contents of file for Version in line 1
+		with open(rproj_path) as f:
+			ln = f.readline().rstrip()
+		if 'Version:' in ln:
+			here_file = rproj
+	return(here_file)
+
+####################################
+## Check all external files exist ##
+####################################
+all_exist=True
+# if config['external']['rnaseq'] != '':
+# 	if not os.path.isfile(config['external']['rnaseq']):
+# 		all_exist=False
+# 		print(config['external']['rnaseq'] + " does not exist")
+
+
+if not all_exist:
+	sys.exit(1)
+
 def get_ucsc_genome(x):
 	map = pd.Series(['hg19', 'hg38'], index = ['GRCh37', 'GRCh38'])
 	if not x in map.keys():
@@ -88,10 +116,10 @@ pairs=make_pairwise(config['comparisons']['contrasts'])
 ###############
 ## Key Paths ##
 ###############
+here_file = get_here_file()
 bam_path = config['paths']['bam']
 bw_path = config['paths']['bigwig']
 macs2_path = config['paths']['macs2']
-# ext_path = os.path.join("data", "external")
 rmd_path = "analysis"
 ## This still needs to be changed internally in the RMD files
 annotation_path = os.path.join("output", "annotations")

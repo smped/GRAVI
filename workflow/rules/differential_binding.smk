@@ -28,6 +28,7 @@ rule differential_binding:
 			os.path.join("output", "{target}", "consensus_peaks.bed"),
 			target = targets
 		),
+		here = here_file,
 		indiv_bw = lambda wildcards: expand(
 			os.path.join(
 				bw_path, "{{target}}", "{sample}_treat_pileup.bw"

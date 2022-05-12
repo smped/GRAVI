@@ -71,9 +71,18 @@ rule create_setup_chunk:
 		fi
 		"""
 
+rule create_here_file:
+	output: here_file
+	threads: 1
+	shell:
+		"""
+		touch here_file
+		"""
+
 rule build_annotations_rmd:
   input:
     blacklist = blacklist,
+    here = here_file,
     rmd = "workflow/modules/annotation_description.Rmd",
     rds = expand(
       os.path.join(annotation_path, "{file}.rds"),
@@ -122,6 +131,7 @@ rule build_annotations_rmd:
 rule build_site_index:
 	input:
 		html = HTML_OUT,
+        here = here_file,		
 		rmd = os.path.join(rmd_path, "index.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,

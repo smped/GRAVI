@@ -174,7 +174,7 @@ rule macs2_merged:
 		narrow_peaks = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_peaks.narrowPeak"
 		),
-    bedgraph = temp(
+    	bedgraph = temp(
 			expand(
 				os.path.join(
 					macs2_path, "{{target}}", "{{treat}}_merged_{type}.bdg"
@@ -306,6 +306,9 @@ rule build_macs2_summary:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
+		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
+		config = "config/config.yml",
+		here = here_file,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
@@ -318,14 +321,12 @@ rule build_macs2_summary:
 			treat = set(df[df.target == wildcards.target]['treat']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
-		qc = os.path.join("output", "{target}", "qc_samples.tsv"),
-		config = "config/config.yml",
+		module = "workflow/modules/macs2_summary.Rmd",
 		pkgs = rules.install_packages.output,
+		qc = os.path.join("output", "{target}", "qc_samples.tsv"),
 		r = "workflow/scripts/create_macs2_summary.R",
 		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output,
-		module = "workflow/modules/macs2_summary.Rmd"
+		yaml = rules.create_site_yaml.output
 	output:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		html = "docs/{target}_macs2_summary.html",
