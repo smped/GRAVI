@@ -310,6 +310,7 @@ rule create_macs2_summary_rmd:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	log: log_path + "/create_rmd/create_{target}_macs2_summary.Rmd"
 	shell:
 		"""
 		## Create the generic markdown
@@ -387,7 +388,7 @@ rule compile_macs2_summary_html:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
-	log: "workflow/logs/macs2_summmary/build_{target}_macs2_summary.log"
+	log: "workflow/logs/macs2_summmary/compile_{target}_macs2_summary.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

@@ -17,6 +17,7 @@ rule create_pairwise_comparisons_rmd:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	log: log_path + "/create_rmd/create_{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_rmd"
 	shell:
 		"""
 		## Create the generic markdown header

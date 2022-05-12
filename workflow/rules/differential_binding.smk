@@ -17,6 +17,7 @@ rule create_differential_binding_rmd:
 		]),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
+	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
 	threads: 1
 	shell:
 		"""
@@ -139,8 +140,7 @@ rule compile_differential_binding_html:
 			(df['target'] == wildcards.target) &
 			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
 			])
-	log:
-		"workflow/logs/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
+	log: log_path + "/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
