@@ -335,6 +335,10 @@ These are then classified as Up, Down, Unchanged or Undetected for each ChIP tar
 Using both targets, the universal windows are then classified based on both targets.
 This is particularly important given the hypothesised role of ChIP targets which can act as pioneer factors[@pioneerfactors], or those which bind in complex and sequester other factors[@hickeynatmed].
 
+The classification of each window is based on significant FDR-adjusted p-value using the range-based H~0~ in at least one comparison.
+In order to ensure more accurate assignment of windows in the secondary comparison, the FDR-adjusted p-values using a *point-based* H~0~ are used, in conjunction with an estimated logFC beyond the range $\pm\lambda$, i.e. $|\widehat{\text{logFC}}| > \lambda$.
+This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H~0~.
+
 The combined behaviours of both ChIP targets is then compared directly, described by genomic region and external features (if provided).
 Distances between the windows with representative statistics (i.e. maximal signal) are determined where both targets are present.
 The combined changes in signal are then compared as a complete set for all windows where both targets are detected, as well as broken down by genomic region and external features.
