@@ -81,6 +81,7 @@ bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
+macs2_path <- here::here(config$paths$macs2, target)
 bw_path <- here::here(config$paths$bigwig, target)
 stopifnot(dir.exists(bw_path))
 out_path <- here::here("output", target)
@@ -370,8 +371,8 @@ Taking the first `r comma(ys)` alignments, a brief inspection of the Bam Files r
 ## Sliding Window Counts
 
 ```{r window-counts}
-macs2_merged_logs <- here::here(
-	"data", "macs2", target, glue("{treat_levels}_merged_callpeak.log")
+macs2_merged_logs <- file.path(
+  macs2_path, glue("{treat_levels}_merged_callpeak.log")
 	) %>%
 	importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
