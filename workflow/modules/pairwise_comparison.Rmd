@@ -103,8 +103,6 @@ data(list = cb)
 bands_df <- mget(cb)[[cb]]
 annotation_path <- here::here("output", "annotations")
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-bw_path <- here::here(config$paths$bigwig, targets)
-stopifnot(all(dir.exists(bw_path)))
 
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
@@ -1889,7 +1887,7 @@ bwfl <- seq_along(pairs) %>%
   lapply(
     function(x) {
       file.path(
-        bw_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
+        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
       ) %>% 
         BigWigFileList() %>% 
         setNames(pairs[[x]])

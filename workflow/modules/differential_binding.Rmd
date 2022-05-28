@@ -82,8 +82,6 @@ stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
 macs2_path <- here::here(config$paths$macs2, target)
-bw_path <- here::here(config$paths$bigwig, target)
-stopifnot(dir.exists(bw_path))
 out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 ```
@@ -875,7 +873,7 @@ For visualisation purposes, only genes which were considered as detected in any 
 ```{r make-heatmaps}
 profile_width <- 5e3
 n_bins <- 100
-bwfl <- file.path(bw_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
+bwfl <- file.path(macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- merged_results %>% 
@@ -1656,7 +1654,7 @@ grl_to_plot <- GRangesList(
 ## The coverage
 bwfl <- list2(
   "{target}" := file.path(
-    bw_path, glue("{treat_levels}_merged_treat_pileup.bw")
+    macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")
   ) %>% 
     BigWigFileList() %>% 
     setNames(treat_levels)

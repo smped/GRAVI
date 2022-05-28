@@ -70,7 +70,7 @@ rule compile_differential_binding_html:
 		),
 		merged_bw = lambda wildcards: expand(
 			os.path.join(
-				bw_path, "{{target}}", "{pre}_merged_treat_pileup.bw"
+				macs2_path, "{{target}}", "{pre}_merged_treat_pileup.bw"
 			),
 			pre = [wildcards.ref, wildcards.treat]
 		),
@@ -81,7 +81,7 @@ rule compile_differential_binding_html:
 		here = here_file,
 		indiv_bw = lambda wildcards: expand(
 			os.path.join(
-				bw_path, "{{target}}", "{sample}_treat_pileup.bw"
+				macs2_path, "{{target}}", "{sample}_treat_pileup.bw"
 			),
 			sample = df['sample'][
 				(df['target'] == wildcards.target) &

@@ -118,7 +118,6 @@ pairs=make_pairwise(config['comparisons']['contrasts'])
 ###############
 here_file = get_here_file()
 bam_path = config['paths']['bam']
-bw_path = config['paths']['bigwig']
 macs2_path = config['paths']['macs2']
 rmd_path = "analysis"
 ## This still needs to be changed internally in the RMD files
@@ -231,13 +230,13 @@ ALL_OUTPUTS.extend(MERGED_PEAKS)
 ## BigWig Files ##
 ##################
 INDIV_BW = expand(
-	os.path.join(bw_path, "{path}_treat_pileup.{suffix}"),
+	os.path.join(macs2_path, "{path}_treat_pileup.{suffix}"),
 	path = indiv_pre,
 	suffix = ['bw']#, 'summary']
 )
 ALL_OUTPUTS.extend(INDIV_BW)
 MERGED_BW = expand(
-	os.path.join(bw_path, "{path}_merged_treat_pileup.{suffix}"),
+	os.path.join(macs2_path, "{path}_merged_treat_pileup.{suffix}"),
 	path = merged_pre,
 	suffix = ['bw']#, 'summary']
 )

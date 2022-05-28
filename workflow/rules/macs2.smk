@@ -240,7 +240,7 @@ rule bedgraph_to_bigwig:
 		),
 		chrom_sizes = chrom_sizes
 	output:
-		bigwig = os.path.join(bw_path, "{target}", "{sample}_treat_pileup.bw")
+		bigwig = os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.bw")
 	conda: "../envs/bedgraph_to_bigwig.yml"
 	log: log_path + "/bedgraph_to_bigwig/{target}/{sample}.log"
 	threads: 1
@@ -265,7 +265,7 @@ rule bedgraph_to_bigwig:
 
 rule get_coverage_summary:
 	input: rules.bedgraph_to_bigwig.output.bigwig
-	output: os.path.join(bw_path, "{target}", "{sample}_treat_pileup.summary")
+	output: os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.summary")
 	params:
 		script = "workflow/scripts/get_bigwig_summary.R",
 		git = git_add,
