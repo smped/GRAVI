@@ -196,7 +196,7 @@ ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
 
 ## Peaks generated from the Rmd files
 CONS_PEAKS = expand(
-	os.path.join("output", "{target}", "{file}"),
+	os.path.join(macs2_path, "{target}", "{file}"),
 	target = targets,
 	file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 )
