@@ -275,26 +275,12 @@ with_tooltip <- function(value, width = 30) {
 
 
 ```{r load-data}
-oracle_peaks <- targets %>% 
-  unique() %>% 
-  lapply(
-    function(x) {
-      read_rds(
-        here::here("output", x, "oracle_peaks.rds")
-      )
-    }
-  ) %>% 
-  setNames(unique(targets))
-consensus_peaks <- targets %>% 
-  unique() %>% 
-  lapply(
-    function(x) {
-      import.bed(
-        here::here("output", x, "consensus_peaks.bed"), seqinfo = sq
-      )
-    }
-  ) %>% 
-  setNames(unique(targets))
+oracle_peaks <- file.path(macs2_path, "oracle_peaks.rds") %>%
+  lapply(read_rds) %>% 
+  setNames(basename(dirname(macs2_path)))
+consensus_peaks <- file.path(macs2_path, "consensus_peaks.bed") %>%
+  lapply(import.bed, seqinfo = sq) %>%
+  setNames(basename(dirname(macs2_path)))
 all_consensus <- consensus_peaks %>% 
   GRangesList() %>% 
   unlist() %>% 

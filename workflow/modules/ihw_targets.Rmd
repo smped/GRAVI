@@ -7,7 +7,7 @@ other_targets <- here::here(config$samples$file) %>%
 ihw_all <- other_targets %>% 
   sapply(
     function(x) {
-      here::here("output", x, "consensus_peaks.bed") %>%
+      here::here(dirname(macs2_path), x, "consensus_peaks.bed") %>%
         import.bed(seqinfo = sq)
     },
     simplify = FALSE

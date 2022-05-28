@@ -129,8 +129,8 @@ rule macs2_qc:
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
 		r = "workflow/scripts/macs2_qc.R"
 	output:
-		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
-		qc = os.path.join("output", "{target}", "qc_samples.tsv")
+		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
+		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
@@ -167,7 +167,7 @@ rule macs2_merged:
 		bai = get_merged_bai_from_treat_and_target,
 		control = get_input_bam_from_treat_and_target,
 		control_bai = get_input_bai_from_treat_and_target,
-		qc = os.path.join("output", "{target}", "qc_samples.tsv")
+		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
 	output:
 		narrow_peaks = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_peaks.narrowPeak"
@@ -349,7 +349,7 @@ rule compile_macs2_summary_html:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
-		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
+		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
 		config = "config/config.yml",
 		here = here_file,
 		indiv_macs2 = lambda wildcards: expand(
@@ -365,7 +365,7 @@ rule compile_macs2_summary_html:
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
 		pkgs = rules.install_packages.output,
-		qc = os.path.join("output", "{target}", "qc_samples.tsv"),
+		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output
@@ -378,7 +378,10 @@ rule compile_macs2_summary_html:
 			)
 		),
 		peaks = expand(
-			"output/{{target}}/{file}",
+			os.path.join(
+				macs2_path, "{{target}}", "{file}"
+			),
+			## Should change export of oracle peaks to be bed files
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 		),
 		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),

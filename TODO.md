@@ -17,6 +17,8 @@
     + Perhaps even add Fisher's Non-Central Hypergeometric as an option
 - [] Remove github installation for `extraChIPs` & migrate all to R4.2
 - [] Check to see if `geom_x/ysidelabel()` has made it on to CRAN yet
+- [] Change export of oracle peaks to be bed files, and include `target_treat_` prefix
+- [] Add `target_` prefix to consensus peaks. Maybe include score?
 
 ## Motifs
 
