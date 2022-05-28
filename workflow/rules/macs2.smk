@@ -55,17 +55,15 @@ rule macs2_individual:
 				macs2_path, "{target}", "{sample}_treat_pileup.bdg"
 			)
 		),
-		log = os.path.join(
-			macs2_path, "{target}", "{sample}_callpeak.log"
-		),
+		log = os.path.join(macs2_path, "{target}", "{sample}_callpeak.log"),
+		summits = os.path.join(macs2_path, "{target}", "{sample}_summits.bed"),
 		other = temp(
 			expand(
 				os.path.join(
 					macs2_path, "{{target}}", "{{sample}}{suffix}"
 				),
 				suffix = [
-					'_model.r', '_peaks.xls', '_summits.bed',
-					'_control_lambda.bdg'
+					'_model.r', '_peaks.xls', '_control_lambda.bdg'
 				]
 			)
 		)
@@ -173,6 +171,9 @@ rule macs2_merged:
 	output:
 		narrow_peaks = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_peaks.narrowPeak"
+		),
+		summits = os.path.join(
+			macs2_path, "{target}", "{treat}_merged_summits.bed"
 		),
     	bedgraph = temp(
 			expand(

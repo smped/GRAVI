@@ -93,6 +93,7 @@ config <- read_yaml(here::here("config", "config.yml"))
 fdr_alpha <- config$comparisons$fdr
 colours <- read_rds(here::here("output", "annotations", "colours.rds"))
 treat_colours <- unlist(colours$treat[levels(samples$treat)])
+macs2_path <- here::here(config$paths$macs2, targets)
 ```
 
 ```{r load-annotations}
