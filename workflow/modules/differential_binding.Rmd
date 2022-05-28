@@ -2679,18 +2679,16 @@ if (any_detected) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
 if (length(sig_ranges$Up) > 0) {
-  merged_results %>% 
-  subsetByOverlaps(sig_ranges$Up) %>% 
-  granges() %>% 
-  export.bed(all_out$up_regions)
+  sig_ranges$Up %>% 
+    granges() %>% 
+    export.bed(all_out$up_regions)
 }
 
 file.create(all_out$down_regions)
 if (length(sig_ranges$Down) > 0) {
-  merged_results %>% 
-  subsetByOverlaps(sig_ranges$Down) %>% 
-  granges() %>% 
-  export.bed(all_out$down_regions)
+  sig_ranges$Down %>% 
+    granges() %>% 
+    export.bed(all_out$down_regions)
 }
 
 save.image(all_out$renv)
