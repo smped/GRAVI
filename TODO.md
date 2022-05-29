@@ -19,6 +19,7 @@
 - [] Check to see if `geom_x/ysidelabel()` has made it on to CRAN yet
 - [] Change export of oracle peaks to be bed files, and include `target_treat_` prefix
 - [] Add `target_` prefix to consensus peaks. Maybe include score?
+- [] Change output paths for `differential_binding` and `pairwise_comparison` modules
 
 ## Motifs
 

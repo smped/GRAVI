@@ -60,7 +60,8 @@ source(here::here("workflow", "scripts", "custom_functions.R"))
 ```{r load-config}
 params <- read_yaml(here::here("config", "params.yml"))
 config <- read_yaml(here::here("config", "config.yml"))
-samples <- here::here("output", target, "qc_samples.tsv") %>% 
+macs2_path <- here::here(config$paths$macs2, target)
+samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
   read_tsv() %>% 
   dplyr::filter(
     qc == "pass",
@@ -81,7 +82,6 @@ bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
-macs2_path <- here::here(config$paths$macs2, target)
 out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 ```

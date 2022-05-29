@@ -690,6 +690,7 @@ oracle_peaks %>%
   lapply(select, -keep) %>%
   GRangesList() %>%
   write_rds(all_out$oracle_peaks, compress = "gz")
+if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
 

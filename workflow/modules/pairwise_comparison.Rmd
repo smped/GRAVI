@@ -50,7 +50,11 @@ theme_set(
 
 
 ```{r samples}
+config <- read_yaml(here::here("config", "config.yml"))
+params <- read_yaml(here::here("config", "params.yml"))
 targets <- names(pairs)
+macs2_path <- here::here(config$paths$macs2, targets)
+fdr_alpha <- config$comparisons$fdr
 comps <- targets
 if (length(unique(targets)) == 1) {
   comps <- seq_along(pairs) %>%
@@ -63,14 +67,8 @@ if (length(unique(targets)) == 1) {
       character(1)
     )
 }
-samples <- seq_along(pairs) %>% 
-  lapply(
-    function(x) {
-      fl <- here::here("output", names(pairs)[[x]], "qc_samples.tsv")
-      read_tsv(fl) %>% 
-        dplyr::filter(treat %in% pairs[[x]])
-    }
-  ) %>% 
+samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
+  lapply(read_tsv) %>% 
   bind_rows() %>% 
   dplyr::filter(qc == "pass") %>% 
   unite(label, target, label, remove = FALSE) %>% 
@@ -87,14 +85,11 @@ rep_col <- setdiff(
 samples[[rep_col]] <- as.factor(samples[[rep_col]])
 ```
 
-```{r load-config}
-params <- read_yaml(here::here("config", "params.yml"))
-config <- read_yaml(here::here("config", "config.yml"))
-fdr_alpha <- config$comparisons$fdr
+```{r load-colours}
 colours <- read_rds(here::here("output", "annotations", "colours.rds"))
 treat_colours <- unlist(colours$treat[levels(samples$treat)])
-macs2_path <- here::here(config$paths$macs2, targets)
 ```
+
 
 ```{r load-annotations}
 cb <- config$genome$build %>% 
@@ -277,10 +272,10 @@ with_tooltip <- function(value, width = 30) {
 ```{r load-data}
 oracle_peaks <- file.path(macs2_path, "oracle_peaks.rds") %>%
   lapply(read_rds) %>% 
-  setNames(basename(dirname(macs2_path)))
+  setNames(basename(macs2_path))
 consensus_peaks <- file.path(macs2_path, "consensus_peaks.bed") %>%
   lapply(import.bed, seqinfo = sq) %>%
-  setNames(basename(dirname(macs2_path)))
+  setNames(basename(macs2_path))
 all_consensus <- consensus_peaks %>% 
   GRangesList() %>% 
   unlist() %>% 

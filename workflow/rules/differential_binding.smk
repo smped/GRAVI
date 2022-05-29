@@ -75,7 +75,7 @@ rule compile_differential_binding_html:
 			pre = [wildcards.ref, wildcards.treat]
 		),
 		peaks = expand(
-			os.path.join("output", "{target}", "consensus_peaks.bed"),
+			os.path.join(macs2_path, "{target}", "consensus_peaks.bed"),
 			target = targets
 		),
 		here = here_file,
@@ -95,7 +95,7 @@ rule compile_differential_binding_html:
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
 		),
-		samples = os.path.join("output", "{target}", "qc_samples.tsv"),
+		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
 		yml = expand(
