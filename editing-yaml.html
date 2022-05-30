@@ -23,7 +23,7 @@
 <meta name="author" content="Stephen Pederson" />
 
 
-<meta name="date" content="2022-05-13" />
+<meta name="date" content="2022-05-30" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -177,8 +177,6 @@ This is the only file parsed directly by <code>snakemake</code> and subsequent r
 
 paths:
   bam: &quot;data/aligned&quot;
-  bigwig: &quot;data/bigwig&quot;
-  macs2: &quot;data/macs2&quot;
 
 genome:
   build: &quot;GRCh37&quot;
@@ -220,8 +218,6 @@ In theory, this can be changed but this may adversely impact the pipeline.</p>
 <p><code>paths:</code></p>
 <ul>
 <li><code>bam:</code> (Default: “data/aligned”) Alignments should be placed in <code>data/aligned</code> as advised in section <a href="input-files.html#alignments">4.2</a>, although this can be changed to <code>data/bam</code> or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability</li>
-<li><code>macs2:</code> (Default: “data/macs2”) Output from <code>macs2 callpeak</code> will be placed in this directory, mirroring the input structure from <code>data/aligned</code> where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.</li>
-<li><code>bigwig:</code> (Default: “data/bigwig”) After running <code>macs2 callpeak</code>, <code>bedGraph</code> files will be converted to the more space efficient <code>bigwig</code> files. The directory structure from both <code>data/aligned</code> and <code>data/macs2</code> will again be mirrored such that each ChIP target has all samples written to the same directory</li>
 </ul>
 </div>
 <div id="settings-which-should-be-modified" class="section level3 unlisted unnumbered hasAnchor">
