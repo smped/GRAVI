@@ -60,7 +60,8 @@ source(here::here("workflow", "scripts", "custom_functions.R"))
 ```{r load-config}
 params <- read_yaml(here::here("config", "params.yml"))
 config <- read_yaml(here::here("config", "config.yml"))
-samples <- here::here("output", target, "qc_samples.tsv") %>% 
+macs2_path <- here::here("output", "macs2", target)
+samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
   read_tsv() %>% 
   dplyr::filter(
     qc == "pass",
@@ -81,8 +82,6 @@ bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
-bw_path <- here::here(config$paths$bigwig, target)
-stopifnot(dir.exists(bw_path))
 out_path <- here::here("output", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 ```
@@ -286,7 +285,7 @@ all_out <- list(
 # Data Preparation
 
 ```{r import-peaks}
-consensus_peaks <- here::here("output", target, "consensus_peaks.bed") %>%
+consensus_peaks <- here::here(macs2_path, "consensus_peaks.bed") %>%
 	import.bed(seqinfo = sq)
 ```
 
@@ -370,8 +369,8 @@ Taking the first `r comma(ys)` alignments, a brief inspection of the Bam Files r
 ## Sliding Window Counts
 
 ```{r window-counts}
-macs2_merged_logs <- here::here(
-	"data", "macs2", target, glue("{treat_levels}_merged_callpeak.log")
+macs2_merged_logs <- file.path(
+  macs2_path, glue("{treat_levels}_merged_callpeak.log")
 	) %>%
 	importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
@@ -874,7 +873,7 @@ For visualisation purposes, only genes which were considered as detected in any 
 ```{r make-heatmaps}
 profile_width <- 5e3
 n_bins <- 100
-bwfl <- file.path(bw_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
+bwfl <- file.path(macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- merged_results %>% 
@@ -1655,7 +1654,7 @@ grl_to_plot <- GRangesList(
 ## The coverage
 bwfl <- list2(
   "{target}" := file.path(
-    bw_path, glue("{treat_levels}_merged_treat_pileup.bw")
+    macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")
   ) %>% 
     BigWigFileList() %>% 
     setNames(treat_levels)
@@ -2677,12 +2676,18 @@ file.create(all_out$de_genes)
 if (any_detected) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
-if (length(sig_ranges$Up) > 0) 
-  export.bed(granges(sig_ranges$Up), all_out$up_regions)
+if (length(sig_ranges$Up) > 0) {
+  sig_ranges$Up %>% 
+    granges() %>% 
+    export.bed(all_out$up_regions)
+}
 
 file.create(all_out$down_regions)
-if (length(sig_ranges$Down) > 0) 
-  export.bed(granges(sig_ranges$Down), all_out$down_regions)
+if (length(sig_ranges$Down) > 0) {
+  sig_ranges$Down %>% 
+    granges() %>% 
+    export.bed(all_out$down_regions)
+}
 
 save.image(all_out$renv)
 ```

@@ -1,4 +1,54 @@
-rule differential_binding:
+rule create_differential_binding_rmd:
+	input:
+		db_mod = os.path.join(
+			"workflow", "modules", "differential_binding.Rmd"
+		),
+		r = "workflow/scripts/create_differential_binding.R"
+	output: 
+		rmd = os.path.join(
+			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
+		)
+	params:
+		git = git_add,
+		interval = random.uniform(0, 1),
+		threads = lambda wildcards: len(df[
+			(df['target'] == wildcards.target) &
+			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
+		]),
+		tries = 10
+	conda: "../envs/rmarkdown.yml"
+	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
+	threads: 1
+	shell:
+		"""
+		## Create the generic markdown header
+		Rscript --vanilla \
+			{input.r} \
+			{wildcards.target} \
+			{wildcards.ref} \
+			{wildcards.treat} \
+			{params.threads} \
+			{output.rmd} &>> {log}
+
+		## Add the remainder of the module as literal text
+		cat {input.db_mod} >> {output.rmd}
+
+		if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output.rmd}
+		fi
+		"""
+
+rule compile_differential_binding_html:
 	input:
 		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(
@@ -20,17 +70,18 @@ rule differential_binding:
 		),
 		merged_bw = lambda wildcards: expand(
 			os.path.join(
-				bw_path, "{{target}}", "{pre}_merged_treat_pileup.bw"
+				macs2_path, "{{target}}", "{pre}_merged_treat_pileup.bw"
 			),
 			pre = [wildcards.ref, wildcards.treat]
 		),
 		peaks = expand(
-			os.path.join("output", "{target}", "consensus_peaks.bed"),
+			os.path.join(macs2_path, "{target}", "consensus_peaks.bed"),
 			target = targets
 		),
+		here = here_file,
 		indiv_bw = lambda wildcards: expand(
 			os.path.join(
-				bw_path, "{{target}}", "{sample}_treat_pileup.bw"
+				macs2_path, "{{target}}", "{sample}_treat_pileup.bw"
 			),
 			sample = df['sample'][
 				(df['target'] == wildcards.target) &
@@ -40,25 +91,21 @@ rule differential_binding:
 				)
 			]
 		),
-		samples = os.path.join("output", "{target}", "qc_samples.tsv"),
 		pkgs = rules.install_packages.output,
-		r = "workflow/scripts/create_differential_binding.R",
+		rmd = os.path.join(
+			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
+		),
+		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
 		yml = expand(
 			os.path.join("config", "{file}.yml"),
 			file = ['config', 'params']
 		),
-		db_mod = os.path.join(
-			"workflow", "modules", "differential_binding.Rmd"
-		),
 		rnaseq_mod = os.path.join(
 			"workflow", "modules", "rnaseq_differential_binding.Rmd"
 		)
 	output:
-		rmd = os.path.join(
-			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
-		),
 		html = "docs/{target}_{ref}_{treat}_differential_binding.html",
 		fig_path = directory(
 			os.path.join(
@@ -93,23 +140,10 @@ rule differential_binding:
 			(df['target'] == wildcards.target) &
 			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
 			])
-	log:
-		"workflow/logs/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
+	log: log_path + "/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
 	shell:
 		"""
-		## Create the generic markdown header
-		Rscript --vanilla \
-			{input.r} \
-			{wildcards.target} \
-			{wildcards.ref} \
-			{wildcards.treat} \
-			{threads} \
-			{output.rmd} &>> {log}
-
-		## Add the remainder of the module as literal text
-		cat {input.db_mod} >> {output.rmd}
-
-		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
+		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
 
 		if [[ {params.git} == "True" ]]; then
 			TRIES={params.tries}
@@ -122,7 +156,6 @@ rule differential_binding:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.rmd}
 			git add {output.html}
 			git add {output.fig_path}
 			git add {output.outs}

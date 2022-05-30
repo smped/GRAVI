@@ -10,7 +10,7 @@ rule download_gtf:
 			'', '', ''
 			)
 		)
-	log: "workflow/logs/downloads/download_gtf.log"
+	log: log_path + "/downloads/download_gtf.log"
 	shell:
 		"""
 		curl \
@@ -32,7 +32,7 @@ rule download_blacklist:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = 10
-	log: "workflow/logs/downloads/download_blacklist.log"
+	log: log_path + "/downloads/download_blacklist.log"
 	shell:
 		"""
 		curl {params.url} --output {output} 2> {log}
@@ -72,7 +72,7 @@ rule create_annotations:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 16
-	log: "workflow/logs/scripts/create_annotations.log"
+	log: log_path + "/scripts/create_annotations.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {input.gtf} {threads} &>> {log}

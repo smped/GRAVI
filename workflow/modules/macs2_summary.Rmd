@@ -46,6 +46,7 @@ register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
 ## This has been pushed to the main repo of ggside, but is not yet
 ## incorporated into the packge. The functions are geom_*sidelabel
+## Once ggside 0.2.1 is released, this can be deleted
 source(here::here("workflow/scripts/geom_sidelabel.R"))
 ```
 
@@ -55,11 +56,7 @@ config <- read_yaml(
   here::here("config", "config.yml")
 )
 bam_path <- here::here(config$paths$bam, target)
-stopifnot(dir.exists(bam_path))
-macs2_path <- here::here(config$paths$macs2, target)
-stopifnot(dir.exists(macs2_path))
-out_path <- here::here("output", target)
-if (!dir.exists(out_path)) dir.create(out_path)
+macs2_path <- here::here("output", "macs2", target)
 annotation_path <- here::here("output", "annotations")
 colours <- read_rds(
   file.path(annotation_path, "colours.rds")
@@ -68,7 +65,7 @@ colours <- read_rds(
 ```
 
 ```{r read-samples}
-samples <-read_tsv(file.path(out_path, "qc_samples.tsv"))
+samples <-read_tsv(file.path(macs2_path, "qc_samples.tsv"))
 treat_levels <- unique(samples$treat)
 if (!is.null(config$comparisons$contrasts)) {
   ## Ensure levels respect those provided in contrasts
@@ -325,7 +322,7 @@ suppressWarnings(
 ### Cross Correlations
 
 ```{r plot_correlation, fig.height=6, fig.cap = glue("*Cross Correlaton between alignments up to 1kb apart. The dashed, grey, vertical line is the fragment length estimated by `macs2 callpeak` for each sample. For speed, only the first 5 chromosomes were used for sample-specific estimates.*")}
-file.path(out_path, "cross_correlations.tsv") %>% 
+file.path(macs2_path, "cross_correlations.tsv") %>% 
   read_tsv() %>% 
   left_join(samples, by = "sample") %>% 
   ggplot(aes(fl, correlation, colour = treat)) +
@@ -680,8 +677,8 @@ consensus_peaks %>%
 
 ```{r export}
 all_out <- list(
-  consensus_peaks = file.path(out_path, "consensus_peaks.bed"),
-  oracle_peaks = file.path(out_path, "oracle_peaks.rds"),
+  consensus_peaks = file.path(macs2_path, "consensus_peaks.bed"),
+  oracle_peaks = file.path(macs2_path, "oracle_peaks.rds"),
   renv = file.path(
     here::here("output/envs"), 
     glue("{target}_macs2_summary.RData")
@@ -693,6 +690,7 @@ oracle_peaks %>%
   lapply(select, -keep) %>%
   GRangesList() %>%
   write_rds(all_out$oracle_peaks, compress = "gz")
+if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
 

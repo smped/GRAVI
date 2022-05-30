@@ -58,10 +58,8 @@ samples <- samples %>%
 qc_prop <- config$peaks$qc$min_prop_peaks
 
 annotation_path <- here::here("output", "annotations")
-macs2_path <- here::here(config$paths$macs2, target)
+macs2_path <- here::here("output", "macs2", target)
 if (!dir.exists(macs2_path)) dir.create(macs2_path)
-out_path <- here::here("output", target)
-if (!dir.exists(out_path)) dir.create(out_path)
 
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
@@ -106,7 +104,7 @@ macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
   write_tsv(
-    file.path(out_path, "qc_samples.tsv")
+    file.path(macs2_path, "qc_samples.tsv")
   )
 
 ##################
@@ -166,4 +164,4 @@ read_corrs <- bfl[samples$sample] %>%
     names_to = "sample",
     values_to = "correlation"
   )
-write_tsv(read_corrs, file.path(out_path, "cross_correlations.tsv"))
+write_tsv(read_corrs, file.path(macs2_path, "cross_correlations.tsv"))

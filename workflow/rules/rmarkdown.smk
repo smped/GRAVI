@@ -3,7 +3,7 @@ rule install_packages:
   output: "output/packages.installed"
   conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/install_packages.log"
+	log: log_path + "/rmarkdown/install_packages.log"
 	shell:
 	  """
 	  Rscript --vanilla {input} {output} &>> {log}
@@ -20,7 +20,7 @@ rule create_site_yaml:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/create_site_yaml.log"
+	log: log_path + "/rmarkdown/create_site_yaml.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {output} &>> {log}
@@ -44,14 +44,14 @@ rule create_setup_chunk:
 		config = "config/rmarkdown.yml",
 		r = "workflow/scripts/create_setup_chunk.R"
 	output:
-	  rmd = "workflow/modules/setup_chunk.Rmd"
+		rmd = "analysis/setup_chunk.Rmd"
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/create_setup_chunk.log"
+	log: log_path + "/rmarkdown/create_setup_chunk.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {output.rmd} &>> {log}
@@ -71,9 +71,18 @@ rule create_setup_chunk:
 		fi
 		"""
 
-rule build_annotations_rmd:
+rule create_here_file:
+	output: here_file
+	threads: 1
+	shell:
+		"""
+		touch here_file
+		"""
+
+rule compile_annotations_html:
   input:
     blacklist = blacklist,
+    here = here_file,
     rmd = "workflow/modules/annotation_description.Rmd",
     rds = expand(
       os.path.join(annotation_path, "{file}.rds"),
@@ -98,7 +107,7 @@ rule build_annotations_rmd:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/build_annotations_rmd.log"
+	log: log_path + "/rmarkdown/compile_annotations_html.log"
 	shell:
 	  """
 	  cp {input.rmd} {output.rmd}
@@ -119,9 +128,39 @@ rule build_annotations_rmd:
 		fi
 	  """
 
-rule build_site_index:
+rule create_index_rmd:
+	input:
+		os.path.join("workflow", "modules", "index.Rmd")
+	output:
+		os.path.join(rmd_path, "index.Rmd")
+	threads: 1
+	params:
+		git = git_add,
+		interval = random.uniform(0, 1),
+		tries = 10
+	shell:
+		"""
+		cat {input} > {output}
+
+		if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" 
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output}
+		fi		
+		"""
+
+rule compile_index_html:
 	input:
 		html = HTML_OUT,
+        here = here_file,		
 		rmd = os.path.join(rmd_path, "index.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
@@ -134,7 +173,7 @@ rule build_site_index:
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: "workflow/logs/rmarkdown/build_site_index.log"
+	log: log_path + "/rmarkdown/compile_index_html.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

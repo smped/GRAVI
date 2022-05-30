@@ -50,7 +50,11 @@ theme_set(
 
 
 ```{r samples}
+config <- read_yaml(here::here("config", "config.yml"))
+params <- read_yaml(here::here("config", "params.yml"))
 targets <- names(pairs)
+macs2_path <- here::here("output", "macs2", targets)
+fdr_alpha <- config$comparisons$fdr
 comps <- targets
 if (length(unique(targets)) == 1) {
   comps <- seq_along(pairs) %>%
@@ -63,14 +67,8 @@ if (length(unique(targets)) == 1) {
       character(1)
     )
 }
-samples <- seq_along(pairs) %>% 
-  lapply(
-    function(x) {
-      fl <- here::here("output", names(pairs)[[x]], "qc_samples.tsv")
-      read_tsv(fl) %>% 
-        dplyr::filter(treat %in% pairs[[x]])
-    }
-  ) %>% 
+samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
+  lapply(read_tsv) %>% 
   bind_rows() %>% 
   dplyr::filter(qc == "pass") %>% 
   unite(label, target, label, remove = FALSE) %>% 
@@ -87,13 +85,11 @@ rep_col <- setdiff(
 samples[[rep_col]] <- as.factor(samples[[rep_col]])
 ```
 
-```{r load-config}
-params <- read_yaml(here::here("config", "params.yml"))
-config <- read_yaml(here::here("config", "config.yml"))
-fdr_alpha <- config$comparisons$fdr
+```{r load-colours}
 colours <- read_rds(here::here("output", "annotations", "colours.rds"))
 treat_colours <- unlist(colours$treat[levels(samples$treat)])
 ```
+
 
 ```{r load-annotations}
 cb <- config$genome$build %>% 
@@ -103,8 +99,6 @@ data(list = cb)
 bands_df <- mget(cb)[[cb]]
 annotation_path <- here::here("output", "annotations")
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-bw_path <- here::here(config$paths$bigwig, targets)
-stopifnot(all(dir.exists(bw_path)))
 
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
@@ -276,26 +270,12 @@ with_tooltip <- function(value, width = 30) {
 
 
 ```{r load-data}
-oracle_peaks <- targets %>% 
-  unique() %>% 
-  lapply(
-    function(x) {
-      read_rds(
-        here::here("output", x, "oracle_peaks.rds")
-      )
-    }
-  ) %>% 
-  setNames(unique(targets))
-consensus_peaks <- targets %>% 
-  unique() %>% 
-  lapply(
-    function(x) {
-      import.bed(
-        here::here("output", x, "consensus_peaks.bed"), seqinfo = sq
-      )
-    }
-  ) %>% 
-  setNames(unique(targets))
+oracle_peaks <- file.path(macs2_path, "oracle_peaks.rds") %>%
+  lapply(read_rds) %>% 
+  setNames(basename(macs2_path))
+consensus_peaks <- file.path(macs2_path, "consensus_peaks.bed") %>%
+  lapply(import.bed, seqinfo = sq) %>%
+  setNames(basename(macs2_path))
 all_consensus <- consensus_peaks %>% 
   GRangesList() %>% 
   unlist() %>% 
@@ -310,6 +290,7 @@ db_results <- seq_along(pairs) %>%
     }
   ) %>% 
   lapply(read_rds) %>% 
+  lapply(mutate, fdr_mu0 = p.adjust(p_mu0, "fdr")) %>% 
   setNames(comps)
 fdr_column <- ifelse(
   "fdr_ihw" %in% colnames(mcols(db_results[[1]])), 
@@ -410,12 +391,13 @@ samples %>%
 # Differentially Bound Windows {.tabset}
 
 ```{r all-windows}
+lambda <- log2(config$comparisons$fc)
 all_windows <- db_results %>%
   lapply(granges) %>% 
   GRangesList() %>% 
-  unlist() %>% 
+  unlist()%>%
   sort() %>% 
-  reduce() %>% 
+  GenomicRanges::reduce() %>% 
   mutate(
     region = regions[
       bestOverlap(., GRangesList(lapply(gene_regions, granges)))
@@ -435,6 +417,7 @@ all_windows <- db_results %>%
         !!sym(glue("{comps[[1]]}_logFC")) := logFC, 
         !!sym(glue("{comps[[1]]}_status")) := status, 
         !!sym(glue("{comps[[1]]}_fdr")) := !!sym(fdr_column),
+        !!sym(glue("{comps[[1]]}_fdr_mu0")) := fdr_mu0,
         !!sym(glue("{comps[[1]]}_centre")) := peak_centre
       )
   ) %>%
@@ -451,22 +434,25 @@ all_windows <- db_results %>%
         !!sym(glue("{comps[[2]]}_logFC")) := logFC, 
         !!sym(glue("{comps[[2]]}_status")) := status,
         !!sym(glue("{comps[[2]]}_fdr")) := !!sym(fdr_column),
+        !!sym(glue("{comps[[2]]}_fdr_mu0")) := fdr_mu0,
         !!sym(glue("{comps[[2]]}_centre")) := peak_centre
       )
   ) %>% 
   mutate(
     
-    ## Change the classification for unchanged sites to DB using 3 * fdr_alpha 
-    ## if the other target is significantly DB
+    ## Change the classification for unchanged sites to DB if the other target 
+    ## is DB, and the FDR using mu0 = 0 is < fdr_alpha + |logFC| > log2(lambda)
     "{comps[[1]]}_status" := case_when(
       
       (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha * 3) &
-        (!!sym(glue("{comps[[1]]}_logFC")) > 0) ~ "Up",
+        # (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha * 3) &
+        (!!sym(glue("{comps[[1]]}_fdr_mu0")) < fdr_alpha) &
+        (!!sym(glue("{comps[[1]]}_logFC")) > lambda) ~ "Up",
       
       (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha * 3) &
-        (!!sym(glue("{comps[[1]]}_logFC")) < 0) ~ "Down",
+        # (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha * 3) &
+        (!!sym(glue("{comps[[1]]}_fdr_mu0")) < fdr_alpha) &
+        (!!sym(glue("{comps[[1]]}_logFC")) < -1 * lambda) ~ "Down",
       
       TRUE ~ !!sym(glue("{comps[[1]]}_status"))
     ) %>% 
@@ -477,12 +463,14 @@ all_windows <- db_results %>%
     "{comps[[2]]}_status" := case_when(
       
       (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha * 3) &
-        (!!sym(glue("{comps[[2]]}_logFC")) > 0) ~ "Up",
+        # (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha * 3) &
+        (!!sym(glue("{comps[[2]]}_fdr_mu0")) < fdr_alpha) &
+        (!!sym(glue("{comps[[2]]}_logFC")) > lambda) ~ "Up",
       
       (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha * 3) &
-        (!!sym(glue("{comps[[2]]}_logFC")) < 0) ~ "Down",
+        # (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha * 3) &
+        (!!sym(glue("{comps[[2]]}_fdr_mu0")) < fdr_alpha) &
+        (!!sym(glue("{comps[[2]]}_logFC")) < -1 * lambda) ~ "Down",
       
       TRUE ~ !!sym(glue("{comps[[2]]}_status"))
     ) %>% 
@@ -601,7 +589,7 @@ The median distance between peaks where found in both was `r  median(all_windows
 `r comma(sum(all_windows$distance == 0, na.rm = TRUE))` peaks (`r percent(mean(all_windows$distance == 0, na.rm = TRUE), 0.1)`) were found to directly overlap.
 
 Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value < `r fdr_alpha` was used.
-A secondary step was then introduced for each window such that if one target was significant and the other target had received an FDR-adjusted p-value < `r 3 * fdr_alpha`, these windows were then considered significant in the second comparison.
+A secondary step was then introduced for each window such that if one target was significant and the other target had 1) received an FDR-adjusted p-value < `r fdr_alpha` *using a point-based H~0~*, and 2) had an estimated logFC beyond the range specified for the range-based H~0~ ($0 < |\mu| < \lambda$ for $\lambda = $`r round(lambda, 2)`), these windows were then considered significant in the second comparison.
 This was to help *reduce the number of windows incorrectly classified as unchanged* whilst the alternative ChIP target was defined as changed.
 
 ```{r tbl-summary}
@@ -831,6 +819,7 @@ all_windows %>%
     inherit.aes = FALSE
   ) +
   geom_hline(yintercept = 0) +
+  geom_hline(yintercept = c(1, -1) * lambda, linetype = 2, colour = "grey30") +
   scale_xsidey_discrete() +
   scale_ysidex_discrete(guide = guide_axis(angle = 90)) +
   scale_colour_manual(
@@ -907,6 +896,7 @@ all_windows %>%
     inherit.aes = FALSE
   ) +
   geom_hline(yintercept = 0) +
+  geom_hline(yintercept = c(1, -1) * lambda, linetype = 2, colour = "grey30") +
   scale_xsidey_discrete() +
   scale_ysidex_discrete(guide = guide_axis(angle = 90)) +
   scale_colour_manual(
@@ -972,12 +962,12 @@ all_windows %>%
   geom_point(alpha = 0.6) +
   geom_hline(yintercept = 0) +
   geom_hline(
-    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    yintercept = c(1, -1) * lambda, 
     linetype = 2, colour = "grey"
   ) +
   geom_vline(xintercept = 0) +
   geom_vline(
-    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    xintercept = c(1, -1)* lambda,
     linetype = 2, colour = "grey"
   ) +
   geom_label_repel(
@@ -1062,12 +1052,12 @@ all_windows %>%
   geom_point(alpha = 0.6) +
   geom_hline(yintercept = 0) +
   geom_hline(
-    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    yintercept = c(1, -1) * lambda,
     linetype = 2, colour = "grey"
   ) +
   geom_vline(xintercept = 0) +
   geom_vline(
-    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    xintercept = c(1, -1) * lambda, 
     linetype = 2, colour = "grey"
   ) +
   geom_label_repel(
@@ -1144,12 +1134,12 @@ all_windows %>%
   geom_point(alpha = 0.6) +
   geom_hline(yintercept = 0) +
   geom_hline(
-    yintercept = c(1, -1)*log2(config$comparisons$fc), 
+    yintercept = c(1, -1) * lambda, 
     linetype = 2, colour = "grey"
   ) +
   geom_vline(xintercept = 0) +
   geom_vline(
-    xintercept = c(1, -1)*log2(config$comparisons$fc), 
+    xintercept = c(1, -1) * lambda,
     linetype = 2, colour = "grey"
   ) +
   geom_label_repel(
@@ -1673,7 +1663,7 @@ div(class = "table",
 
 ## Comparison of Differentially Bound Windows {.tabset}
 
-```{r goseq-groups}
+```{r goseq-groups, fig.show='hide'}
 goseq_group_res <- group_ids %>% 
   mclapply(
     function(x) {
@@ -1879,7 +1869,7 @@ bwfl <- seq_along(pairs) %>%
   lapply(
     function(x) {
       file.path(
-        bw_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
+        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
       ) %>% 
         BigWigFileList() %>% 
         setNames(pairs[[x]])

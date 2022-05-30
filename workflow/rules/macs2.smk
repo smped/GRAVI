@@ -55,21 +55,19 @@ rule macs2_individual:
 				macs2_path, "{target}", "{sample}_treat_pileup.bdg"
 			)
 		),
-		log = os.path.join(
-			macs2_path, "{target}", "{sample}_callpeak.log"
-		),
+		log = os.path.join(macs2_path, "{target}", "{sample}_callpeak.log"),
+		summits = os.path.join(macs2_path, "{target}", "{sample}_summits.bed"),
 		other = temp(
 			expand(
 				os.path.join(
 					macs2_path, "{{target}}", "{{sample}}{suffix}"
 				),
 				suffix = [
-					'_model.r', '_peaks.xls', '_summits.bed',
-					'_control_lambda.bdg'
+					'_model.r', '_peaks.xls', '_control_lambda.bdg'
 				]
 			)
 		)
-	log: "workflow/logs/macs2_individual/{target}/{sample}.log"
+	log: log_path + "/macs2_individual/{target}/{sample}.log"
 	conda: "../envs/macs2.yml"
 	params:
 		outdir = os.path.join(macs2_path, "{target}"),
@@ -131,15 +129,15 @@ rule macs2_qc:
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
 		r = "workflow/scripts/macs2_qc.R"
 	output:
-		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
-		qc = os.path.join("output", "{target}", "qc_samples.tsv")
+		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
+		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
-	log: "workflow/logs/macs2_individual/{target}/{target}_macs2_qc.log"
+	log: log_path + "/macs2_individual/{target}/{target}_macs2_qc.log"
 	shell:
 		"""
 		## Run the QC script
@@ -169,20 +167,26 @@ rule macs2_merged:
 		bai = get_merged_bai_from_treat_and_target,
 		control = get_input_bam_from_treat_and_target,
 		control_bai = get_input_bai_from_treat_and_target,
-		qc = os.path.join("output", "{target}", "qc_samples.tsv")
+		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
 	output:
 		narrow_peaks = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_peaks.narrowPeak"
 		),
-		bedgraph = temp(
-			os.path.join(
-				macs2_path, "{target}", "{treat}_merged_treat_pileup.bdg"
+		summits = os.path.join(
+			macs2_path, "{target}", "{treat}_merged_summits.bed"
+		),
+    	bedgraph = temp(
+			expand(
+				os.path.join(
+					macs2_path, "{{target}}", "{{treat}}_merged_{type}.bdg"
+				),
+				type = ['treat_pileup', 'control_lambda']
 			)
 		),
 		log = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_callpeak.log"
 		),
-	log: "workflow/logs/macs2_merged/{target}/{treat}_merged.log"
+	log: log_path + "/macs2_merged/{target}/{treat}_merged.log"
 	conda: "../envs/macs2.yml"
 	params:
 		bamdir = bam_path,
@@ -237,9 +241,9 @@ rule bedgraph_to_bigwig:
 		),
 		chrom_sizes = chrom_sizes
 	output:
-		bigwig = os.path.join(bw_path, "{target}", "{sample}_treat_pileup.bw")
+		bigwig = os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.bw")
 	conda: "../envs/bedgraph_to_bigwig.yml"
-	log: "workflow/logs/bedgraph_to_bigwig/{target}/{sample}.log"
+	log: log_path + "/bedgraph_to_bigwig/{target}/{sample}.log"
 	threads: 1
 	shell:
 		"""
@@ -262,14 +266,14 @@ rule bedgraph_to_bigwig:
 
 rule get_coverage_summary:
 	input: rules.bedgraph_to_bigwig.output.bigwig
-	output: os.path.join(bw_path, "{target}", "{sample}_treat_pileup.summary")
+	output: os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.summary")
 	params:
 		script = "workflow/scripts/get_bigwig_summary.R",
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
-	log: "workflow/logs/get_coverage_summary/{target}/{sample}.log"
+	log: log_path + "/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
 	shell:
 		"""
@@ -294,70 +298,31 @@ rule get_coverage_summary:
 		fi
 		"""
 
-rule build_macs2_summary:
+rule create_macs2_summary_rmd:
 	input:
-		annotations = ALL_RDS,
-		aln = lambda wildcards: expand(
-			os.path.join(bam_path, "{{target}}", "{sample}.{suffix}"),
-			sample = set(df[df.target == wildcards.target]['sample']),
-			suffix = ['bam', 'bam.bai']
-		),
-		blacklist = blacklist,
-		indiv_macs2 = lambda wildcards: expand(
-			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
-			sample = set(df[df.target == wildcards.target]['sample']),
-			suffix = ['callpeak.log', 'peaks.narrowPeak']
-		),
-		merged_macs2 = lambda wildcards: expand(
-			os.path.join(
-				macs2_path, "{{target}}", "{treat}_merged_{suffix}"
-			),
-			treat = set(df[df.target == wildcards.target]['treat']),
-			suffix = ['callpeak.log', 'peaks.narrowPeak']
-		),
-		cors = os.path.join("output", "{target}", "cross_correlations.tsv"),
-		qc = os.path.join("output", "{target}", "qc_samples.tsv"),
-		config = "config/config.yml",
-		pkgs = rules.install_packages.output,
-		r = "workflow/scripts/create_macs2_summary.R",
-		setup = rules.create_setup_chunk.output,
-		yaml = rules.create_site_yaml.output,
-		module = "workflow/modules/macs2_summary.Rmd"
+		module = "workflow/modules/macs2_summary.Rmd",
+		r = "workflow/scripts/create_macs2_summary.R"
 	output:
-		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
-		html = "docs/{target}_macs2_summary.html",
-		fig_path = directory(
-			os.path.join(
-				"docs", "{target}_macs2_summary_files",
-				"figure-html"
-			)
-		),
-		peaks = expand(
-			"output/{{target}}/{file}",
-			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
-		),
-		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),
-		venn = "docs/assets/{target}/{target}_common_peaks.png"
+		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
+		threads = lambda wildcards: len(df[df['target'] == wildcards.target]),
 		tries = 10
 	conda: "../envs/rmarkdown.yml"
-	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
-	log: "workflow/logs/macs2_summmary/build_{target}_macs2_summary.log"
+	threads: 1
+	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	shell:
 		"""
 		## Create the generic markdown
 		Rscript --vanilla \
 			{input.r} \
 			{wildcards.target} \
-			{threads} \
+			{params.threads} \
 			{output.rmd} &>> {log}
-		
+
 		## Add the module directly as literal code
 		cat {input.module} >> {output.rmd}
-
-		R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
 
 		if [[ {params.git} == "True" ]]; then
 			TRIES={params.tries}
@@ -370,10 +335,79 @@ rule build_macs2_summary:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.rmd} \
-			  {output.html}\
-			  {output.fig_path} \
-			  {output.peaks} \
-			  {output.venn}
+			git add {output.rmd} 
+		fi
+		"""
+
+
+rule compile_macs2_summary_html:
+	input:
+		annotations = ALL_RDS,
+		aln = lambda wildcards: expand(
+			os.path.join(bam_path, "{{target}}", "{sample}.{suffix}"),
+			sample = set(df[df.target == wildcards.target]['sample']),
+			suffix = ['bam', 'bam.bai']
+		),
+		blacklist = blacklist,
+		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
+		config = "config/config.yml",
+		here = here_file,
+		indiv_macs2 = lambda wildcards: expand(
+			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
+			sample = set(df[df.target == wildcards.target]['sample']),
+			suffix = ['callpeak.log', 'peaks.narrowPeak']
+		),
+		merged_macs2 = lambda wildcards: expand(
+			os.path.join(
+				macs2_path, "{{target}}", "{treat}_merged_{suffix}"
+			),
+			treat = set(df[df.target == wildcards.target]['treat']),
+			suffix = ['callpeak.log', 'peaks.narrowPeak']
+		),
+		pkgs = rules.install_packages.output,
+		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
+		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
+		setup = rules.create_setup_chunk.output,
+		yaml = rules.create_site_yaml.output
+	output:
+		html = "docs/{target}_macs2_summary.html",
+		fig_path = directory(
+			os.path.join(
+				"docs", "{target}_macs2_summary_files",
+				"figure-html"
+			)
+		),
+		peaks = expand(
+			os.path.join(
+				macs2_path, "{{target}}", "{file}"
+			),
+			## Should change export of oracle peaks to be bed files
+			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
+		),
+		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),
+		venn = "docs/assets/{target}/{target}_common_peaks.png"
+	params:
+		git = git_add,
+		interval = random.uniform(0, 1),
+		tries = 10
+	conda: "../envs/rmarkdown.yml"
+	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
+	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
+	shell:
+		"""
+		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
+
+		if [[ {params.git} == "True" ]]; then
+			TRIES={params.tries}
+			while [[ -f .git/index.lock ]]
+			do
+				if [[ "$TRIES" == 0 ]]; then
+					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
+					exit 1
+				fi
+				sleep {params.interval}
+				((TRIES--))
+			done
+			git add {output.html} {output.fig_path} {output.peaks} {output.venn}
 		fi
 		"""
