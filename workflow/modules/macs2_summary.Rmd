@@ -56,7 +56,7 @@ config <- read_yaml(
   here::here("config", "config.yml")
 )
 bam_path <- here::here(config$paths$bam, target)
-macs2_path <- here::here(config$paths$macs2, target)
+macs2_path <- here::here("output", "macs2", target)
 annotation_path <- here::here("output", "annotations")
 colours <- read_rds(
   file.path(annotation_path, "colours.rds")

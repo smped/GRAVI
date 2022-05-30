@@ -118,9 +118,9 @@ pairs=make_pairwise(config['comparisons']['contrasts'])
 ###############
 here_file = get_here_file()
 bam_path = config['paths']['bam']
-macs2_path = config['paths']['macs2']
 rmd_path = "analysis"
-## This still needs to be changed internally in the RMD files
+# macs2_path = config['paths']['macs2']
+macs2_path = os.path.join("output", "macs2")
 annotation_path = os.path.join("output", "annotations")
 log_path = os.path.join("workflow", "logs")
 

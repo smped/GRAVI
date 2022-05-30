@@ -60,7 +60,7 @@ source(here::here("workflow", "scripts", "custom_functions.R"))
 ```{r load-config}
 params <- read_yaml(here::here("config", "params.yml"))
 config <- read_yaml(here::here("config", "config.yml"))
-macs2_path <- here::here(config$paths$macs2, target)
+macs2_path <- here::here("output", "macs2", target)
 samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
   read_tsv() %>% 
   dplyr::filter(

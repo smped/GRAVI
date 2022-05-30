@@ -53,7 +53,7 @@ theme_set(
 config <- read_yaml(here::here("config", "config.yml"))
 params <- read_yaml(here::here("config", "params.yml"))
 targets <- names(pairs)
-macs2_path <- here::here(config$paths$macs2, targets)
+macs2_path <- here::here("output", "macs2", targets)
 fdr_alpha <- config$comparisons$fdr
 comps <- targets
 if (length(unique(targets)) == 1) {

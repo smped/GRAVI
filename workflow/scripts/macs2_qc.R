@@ -58,7 +58,7 @@ samples <- samples %>%
 qc_prop <- config$peaks$qc$min_prop_peaks
 
 annotation_path <- here::here("output", "annotations")
-macs2_path <- here::here(config$paths$macs2, target)
+macs2_path <- here::here("output", "macs2", target)
 if (!dir.exists(macs2_path)) dir.create(macs2_path)
 
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
