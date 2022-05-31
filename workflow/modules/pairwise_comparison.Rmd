@@ -443,6 +443,11 @@ all_windows <- db_results %>%
         !!sym(glue("{comps[[2]]}_centre")) := peak_centre
       )
   ) %>% 
+  arrange(!!sym(glue("{comps[[2]]}_fdr"))) %>% 
+  distinctMC(!!sym(glue("{comps[[1]]}_fdr")), .keep_all = TRUE) %>% 
+  arrange(!!sym(glue("{comps[[1]]}_fdr"))) %>% 
+  distinctMC(.keep_all = TRUE) %>% 
+  sort() %>% 
   mutate(
     
     ## Change the classification for unchanged sites to DB if the other target 
@@ -450,12 +455,10 @@ all_windows <- db_results %>%
     "{comps[[1]]}_status" := case_when(
       
       (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha) &
-        # (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha * 3) &
         (!!sym(glue("{comps[[1]]}_fdr_mu0")) < fdr_alpha) &
         (!!sym(glue("{comps[[1]]}_logFC")) > lambda) ~ "Up",
       
       (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha) &
-        # (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha * 3) &
         (!!sym(glue("{comps[[1]]}_fdr_mu0")) < fdr_alpha) &
         (!!sym(glue("{comps[[1]]}_logFC")) < -1 * lambda) ~ "Down",
       
@@ -468,12 +471,10 @@ all_windows <- db_results %>%
     "{comps[[2]]}_status" := case_when(
       
       (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha) &
-        # (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha * 3) &
         (!!sym(glue("{comps[[2]]}_fdr_mu0")) < fdr_alpha) &
         (!!sym(glue("{comps[[2]]}_logFC")) > lambda) ~ "Up",
       
       (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha) &
-        # (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha * 3) &
         (!!sym(glue("{comps[[2]]}_fdr_mu0")) < fdr_alpha) &
         (!!sym(glue("{comps[[2]]}_logFC")) < -1 * lambda) ~ "Down",
       
