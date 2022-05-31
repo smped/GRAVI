@@ -70,7 +70,11 @@ if (length(unique(targets)) == 1) {
 samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
   lapply(read_tsv) %>% 
   bind_rows() %>% 
-  dplyr::filter(qc == "pass") %>% 
+  dplyr::filter(
+    qc == "pass",
+    (target == names(pairs)[[1]] & treat %in% pairs[[1]]) |
+      (target == names(pairs)[[2]] & treat %in% pairs[[2]])
+  ) %>% 
   unite(label, target, label, remove = FALSE) %>% 
   mutate(
     target = factor(target, levels = unique(targets)),
@@ -86,10 +90,10 @@ samples[[rep_col]] <- as.factor(samples[[rep_col]])
 ```
 
 ```{r load-colours}
-colours <- read_rds(here::here("output", "annotations", "colours.rds"))
+annotation_path <- here::here("output", "annotations")
+colours <- read_rds(file.path(annotation_path, "colours.rds"))
 treat_colours <- unlist(colours$treat[levels(samples$treat)])
 ```
-
 
 ```{r load-annotations}
 cb <- config$genome$build %>% 
@@ -97,7 +101,6 @@ cb <- config$genome$build %>%
   paste0(".cytobands") 
 data(list = cb)
 bands_df <- mget(cb)[[cb]]
-annotation_path <- here::here("output", "annotations")
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
@@ -271,8 +274,9 @@ with_tooltip <- function(value, width = 30) {
 
 ```{r load-data}
 oracle_peaks <- file.path(macs2_path, "oracle_peaks.rds") %>%
-  lapply(read_rds) %>% 
-  setNames(basename(macs2_path))
+  unique() %>% 
+  sapply(read_rds) %>% 
+  setNames(unique(basename(macs2_path)))
 consensus_peaks <- file.path(macs2_path, "consensus_peaks.bed") %>%
   lapply(import.bed, seqinfo = sq) %>%
   setNames(basename(macs2_path))
@@ -285,7 +289,8 @@ db_results <- seq_along(pairs) %>%
   lapply(
     function(x) {
       here::here(
-        "output", names(pairs)[[x]], glue("{pairs[[x]][[1]]}_{pairs[[x]][[2]]}_differential_binding.rds")
+        "output", "differential_binding", names(pairs)[[x]], 
+        glue("{pairs[[x]][[1]]}_{pairs[[x]][[2]]}_differential_binding.rds")
       )
     }
   ) %>% 
@@ -575,7 +580,7 @@ direction_colours <- names(colours$direction) %>%
   pull("rgb")
 ```
 
-A set of common windows was formed by obtaining the union of windows produced during the analysis of `r glue_collapse(comps, sep = ", ", last = " and ")` individually.
+A set of common windows was formed by obtaining the union of windows produced during the analysis of `r collapseGenes(comps)` individually.
 These common windows were formed using any overlap between target-specific windows.
 The window-to-gene mappings and the best overlap with genomic regions was also reformed.
 `r if (has_features) "The best overlap with external features was also reformed."`

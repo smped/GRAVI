@@ -120,15 +120,17 @@ rule compile_differential_binding_html:
 			)
 		),
 		outs = expand(
-			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),
+			os.path.join(diff_path, "{{target}}", "{{ref}}_{{treat}}_{file}"),
 			file = ['differential_binding.rds', 'down.bed', 'up.bed']
 		),
 		csv = expand(
-		  os.path.join("output", "{{target}}", "{{target}}_{{ref}}_{{treat}}_{file}"),
+			os.path.join(
+			  diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}_{file}"
+			),
 		  file = ['differential_binding.csv.gz', 'DE_genes.csv']
 		),
 		win = os.path.join(
-			"output", "{target}", "{ref}_{treat}_filtered_windows.rds"
+			diff_path, "{target}", "{ref}_{treat}_filtered_windows.rds"
 		)
 	params:
 		git = git_add,

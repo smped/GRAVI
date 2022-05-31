@@ -82,7 +82,7 @@ bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
-out_path <- here::here("output", target)
+out_path <- here::here("output", "differential_binding", target)
 if (!dir.exists(out_path)) dir.create(out_path)
 ```
 
