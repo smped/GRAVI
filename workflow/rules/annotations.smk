@@ -69,7 +69,7 @@ rule create_annotations:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 16
 	log: log_path + "/scripts/create_annotations.log"

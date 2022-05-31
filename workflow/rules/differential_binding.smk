@@ -15,7 +15,7 @@ rule create_differential_binding_rmd:
 			(df['target'] == wildcards.target) &
 			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
 		]),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
 	threads: 1
@@ -133,7 +133,7 @@ rule compile_differential_binding_html:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads:
 		lambda wildcards: len(df[
