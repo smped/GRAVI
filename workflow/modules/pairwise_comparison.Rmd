@@ -443,64 +443,63 @@ all_windows <- db_results %>%
         !!sym(glue("{comps[[2]]}_centre")) := peak_centre
       )
   ) %>% 
+  # This will all be unneccessary once conda-forge updates to R4.2
+  # The bug has been fixed in extraChIPs 1.0.1
+  as_tibble() %>% 
+  dplyr::rename_all(
+    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
+  ) %>% 
+  dplyr::rename_all(
+    str_replace_all, pattern = "\\.\\.", replacement = ": "
+  ) %>% 
+  ## Remove duplicate mappings to each range, just selecting the one with the
+  ## lowest FDR
   arrange(!!sym(glue("{comps[[2]]}_fdr"))) %>% 
-  distinctMC(!!sym(glue("{comps[[1]]}_fdr")), .keep_all = TRUE) %>% 
+  distinct(range, !!sym(glue("{comps[[1]]}_fdr")), .keep_all = TRUE) %>% 
   arrange(!!sym(glue("{comps[[1]]}_fdr"))) %>% 
-  distinctMC(.keep_all = TRUE) %>% 
-  sort() %>% 
-  mutate(
-    
-    ## Change the classification for unchanged sites to DB if the other target 
-    ## is DB, and the FDR using mu0 = 0 is < fdr_alpha + |logFC| > log2(lambda)
-    "{comps[[1]]}_status" := case_when(
-      
-      (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[1]]}_fdr_mu0")) < fdr_alpha) &
-        (!!sym(glue("{comps[[1]]}_logFC")) > lambda) ~ "Up",
-      
-      (!!sym(glue("{comps[[2]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[1]]}_fdr_mu0")) < fdr_alpha) &
-        (!!sym(glue("{comps[[1]]}_logFC")) < -1 * lambda) ~ "Down",
-      
-      TRUE ~ !!sym(glue("{comps[[1]]}_status"))
-    ) %>% 
+  distinct(range, .keep_all = TRUE) %>% 
+  colToRanges("range", seqinfo = sq) %>% 
+  sort() 
+## plyranges::mutate changes the column names using `make.names()`. Avoid!!
+## Reclassify windows from the first comparison using data from the second
+## to reduce false negatives. If the 2nd comparison contains a significant
+## change in binding, reclassify the first using the fdr for H0: mu[0] = 0
+## but only where |logFC[est]| > lambda
+switch_up <- mcols(all_windows)[[glue("{comps[[2]]}_fdr")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[1]]}_fdr_mu0")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[1]]}_logFC")]] > lambda
+mcols(all_windows)[[glue("{comps[[1]]}_status")]][switch_up] <- "Up"
+switch_down <- mcols(all_windows)[[glue("{comps[[2]]}_fdr")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[1]]}_fdr_mu0")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[1]]}_logFC")]] < (-1) * lambda
+mcols(all_windows)[[glue("{comps[[1]]}_status")]][switch_down] <- "Down"
+mcols(all_windows)[[glue("{comps[[1]]}_status")]] <- mcols(all_windows) %>% 
+  .[[glue("{comps[[1]]}_status")]] %>% 
       factor(levels = str_sep_to_title(names(colours$direction))) %>% 
       fct_explicit_na("Undetected") %>% 
-      fct_relabel(function(x) paste(comps[[1]], x)),
-    
-    "{comps[[2]]}_status" := case_when(
-      
-      (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[2]]}_fdr_mu0")) < fdr_alpha) &
-        (!!sym(glue("{comps[[2]]}_logFC")) > lambda) ~ "Up",
-      
-      (!!sym(glue("{comps[[1]]}_fdr")) < fdr_alpha) &
-        (!!sym(glue("{comps[[2]]}_fdr_mu0")) < fdr_alpha) &
-        (!!sym(glue("{comps[[2]]}_logFC")) < -1 * lambda) ~ "Down",
-      
-      TRUE ~ !!sym(glue("{comps[[2]]}_status"))
-    ) %>% 
-      factor(levels = str_sep_to_title(names(colours$direction)))%>% 
+    fct_relabel(function(x) paste(comps[[1]], x))  
+## Now reclassify the second comparison using changed windows in the first
+switch_up <- mcols(all_windows)[[glue("{comps[[1]]}_fdr")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[2]]}_fdr_mu0")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[2]]}_logFC")]] > lambda
+mcols(all_windows)[[glue("{comps[[2]]}_status")]][switch_up] <- "Up"
+switch_down <- mcols(all_windows)[[glue("{comps[[1]]}_fdr")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[2]]}_fdr_mu0")]] < fdr_alpha &
+  mcols(all_windows)[[glue("{comps[[2]]}_logFC")]] < (-1) * lambda
+mcols(all_windows)[[glue("{comps[[2]]}_status")]][switch_down] <- "Down"
+mcols(all_windows)[[glue("{comps[[2]]}_status")]] <- mcols(all_windows) %>% 
+  .[[glue("{comps[[2]]}_status")]] %>% 
+    factor(levels = str_sep_to_title(names(colours$direction))) %>% 
       fct_explicit_na("Undetected") %>% 
-      fct_relabel(function(x) paste(comps[[2]], x)),
-    
-    status = fct_cross(
-      !!sym(glue("{comps[[1]]}_status")), 
-      !!sym(glue("{comps[[2]]}_status")),
+    fct_relabel(function(x) paste(comps[[2]], x))  
+mcols(all_windows)[["status"]] <- fct_cross(
+  mcols(all_windows)[[glue("{comps[[1]]}_status")]],
+  mcols(all_windows)[[glue("{comps[[2]]}_status")]],
       sep = " - "
-    ),
-    
-    distance = abs(
-      !!sym(glue("{comps[[1]]}_centre")) - !!sym(glue("{comps[[2]]}_centre"))
     )
-    
+mcols(all_windows)[["distance"]] <- abs(
+  mcols(all_windows)[[glue("{comps[[1]]}_centre")]] - mcols(all_windows)[[glue("{comps[[2]]}_centre")]]
   )
-## The above will currently (inexplicably) change the column names to be the
-## classic old R-style with dots instead of spaces. This may need re-visting
-colnames(mcols(all_windows)) <- mcols(all_windows) %>% 
-  colnames() %>% 
-  str_replace_all("\\.Vs\\.\\.", " Vs. ") %>% 
-  str_replace_all("\\.\\.", ": ")
 
 if (has_features) 
   all_windows$feature <- bestOverlap(
