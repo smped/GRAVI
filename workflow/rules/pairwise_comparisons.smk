@@ -84,7 +84,7 @@ rule compile_pairwise_comparisons_html:
 			)
 		),
 		csv = os.path.join(
-			"output", "{t1}_{t2}",
+			"output", "pairwise_comparisons", "{t1}_{t2}",
 			"{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.csv.gz"
 		)
 	params:

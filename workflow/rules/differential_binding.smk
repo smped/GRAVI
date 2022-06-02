@@ -132,6 +132,7 @@ rule compile_differential_binding_html:
 		win = os.path.join(
 			diff_path, "{target}", "{ref}_{treat}_filtered_windows.rds"
 		)
+	retries: 3
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),

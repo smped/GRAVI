@@ -2235,7 +2235,9 @@ htmltools::tagList(
 # Data Export
 
 ```{r all-out}
-out_path <- here::here("output", paste(targets, collapse = "_"))
+out_path <- here::here(
+  "output", "pairwise_comparisons", paste(targets, collapse = "_")
+)
 if (!dir.exists(out_path)) dir.create(out_path)
 all_out <- list(
   csv = file.path(
