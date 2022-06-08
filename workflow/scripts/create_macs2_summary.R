@@ -11,8 +11,8 @@ glue(
 	---
 	title: '{{target}}: MACS2 Summary'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
-	editor_options:
-	  chunk_output_type: console
+	bibliography: references.bib
+	link-citations: true
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
@@ -22,7 +22,7 @@ glue(
 	target <- \"{{target}}\"
 	threads <- {{threads}}
 	```
-	
+
 	",
 	.open = "{{",
 	.close = "}}"

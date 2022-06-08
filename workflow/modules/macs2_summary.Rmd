@@ -55,6 +55,7 @@ source(here::here("workflow/scripts/geom_sidelabel.R"))
 config <- read_yaml(
   here::here("config", "config.yml")
 )
+params <- read_yaml(here::here("config", "params.yml"))
 bam_path <- here::here(config$paths$bam, target)
 macs2_path <- here::here("output", "macs2", target)
 annotation_path <- here::here("output", "annotations")
@@ -150,6 +151,15 @@ n_reps <- macs2_logs %>%
 ```
 
 ## QC {.tabset}
+
+This section provides a simple series of visualisations to enable detection of any problematic samples.
+
+- Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak` [@Zhang18798982]
+- GC Content: Most variation in GC-content should have been identified prior to performing alignments, using common tools such as [FastQC](https://github.com/s-andrews/FastQC), MultiQC [@EwelsMultiQC2016] or `ngsReports` [@WardNgsReports2019]. However, these plots may still be informative for detection of potential sequencing issues not previously addressed
+- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful. Using the settings provided in `config.yml` (i.e. `peaks:qc:min_prop_peaks`), any replicates where the number of peaks falls below `r percent(config$peaks$qc$min_prop_peaks)` of the replicate with the highest number of peaks (i.e. the 'best' sample), **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
+- Cross Correlations: Shows the cross-correlation coefficients between read positions across a series of intervals [@LunSmythCsaw2014]. Weak cross-correlations can also indicate low-quality samples. These values are also used to estimate fragment length within each sample, as the peak value of the cross-correlations
+- Fraction Of Reads In Peaks (FRIP): This plot shows the proportion of the alignments which fall within peaks identified by `macs2 callpeak`, with the remainder of alignments being assumed to be background [@Landt01092012]. This can provide guidance as to the success of the IP protocol, and the common-use threshold of 1% is indicated as a horizontal line. This value is not enforced as a hard QC criteria, but may be used to manually exclude samples from the file `samples.tsv` of deemed to be appropriate.
+
 
 ```{r macs2-logs-individual}
 emphasize.italics.rows(NULL)
@@ -349,9 +359,9 @@ file.path(macs2_path, "cross_correlations.tsv") %>%
 ```
 
 
-### Reads In Peaks
+### FRIP
 
-```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}). The minimum value for an acceptable sample (1%) is shown as a dashed horizontal line*")}
+```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}). The common-use minimum value for an acceptable sample (1%) is shown as a dashed horizontal line*")}
 samples$sample %>%
   bplapply(
     function(x) {
@@ -391,7 +401,9 @@ samples$sample %>%
 ```
 
 
-## Results {.tabset}
+## Results 
+
+### Oracle Peaks {.tabset}
 
 ```{r oracle-peaks}
 oracle_peaks <- treat_levels %>%
@@ -416,9 +428,16 @@ oracle_peaks <- treat_levels %>%
 consensus_peaks <- oracle_peaks %>%
   unlist() %>%
   subset(keep) %>%
-  GenomicRanges::reduce() %>%
+  mutate(peak_position = start + peak) %>% 
+  reduceMC() %>% 
   setNames(as.character(.)) %>% 
   mutate(
+    score = vapply(score, max, numeric(1)),
+    signalValue = vapply(signalValue, max, numeric(1)),
+    pValue = vapply(pValue, max, numeric(1)),
+    qValue = vapply(qValue, max, numeric(1)),
+    n_reps = vapply(n_reps, sum, integer(1)),
+    peak = round(vapply(peak_position, median, numeric(1)) - start, 0),
     region = bestOverlap(
       ., 
       lapply(gene_regions, select, region) %>% 
@@ -427,7 +446,8 @@ consensus_peaks <- oracle_peaks %>%
       var = "region"
     ) %>% 
       factor(levels = regions)
-  )
+  ) %>% 
+  select(-keep, -peak_position)
 if (has_features) {
   consensus_peaks$Feature <- bestOverlap(
     consensus_peaks, external_features, 
@@ -449,27 +469,27 @@ if (any_detected) {
 }
 ```
 
-
-
-A set of treatment-specific `target` *oracle peaks* was defined for each condition by taking the peaks defined by merging all samples from each treatment group.
-These were then compared to the individual replicates within each respective condition which passed the initial QC.
+A set of treatment-specific `r target` *oracle peaks* was defined for each condition by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
+Replicates which failed the previous QC steps are omitted from this step.
 Oracle peaks which overlapped a peak in more than `r percent(config$peaks$qc$min_prop_reps)` of the *individual replicates passing QC*, were retained.
 
 ```{r tab-oracle-peak}
 oracle_peaks %>%
-  lapply(as.data.frame) %>%
-  lapply(list) %>%
-  as_tibble() %>%
-  pivot_longer(everything(), names_to = "treat", values_to = "data") %>%
-  mutate(
-    detected_peaks = map_int(data, nrow),
-    retained = data %>% lapply(dplyr::filter, keep) %>% map_int(nrow),
-    `% retained` = percent(retained / detected_peaks, 0.1)
-  ) %>%
-  dplyr::select(treat, detected_peaks, retained, `% retained`) %>%
+  lapply(mutate, w = width) %>% 
+  lapply(as_tibble) %>% 
+  bind_rows(.id = "treat") %>% 
+  mutate(treat = factor(treat, levels = treat_levels)) %>% 
+  group_by(treat) %>% 
+  summarise(
+    detected_peaks = dplyr::n(),
+    retained = sum(keep),
+    `% retained` = percent(retained / detected_peaks, 0.1),
+    median_width = median(w)
+  ) %>% 
   rename_all(str_sep_to_title) %>% 
+  dplyr::rename(`% Retained` = ` Retained`) %>% 
   pander(
-    justify = "lrrr",
+    justify = "lrrrr",
     caption = glue(
       "Oracle peaks detected by merging samples within each treatment group.",
       "Peaks were only retained if detected in at least",
@@ -479,10 +499,79 @@ oracle_peaks %>%
   )
 ```
 
-### Consensus Peaks
+#### Peak Widths
+
+```{r plot-peak-widths, fig.height=6, fig.cap = "Widths of all Oracle Peaks as a function of the number of replicates the peak was detected in. The y-axis is shown on the log scale."}
+oracle_peaks %>%
+  lapply(mutate, w = width) %>%
+  lapply(as_tibble) %>%
+  bind_rows(.id = "treat") %>%
+  dplyr::filter(keep) %>%
+  ggplot(aes(as.factor(n_reps), w, fill = treat)) +
+  geom_boxplot(alpha = 0.8) +
+  scale_y_log10() +
+  scale_fill_manual(values = colours$treat[treat_levels]) +
+  labs(x = "Replicates", y = "Peak Width", fill = "Treatment")
+```
+
+#### Distance to TSS
+
+```{r plot-oracle-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of each {target} oracle peak to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Between ", lapply(oracle_peaks, overlapsAny, tss) %>% vapply(mean, numeric(1)) %>% range(na.rm = TRUE) %>% percent(0.1) %>% glue_collapse(last = " and "), " of the oracle peaks directly overlapped a TSS.*")}
+df <- oracle_peaks %>% 
+  lapply(join_nearest, mutate(tss, tss = start)) %>% 
+  lapply(mutate, d = (start + width/2 - tss)/1e3) %>%
+  lapply(as_tibble) %>%
+  bind_rows(.id = "treat") %>% 
+  mutate(treat = factor(treat, treat_levels))
+a <- df %>%
+  ggplot(aes(d, colour = treat)) +
+  geom_density() +
+  scale_colour_manual(values = colours$treat[treat_levels]) +
+  coord_cartesian(xlim = c(-100, 100)) +
+  labs(
+    x = "Distance to Nearest TSS (kb)",
+    y = "Density",
+    colour = "Treat"
+  ) +
+  guides(colour = "none")
+b <- df %>% 
+  select(treat, d) %>% 
+  arrange(abs(d)) %>% 
+  mutate(
+    q = seq_along(d) / nrow(.)
+  ) %>% 
+  ggplot(aes(abs(d), q, colour = treat)) +
+  geom_line() +
+  geom_vline(
+    xintercept = max(unlist(params$gene_regions$promoters)) / 1e3, 
+    linetype = 2, colour = "grey40"
+  ) +
+  coord_cartesian(xlim = c(0, 100)) +
+  labs(
+    x = "Distance to Nearest TSS (kb)",
+    y = "Quantile",
+    colour = "Treat"
+  ) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
+  scale_x_continuous(breaks = seq(0, 100, by = 20)) +
+  scale_colour_manual(values = colours$treat[treat_levels]) 
+plot_grid(
+  a, b + guides(colour = "none"), get_legend(b),
+  rel_widths = c(0.5, 0.5, 0.1),  nrow = 1,
+  labels = c("A", "B")
+)
+```
+
+
+### Consensus Peaks {.tabset}
 
 In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
-Ranges were the union of any overlapping ranges identified in one or more sets of oracle peaks.
+Consensus ranges were the *union* of all overlapping ranges defined and retained in one or more sets of oracle peaks.
+Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *maximum* across all treatments.
+*Peak summits* were taken as the median position of all summits which comprise the consensus peak.
+The number of replicates generating each peak was defined as the total across all treatment groups.
+
+#### `r ifelse(length(treat_levels) <= 3, "Venn Diagram", "Upset Plot")`
 
 ```{r plot-common-peaks, results = 'hide', echo = length(treat_levels) <= 3}
 fig_path <- here::here("docs", "assets", target)
@@ -545,9 +634,9 @@ oracle_peaks %>%
 ```
 
 
-### Distance to TSS 
+#### Distance to TSS 
 
-```{r plot-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the {target} consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
+```{r plot-consensus-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the {target} consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
 a <- consensus_peaks %>% 
   join_nearest(
     mutate(tss, tss = start)
@@ -559,7 +648,7 @@ a <- consensus_peaks %>%
   geom_density() +
   coord_cartesian(xlim = c(-100, 100)) +
   labs(
-    x = "Distance to TSS (kb)",
+    x = "Distance to Nearest TSS (kb)",
     y = "Density"
   )
 b <- consensus_peaks %>% 
@@ -575,9 +664,13 @@ b <- consensus_peaks %>%
   ) %>% 
   ggplot(aes(abs(d) / 1e3, q)) +
   geom_line() +
+  geom_vline(
+    xintercept = max(unlist(params$gene_regions$promoters)) / 1e3, 
+    linetype = 2, colour = "grey40"
+  ) +
   coord_cartesian(xlim = c(0, 100)) +
   labs(
-    x = "Distance to TSS (kb)",
+    x = "Distance to Nearest TSS (kb)",
     y = "Quantile"
   ) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
@@ -587,7 +680,7 @@ plot_grid(a, b, labels = c("A", "B"))
 
 
 
-### Gene-Centric Regions
+#### Gene-Centric Regions
 
 ```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap gene-centric features.*")}
 consensus_peaks %>% 
@@ -599,32 +692,7 @@ consensus_peaks %>%
   theme(legend.position = "none")
 ```
 
-`r ifelse(any_detected, "### Detected Genes", "")`
-
-```{r plot-regions-expression, eval = any_detected, echo = any_detected, fig.height = 6, fig.width = 8, fig.cap = glue("*Proportion of {target} peaks overlapping gene-centric features, incorporating detected expression from the RNA-Seq data. Note that intergenic regions >10kb can never be near detected genes by simple definition. Values shown are the total genome occupancy in Kb*")}
-consensus_peaks %>% 
-  mutate(
-    region = fct_relabel(region, str_wrap, width = 20)
-  ) %>% 
-  plotPie(
-    fill = "detected", x = "region", scale_by = "width", 
-    label_alpha = 0.7, label_size = 4
-  ) +
-  scale_fill_manual(
-    values = c("grey", "red")
-  ) +
-  labs(
-    x = "Region", fill = "Any Detected Genes"
-  ) +
-  theme(
-    panel.grid = element_blank(),
-    panel.border = element_blank(),
-    axis.line.x = element_line(),
-    legend.position = "top"
-  )
-```
-
-`r ifelse(has_features, "### External Features", "")`
+`r ifelse(has_features, "#### External Features", "")`
 
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 consensus_peaks %>% 
@@ -635,7 +703,7 @@ consensus_peaks %>%
   theme(legend.position = "none")
 ```
 
-`r ifelse(has_features, "### External Features And Gene-Centric Regions", "")`
+`r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
 
 ```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap.*")}
 consensus_peaks %>% 
@@ -653,16 +721,24 @@ consensus_peaks %>%
   )
 ```
 
-`r ifelse(has_features & any_detected, "### Detected Genes, External Features And Gene-Centric Regions", "")`
+`r ifelse(has_features & any_detected, "#### Detected Genes, External Features And Gene-Centric Regions", "")`
 
 ```{r plot-pie-feature-region-detected, eval = has_features & any_detected, echo = has_features & any_detected, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions, separated by whether each peak is mapped to a detected gene. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. In the absence of HiC an excess of Distal Intergenic regions would be expected to remain unmapped.*")}
 consensus_peaks %>% 
-  plotPie(fill = "region", x = "Feature", y = "detected", label_size = 4, label_alpha = 0.7) +
-  scale_fill_manual(
-    values = colours$regions %>%
-      setNames(regions[names(.)])
+  mutate(
+     region = fct_relabel(region, str_wrap, width = 20)
+  ) %>%
+  plotPie(
+    x = "region", y = "Feature", 
+    fill = "detected",
+    label_size = 4, label_alpha = 0.7, min_p = 0.05
   ) +
-  labs(y = "Mapped To Detected Genes", fill = "Region") +
+  scale_fill_manual(values = c("grey", "red")) +
+  labs(
+    x = "Region",
+    y = "External Feature",
+    fill = "Mapped To Any\nDetected Genes", 
+    ) +
   theme(
     panel.grid = element_blank(),
     axis.line.x = element_line(),
@@ -675,21 +751,41 @@ consensus_peaks %>%
 ## Data Export
 
 
-```{r export}
+```{r export, results='hide'}
 all_out <- list(
-  consensus_peaks = file.path(macs2_path, "consensus_peaks.bed"),
-  oracle_peaks = file.path(macs2_path, "oracle_peaks.rds"),
+  consensus_peaks_bed = file.path(macs2_path, "consensus_peaks.bed"),
+  oracle_peaks_rds = file.path(macs2_path, "oracle_peaks.rds"),
   renv = file.path(
     here::here("output/envs"), 
     glue("{target}_macs2_summary.RData")
   )
-) 
+) %>% 
+  c(
+    sapply(
+      names(oracle_peaks), 
+      function(x) {
+        file.path(macs2_path, glue("{x}_oracle_peaks.bed"))
+      },
+      simplify = FALSE
+    ) %>% 
+      setNames(
+        glue("{names(.)}_oracle_peaks_bed")
+      )
+  )
 export(consensus_peaks, all_out$consensus_peaks)
 oracle_peaks %>%
   lapply(subset, keep) %>%
   lapply(select, -keep) %>%
   GRangesList() %>%
   write_rds(all_out$oracle_peaks, compress = "gz")
+names(oracle_peaks) %>% 
+  lapply(
+    function(x) {
+      id <- glue("{x}_oracle_peaks_bed")
+      subset(oracle_peaks[[x]], keep) %>% 
+        export(all_out[[id]])
+    }
+  )
 if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
@@ -698,6 +794,11 @@ During this workflow the following files were exported:
 
 `r pander(lapply(all_out, str_extract, pattern = "output.+"))`
 
+## References
+
+<div id="refs"></div>
+
+<br>
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
 <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
 </button>
