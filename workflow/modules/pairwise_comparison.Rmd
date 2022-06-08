@@ -108,6 +108,7 @@ all_gr <- file.path(annotation_path, "all_gr.rds") %>%
 id2gene <- setNames(all_gr$gene$gene_name, all_gr$gene$gene_id)
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
+genes_gr <- all_gr$gene
 
 blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
@@ -142,6 +143,7 @@ if (length(rna_path) > 0) {
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+  genes_gr <- subset(genes_gr, gene_id %in% rnaseq$gene_id)
 }
 tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
 rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
@@ -290,7 +292,7 @@ db_results <- seq_along(pairs) %>%
     function(x) {
       here::here(
         "output", "differential_binding", names(pairs)[[x]], 
-        glue("{pairs[[x]][[1]]}_{pairs[[x]][[2]]}_differential_binding.rds")
+        glue("{pairs[[x]][[1]]}_{pairs[[x]][[2]]}-differential_binding.rds")
       )
     }
   ) %>% 
@@ -1202,7 +1204,7 @@ all_windows %>%
 
 
 ```{r msigdb}
-all_ids <- all_gr$gene %>% 
+all_ids <- genes_gr %>% 
   mutate(w = width) %>% 
   as_tibble() %>% 
   dplyr::select(gene_id, w) %>% 
@@ -2243,24 +2245,24 @@ all_out <- list(
   csv = file.path(
     out_path,
     glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
       "pairwise_comparison.csv.gz"
     )
   ),
   results = file.path(
     out_path,
     glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
       "all_windows.rds"
     )
   ),
   renv = here::here(
     "output", "envs",
     glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}_", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}_",
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
       "pairwise_comparison.RData"
     )
   )

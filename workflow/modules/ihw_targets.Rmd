@@ -62,7 +62,7 @@ merged_results <- merged_results %>%
 ```
 
 
-Independent Hypothesis Weighting (IHW) was then used to partition the raw p-values for `r target` differential binding by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
+Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential binding by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
 The presence of `r glue_collapse(other_targets, sep = ", ", last = " and ")` was defined simply using the consensus peaks detected under any treatment by `macs2 callpeak`, as determined [previously](`r glue("{target}_macs2_summary.html")`).
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
@@ -93,7 +93,7 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, fig.height= 4 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
+```{r plot-ihw-pvals, fig.height= 3 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
 y <- ggplot_build(
   tibble(P.Value = merged_results$P.Value,) %>% 
     ggplot(aes(P.Value, stat(density))) + 
@@ -120,6 +120,7 @@ merged_results %>%
   ) +
   facet_wrap(~ihw_covariate) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  xlim(c(0, 1)) +
   labs(x = "P Value", y = "Density")
 ```
 

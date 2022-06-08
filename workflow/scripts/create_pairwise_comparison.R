@@ -16,6 +16,8 @@ glue(
 	---
 	title: '{{target1}}: {{treat1}} Vs. {{ref1}} Compared To {{target2}}: {{treat2}} Vs. {{ref2}}'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
+	bibliography: references.bib
+	link-citations: true
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
