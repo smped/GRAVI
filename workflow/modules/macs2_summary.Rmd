@@ -724,27 +724,61 @@ consensus_peaks %>%
 `r ifelse(has_features & any_detected, "#### Detected Genes, External Features And Gene-Centric Regions", "")`
 
 ```{r plot-pie-feature-region-detected, eval = has_features & any_detected, echo = has_features & any_detected, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions, separated by whether each peak is mapped to a detected gene. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. In the absence of HiC an excess of Distal Intergenic regions would be expected to remain unmapped.*")}
-consensus_peaks %>% 
+df <- consensus_peaks %>% 
+  as_tibble() %>% 
   mutate(
      region = fct_relabel(region, str_wrap, width = 20)
-  ) %>%
-  plotPie(
-    x = "region", y = "Feature", 
-    fill = "detected",
-    label_size = 4, label_alpha = 0.7, min_p = 0.05
+  ) %>% 
+  group_by(region, Feature) %>% 
+  summarise(
+    total = dplyr::n(),
+    detected = sum(detected),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    not_detected = total - detected,
+    r = total / sum(total)
+  ) %>% 
+  pivot_longer(
+    cols = ends_with("detected"), names_to = "status", values_to = "n"
+  ) %>% 
+  mutate(
+    status = str_sep_to_title(status),
+    x0 = as.integer(region),
+    y0 = as.integer(Feature)
+  ) 
+df %>% 
+  ggplot() +
+  ggforce::stat_pie(
+    aes(
+      x0 = x0, y0 = y0, r0 = 0, r = 0.5 * r / max(r), fill = status, amount = n
+    )
   ) +
-  scale_fill_manual(values = c("grey", "red")) +
+  geom_label(
+    aes(x0, y0, label = comma(total)),
+    data = . %>% 
+      distinct(region, Feature, .keep_all = TRUE) %>% 
+      dplyr::filter(total > 0.05*sum(total)),
+    alpha = 0.8,
+    size = 4
+  ) +
+  scale_x_continuous(
+    breaks = seq_along(levels(df$region)), labels = levels(df$region)
+  ) +
+  scale_y_continuous(
+    breaks = seq_along(levels(df$Feature)), labels = levels(df$Feature)
+  ) +
+  scale_fill_manual(values = c(Detected = "red", "Not Detected" = "grey70") ) +
   labs(
-    x = "Region",
-    y = "External Feature",
-    fill = "Mapped To Any\nDetected Genes", 
-    ) +
+    x = "Region", y = "External Feature",
+    fill = "Mapped To Any\nDetected Genes"
+  ) +
+  coord_equal() +
   theme(
     panel.grid = element_blank(),
     axis.line.x = element_line(),
     legend.position = "top"
   )
-  
 ```
 
 
