@@ -50,10 +50,10 @@ Gene-centric regions were as defined previously.
 ```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 w <- 0.8
 min_p <- 0.05
-merged_results %>% 
+merged_results %>%
   mutate(
     any_detected = ifelse(
-      vapply(detected, length, integer(1)) > 1,
+      vapply(gene_name, length, integer(1)) > 1,
       "Mapped to Detected Genes",
       "Mapped to Undetected Genes"
     )
@@ -96,7 +96,7 @@ merged_results %>%
 merged_results %>% 
   mutate(
     any_detected = ifelse(
-      vapply(detected, length, integer(1)) > 1,
+      vapply(gene_name, length, integer(1)) > 1,
       "Mapped to Detected Genes",
       "Mapped to Undetected Genes"
     )
@@ -499,7 +499,7 @@ rnaseq %>%
     colour = "black", fill = "grey", bins = 100
   ) +
   geom_text(
-    aes(0.5, y, label = lab),
+    aes(0.8, y, label = lab),
     data = . %>% 
       group_by(mapped) %>% 
       tally() %>% 
@@ -1468,7 +1468,7 @@ rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
 ```
 
 The enrichment testing results from the `r target` differential binding analysis were then
-compared to GSEA results obtained from the RNA-Seq data set
+compared to GSEA results obtained from the RNA-Seq data set.
 
 ### Differentially Bound Windows
 

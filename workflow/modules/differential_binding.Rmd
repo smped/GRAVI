@@ -878,9 +878,9 @@ Promoters were the union of all regions defined based on transcript-level annota
 
 These features were used to map merged windows to features using the process defined in the function `extraChIPs::mapByFeature()`:
 
-1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(params$mapping$prom2gene == 0, "directly overlapping", paste("within", params$mapping$prom2gene, "bp of")` that specific promoter
-2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(params$mapping$enh2gene == 0, "directly overlapping", paste("within", round(params$mapping$enh2gene/1e3, 1), "kb of")` the enhancer
-3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(params$mapping$gi2gene == 0, "directly overlapping", paste("within", round(params$mapping$gi2gene/1e3, 1), "kb of")` either end of the interaction
+1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(params$mapping$prom2gene == 0, "directly overlapping", paste("within", params$mapping$prom2gene, "bp of"))` that specific promoter
+2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(params$mapping$enh2gene == 0, "directly overlapping", paste("within", round(params$mapping$enh2gene/1e3, 1), "kb of"))` the enhancer
+3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(params$mapping$gi2gene == 0, "directly overlapping", paste("within", round(params$mapping$gi2gene/1e3, 1), "kb of"))` either end of the interaction
 4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(params$mapping$gr2gene/1e3, 1)`kb
 
 Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3.
@@ -2717,17 +2717,19 @@ file.create(all_out$de_genes)
 if (any_detected) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
-if (length(sig_ranges$Up) > 0) {
-  sig_ranges$Up %>% 
+if (sum(merged_results$status == "Up") > 0) {
+  merged_results %>% 
+    filter(status == "Up") %>% 
     granges() %>% 
     export.bed(all_out$up_regions)
 }
 
 file.create(all_out$down_regions)
-if (length(sig_ranges$Down) > 0) {
-  sig_ranges$Down %>% 
+if (sum(merged_results$status == "Down") > 0) {
+  merged_results %>% 
+    filter(status == "Down") %>% 
     granges() %>% 
-    export.bed(all_out$down_regions)
+    export.bed(all_out$up_regions)
 }
 
 save.image(all_out$renv)

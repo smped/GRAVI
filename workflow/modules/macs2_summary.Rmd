@@ -816,8 +816,10 @@ names(oracle_peaks) %>%
   lapply(
     function(x) {
       id <- glue("{x}_oracle_peaks_bed")
-      subset(oracle_peaks[[x]], keep) %>% 
-        export(all_out[[id]])
+      oracle_peaks[[x]] %>% 
+        subset(keep) %>% 
+        select(score, signalValue, pValue, qValue, peak) %>% 
+        export(all_out[[id]], format = "narrowPeak")
     }
   )
 if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
