@@ -85,7 +85,7 @@ rule compile_pairwise_comparisons_html:
 		),
 		csv = os.path.join(
 			"output", "pairwise_comparisons", "{t1}_{t2}",
-			"{t1}_{ref1}_{treat1}-{t2}{ref2}_{treat2}-pairwise_comparison.csv.gz"
+			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.csv.gz"
 		)
 	params:
 		git = git_add,
