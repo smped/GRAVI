@@ -74,7 +74,7 @@ status_gs <- all_windows %>%
 gsea_dir <- fgsea(status_gs, rna_dir_ranks)
 gsea_dir_sig <- gsea_dir %>%
   arrange(pval) %>%
-  dplyr::filter(padj < fdr_alpha) %>%
+  dplyr::filter(padj < enrich_alpha) %>%
   as_tibble()
 p <- gsea_dir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -208,7 +208,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_nondir <- fgsea(status_gs, rna_sig_ranks)
 gsea_nondir_sig <- gsea_nondir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_nondir_sig %>% 
   dplyr::slice(1:9) %>% 

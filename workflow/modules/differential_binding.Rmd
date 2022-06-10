@@ -2128,8 +2128,8 @@ plotHFGC(
 ```{r msigdb}
 msigdb <- msigdbr(species = "Homo sapiens") %>% 
   dplyr::filter(
-    gs_cat %in% unlist(params$msigdb$gs_cat) |
-      gs_subcat %in% unlist(params$msigdb$gs_subcat),
+    gs_cat %in% unlist(params$enrichment$msigdb$gs_cat) |
+      gs_subcat %in% unlist(params$enrichment$msigdb$gs_subcat),
     str_detect(ensembl_gene, "^E")
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
@@ -2147,6 +2147,31 @@ gs_by_geneid <- msigdb %>%
 gs_url <- msigdb %>% 
   distinct(gs_name, gs_url) %>%
   with(setNames(gs_url, gs_name))
+min_genes <- params$enrichment$min_prop_goseq * length(genes_gr)
+max_genes <- params$enrichment$max_prop_goseq * length(genes_gr)
+enrich_alpha <- params$enrichment$alpha
+adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
+adj_desc <- case_when(
+  p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
+  p.adjust.methods %in% c("BY") ~ "the Benjamini-Yekutieli FDR",
+  p.adjust.methods %in% c("bonferroni") ~ "the Bonferroni",
+  p.adjust.methods %in% c("holm") ~ "Holm's",
+  p.adjust.methods %in% c("hommel") ~ "Hommel's",
+  p.adjust.methods %in% c("hochberg") ~ "Hochberg's",
+  p.adjust.methods %in% c("none") ~ "no"
+) %>% 
+  setNames(p.adjust.methods)
+mapped_ids <- merged_results %>%
+  as_tibble() %>% 
+  dplyr::select(status, gene_id) %>%
+  unnest(gene_id) %>%
+  group_by(gene_id) %>%
+  summarise(
+    up = any(status == "Up"), 
+    down = any(status == "Down"), 
+    n_peaks = dplyr::n(),
+    .groups = "drop"
+  )
 ```
 
 As an initial exploration, the retained windows were compared to pre-defined gene-sets.
@@ -2193,6 +2218,9 @@ Retained windows were tested for enrichment of these gene-sets using:
 
 In the first case, mapped genes were tested for enrichment against all annotated genes, or all detected genes if RNA-Seq data was provided.
 In the second case, i.e. Differentially Bound Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
+Testing was only performed if the number of genes mapped to the specific treatment group fell between
+`r comma(min_genes, 1)` and `r comma(max_genes, 1)`.
+All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
 ## Windows With Detected `r target`
 
@@ -2212,31 +2240,35 @@ pwf_mapped <- genes_gr %>%
       plot.fit = TRUE
     )
   )
-goseq_mapped <- goseq(
-  pwf_mapped, config$genome$build, gene2cat = gs_by_geneid
-) %>% 
-  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-  dplyr::select(-starts_with("under")) %>% 
-  as_tibble() %>% 
-  arrange(pval) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  mutate(fdr = p.adjust(pval, "fdr"))
+goseq_mapped <- tibble(gs_name = character(), adj_p = numeric())
+if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
+  goseq_mapped <- goseq(
+    pwf_mapped, config$genome$build, gene2cat = gs_by_geneid
+  ) %>% 
+    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+    dplyr::select(-starts_with("under")) %>% 
+    as_tibble() %>% 
+    arrange(pval) %>% 
+    dplyr::filter(numDEInCat > 0) %>% 
+    mutate(adj_p = p.adjust(pval, adj_method))
+}
+
 ```
 
-`r ifelse(sum(goseq_mapped$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to any window", "")`
+`r ifelse(sum(goseq_mapped$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to any window", "")`
 
-```{r tbl-goseq-mapped, eval = sum(goseq_mapped$fdr < fdr_alpha) > 0, echo = sum(goseq_mapped$fdr < fdr_alpha) > 0}
+```{r tbl-goseq-mapped, eval = sum(goseq_mapped$adj_p < enrich_alpha) > 0, echo = sum(goseq_mapped$adj_p < enrich_alpha) > 0}
 cp <- htmltools::em(
   glue(
-    "All {sum(goseq_mapped$fdr < fdr_alpha)} gene sets considered as ", 
-    "significantly enriched (FDR < {fdr_alpha}) amongst the merged windows ", 
+    "All {sum(goseq_mapped$adj_p < enrich_alpha)} gene sets considered as ", 
+    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the merged windows ", 
     "with detectable {target} binding. Genes mapped to a merged window were ",
     "compared to those not mapped to any merged windows. ",
     "Gene width was used to capture any sampling bias."
   )
 )
 tbl <- goseq_mapped %>%
-  dplyr::filter(fdr < fdr_alpha) %>% 
+  dplyr::filter(adj_p < enrich_alpha) %>% 
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
     by = "gs_name"
@@ -2251,7 +2283,7 @@ tbl <- goseq_mapped %>%
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, 
-    p = pval, FDR = fdr, 
+    p = pval, adj_p, 
     `Mapped Genes` = gene_name
   ) %>% 
   reactable(
@@ -2289,7 +2321,8 @@ tbl <- goseq_mapped %>%
         },
         maxWidth = 80
       ),
-      FDR = colDef(
+      adj_p = colDef(
+        name = "p<sub>adj</sub>", html = TRUE,
         cell = function(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
@@ -2314,17 +2347,6 @@ div(class = "table",
 ## Windows With Differentially Bound `r target`
 
 ```{r goseq-diff, fig.show='hide'}
-mapped_ids <- merged_results %>%
-  as_tibble() %>% 
-  dplyr::select(status, gene_id) %>%
-  unnest(gene_id) %>%
-  group_by(gene_id) %>%
-  summarise(
-    up = any(status == "Up"), 
-    down = any(status == "Down"), 
-    n_peaks = dplyr::n(),
-    .groups = "drop"
-  )
 pwf_diff <- genes_gr %>% 
   as_tibble() %>% 
   distinct(gene_id) %>% 
@@ -2341,32 +2363,35 @@ pwf_diff <- genes_gr %>%
       plot.fit = TRUE
     )
   )
-goseq_diff <- goseq(
-  pwf_diff, config$genome$build, gene2cat = gs_by_geneid
-) %>% 
-  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-  dplyr::select(-starts_with("under")) %>% 
-  as_tibble() %>% 
-  arrange(pval) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  mutate(fdr = p.adjust(pval, "fdr"))
+goseq_diff <- tibble(gs_name = character(), adj_p = numeric())
+if (sum(pwf_diff$DEgenes) > min_genes & sum(pwf_diff$DEgenes) < max_genes) {
+  goseq_diff <- goseq(
+    pwf_diff, config$genome$build, gene2cat = gs_by_geneid
+  ) %>% 
+    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+    dplyr::select(-starts_with("under")) %>% 
+    as_tibble() %>% 
+    arrange(pval) %>% 
+    dplyr::filter(numDEInCat > 0) %>% 
+    mutate(adj_p = p.adjust(pval, adj_method))
+}
 ```
 
 
-`r ifelse(sum(goseq_diff$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to sites showing any differential binding.", "")`
+`r ifelse(sum(goseq_diff$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites showing any differential binding.", "")`
 
-```{r tbl-goseq-diff, eval = sum(goseq_diff$fdr < fdr_alpha) > 0, echo = sum(goseq_diff$fdr < fdr_alpha) > 0}
+```{r tbl-goseq-diff, eval = sum(goseq_diff$adj_p < enrich_alpha) > 0, echo = sum(goseq_diff$adj_p < enrich_alpha) > 0}
 cp <- htmltools::em(
   glue(
-    "All {sum(goseq_diff$fdr < fdr_alpha)} gene sets considered as ", 
-    "significantly enriched (FDR < {fdr_alpha}) amongst the windows showing ",
+    "All {sum(goseq_diff$adj_p < enrich_alpha)} gene sets considered as ", 
+    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the windows showing ",
     "evidence of changed {target} binding. Genes mapped to a ", 
     "differentially-bound window were compared to those mapped to any merged ", 
     "window."
   )
 )
 tbl <- goseq_diff %>% 
-  dplyr::filter(fdr < fdr_alpha) %>%
+  dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
     by = "gs_name"
@@ -2382,7 +2407,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
+    `%`, numDEInCat, numInCat, p = pval, adj_p, 
     `Genes Mapped to DB Windows` = gene_name
   ) %>% 
   reactable(
@@ -2420,7 +2445,8 @@ tbl <- goseq_diff %>%
         },
         maxWidth = 70
       ),
-      FDR = colDef(
+      adj_p = colDef(
+        name = "p<sub>adj</sub>", html = TRUE,
         cell = function(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
@@ -2462,32 +2488,35 @@ pwf_up <- genes_gr %>%
       plot.fit = TRUE
     )
   )
-goseq_up <- goseq(
-  pwf_up, config$genome$build, gene2cat = gs_by_geneid
-) %>% 
-  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-  dplyr::select(-starts_with("under")) %>% 
-  as_tibble() %>% 
-  arrange(pval) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  mutate(fdr = p.adjust(pval, "fdr"))
+goseq_up <- tibble(gs_name = character(), adj_p = numeric())
+if (sum(pwf_up$DEgenes) > min_genes & sum(pwf_up$DEgenes) < max_genes) {
+  goseq_up <- goseq(
+    pwf_up, config$genome$build, gene2cat = gs_by_geneid
+  ) %>% 
+    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+    dplyr::select(-starts_with("under")) %>% 
+    as_tibble() %>% 
+    arrange(pval) %>% 
+    dplyr::filter(numDEInCat > 0) %>% 
+    mutate(adj_p = p.adjust(pval, adj_method))
+}
 ```
 
 
-`r ifelse(sum(goseq_up$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to sites with increased binding", "")`
+`r ifelse(sum(goseq_up$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites with increased binding", "")`
 
-```{r tbl-goseq-up, eval = sum(goseq_up$fdr < fdr_alpha) > 0, echo = sum(goseq_up$fdr < fdr_alpha) > 0}
+```{r tbl-goseq-up, eval = sum(goseq_up$adj_p < enrich_alpha) > 0, echo = sum(goseq_up$adj_p < enrich_alpha) > 0}
 cp <- htmltools::em(
   glue(
-    "All {sum(goseq_up$fdr < fdr_alpha)} gene sets considered as ", 
-    "significantly enriched (FDR < {fdr_alpha}) amongst the windows showing ",
+    "All {sum(goseq_up$adj_p < enrich_alpha)} gene sets considered as ", 
+    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the windows showing ",
     "evidence of increased {target} binding. Genes mapped to a ", 
     "window showing increased binding were compared to those mapped to any ", 
     "merged window."
   )
 )
 tbl <- goseq_up %>% 
-  dplyr::filter(fdr < fdr_alpha) %>%
+  dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
     by = "gs_name"
@@ -2503,7 +2532,7 @@ tbl <- goseq_up %>%
   ) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
+    `%`, numDEInCat, numInCat, p = pval, adj_p, 
     `Genes Mapped to Gained Windows` = gene_name
   ) %>% 
   reactable(
@@ -2541,7 +2570,8 @@ tbl <- goseq_up %>%
         },
         maxWidth = 70
       ),
-      FDR = colDef(
+      adj_p = colDef(
+        name = "p<sub>adj</sub>", html = TRUE,
         cell = function(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
@@ -2582,32 +2612,35 @@ pwf_down <- genes_gr %>%
       plot.fit = TRUE
     )
   )
-goseq_down <- goseq(
-  pwf_down, config$genome$build, gene2cat = gs_by_geneid
-) %>% 
-  dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-  dplyr::select(-starts_with("under")) %>% 
-  as_tibble() %>% 
-  arrange(pval) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  mutate(fdr = p.adjust(pval, "fdr"))
+goseq_down <- tibble(gs_name = character(), adj_p = numeric())
+if (sum(pwf_down$DEgenes) > min_genes & sum(pwf_down$DEgenes) < max_genes) {
+  goseq_down <- goseq(
+    pwf_down, config$genome$build, gene2cat = gs_by_geneid
+  ) %>% 
+    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
+    dplyr::select(-starts_with("under")) %>% 
+    as_tibble() %>% 
+    arrange(pval) %>% 
+    dplyr::filter(numDEInCat > 0) %>% 
+    mutate(adj_p = p.adjust(pval, adj_method))
+}
 ```
 
 
-`r ifelse(sum(goseq_down$fdr < fdr_alpha) == 0, "No enrichment was found amongst genes mapped to sites with decreased binding", "")`
+`r ifelse(sum(goseq_down$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites with decreased binding", "")`
 
-```{r tbl-goseq-down, eval = sum(goseq_down$fdr < fdr_alpha) > 0, echo = sum(goseq_down$fdr < fdr_alpha) > 0}
+```{r tbl-goseq-down, eval = sum(goseq_down$adj_p < enrich_alpha) > 0, echo = sum(goseq_down$adj_p < enrich_alpha) > 0}
 cp <- htmltools::em(
   glue(
-    "All {sum(goseq_down$fdr < fdr_alpha)} gene sets considered as ", 
-    "significantly enriched (FDR < {fdr_alpha}) amongst the windows showing ",
+    "All {sum(goseq_down$adj_p < enrich_alpha)} gene sets considered as ", 
+    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the windows showing ",
     "evidence of decreased {target} binding. Genes mapped to a ", 
     "window showing decreased binding were compared to those mapped to any ", 
     "merged window."
   )
 )
 tbl <- goseq_down %>% 
-  dplyr::filter(fdr < fdr_alpha) %>%
+  dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
     dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
     by = "gs_name"
@@ -2623,7 +2656,7 @@ tbl <- goseq_down %>%
   ) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, p = pval, FDR = fdr, 
+    `%`, numDEInCat, numInCat, p = pval, adj_p, 
     `Genes Mapped to Decreased Windows` = gene_name
   ) %>% 
   reactable(
@@ -2661,7 +2694,8 @@ tbl <- goseq_down %>%
         },
         maxWidth = 70
       ),
-      FDR = colDef(
+      adj_p = colDef(
+        name = "p<sub>adj</sub>", html = TRUE,
         cell = function(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)

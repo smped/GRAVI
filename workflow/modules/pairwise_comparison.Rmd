@@ -1310,8 +1310,8 @@ all_ids <- genes_gr %>%
   )
 msigdb <- msigdbr(species = "Homo sapiens") %>% 
   dplyr::filter(
-    gs_cat %in% unlist(params$msigdb$gs_cat) |
-      gs_subcat %in% unlist(params$msigdb$gs_subcat),
+    gs_cat %in% unlist(params$enrichment$msigdb$gs_cat) |
+      gs_subcat %in% unlist(params$enrichment$msigdb$gs_subcat),
     str_detect(ensembl_gene, "^E")
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
@@ -1325,6 +1325,23 @@ gs_by_geneid <- msigdb %>%
   split(.$gene_id) %>% 
   mclapply(pull, "gs_name", mc.cores = threads) %>% 
   mclapply(unique, mc.cores = threads)
+gs_url <- msigdb %>% 
+  distinct(gs_name, gs_url) %>%
+  with(setNames(gs_url, gs_name))
+min_genes <- params$enrichment$min_prop_goseq * length(genes_gr)
+max_genes <- params$enrichment$max_prop_goseq * length(genes_gr)
+enrich_alpha <- params$enrichment$alpha
+adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
+adj_desc <- case_when(
+  p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
+  p.adjust.methods %in% c("BY") ~ "the Benjamini-Yekutieli FDR",
+  p.adjust.methods %in% c("bonferroni") ~ "the Bonferroni",
+  p.adjust.methods %in% c("holm") ~ "Holm's",
+  p.adjust.methods %in% c("hommel") ~ "Hommel's",
+  p.adjust.methods %in% c("hochberg") ~ "Hochberg's",
+  p.adjust.methods %in% c("none") ~ "no"
+) %>% 
+  setNames(p.adjust.methods)
 comp_ids <- comps %>% 
   lapply(
     function(x) {
@@ -1351,26 +1368,30 @@ group_ids <- all_windows %>%
 ### All Mapped Genes
 
 ```{r goseq-mapped-res, fig.show='hide'}
-goseq_mapped_res <- structure(
+pwf_mapped  <- structure(
   all_ids$gene_id %in%mapped_ids,
   names = all_ids$gene_id
 ) %>% 
-  nullp(bias.data = all_ids$n_windows, plot.fit = TRUE) %>% 
-  goseq(gene2cat = gs_by_geneid) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  as_tibble() %>% 
-  dplyr::select(
-    gs_name = category, pval = over_represented_pvalue,
-    mapped = numDEInCat, universe = numInCat
-  ) %>% 
-  mutate(fdr = p.adjust(pval, "fdr")) %>% 
-  dplyr::filter(fdr < fdr_alpha) %>% 
-  left_join(
-    dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
-    by = "gs_name"
-  ) %>% 
-  chop(gene_name) %>% 
-  mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
+  nullp(bias.data = log10(all_ids$w), plot.fit = TRUE)
+goseq_mapped_res <- tibble(gs_name = character(), adj_p = numeric())
+if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
+  goseq_mapped_res <- pwf_mapped %>% 
+    goseq(gene2cat = gs_by_geneid) %>% 
+    dplyr::filter(numDEInCat > 0) %>% 
+    as_tibble() %>% 
+    dplyr::select(
+      gs_name = category, pval = over_represented_pvalue,
+      mapped = numDEInCat, universe = numInCat
+    ) %>% 
+    mutate(adj_p = p.adjust(pval, adj_method)) %>% 
+    dplyr::filter(adj_p < enrich_alpha) %>% 
+    left_join(
+      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+      by = "gs_name"
+    ) %>% 
+    chop(gene_name) %>% 
+    mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
+}
 ```
 
 All `r comma(length(mapped_ids))` genes with a mapped binding window from either `r collapseGenes(comps, last = " or ")` were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
@@ -1386,19 +1407,17 @@ cp <- htmltools::tags$em(
   )
 )
 tbl <- goseq_mapped_res %>%
-  nest(gs_name = c("gs_name", "gs_url")) %>% 
-  dplyr::select(gs_name, gs_description, pval, fdr, everything()) %>% 
+  dplyr::select(gs_name, gs_description, pval, adj_p, everything()) %>% 
   reactable(
     filterable = TRUE,
     columns = list2(
       gs_name = colDef(
         name = "Gene Set",
-        cell = function(value) {
-          htmltools::tags$a(
-            href = value$gs_url, target = "_blank",
-            str_replace_all(value$gs_name, "_", " ")
-          )
-        },
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
         html = TRUE,
         maxWidth = 150
       ),
@@ -1415,8 +1434,8 @@ tbl <- goseq_mapped_res %>%
         ),
         maxWidth = 80
       ),
-      fdr = colDef(
-        name = "FDR",
+      adj_p = colDef(
+        name = "p<sub>adj</sub>", html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1452,26 +1471,30 @@ div(class = "table",
 ### Genes Mapped to Both `r glue_collapse(comps, last = " and " )`
 
 ```{r goseq_t1t2_res, fig.show='hide'}
-goseq_t1t2_res <- structure(
+pwf_t1t2 <- structure(
   all_ids$gene_id %in% intersect(comp_ids[[2]], comp_ids[[1]]),
   names = all_ids$gene_id
 ) %>% 
-  nullp(bias.data = all_ids$n_windows, plot.fit = TRUE) %>% 
-  goseq(gene2cat = gs_by_geneid) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  as_tibble() %>% 
-  dplyr::select(
-    gs_name = category, pval = over_represented_pvalue,
-    mapped = numDEInCat, universe = numInCat
-  ) %>% 
-  mutate(fdr = p.adjust(pval, "fdr")) %>% 
-  dplyr::filter(fdr < fdr_alpha) %>% 
-  left_join(
-    dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
-    by = "gs_name"
-  ) %>% 
-  chop(gene_name) %>% 
+  nullp(bias.data = all_ids$n_windows, plot.fit = TRUE) 
+goseq_t1t2_res <- tibble(gs_name = character(), adj_p = numeric())
+if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
+  goseq_t1t2_res <- pwf_t1t2 %>% 
+    goseq(gene2cat = gs_by_geneid) %>% 
+    dplyr::filter(numDEInCat > 0) %>% 
+    as_tibble() %>% 
+    dplyr::select(
+      gs_name = category, pval = over_represented_pvalue,
+      mapped = numDEInCat, universe = numInCat
+    ) %>% 
+    mutate(adj_p = p.adjust(pval, adj_method)) %>% 
+    dplyr::filter(adj_p < enrich_alpha) %>% 
+    left_join(
+      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+      by = "gs_name"
+    ) %>% 
+    chop(gene_name) %>% 
   mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
+}
 ```
 
 All `r comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))` genes with a mapped binding window to both `r collapseGenes(comps)` were compared to the 'universe' of `r comma(nrow(all_ids))` genes, in order to ascertain whether any key gene-sets were likely to be targeted under *both in combination*.
@@ -1489,18 +1512,17 @@ cp <- htmltools::tags$em(
 )
 tbl <- goseq_t1t2_res %>%
   nest(gs_name = c("gs_name", "gs_url")) %>% 
-  dplyr::select(gs_name, gs_description, pval, fdr, everything()) %>% 
+  dplyr::select(gs_name, gs_description, pval, adj_p, everything()) %>% 
   reactable(
     filterable = TRUE,
     columns = list2(
       gs_name = colDef(
         name = "Gene Set",
-        cell = function(value) {
-          htmltools::tags$a(
-            href = value$gs_url, target = "_blank",
-            str_replace_all(value$gs_name, "_", " ")
-          )
-        },
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
         html = TRUE,
         maxWidth = 150
       ),
@@ -1517,8 +1539,8 @@ tbl <- goseq_t1t2_res %>%
         ),
         maxWidth = 80
       ),
-      fdr = colDef(
-        name = "FDR",
+      adj_p = colDef(
+        name = "p<sub>adj</sub>", html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1561,20 +1583,26 @@ goseq_group_res <- group_ids %>%
     function(x) {
       vec <- structure(mapped_ids %in% x, names = mapped_ids)
       pwf <- nullp(vec, bias.data = n_peaks, plot.fit = FALSE)
-      res <- goseq(pwf, gene2cat = gs_by_geneid) %>% 
-        as_tibble() %>% 
-        dplyr::filter(numDEInCat > 0) %>% 
-        mutate(fdr = p.adjust(over_represented_pvalue, "fdr")) %>% 
-        dplyr::select(
-          gs_name = category, pval = over_represented_pvalue, fdr, ends_with("InCat")
-        ) %>% 
-        dplyr::filter(fdr < fdr_alpha) %>%
-        left_join(
-          dplyr::filter(msigdb, gene_id %in% x)[c("gs_name", "gene_name", "gs_url", "gs_description")],
-          by = "gs_name"
-        ) %>% 
-        chop(gene_name) %>% 
-        mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
+      res <- tibble(adj_p = numeric())
+      if (sum(pwf$DEgenes) > min_genes & sum(pwf$DEgenes) < max_genes) {
+        res <- goseq(pwf, gene2cat = gs_by_geneid) %>% 
+          as_tibble() %>% 
+          dplyr::filter(numDEInCat > 0) %>% 
+          mutate(adj_p = p.adjust(over_represented_pvalue, adj_method)) %>% 
+          dplyr::select(
+            gs_name = category, pval = over_represented_pvalue, adj_p, 
+            ends_with("InCat")
+          ) %>% 
+          dplyr::filter(adj_p < enrich_alpha) %>%
+          left_join(
+            dplyr::filter(msigdb, gene_id %in% x)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+            by = "gs_name"
+          ) %>% 
+          chop(gene_name) %>% 
+          mutate(
+            gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
+          )
+      }
       res
     },
     mc.cores = threads
@@ -1618,7 +1646,7 @@ htmltools::tagList(
               separate(group, into = comps, sep = " - ") %>% 
               nest(gs_name = c("gs_name", "gs_url")) %>% 
               dplyr::select(
-                all_of(comps), gs_name, gs_description, pval, fdr, everything()
+                all_of(comps), gs_name, gs_description, pval, adj_p, everything()
               ) %>% 
               reactable(
                 filterable = TRUE,
@@ -1683,8 +1711,8 @@ htmltools::tagList(
                     ),
                     maxWidth = 80
                   ),
-                  fdr = colDef(
-                    name = "FDR",
+                  adj_p = colDef(
+                    name = "p<sub>adj</sub>", html = TRUE,
                     cell = function(value) ifelse(
                       value < 0.001,
                       sprintf("%.2e", value),
