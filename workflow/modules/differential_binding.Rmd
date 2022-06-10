@@ -2219,7 +2219,7 @@ Retained windows were tested for enrichment of these gene-sets using:
 In the first case, mapped genes were tested for enrichment against all annotated genes, or all detected genes if RNA-Seq data was provided.
 In the second case, i.e. Differentially Bound Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
 Testing was only performed if the number of genes mapped to the specific treatment group fell between
-`r comma(min_genes, 1)` and `r comma(max_genes, 1)`.
+`r comma(min_genes, 1)` (`r percent(params$enrichment$min_prop_goseq, 0.1)` of included genes) and `r comma(max_genes, 1)` (`r percent(params$enrichment$max_prop_goseq)`).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
 ## Windows With Detected `r target`
@@ -2252,19 +2252,30 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
     dplyr::filter(numDEInCat > 0) %>% 
     mutate(adj_p = p.adjust(pval, adj_method))
 }
-
 ```
 
 `r ifelse(sum(goseq_mapped$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to any window", "")`
 
 ```{r tbl-goseq-mapped, eval = sum(goseq_mapped$adj_p < enrich_alpha) > 0, echo = sum(goseq_mapped$adj_p < enrich_alpha) > 0}
-cp <- htmltools::em(
-  glue(
-    "All {sum(goseq_mapped$adj_p < enrich_alpha)} gene sets considered as ", 
-    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the merged windows ", 
-    "with detectable {target} binding. Genes mapped to a merged window were ",
-    "compared to those not mapped to any merged windows. ",
-    "Gene width was used to capture any sampling bias."
+cp <- htmltools::tags$caption(
+  htmltools::em(
+    glue(
+      "
+    All {sum(goseq_mapped$adj_p < enrich_alpha)} gene sets considered as 
+    significantly enriched (p
+    "
+    ),
+    htmltools::tags$sub("adj"),
+    htmltools::em(
+      glue(
+        "
+         < {enrich_alpha}) amongst the merged windows with detectable {target} 
+        binding. Genes mapped to a merged window were compared to those not 
+        mapped to any merged windows. Gene width was used to capture any 
+        gene-level sampling bias.
+        "
+      )
+    )
   )
 )
 tbl <- goseq_mapped %>%
@@ -2381,13 +2392,24 @@ if (sum(pwf_diff$DEgenes) > min_genes & sum(pwf_diff$DEgenes) < max_genes) {
 `r ifelse(sum(goseq_diff$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites showing any differential binding.", "")`
 
 ```{r tbl-goseq-diff, eval = sum(goseq_diff$adj_p < enrich_alpha) > 0, echo = sum(goseq_diff$adj_p < enrich_alpha) > 0}
-cp <- htmltools::em(
-  glue(
-    "All {sum(goseq_diff$adj_p < enrich_alpha)} gene sets considered as ", 
-    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the windows showing ",
-    "evidence of changed {target} binding. Genes mapped to a ", 
-    "differentially-bound window were compared to those mapped to any merged ", 
-    "window."
+cp <- htmltools::tags$caption(
+  htmltools::em(
+    glue(
+      "
+    All {sum(goseq_diff$adj_p < enrich_alpha)} gene sets considered as 
+    significantly enriched (p
+    "
+    ),
+    htmltools::tags$sub("adj"),
+    htmltools::em(
+      glue(
+        "
+         < {enrich_alpha}) amongst the windows showing evidence of changed 
+        {target} binding. Genes mapped to a differentially-bound window were 
+        compared to those mapped to any merged window.
+        "
+      )
+    )
   )
 )
 tbl <- goseq_diff %>% 
@@ -2506,13 +2528,24 @@ if (sum(pwf_up$DEgenes) > min_genes & sum(pwf_up$DEgenes) < max_genes) {
 `r ifelse(sum(goseq_up$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites with increased binding", "")`
 
 ```{r tbl-goseq-up, eval = sum(goseq_up$adj_p < enrich_alpha) > 0, echo = sum(goseq_up$adj_p < enrich_alpha) > 0}
-cp <- htmltools::em(
-  glue(
-    "All {sum(goseq_up$adj_p < enrich_alpha)} gene sets considered as ", 
-    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the windows showing ",
-    "evidence of increased {target} binding. Genes mapped to a ", 
-    "window showing increased binding were compared to those mapped to any ", 
-    "merged window."
+cp <- htmltools::tags$caption(
+  htmltools::em(
+    glue(
+      "
+    All {sum(goseq_up$adj_p < enrich_alpha)} gene sets considered as 
+    significantly enriched (p
+    "
+    ),
+    htmltools::tags$sub("adj"),
+    htmltools::em(
+      glue(
+        "
+         < {enrich_alpha}) amongst the windows showing evidence of increased 
+        {target} binding. Genes mapped to an increasing window were 
+        compared to those mapped to any merged window.
+        "
+      )
+    )
   )
 )
 tbl <- goseq_up %>% 
@@ -2630,13 +2663,24 @@ if (sum(pwf_down$DEgenes) > min_genes & sum(pwf_down$DEgenes) < max_genes) {
 `r ifelse(sum(goseq_down$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites with decreased binding", "")`
 
 ```{r tbl-goseq-down, eval = sum(goseq_down$adj_p < enrich_alpha) > 0, echo = sum(goseq_down$adj_p < enrich_alpha) > 0}
-cp <- htmltools::em(
-  glue(
-    "All {sum(goseq_down$adj_p < enrich_alpha)} gene sets considered as ", 
-    "significantly enriched (p~adj~ < {enrich_alpha}) amongst the windows showing ",
-    "evidence of decreased {target} binding. Genes mapped to a ", 
-    "window showing decreased binding were compared to those mapped to any ", 
-    "merged window."
+cp <- htmltools::tags$caption(
+  htmltools::em(
+    glue(
+      "
+    All {sum(goseq_down$adj_p < enrich_alpha)} gene sets considered as 
+    significantly enriched (p
+    "
+    ),
+    htmltools::tags$sub("adj"),
+    htmltools::em(
+      glue(
+        "
+         < {enrich_alpha}) amongst the windows showing evidence of decreased 
+        {target} binding. Genes mapped to a decreasing window were 
+        compared to those mapped to any merged window.
+        "
+      )
+    )
   )
 )
 tbl <- goseq_down %>% 

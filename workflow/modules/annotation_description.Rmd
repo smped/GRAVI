@@ -71,6 +71,14 @@ samples <- here::here(config$samples$file) %>%
     target = as.factor(target)
   )
 treat_levels <- levels(samples$treat)
+has_external <- length(config$external$coverage) > 0
+if (has_external) {
+  treat_levels <- c(
+    treat_levels,
+    lapply(config$external$coverage, names) %>% unlist()
+  ) %>% 
+    unique()
+}
 ```
 
 
@@ -671,7 +679,6 @@ hic %>%
 # Colour Schemes {.tabset}
 
 ```{r set_colours}
-
 ## qc_colours need to have `Pass` and `Fail`
 missing_qc_cols <- setdiff(c("pass", "fail"), names(colours$qc))
 if ("pass" %in% missing_qc_cols) colours$qc$pass <- "#0571B0" # Blue

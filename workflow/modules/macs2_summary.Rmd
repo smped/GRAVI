@@ -55,6 +55,7 @@ source(here::here("workflow/scripts/geom_sidelabel.R"))
 config <- read_yaml(
   here::here("config", "config.yml")
 )
+fdr_alpha <- config$comparisons$fdr
 params <- read_yaml(here::here("config", "params.yml"))
 bam_path <- here::here(config$paths$bam, target)
 macs2_path <- here::here("output", "macs2", target)
@@ -94,6 +95,7 @@ blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   sort()
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
   read_rds()
+genes_gr <- all_gr$gene
 external_features <- c()
 has_features <- FALSE
 if (!is.null(config$external$features)) {
@@ -111,7 +113,25 @@ regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 any_detected <- gene_regions %>% 
   vapply(function(x) any(x$detected), logical(1)) %>% 
   any()
+rna_path <- here::here(config$external$rnaseq)
+rnaseq <- tibble(gene_id = character())
+if (length(rna_path) > 0) {
+  stopifnot(file.exists(rna_path))
+  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
+  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
+  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+  genes_gr <- subset(genes_gr, gene_id %in% rnaseq$gene_id)
+}
+tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
+rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
+rna_col <- c(tx_col, "gene_id")[[1]]
 tss <- read_rds(file.path(annotation_path, "tss.rds"))
+## bands_df
+cb <- config$genome$build %>%
+  str_to_lower() %>% 
+  paste0(".cytobands") 
+data(list = cb)
+bands_df <- get(cb)
 ```
 
 ```{r bfl}
@@ -781,6 +801,237 @@ df %>%
   )
 ```
 
+## Inspection Of Select Peaks {.tabset}
+
+```{r grl-to-plot}
+grl_to_plot <- vector("list", 3) %>% 
+  setNames(c("consensus", treat_levels))
+grl_to_plot$consensus <- consensus_peaks %>%
+  as_tibble() %>%
+  arrange(desc(score)) %>%
+  dplyr::slice(1) %>%
+  colToRanges("range", seqinfo = sq)
+grl_to_plot[treat_levels] <- treat_levels %>% 
+  lapply(
+    function(x) {
+      if (length(oracle_peaks[[x]]) == 0) return(NULL)
+      oracle_peaks[[x]] %>% 
+        filter(keep) %>% 
+        filter_by_non_overlaps(
+          unlist(oracle_peaks[setdiff(treat_levels, x)])
+        ) %>% 
+        as_tibble() %>% 
+        arrange(desc(score)) %>% 
+        dplyr::slice(seq_along(treat_levels)) %>% 
+        colToRanges("range", seqinfo = sq)
+    }
+  )
+grl_to_plot <- grl_to_plot %>% 
+  .[vapply(., length, integer(1)) > 0] %>% 
+  lapply(setNames, NULL) %>% 
+  GRangesList() %>% 
+  unlist() %>% 
+  distinctMC(.keep_all = TRUE) %>% 
+  splitAsList(names(.)) %>% 
+  endoapply(function(x) x[1,]) %>% 
+  .[intersect(c("consensus", treat_levels), names(.))]
+```
+
+```{r prepare-plot-objects}
+## The coverage
+bwfl <- list2(
+  "{target}" := file.path(macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
+  BigWigFileList() %>% 
+  setNames(treat_levels)
+)
+## The features track
+feat_gr <- gene_regions %>% 
+  lapply(granges) %>% 
+  GRangesList()
+feature_colours <- colours$regions
+if (has_features) {
+  feat_gr <- feat_gr %>% 
+    c(
+      splitAsList(external_features, external_features$feature)
+    )
+  feature_colours <- c(feature_colours, colours$features)
+}
+## The genes track
+hfgc_genes <- read_rds(
+  here::here("output", "annotations", "trans_models.rds")
+)
+gene_col <- "grey"
+if (any_detected){
+  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
+  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
+  if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
+    hfgc_genes <- hfgc_genes %>%
+      mutate(
+        status = case_when(
+          !gene %in% rnaseq$gene_id ~ "Undetected",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
+          )$gene_id ~ "Up",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
+          )$gene_id ~ "Down",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
+          )$gene_id ~ "Unchanged",
+        )
+      ) %>%
+      splitAsList(.$status) %>%
+      lapply(select, -status) %>%
+      GRangesList()
+    gene_col <- colours$direction %>%
+      setNames(str_to_title(names(.)))
+  }
+}
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+  ext_cov_path <- config$external$coverage %>% 
+    lapply(unlist) %>% 
+    lapply(function(x) setNames(here::here(x), names(x)))
+  bwfl <- c(
+    bwfl[target],
+    config$external$coverage %>% 
+      lapply(
+        function(x) {
+          BigWigFileList(here::here(unlist(x))) %>% 
+            setNames(names(x))
+        }
+      )
+  )
+}
+line_col <- lapply(bwfl, function(x) colours$treat[names(x)])
+y_lim <- bwfl %>%
+  lapply(
+    function(x) {
+      lapply(x, import.bw, which = unlist(grl_to_plot)) %>%
+        lapply(function(gr) c(0, max(gr$score))) %>%
+        unlist() %>%
+        range()
+    }
+  )
+cp <- c()
+```
+
+`r if ("consensus" %in% names(grl_to_plot)) "### Highest Ranked Consensus Peak"`
+
+```{r cp-consensus, eval = "consensus" %in% names(grl_to_plot), echo = FALSE}
+gr <- join_nearest(grl_to_plot$consensus, all_gr$gene, distance = TRUE)
+d <- gr$distance
+gn <- gr$gene_name
+cp <- glue(
+  "*The most highly ranked consensus peak by combined score across all treatments. ",
+  ifelse(
+  d == 0,
+  paste('The peak directly overlapped', gn),
+  paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
+  ),
+  ifelse(
+    any_detected & gn %in% genes_gr$gene_name,
+    glue(" which was detected in the RNA-Seq data."),
+    glue(".")
+  ),
+  "*"
+)
+```
+
+
+```{r hfgc-consensus, eval = "consensus" %in% names(grl_to_plot), echo = "consensus" %in% names(grl_to_plot), fig.cap = cp}
+plotHFGC(
+  grl_to_plot$consensus,
+  cytobands = bands_df,
+  features = feat_gr, featcol = feature_colours,
+  genes = hfgc_genes, genecol = gene_col,
+  collapseTranscripts = FALSE,
+  coverage = bwfl, linecol = line_col,
+  ylim = y_lim,
+  zoom = 30,
+  rotation.title = 90,
+  showAxis = FALSE
+)
+```
+
+
+`r if (treat_levels[[1]] %in% names(grl_to_plot)) paste0("### Highest Ranked Peak:", treat_levels[[1]])`
+
+```{r cp-treat1, eval = treat_levels[[1]] %in% names(grl_to_plot), echo = FALSE}
+gr <- join_nearest(grl_to_plot[[treat_levels[[1]]]], all_gr$gene, distance = TRUE)
+d <- gr$distance
+gn <- gr$gene_name
+cp <- glue(
+  "*The most highly ranked {treat_levels[[1]]}-unique oracle peak by score, ",
+  "excluding the most highly-ranked consensus peak. ",
+  ifelse(
+  d == 0,
+  paste('The peak directly overlapped', gn),
+  paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
+  ),
+  ifelse(
+    any_detected & gn %in% genes_gr$gene_name,
+    glue(" which was detected in the RNA-Seq data."),
+    glue(".")
+  ),
+  "*"
+)
+```
+
+
+```{r hfgc-treat1, eval = treat_levels[[1]] %in% names(grl_to_plot), echo = treat_levels[[1]] %in% names(grl_to_plot), fig.cap = cp}
+plotHFGC(
+  grl_to_plot[[treat_levels[[1]]]],
+  cytobands = bands_df,
+  features = feat_gr, featcol = feature_colours,
+  genes = hfgc_genes, genecol = gene_col,
+  collapseTranscripts = FALSE,
+  coverage = bwfl, linecol = line_col,
+  ylim = y_lim,
+  zoom = 30,
+  rotation.title = 90,
+  showAxis = FALSE
+)
+```
+
+`r if (treat_levels[[2]] %in% names(grl_to_plot)) paste0("### Highest Ranked Peak:", treat_levels[[2]])`
+
+```{r cp-treat2, eval = treat_levels[[2]] %in% names(grl_to_plot), echo = FALSE}
+gr <- join_nearest(grl_to_plot[[treat_levels[[2]]]], all_gr$gene, distance = TRUE)
+d <- gr$distance
+gn <- gr$gene_name
+cp <- glue(
+  "*The most highly ranked {treat_levels[[2]]}-unique oracle peak by score, ",
+  "excluding the most highly-ranked consensus peak. ",
+  ifelse(
+  d == 0,
+  paste('The peak directly overlapped', gn),
+  paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
+  ),
+  ifelse(
+    any_detected & gn %in% genes_gr$gene_name,
+    glue(" which was detected in the RNA-Seq data."),
+    glue(".")
+  ),
+  "*"
+)
+```
+
+
+```{r hfgc-treat2, eval = treat_levels[[2]] %in% names(grl_to_plot), echo = treat_levels[[2]] %in% names(grl_to_plot), fig.cap = cp}
+plotHFGC(
+  grl_to_plot[[treat_levels[[2]]]],
+  cytobands = bands_df,
+  features = feat_gr, featcol = feature_colours,
+  genes = hfgc_genes, genecol = gene_col,
+  collapseTranscripts = FALSE,
+  coverage = bwfl, linecol = line_col,
+  ylim = y_lim,
+  zoom = 30,
+  rotation.title = 90,
+  showAxis = FALSE
+)
+```
 
 ## Data Export
 
