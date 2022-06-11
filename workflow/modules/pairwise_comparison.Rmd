@@ -435,10 +435,12 @@ c1_status <- glue("{comps[[1]]}_status")
 c1_fdr <- glue("{comps[[1]]}_fdr")
 c1_logfc <- glue("{comps[[1]]}_logFC")
 c1_logcpm <- glue("{comps[[1]]}_AveExpr")
+c1_centre <- glue("{comps[[1]]}_centre")
 c2_status <- glue("{comps[[2]]}_status")
 c2_fdr <- glue("{comps[[2]]}_fdr")
 c2_logfc <- glue("{comps[[2]]}_logFC")
 c2_logcpm <- glue("{comps[[2]]}_AveExpr")
+c2_centre <- glue("{comps[[2]]}_centre")
 all_windows <- db_results %>%
   lapply(granges) %>% 
   GRangesList() %>% 
@@ -901,21 +903,50 @@ all_windows %>%
 ## Distribution By Region
 
 ```{r status-by-region, fig.cap = glue("*Distribution of binding patterns by genomic regions as defined in earlier sections.*")}
-df <- all_windows %>%
-  as_tibble() %>% 
-  group_by(
-    !!sym(c1_status), !!sym(c2_status),
-    region
+all_windows$grp <- paste(
+  mcols(all_windows)[[c1_status]], 
+  mcols(all_windows)[[c2_status]], 
+  all_windows$region
+)
+df <- all_windows %>% 
+  split(.$grp) %>% 
+  lapply(
+    function(x) {
+      tibble(
+        "{c1_status}" := unique(mcols(x)[[c1_status]]),
+        "{c2_status}" := unique(mcols(x)[[c2_status]]),
+        region = unique(mcols(x)[["region"]]),
+        n = length(x)
+      )
+    }
   ) %>% 
-  summarise(n = dplyr::n(), .groups = "drop_last") %>% 
+  bind_rows() %>% 
+  group_by(!!sym(c1_status), !!sym(c2_status)) %>% 
   mutate(total = sum(n)) %>% 
   ungroup() %>% 
+  arrange(!!sym(c1_status), !!sym(c2_status), region) %>% 
   mutate(
     x0 = as.integer(!!sym(c1_status)),
     y0 = as.integer(!!sym(c2_status)),
     r = total / sum(total),
     r =  0.5* r / max(r)
-  ) 
+  )
+## The following code works for extraChIPs >= 1.0.1 but not earlier
+# df <- all_windows %>%
+#   as_tibble() %>%
+#   group_by(
+#     !!sym(c1_status), !!sym(c2_status),
+#     region
+#   ) %>%
+#   summarise(n = dplyr::n(), .groups = "drop_last") %>%
+#   mutate(total = sum(n)) %>%
+#   ungroup() %>%
+#   mutate(
+#     x0 = as.integer(!!sym(c1_status)),
+#     y0 = as.integer(!!sym(c2_status)),
+#     r = total / sum(total),
+#     r =  0.5* r / max(r)
+#   )
 df %>% 
   ggplot() +
   ggforce::stat_pie(
@@ -951,20 +982,49 @@ df %>%
 `r if (has_features) "## Distribution By Feature"`
 
 ```{r status-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Distribution of binding patterns by external features as defined in earlier sections.*")}
-df <- all_windows %>%
-  as_tibble() %>% 
-  group_by(
-    !!sym(c1_status), !!sym(c2_status), feature
+all_windows$grp <- paste(
+  mcols(all_windows)[[c1_status]], 
+  mcols(all_windows)[[c2_status]], 
+  all_windows$feature
+)
+df <- all_windows %>% 
+  split(.$grp) %>% 
+  lapply(
+    function(x) {
+      tibble(
+        "{c1_status}" := unique(mcols(x)[[c1_status]]),
+        "{c2_status}" := unique(mcols(x)[[c2_status]]),
+        feature = unique(mcols(x)[["feature"]]),
+        n = length(x)
+      )
+    }
   ) %>% 
-  summarise(n = dplyr::n(), .groups = "drop_last") %>% 
+  bind_rows() %>% 
+  group_by(!!sym(c1_status), !!sym(c2_status)) %>% 
   mutate(total = sum(n)) %>% 
   ungroup() %>% 
+  arrange(!!sym(c1_status), !!sym(c2_status), feature) %>% 
   mutate(
     x0 = as.integer(!!sym(c1_status)),
     y0 = as.integer(!!sym(c2_status)),
     r = total / sum(total),
     r =  0.5* r / max(r)
-  ) 
+  )
+
+# df <- all_windows %>%
+#   as_tibble() %>% 
+#   group_by(
+#     !!sym(c1_status), !!sym(c2_status), feature
+#   ) %>% 
+#   summarise(n = dplyr::n(), .groups = "drop_last") %>% 
+#   mutate(total = sum(n)) %>% 
+#   ungroup() %>% 
+#   mutate(
+#     x0 = as.integer(!!sym(c1_status)),
+#     y0 = as.integer(!!sym(c2_status)),
+#     r = total / sum(total),
+#     r =  0.5* r / max(r)
+#   ) 
 df %>% 
   ggplot() +
   ggforce::stat_pie(
@@ -1059,9 +1119,6 @@ all_windows %>%
         x = 0.9*max((!!sym(c1_logfc))),
         y = min(!!sym(c2_logfc))
       ) %>% 
-      # group_by(
-      #   !!sym(c1_status), !!sym(c2_status)
-      # ) %>%
       summarise(
         x = unique(x), 
         y = unique(y),
@@ -1071,12 +1128,6 @@ all_windows %>%
       ),
     inherit.aes = FALSE
   ) +
-  # stat_ellipse(level = 0.9) +
-  # facet_grid(
-  #   as.formula(
-  #     glue("{comps[[2]]}_status ~ fct_rev({comps[[1]]}_status)")
-  #   )
-  # ) +
   scale_colour_manual(
     values = direction_colours[
       filter(all_windows, !str_detect(status, "Undetected"))$status %>%
@@ -1841,7 +1892,7 @@ grl_to_plot <- all_windows %>%
   .[vapply(., length, integer(1)) > 10] %>% # Only show groups with > 10 ranges
   lapply(
     mutate, 
-    centre = rowMeans(cbind(AR_centre, ER_centre), na.rm = TRUE),
+    centre = rowMeans(cbind(!!sym(c1_centre), !!sym(c2_centre)), na.rm = TRUE),
     rng = paste0(seqnames, ":", as.integer(centre))
   ) %>% 
   lapply(function(x) GRanges(x$rng, seqinfo = sq)) %>% 
@@ -1854,7 +1905,6 @@ x_lab <- c(
   sort() %>% 
   unique()
 n_bins <- 100
-x <- 1
 sig_profiles <- mclapply(
   grl_to_plot, 
   function(x) getProfileData(
