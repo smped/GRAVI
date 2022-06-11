@@ -390,7 +390,8 @@ rule compile_macs2_summary_html:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = git_tries,
-		macs2_path = os.path.join(macs2_path, "{target}")
+		macs2_path = os.path.join(macs2_path, "{target}"),
+		asset_path = os.path.join("docs", "assets", "{target}")
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
 	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
@@ -409,7 +410,8 @@ rule compile_macs2_summary_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html} {output.fig_path} {output.peaks} {output.venn}
+			git add {output.html} {output.fig_path} {output.peaks}
+			git add {params.asset_path}
 			git add {params.macs2_path}/*oracle_peaks.bed
 		fi
 		"""

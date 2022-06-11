@@ -20,6 +20,7 @@ library(VennDiagram)
 library(cowplot)
 library(rlang)
 library(BiocParallel)
+library(parallel)
 library(Rsamtools)
 library(Biostrings)
 library(ggside)
@@ -801,7 +802,7 @@ df %>%
   )
 ```
 
-## Inspection Of Select Peaks {.tabset}
+## Highly Ranked Peaks {.tabset}
 
 ```{r grl-to-plot}
 grl_to_plot <- vector("list", 3) %>% 
@@ -820,9 +821,10 @@ grl_to_plot[treat_levels] <- treat_levels %>%
         filter_by_non_overlaps(
           unlist(oracle_peaks[setdiff(treat_levels, x)])
         ) %>% 
+        filter_by_non_overlaps(grl_to_plot$consensus) %>% 
         as_tibble() %>% 
         arrange(desc(score)) %>% 
-        dplyr::slice(seq_along(treat_levels)) %>% 
+        dplyr::slice(1) %>% 
         colToRanges("range", seqinfo = sq)
     }
   )
@@ -913,125 +915,113 @@ y_lim <- bwfl %>%
         range()
     }
   )
-cp <- c()
 ```
 
-`r if ("consensus" %in% names(grl_to_plot)) "### Highest Ranked Consensus Peak"`
+Coverage for a small set of highly ranked peaks are shown below.
+These are the most highly ranked Consensus Peak (by `score`) and any oracle peaks which are unique to each treatment group, after excluding the most highly ranked consensus peak.
 
-```{r cp-consensus, eval = "consensus" %in% names(grl_to_plot), echo = FALSE}
-gr <- join_nearest(grl_to_plot$consensus, all_gr$gene, distance = TRUE)
-d <- gr$distance
-gn <- gr$gene_name
-cp <- glue(
-  "*The most highly ranked consensus peak by combined score across all treatments. ",
-  ifelse(
-  d == 0,
-  paste('The peak directly overlapped', gn),
-  paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
-  ),
-  ifelse(
-    any_detected & gn %in% genes_gr$gene_name,
-    glue(" which was detected in the RNA-Seq data."),
-    glue(".")
-  ),
-  "*"
-)
+
+```{r plot-highly-ranked}
+htmltools::tagList(
+  mclapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      nm <- names(grl_to_plot)[[x]]
+      ## Export the png
+      png_out <- file.path(
+        fig_path,
+        nm %>% 
+          str_replace_all(" ", "_") %>% 
+          paste0("_topranked.png")
+      )
+      png(
+        filename = png_out,
+        width = knitr::opts_current$get("fig.width"), 
+        height = knitr::opts_current$get("fig.height"), 
+        units = "in", res = 300
+      )
+      ## Automatically collapse Transcripts if more than 10
+      ct <- FALSE
+      gh <- 1
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 20) {
+        ct <- "meta"
+        gh <- 0.5
+      }
+      ## Generate the plot
+      plotHFGC(
+        grl_to_plot[[x]],
+        features = feat_gr, featcol = feature_colours,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        cytobands = bands_df,
+        rotation.title = 90,
+        zoom = 30,
+        ylim = y_lim,
+        collapseTranscripts = ct, genesize = gh,
+        col.title = "black", background.title = "white", 
+        showAxis = FALSE
+      )
+      dev.off()
+      
+      ## Define the caption
+      gr <- join_nearest(grl_to_plot[[x]], all_gr$gene, distance = TRUE)
+      d <- gr$distance
+      gn <- gr$gene_name
+      peak_desc <- ifelse(
+        nm == "consensus",
+        "consensus peak by combined score across all treatments.",
+        paste(
+          "oracle-peak unique to the merged", nm, "samples."
+        )
+      )
+      cp <- htmltools::tags$em(
+        glue(
+          "The most highly ranked {peak_desc} ",
+          ifelse(
+            d == 0,
+            paste('The peak directly overlaps', gn),
+            paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
+          ),
+          ifelse(
+            any_detected & gn %in% genes_gr$gene_name,
+            glue(" which was detected in the RNA-Seq data."),
+            glue(".")
+          )
+        )
+      )
+      
+      ## Create html tags
+      fig_link <- str_extract(png_out, "assets.+")
+      htmltools::div(
+        htmltools::div(
+          id = nm %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-topranked"),
+          class="section level3",
+          htmltools::h3(
+            ifelse(
+              nm == "consensus",
+              "Consensus Peaks",
+              paste("Oracle Peaks:", nm)
+            )
+          ),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = "caption", htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    },
+    mc.cores = min(length(grl_to_plot), threads)
+  )
+)  
 ```
 
 
-```{r hfgc-consensus, eval = "consensus" %in% names(grl_to_plot), echo = "consensus" %in% names(grl_to_plot), fig.cap = cp}
-plotHFGC(
-  grl_to_plot$consensus,
-  cytobands = bands_df,
-  features = feat_gr, featcol = feature_colours,
-  genes = hfgc_genes, genecol = gene_col,
-  collapseTranscripts = FALSE,
-  coverage = bwfl, linecol = line_col,
-  ylim = y_lim,
-  zoom = 30,
-  rotation.title = 90,
-  showAxis = FALSE
-)
-```
-
-
-`r if (treat_levels[[1]] %in% names(grl_to_plot)) paste0("### Highest Ranked Peak:", treat_levels[[1]])`
-
-```{r cp-treat1, eval = treat_levels[[1]] %in% names(grl_to_plot), echo = FALSE}
-gr <- join_nearest(grl_to_plot[[treat_levels[[1]]]], all_gr$gene, distance = TRUE)
-d <- gr$distance
-gn <- gr$gene_name
-cp <- glue(
-  "*The most highly ranked {treat_levels[[1]]}-unique oracle peak by score, ",
-  "excluding the most highly-ranked consensus peak. ",
-  ifelse(
-  d == 0,
-  paste('The peak directly overlapped', gn),
-  paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
-  ),
-  ifelse(
-    any_detected & gn %in% genes_gr$gene_name,
-    glue(" which was detected in the RNA-Seq data."),
-    glue(".")
-  ),
-  "*"
-)
-```
-
-
-```{r hfgc-treat1, eval = treat_levels[[1]] %in% names(grl_to_plot), echo = treat_levels[[1]] %in% names(grl_to_plot), fig.cap = cp}
-plotHFGC(
-  grl_to_plot[[treat_levels[[1]]]],
-  cytobands = bands_df,
-  features = feat_gr, featcol = feature_colours,
-  genes = hfgc_genes, genecol = gene_col,
-  collapseTranscripts = FALSE,
-  coverage = bwfl, linecol = line_col,
-  ylim = y_lim,
-  zoom = 30,
-  rotation.title = 90,
-  showAxis = FALSE
-)
-```
-
-`r if (treat_levels[[2]] %in% names(grl_to_plot)) paste0("### Highest Ranked Peak:", treat_levels[[2]])`
-
-```{r cp-treat2, eval = treat_levels[[2]] %in% names(grl_to_plot), echo = FALSE}
-gr <- join_nearest(grl_to_plot[[treat_levels[[2]]]], all_gr$gene, distance = TRUE)
-d <- gr$distance
-gn <- gr$gene_name
-cp <- glue(
-  "*The most highly ranked {treat_levels[[2]]}-unique oracle peak by score, ",
-  "excluding the most highly-ranked consensus peak. ",
-  ifelse(
-  d == 0,
-  paste('The peak directly overlapped', gn),
-  paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
-  ),
-  ifelse(
-    any_detected & gn %in% genes_gr$gene_name,
-    glue(" which was detected in the RNA-Seq data."),
-    glue(".")
-  ),
-  "*"
-)
-```
-
-
-```{r hfgc-treat2, eval = treat_levels[[2]] %in% names(grl_to_plot), echo = treat_levels[[2]] %in% names(grl_to_plot), fig.cap = cp}
-plotHFGC(
-  grl_to_plot[[treat_levels[[2]]]],
-  cytobands = bands_df,
-  features = feat_gr, featcol = feature_colours,
-  genes = hfgc_genes, genecol = gene_col,
-  collapseTranscripts = FALSE,
-  coverage = bwfl, linecol = line_col,
-  ylim = y_lim,
-  zoom = 30,
-  rotation.title = 90,
-  showAxis = FALSE
-)
-```
 
 ## Data Export
 
