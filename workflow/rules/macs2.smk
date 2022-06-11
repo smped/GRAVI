@@ -349,6 +349,11 @@ rule compile_macs2_summary_html:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
+		bw = lambda wildcards: expand(
+			os.path.join(macs2_path, "{{target}}",
+			 "{sample}_merged_treat_pileup.bw"),
+			 sample = set(df[df.target == wildcards.target]['sample'])
+		),
 		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
 		config = "config/config.yml",
 		here = here_file,

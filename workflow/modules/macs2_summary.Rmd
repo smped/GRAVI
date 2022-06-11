@@ -805,7 +805,7 @@ df %>%
 ## Highly Ranked Peaks {.tabset}
 
 ```{r grl-to-plot}
-grl_to_plot <- vector("list", 3) %>% 
+grl_to_plot <- vector("list", length(treat_levels) + 1) %>%
   setNames(c("consensus", treat_levels))
 grl_to_plot$consensus <- consensus_peaks %>%
   as_tibble() %>%
