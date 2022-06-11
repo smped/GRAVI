@@ -90,7 +90,8 @@ rule compile_pairwise_comparisons_html:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = git_tries
+		tries = git_tries,
+		asset_path = os.path.join("docs", "assets", "{t1}_{t2}")
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
 	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
@@ -111,6 +112,7 @@ rule compile_pairwise_comparisons_html:
             done
             git add {output.html}
             git add {output.fig_path}
+			git add {params.asset_path}
 			git add {output.csv}
         fi
 		"""

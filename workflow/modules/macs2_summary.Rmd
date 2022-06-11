@@ -980,7 +980,7 @@ htmltools::tagList(
           ifelse(
             d == 0,
             paste('The peak directly overlaps', gn),
-            paste0("The nearest gene was ", gn, ", which was ", round(d/1e3, 1), "kb away")
+            paste0("The nearest gene was ", gn, ", ", round(d/1e3, 1), "kb away")
           ),
           ifelse(
             any_detected & gn %in% genes_gr$gene_name,

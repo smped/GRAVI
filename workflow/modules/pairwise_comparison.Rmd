@@ -1255,9 +1255,51 @@ all_windows %>%
   theme(legend.position = "top")
 ```
 
+## Window Sizes
+
+```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows*"}
+all_windows %>% 
+  mutate(w = width) %>% 
+  as_tibble() %>% 
+  mutate(
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
+  ) %>% 
+  ggplot(aes(w, fct_rev(status))) +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_grid(
+    n_changed ~ ., scales = "free_y", space= "free_y"
+  ) +
+  labs(
+    x = "Combined Region Width (bp)",
+    y = "Status"
+  )
+```
+
+## Distance By Status
+
+```{r vioplot-distances, fig.height = 6, fig.cap = "*Distances between windows where maximal signal was detected for each target.*"}
+all_windows %>% 
+  as_tibble() %>% 
+  dplyr::filter(!is.na(distance)) %>% 
+  droplevels() %>% 
+  mutate(
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
+  ) %>% 
+  ggplot(aes(distance , fct_rev(status))) +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_grid(
+    n_changed ~ ., scales = "free_y", space= "free_y"
+  ) +
+  labs(
+    x = "Distance Between Window Centres (bp)",
+    y = "Status"
+  )
+```
+
+
 ## Distance by Region
 
-```{r distanc-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region.*"}
+```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region.*"}
 all_windows %>% 
   filter(!is.na(distance)) %>% 
   mutate(region = fct_relabel(
@@ -1265,26 +1307,53 @@ all_windows %>%
     )
   ) %>% 
   as_tibble() %>% 
-  ggplot(aes(region, distance, fill = region)) +
-  geom_boxplot(alpha = 0.8) +
+  ggplot(aes(distance, fct_rev(region), fill = region)) +
+  geom_violin(draw_quantiles = 0.5) +
   geom_text(
-    aes(region, 0, label = lab),
+    aes(0, fct_rev(region), label = lab),
     data = . %>% 
       group_by(region) %>% 
       summarise(n = dplyr::n()) %>% 
       mutate(lab = glue("n = {comma(n)}")),
-    nudge_y = 0.04 * max(all_windows$distance, na.rm = TRUE) * (-1),
+    nudge_x = 0.04 * max(all_windows$distance, na.rm = TRUE) * (-1),
     size = 3.5
   ) +
-  scale_y_continuous(labels = comma) +
   scale_fill_manual(
     values = region_colours %>% 
       setNames(str_replace_all(names(.), " \\(", "\n("))
   ) +
-  labs(x = "Region", y = "Distance Between Peaks") +
+  labs(
+    x = "Distance Between Window Centres (bp)",
+    y = "Region"
+  ) +
   theme(legend.position = "none")
 ```
 
+`r if(has_features) "## Distance By Feature"`
+
+```{r distance-by-feature, echo = has_features, eval = has_features, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature.*"}
+all_windows %>% 
+  filter(!is.na(distance)) %>% 
+  as_tibble() %>% 
+  mutate(feature = fct_infreq(feature)) %>% 
+  ggplot(aes(distance, fct_rev(feature), fill = feature)) +
+  geom_violin(draw_quantiles = 0.5) +
+  geom_text(
+    aes(0, fct_rev(feature), label = lab),
+    data = . %>% 
+      group_by(feature) %>% 
+      summarise(n = dplyr::n()) %>% 
+      mutate(lab = glue("n = {comma(n)}")),
+    nudge_x = 0.04 * max(all_windows$distance, na.rm = TRUE) * (-1),
+    size = 3.5
+  ) +
+  scale_fill_manual(values = feature_colours) +
+  labs(
+    x = "Distance Between Window Centres (bp)",
+    y = "Feature"
+  ) +
+  theme(legend.position = "none")
+```
 
 
 # Enrichment Analysis 
@@ -1745,6 +1814,152 @@ htmltools::tagList(
 ```
 
 # Combined Binding Visualisation
+
+## Heatmaps {.tabset}
+
+A series of profile heatmaps were generated for any set of pairwise comparisons with more than 10 ranges, and where binding was detected as changed in at least one of the comparisons.
+If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
+If only one target is detected within a range, peaks are centred at the range with maximal signal.
+
+```{r form-profile-heatmaps}
+## Set the BWFL as a single object incorporating target & treatment names
+fl <- seq_along(pairs) %>% 
+  lapply(
+    function(x) {
+      file.path(
+        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
+      ) %>% 
+        setNames(paste(names(pairs)[[x]], pairs[[x]]))
+    } 
+  )%>% 
+  unlist() %>% 
+  .[!duplicated(.)]
+bwfl <- setNames(BigWigFileList(fl), names(fl))
+grl_to_plot <- all_windows %>% 
+  split(.$status) %>% 
+  .[str_detect(names(.),"Up|Down")] %>% 
+  .[vapply(., length, integer(1)) > 10] %>% # Only show groups with > 10 ranges
+  lapply(
+    mutate, 
+    centre = rowMeans(cbind(AR_centre, ER_centre), na.rm = TRUE),
+    rng = paste0(seqnames, ":", as.integer(centre))
+  ) %>% 
+  lapply(function(x) GRanges(x$rng, seqinfo = sq)) %>% 
+  GRangesList()
+profile_width <- 5e3
+x_lab <- c(
+  seq(0, floor(0.5 * profile_width / 1e3), length.out = 3),
+  seq(-floor(0.5 * profile_width / 1e3), 0, length.out = 3)
+) %>% 
+  sort() %>% 
+  unique()
+n_bins <- 100
+x <- 1
+sig_profiles <- mclapply(
+  grl_to_plot, 
+  function(x) getProfileData(
+    bwfl, x, upstream = profile_width / 2, bins = n_bins
+  ),
+  mc.cores = min(length(grl_to_plot), threads)
+)
+profile_heatmaps <- sig_profiles %>% 
+  mclapply(
+    plotProfileHeatmap,
+    profileCol = "profile_data", 
+    xLab = "Distance from Centre (bp)",
+    fillLab = "CPM",
+    colour = "name",
+    mc.cores = min(length(grl_to_plot), threads)
+  ) 
+fill_range <- profile_heatmaps %>% 
+  lapply(function(x) x$data[,"score"]) %>% 
+  unlist() %>%
+  c(0) %>% 
+  range()
+profile_heatmaps <- profile_heatmaps %>% 
+  lapply(
+    function(x) {
+      x + 
+        scale_x_continuous(
+          breaks = x_lab * 1e3, labels = x_lab, expand = expansion(0)
+        ) +
+        scale_fill_viridis_c(
+          option = "inferno", direction = -1, limits = fill_range
+        ) +
+        scale_colour_manual(
+          values = lapply(
+            names(pairs), 
+            function(x) setNames(treat_colours[pairs[[x]]], paste(x, pairs[[x]]))
+          ) %>%
+            unlist()
+        ) +
+        labs(
+          x = "Distance from Centre (kb)",
+          fill = "CPM", linetype = "Consensus\nPeak\nOverlap",
+          colour = "Sample"
+        ) 
+    }
+  )
+```
+
+```{r plot-all-profile-heatmaps}
+htmltools::tagList(
+  mclapply(
+    seq_along(profile_heatmaps),
+    function(x) {
+      ## Export the png
+      pw <- names(profile_heatmaps)[[x]] 
+      png_out <- file.path(
+        fig_path,
+        pw %>% 
+          str_remove_all("(:|Vs. |- )") %>% 
+          str_replace_all(" ", "_") %>% 
+          str_replace_all("_-_", "-") %>% 
+          paste0("_profile_heatmap.png")
+      )
+      n_ranges <- length(unique(profile_heatmaps[[x]]$data$range))
+      n_samples<- length(unique(profile_heatmaps[[x]]$data$name))
+      png(
+        filename = png_out,
+        width = knitr::opts_current$get("fig.width") * n_samples / 4, 
+        height = 3 + knitr::opts_current$get("fig.height") * n_ranges / 1e3, 
+        units = "in", res = 300
+      )
+      print(profile_heatmaps[[x]])
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(png_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "
+        All {n_ranges} ranges showing the pattern of {pw}. Ranges are centered 
+        at the midpoint between ranges identified as the maximal signal range.
+        "
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = png_out %>% 
+            basename() %>% 
+            str_remove_all(".png$") %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class="section level3",
+          htmltools::h3(pw),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+  
+)
+```
+
 
 ## Windows With The Strongest Signal {.tabset}
 
