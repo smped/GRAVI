@@ -1527,7 +1527,9 @@ cp <- htmltools::tags$em(
   )
 )
 tbl <- goseq_mapped_res %>%
-  dplyr::select(gs_name, gs_description, pval, adj_p, everything()) %>% 
+  dplyr::select(
+    gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
+  ) %>% 
   reactable(
     filterable = TRUE,
     columns = list2(
@@ -1631,8 +1633,9 @@ cp <- htmltools::tags$em(
   )
 )
 tbl <- goseq_t1t2_res %>%
-  nest(gs_name = c("gs_name", "gs_url")) %>% 
-  dplyr::select(gs_name, gs_description, pval, adj_p, everything()) %>% 
+  dplyr::select(
+    gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
+  ) %>% 
   reactable(
     filterable = TRUE,
     columns = list2(
