@@ -350,12 +350,14 @@ rule compile_macs2_summary_html:
 		),
 		blacklist = blacklist,
 		bw = lambda wildcards: expand(
-			os.path.join(macs2_path, "{{target}}",
-			 "{sample}_merged_treat_pileup.bw"),
-			 sample = set(df[df.target == wildcards.target]['sample'])
+			os.path.join(
+				macs2_path, "{{target}}", "{treat}_merged_treat_pileup.{fl}"
+			),
+			treat = set(df[df.target == wildcards.target]['treat']),
+			fl = ['bw', 'summary']
 		),
-		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
 		config = "config/config.yml",
+		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
 		here = here_file,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
@@ -386,7 +388,6 @@ rule compile_macs2_summary_html:
 			os.path.join(
 				macs2_path, "{{target}}", "{file}"
 			),
-			## Should change export of oracle peaks to be bed files
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 		),
 		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),
@@ -395,7 +396,6 @@ rule compile_macs2_summary_html:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = git_tries,
-		macs2_path = os.path.join(macs2_path, "{target}"),
 		asset_path = os.path.join("docs", "assets", "{target}")
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
@@ -415,8 +415,7 @@ rule compile_macs2_summary_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html} {output.fig_path} {output.peaks}
+			git add {output.html} {output.fig_path} {output.peaks} 
 			git add {params.asset_path}
-			git add {params.macs2_path}/*oracle_peaks.bed
 		fi
 		"""
