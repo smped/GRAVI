@@ -86,6 +86,10 @@ rule compile_pairwise_comparisons_html:
 		csv = os.path.join(
 			"output", "pairwise_comparisons", "{t1}_{t2}",
 			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.csv.gz"
+		),
+		rds = os.path.join(
+			"output", "pairwise_comparisons", "{t1}_{t2}",
+			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-all_windows.rds"
 		)
 	params:
 		git = git_add,
@@ -110,9 +114,8 @@ rule compile_pairwise_comparisons_html:
                 sleep {params.interval}
                 ((TRIES--))
             done
-            git add {output.html}
-            git add {output.fig_path}
+            git add {output.html} {output.fig_path}
+			git add {output.csv} {output.rds}
 			git add {params.asset_path}
-			git add {output.csv}
         fi
 		"""

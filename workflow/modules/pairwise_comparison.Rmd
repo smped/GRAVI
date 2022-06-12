@@ -317,16 +317,16 @@ The initial steps of differential binding analysis detect regions with clear cha
 Differential binding analyses generally focus on controlling the Type II errors (i.e. false discoveries), which comes with a commensurate increase in Type I errors (false negatives).
 When seeking to correctly classify a window across two datasets, the detection as changed can be taken as a robust finding, whilst the consideration as unchanged may be less robust.
 When comparing a window across two datasets, a detection as changed within one dataset is taken as primary evidence of 'something interesting' occurring, with the secondary consideration being the correct description of the combined binding patterns.
-For this reason, and to minimise issues with hard thresholding, once a window is considered to be of interest, the p-value used in the second comparison is that obtained using the test for $H_0: \mu = 0$ instead of the initial $H_0: 0 < |\mu| < \lambda$.
+For this reason, and to minimise issues with hard thresholding, once a window is considered to be of interest, the p-value used in the second comparison is that obtained (and FDR-adjusted) using the test for $H_0: \mu = 0$ instead of the initial $H_0: 0 < |\mu| < \lambda$.
 The insistence on the more stringent initial inclusion criteria still protects against false discoveries, but this approach instead allows *improved classification* across both comparisons.
 
-For classification steps within each window, each target is given the status 1) Up, 2) Down, 3) Unchanged, or 4) Undetected.
-Across two comparisons, this gives 15 possible classifications for each region found with at least one target bound. (e.g. Up-Up, Up-Down, Up-Unchanged, Up-Undetected etc.)
+For *classification steps within each window*, each target is given the status 1) Up, 2) Down, 3) Unchanged, or 4) Undetected.
+Across two comparisons, this gives 15 possible classifications for each region found with at least one target bound (e.g. Up-Up, Up-Down, Up-Unchanged, Up-Undetected etc.), given that any potential Undetected-Undetected windows will not be included for obvious reasons.
 
 ## Enrichment Testing
 
 After direct comparison of binding patterns, enrichment analysis is performed in a similar manner to for individual analyses.
-The `goseq` method [@YoungGoseq2010] is again used, taking the number of windows mapped to each gene as the source of any sampling bias.
+The `goseq` method [@YoungGoseq2010] is again used, taking the number of windows mapped to each gene as the source of any sampling bias for genes mapped to differentially bound peaks.
 If RNA-Seq data is provided, genes will be restricted to those present within the RNA-Seq dataset, as representative of detected genes.
 Enrichment testing is performed on:
 
@@ -624,11 +624,11 @@ direction_colours <- names(colours$direction) %>%
   pull("rgb")
 ```
 
-A set of common windows was formed by obtaining the union of windows produced during the analysis of `r collapseGenes(comps)` individually.
+A set of `r comma(length(all_windows))`common windows was formed by obtaining the union of windows produced during the analysis of `r collapseGenes(comps)` individually.
 These common windows were formed using any overlap between target-specific windows.
 The window-to-gene mappings and the best overlap with genomic regions was also reformed.
 `r if (has_features) "The best overlap with external features was also reformed."`
-`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For windows where binding was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
+`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For the {comma(sum(!str_detect(all_windows$status, "Undetected")))} windows where binding was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
 
 In the original datasets, `r comma(length(db_results[[1]]))` windows were included for `r comps[[1]]`, whilst `r comma(length(db_results[[2]]))` windows were included for `r comps[[2]]`.
 The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. 
@@ -638,7 +638,7 @@ The median distance between windows found in both comparisons was `r  median(all
 `r comma(sum(all_windows$distance == 0, na.rm = TRUE))` peaks (`r percent(mean(all_windows$distance == 0, na.rm = TRUE), 0.1)`) were found to directly overlap.
 
 Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value < `r fdr_alpha` from either comparison were used to consider a window as showing changed binding in at least one comparison.
-A secondary step was then introduced for each window such that if one target was significant and the other target had 1) received an FDR-adjusted p-value < `r fdr_alpha` *using a point-based* H~0~, and 2) had an estimated logFC beyond the range specified for the range-based null hypothesis ($H_0: 0 < |\mu| < \lambda$ for $\lambda = `r round(lambda, 2)`$), these windows were then considered significant in the second comparison.
+A secondary step was then introduced for each window such that if one target was significant and the other target had 1) received an FDR-adjusted p-value < `r fdr_alpha` *using a point-based* $H_0$, and 2) had an estimated logFC beyond the range specified for the range-based null hypothesis ($H_0: 0 < |\mu| < \lambda$ for $\lambda = `r round(lambda, 2)`$), these windows were then considered significant in the second comparison.
 This was to help *reduce the number of windows incorrectly classified as unchanged* whilst the alternative ChIP target was defined as changed.
 
 ```{r tbl-summary}
@@ -1308,27 +1308,33 @@ all_windows %>%
 
 ## Window Sizes
 
-```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows*"}
+```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows. The x-axis is truncated at the 99.5^th^ percentile of window sizes*"}
 all_windows %>% 
   mutate(w = width) %>% 
   as_tibble() %>% 
   mutate(
     n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
   ) %>% 
-  ggplot(aes(w, fct_rev(status))) +
-  geom_violin(draw_quantiles = 0.5) +
+  ggplot(aes(w, fct_rev(status), fill = status)) +
+  geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
   facet_grid(
     n_changed ~ ., scales = "free_y", space= "free_y"
+  ) +
+  coord_cartesian(xlim = c(0, quantile(width(all_windows), 0.995))) +
+  scale_x_continuous(expand = expansion(c(0, 0.05))) +
+  scale_fill_manual(
+    values = direction_colours[droplevels(all_windows$status)]
   ) +
   labs(
     x = "Combined Region Width (bp)",
     y = "Status"
-  )
+  ) +
+  theme(legend.position = "none")
 ```
 
 ## Distance By Status
 
-```{r vioplot-distances, fig.height = 6, fig.cap = "*Distances between windows where maximal signal was detected for each target.*"}
+```{r vioplot-distances, fig.height = 6, fig.cap = "*Distances between windows where maximal signal was detected for each target. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
 all_windows %>% 
   as_tibble() %>% 
   dplyr::filter(!is.na(distance)) %>% 
@@ -1336,21 +1342,39 @@ all_windows %>%
   mutate(
     n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
   ) %>% 
-  ggplot(aes(distance , fct_rev(status))) +
-  geom_violin(draw_quantiles = 0.5) +
+  ggplot(aes(distance , fct_rev(status), fill = status)) +
+  geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
+  geom_text(
+    aes(0, fct_rev(status), label = lab),
+    data = . %>% 
+      group_by(status, n_changed) %>% 
+      summarise(n = dplyr::n()) %>% 
+      mutate(lab = glue("n = {comma(n)}")),
+    nudge_x = 0.02 * max(all_windows$distance, na.rm = TRUE) * (-1),
+    size = 3.5
+  ) +
   facet_grid(
     n_changed ~ ., scales = "free_y", space= "free_y"
+  ) +
+  coord_cartesian(
+    xlim = c(
+      0.02 * max(all_windows$distance, na.rm = TRUE) * (-1),
+      quantile(all_windows$distance,, na.rm = TRUE, probs =  0.995))
+  ) +
+  scale_fill_manual(
+    values = direction_colours[droplevels(all_windows$status)]
   ) +
   labs(
     x = "Distance Between Window Centres (bp)",
     y = "Status"
-  )
+  ) +
+  theme(legend.position = "none")
 ```
 
 
 ## Distance by Region
 
-```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region.*"}
+```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
 all_windows %>% 
   filter(!is.na(distance)) %>% 
   mutate(region = fct_relabel(
@@ -1366,12 +1390,17 @@ all_windows %>%
       group_by(region) %>% 
       summarise(n = dplyr::n()) %>% 
       mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = 0.04 * max(all_windows$distance, na.rm = TRUE) * (-1),
+    nudge_x = 0.02 * max(all_windows$distance, na.rm = TRUE) * (-1),
     size = 3.5
   ) +
   scale_fill_manual(
     values = region_colours %>% 
       setNames(str_replace_all(names(.), " \\(", "\n("))
+  ) +
+  coord_cartesian(
+    xlim = c(
+      0.02 * max(all_windows$distance, na.rm = TRUE) * (-1),
+      quantile(all_windows$distance,, na.rm = TRUE, probs =  0.995))
   ) +
   labs(
     x = "Distance Between Window Centres (bp)",
@@ -1382,7 +1411,7 @@ all_windows %>%
 
 `r if(has_features) "## Distance By Feature"`
 
-```{r distance-by-feature, echo = has_features, eval = has_features, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature.*"}
+```{r distance-by-feature, echo = has_features, eval = has_features, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
 all_windows %>% 
   filter(!is.na(distance)) %>% 
   as_tibble() %>% 
@@ -1395,10 +1424,15 @@ all_windows %>%
       group_by(feature) %>% 
       summarise(n = dplyr::n()) %>% 
       mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = 0.04 * max(all_windows$distance, na.rm = TRUE) * (-1),
+    nudge_x = 0.02 * max(all_windows$distance, na.rm = TRUE) * (-1),
     size = 3.5
   ) +
   scale_fill_manual(values = feature_colours) +
+  coord_cartesian(
+    xlim = c(
+      0.02 * max(all_windows$distance, na.rm = TRUE) * (-1),
+      quantile(all_windows$distance,, na.rm = TRUE, probs =  0.995))
+  ) +
   labs(
     x = "Distance Between Window Centres (bp)",
     y = "Feature"
@@ -1514,19 +1548,12 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
 }
 ```
 
-All `r comma(length(mapped_ids))` genes with a mapped binding window from either `r collapseGenes(comps, last = " or ")` were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
+All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** `r collapseGenes(comps, last = " or ")` were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
+Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
 `r if (nrow(goseq_mapped_res) == 0) "No enrichment was found."`
 
 ```{r tbl-goseq-mapped-res, eval = nrow(goseq_mapped_res) > 0, echo = nrow(goseq_mapped_res) > 0}
-cp <- htmltools::tags$em(
-  glue(
-    "All {comma(length(mapped_ids))} genes mapped to a binding window from ", 
-    "either ", glue_collapse(comps, " or " ),
-    ", were compared to all genes to test for enrichment of gene sets ",
-    "amongst both individual analyses"
-  )
-)
-tbl <- goseq_mapped_res %>%
+goseq_mapped_res %>%
   dplyr::select(
     gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
   ) %>% 
@@ -1581,12 +1608,6 @@ tbl <- goseq_mapped_res %>%
       )
     )
   )
-div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
-)
 ```
 
 
@@ -1597,7 +1618,7 @@ pwf_t1t2 <- structure(
   all_ids$gene_id %in% intersect(comp_ids[[2]], comp_ids[[1]]),
   names = all_ids$gene_id
 ) %>% 
-  nullp(bias.data = all_ids$n_windows, plot.fit = TRUE) 
+  nullp(bias.data = log10(all_ids$w), plot.fit = TRUE) 
 goseq_t1t2_res <- tibble(gs_name = character(), adj_p = numeric())
 if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
   goseq_t1t2_res <- pwf_t1t2 %>% 
@@ -1619,20 +1640,12 @@ if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
 }
 ```
 
-All `r comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))` genes with a mapped binding window to both `r collapseGenes(comps)` were compared to the 'universe' of `r comma(nrow(all_ids))` genes, in order to ascertain whether any key gene-sets were likely to be targeted under *both in combination*.
+All `r comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))` genes with a mapped binding window to **both** `r collapseGenes(comps)` were compared to the 'universe' of `r comma(nrow(all_ids))` genes, in order to ascertain whether any key gene-sets were likely to be targeted under *both in combination*.
+Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
 `r if (nrow(goseq_t1t2_res) == 0) "No enrichment was found."`
 
 ```{r tbl-goseq-t1t2-res, eval = nrow(goseq_t1t2_res) > 0, echo = nrow(goseq_t1t2_res) > 0}
-cp <- htmltools::tags$em(
-  glue(
-    "All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes ", 
-    "mapped to a binding window from both ", 
-    glue_collapse(targets, sep = " and "),
-    " were compared to all genes to test for enrichment of gene sets ",
-    "amongst any unique targets."
-  )
-)
-tbl <- goseq_t1t2_res %>%
+goseq_t1t2_res %>%
   dplyr::select(
     gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
   ) %>% 
@@ -1687,12 +1700,6 @@ tbl <- goseq_t1t2_res %>%
       )
     )
   )
-div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
-)
 ```
 
 
@@ -1740,6 +1747,7 @@ goseq_group_res <- group_ids %>%
 
 The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
 The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
+For genes mapped to differentially bound windows, the number of windows mapped to each gene was taken as the potential source of any sampling bias
 `r if(length(goseq_group_res) == 0) "No enrichment was found amongst any group of windows"`
 
 
@@ -1941,10 +1949,14 @@ profile_heatmaps <- profile_heatmaps %>%
         ) +
         scale_colour_manual(
           values = lapply(
-            names(pairs), 
-            function(x) setNames(treat_colours[pairs[[x]]], paste(x, pairs[[x]]))
+            seq_along(pairs), 
+            function(i) setNames(
+              treat_colours[pairs[[i]]], 
+              paste(names(pairs)[[i]], pairs[[i]])
+            )
           ) %>%
-            unlist()
+            unlist() %>% 
+            .[!duplicated(names(.))]
         ) +
         labs(
           x = "Distance from Centre (kb)",
@@ -1975,7 +1987,10 @@ htmltools::tagList(
       png(
         filename = png_out,
         width = knitr::opts_current$get("fig.width") * n_samples / 4, 
-        height = 3 + knitr::opts_current$get("fig.height") * n_ranges / 1e3, 
+        height = min(
+          3 + knitr::opts_current$get("fig.height") * n_ranges / 1e3, 
+          10
+        ),
         units = "in", res = 300
       )
       print(profile_heatmaps[[x]])
