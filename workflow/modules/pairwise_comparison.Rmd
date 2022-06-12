@@ -628,7 +628,7 @@ A set of `r comma(length(all_windows))`common windows was formed by obtaining th
 These common windows were formed using any overlap between target-specific windows.
 The window-to-gene mappings and the best overlap with genomic regions was also reformed.
 `r if (has_features) "The best overlap with external features was also reformed."`
-`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For the {comma(sum(!str_detect(all_windows$status, "Undetected")))} windows where binding was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
+`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For the {comma(sum(!str_detect(all_windows$status, 'Undetected')))} windows where binding was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
 
 In the original datasets, `r comma(length(db_results[[1]]))` windows were included for `r comps[[1]]`, whilst `r comma(length(db_results[[2]]))` windows were included for `r comps[[2]]`.
 The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. 
