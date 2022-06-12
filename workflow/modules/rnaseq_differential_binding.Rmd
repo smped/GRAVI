@@ -50,10 +50,10 @@ Gene-centric regions were as defined previously.
 ```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 w <- 0.8
 min_p <- 0.05
-merged_results %>% 
+merged_results %>%
   mutate(
     any_detected = ifelse(
-      vapply(detected, length, integer(1)) > 1,
+      vapply(gene_name, length, integer(1)) > 1,
       "Mapped to Detected Genes",
       "Mapped to Undetected Genes"
     )
@@ -96,7 +96,7 @@ merged_results %>%
 merged_results %>% 
   mutate(
     any_detected = ifelse(
-      vapply(detected, length, integer(1)) > 1,
+      vapply(gene_name, length, integer(1)) > 1,
       "Mapped to Detected Genes",
       "Mapped to Undetected Genes"
     )
@@ -499,7 +499,7 @@ rnaseq %>%
     colour = "black", fill = "grey", bins = 100
   ) +
   geom_text(
-    aes(0.5, y, label = lab),
+    aes(0.8, y, label = lab),
     data = . %>% 
       group_by(mapped) %>% 
       tally() %>% 
@@ -517,7 +517,7 @@ rnaseq %>%
 gsea_dir <- fgsea(dir_gs, rna_dir_ranks)
 gsea_dir_sig <- gsea_dir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_dir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -626,7 +626,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_reg_dir <- fgsea(reg_dir_gs, rna_dir_ranks)
 gsea_reg_dir_sig <- gsea_reg_dir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_reg_dir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -743,7 +743,7 @@ gsea_feat_dir_sig <- tibble()
 gsea_feat_dir <- fgsea(feat_dir_gs, rna_dir_ranks)
 gsea_feat_dir_sig <- gsea_feat_dir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_feat_dir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -857,7 +857,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_nondir <- fgsea(dir_gs, rna_sig_ranks, scoreType = "pos")
 gsea_nondir_sig <- gsea_nondir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_nondir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -949,7 +949,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_reg_nondir <- fgsea(reg_dir_gs, rna_sig_ranks, scoreType = "pos")
 gsea_reg_nondir_sig <- gsea_reg_nondir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_reg_nondir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -1049,7 +1049,7 @@ gsea_feat_nondir_sig <- tibble()
 gsea_feat_nondir <- fgsea(feat_dir_gs, rna_sig_ranks, scoreType = "pos")
 gsea_feat_nondir_sig <- gsea_feat_nondir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < fdr_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha) %>% 
   as_tibble() 
 p <- gsea_feat_nondir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -1468,14 +1468,14 @@ rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
 ```
 
 The enrichment testing results from the `r target` differential binding analysis were then
-compared to GSEA results obtained from the RNA-Seq data set
+compared to GSEA results obtained from the RNA-Seq data set.
 
 ### Differentially Bound Windows
 
 ```{r compare-alldiff-gsea}
 cmn_gs <- intersect(
-  dplyr::filter(goseq_diff, fdr < fdr_alpha)$gs_name,
-  dplyr::filter(rnaseq_gsea, padj < fdr_alpha)$pathway
+  dplyr::filter(goseq_diff, adj_p < enrich_alpha)$gs_name,
+  dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
 )
 ```
 
@@ -1497,7 +1497,7 @@ tbl <- goseq_diff %>%
   dplyr::filter(gs_name %in% cmn_gs) %>% 
   dplyr::select(
     gs_name, genes_mapped = numDEInCat, 
-    goseq_pval = pval, goseq_fdr = fdr
+    goseq_pval = pval, goseq_adj_p = adj_p
   ) %>% 
   left_join(
     rnaseq_gsea %>% 
@@ -1519,8 +1519,8 @@ tbl <- goseq_diff %>%
     distinct(msigdb, gs_name, gs_description), by = "gs_name"
   ) %>% 
   dplyr::select(
-    gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
-    edge_size, leadingEdge
+    gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"), 
+    goseq_adj_p, edge_size, leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -1549,8 +1549,8 @@ tbl <- goseq_diff %>%
         cell = function(value) comma(value, 1),
         maxWidth = 100
       ),
-      goseq_fdr = colDef(
-        name = "FDR (ChIP)",
+      goseq_adj_p = colDef(
+        name = "p<sub>adj</sub> (ChIP)", html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1591,8 +1591,8 @@ div(class = "table",
 
 ```{r compare-gained-gsea}
 cmn_gs <- intersect(
-  dplyr::filter(goseq_up, fdr < fdr_alpha)$gs_name,
-  dplyr::filter(rnaseq_gsea, padj < fdr_alpha)$pathway
+  dplyr::filter(goseq_up, adj_p < enrich_alpha)$gs_name,
+  dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
 )
 ```
 
@@ -1614,7 +1614,7 @@ tbl <- goseq_diff %>%
   dplyr::filter(gs_name %in% cmn_gs) %>% 
   dplyr::select(
     gs_name, genes_mapped = numDEInCat, 
-    goseq_pval = pval, goseq_fdr = fdr
+    goseq_pval = pval, goseq_adj_p = adj_p
   ) %>% 
   left_join(
     rnaseq_gsea %>% 
@@ -1637,7 +1637,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   dplyr::select(
     gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
-    edge_size, leadingEdge
+    goseq_adj_p, edge_size, leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -1666,8 +1666,8 @@ tbl <- goseq_diff %>%
         cell = function(value) comma(value, 1),
         maxWidth = 100
       ),
-      goseq_fdr = colDef(
-        name = "FDR (ChIP)",
+      goseq_adj_p = colDef(
+        name = "p<sub>adj</sub> (ChIP)", html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1708,8 +1708,8 @@ div(class = "table",
 
 ```{r compare-decreased-gsea}
 cmn_gs <- intersect(
-  dplyr::filter(goseq_down, fdr < fdr_alpha)$gs_name,
-  dplyr::filter(rnaseq_gsea, padj < fdr_alpha)$pathway
+  dplyr::filter(goseq_down, adj_p < enrich_alpha)$gs_name,
+  dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
 )
 ```
 
@@ -1731,7 +1731,7 @@ tbl <- goseq_diff %>%
   dplyr::filter(gs_name %in% cmn_gs) %>% 
   dplyr::select(
     gs_name, genes_mapped = numDEInCat, 
-    goseq_pval = pval, goseq_fdr = fdr
+    goseq_pval = pval, goseq_adj_p = adj_p
   ) %>% 
   left_join(
     rnaseq_gsea %>% 
@@ -1754,7 +1754,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   dplyr::select(
     gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
-    edge_size, leadingEdge
+    goseq_adj_p, edge_size, leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -1783,8 +1783,8 @@ tbl <- goseq_diff %>%
         cell = function(value) comma(value, 1),
         maxWidth = 100
       ),
-      goseq_fdr = colDef(
-        name = "FDR (ChIP)",
+      goseq_adj_p = colDef(
+        name = "p<sub>adj</sub> (ChIP)", html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),

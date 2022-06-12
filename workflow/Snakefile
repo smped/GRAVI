@@ -100,6 +100,7 @@ def make_pairwise(x):
 ## Check whether Git is installed & the directory has a repo ##
 ###############################################################
 git_add = check_git(".")
+git_tries = 100
 # git_add = False
 
 ####################
@@ -119,9 +120,9 @@ pairs=make_pairwise(config['comparisons']['contrasts'])
 here_file = get_here_file()
 bam_path = config['paths']['bam']
 rmd_path = "analysis"
-# macs2_path = config['paths']['macs2']
-macs2_path = os.path.join("output", "macs2")
 annotation_path = os.path.join("output", "annotations")
+diff_path = os.path.join("output", "differential_binding")
+macs2_path = os.path.join("output", "macs2")
 log_path = os.path.join("workflow", "logs")
 
 ###############################
@@ -238,7 +239,7 @@ ALL_OUTPUTS.extend(INDIV_BW)
 MERGED_BW = expand(
 	os.path.join(macs2_path, "{path}_merged_treat_pileup.{suffix}"),
 	path = merged_pre,
-	suffix = ['bw']#, 'summary']
+	suffix = ['bw', 'summary']
 )
 ALL_OUTPUTS.extend(MERGED_BW)
 

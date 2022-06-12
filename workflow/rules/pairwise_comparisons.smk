@@ -14,7 +14,7 @@ rule create_pairwise_comparisons_rmd:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		threads = 4,
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/create_rmd/create_{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_rmd"
@@ -84,13 +84,18 @@ rule compile_pairwise_comparisons_html:
 			)
 		),
 		csv = os.path.join(
-			"output", "{t1}_{t2}",
-			"{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.csv.gz"
+			"output", "pairwise_comparisons", "{t1}_{t2}",
+			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.csv.gz"
+		),
+		rds = os.path.join(
+			"output", "pairwise_comparisons", "{t1}_{t2}",
+			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-all_windows.rds"
 		)
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries,
+		asset_path = os.path.join("docs", "assets", "{t1}_{t2}")
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
 	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
@@ -109,8 +114,8 @@ rule compile_pairwise_comparisons_html:
                 sleep {params.interval}
                 ((TRIES--))
             done
-            git add {output.html}
-            git add {output.fig_path}
-			git add {output.csv}
+            git add {output.html} {output.fig_path}
+			git add {output.csv} {output.rds}
+			git add {params.asset_path}
         fi
 		"""

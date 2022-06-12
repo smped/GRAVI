@@ -17,7 +17,7 @@ rule create_site_yaml:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/rmarkdown/create_site_yaml.log"
@@ -48,7 +48,7 @@ rule create_setup_chunk:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/rmarkdown/create_setup_chunk.log"
@@ -104,7 +104,7 @@ rule compile_annotations_html:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/rmarkdown/compile_annotations_html.log"
@@ -137,7 +137,7 @@ rule create_index_rmd:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	shell:
 		"""
 		cat {input} > {output}
@@ -170,7 +170,7 @@ rule compile_index_html:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/rmarkdown/compile_index_html.log"

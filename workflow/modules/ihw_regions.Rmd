@@ -48,7 +48,7 @@ merged_results <- merged_results %>%
 ```
 
 
-Independent Hypothesis Weighting (IHW) was then used to partition the raw p-values for `r target` differential binding by genomic regions defined previously, and estimate weights to apply to each p-value as a divisor.
+Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential binding by genomic regions defined previously, and estimate weights to apply to each p-value as a divisor.
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
 The provided genomic regions were used as initial partitions, merging the smallest groups below this size until all partitions were of a suitable size.
@@ -85,7 +85,7 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, echo = TRUE, fig.height= 4 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
+```{r plot-ihw-pvals, echo = TRUE, fig.height= 3 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
 lblr <- as_labeller(c(regions, "Other" = "Other"))
 y <- ggplot_build(
   tibble(P.Value = merged_results$P.Value,) %>% 
@@ -113,6 +113,7 @@ merged_results %>%
   ) +
   facet_wrap(~ihw_covariate, ncol = 3, labeller = lblr) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  xlim(c(0, 1)) +
   labs(x = "P Value", y = "Density")
 ```
 

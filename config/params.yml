@@ -9,12 +9,34 @@ gene_regions:
   upstream: 5000
   intergenic: 10000
 
-## The categories to use from MSigDB. These are passed to msigdbr in the
-## columns of the same name
-msigdb:
-  gs_cat: "H"
-  gs_subcat:
-    - "CP:KEGG"
-    - "CP:REACTOME"
-    - "CP:WIKIPATHWAYS"
-    - "TFT:GTRD"
+## The values used when mapping peaks to genes.
+## Passed to `extraChIPs::mapByFeature()`
+## If including H3K27ac HiChIP for long range-interactions, it is advised to
+## set `enh2gene` as zero, given that long range interactions in this case
+## will more accurately map long-range enhancer interactions
+mapping:
+  gr2gene: 100000
+  prom2gene: 0
+  enh2gene: 100000
+  gi2gene: 0
+
+enrichment:
+  ## P-value adjustment methods & cutoff (alpha)
+  adj: "fdr"
+  alpha: 0.05
+  ## Only perform goseq enrichment if the number of genes mapped is between
+  ## these two proportions of either the total genes (no RNA-Seq) or detected
+  ## genes (with RNA-Seq). Seeting these avoids imtermittent crashes of the
+  ## underlying sampling algorithms using in the Wallenius Non-Central
+  ## Hypergeometric distribution at extreme values
+  min_prop_goseq: 0.001
+  max_prop_goseq: 0.99
+  ## The categories to use from MSigDB. These are passed to msigdbr in the
+  ## columns of the same name
+  msigdb:
+    gs_cat: "H"
+    gs_subcat:
+      - "CP:KEGG"
+      - "CP:REACTOME"
+      - "CP:WIKIPATHWAYS"
+      - "TFT:GTRD"

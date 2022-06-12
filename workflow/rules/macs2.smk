@@ -77,7 +77,7 @@ rule macs2_individual:
 		keep_duplicates = config['peaks']['macs2']['keep_duplicates'],
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	threads: 1
 	shell:
 		"""
@@ -134,7 +134,7 @@ rule macs2_qc:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
 	log: log_path + "/macs2_individual/{target}/{target}_macs2_qc.log"
@@ -197,7 +197,7 @@ rule macs2_merged:
 		keep_duplicates = config['peaks']['macs2']['keep_duplicates'],
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	threads: 1
 	shell:
 		"""
@@ -271,7 +271,7 @@ rule get_coverage_summary:
 		script = "workflow/scripts/get_bigwig_summary.R",
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
@@ -308,7 +308,7 @@ rule create_macs2_summary_rmd:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		threads = lambda wildcards: len(df[df['target'] == wildcards.target]),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
@@ -349,8 +349,15 @@ rule compile_macs2_summary_html:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
-		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
+		bw = lambda wildcards: expand(
+			os.path.join(
+				macs2_path, "{{target}}", "{treat}_merged_treat_pileup.{fl}"
+			),
+			treat = set(df[df.target == wildcards.target]['treat']),
+			fl = ['bw', 'summary']
+		),
 		config = "config/config.yml",
+		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
 		here = here_file,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
@@ -381,7 +388,6 @@ rule compile_macs2_summary_html:
 			os.path.join(
 				macs2_path, "{{target}}", "{file}"
 			),
-			## Should change export of oracle peaks to be bed files
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 		),
 		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),
@@ -389,7 +395,8 @@ rule compile_macs2_summary_html:
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries,
+		asset_path = os.path.join("docs", "assets", "{target}")
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
 	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
@@ -408,6 +415,7 @@ rule compile_macs2_summary_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html} {output.fig_path} {output.peaks} {output.venn}
+			git add {output.html} {output.fig_path} {output.peaks} 
+			git add {params.asset_path}
 		fi
 		"""

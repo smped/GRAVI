@@ -15,7 +15,7 @@ rule create_differential_binding_rmd:
 			(df['target'] == wildcards.target) &
 			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
 		]),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
 	threads: 1
@@ -116,24 +116,25 @@ rule compile_differential_binding_html:
 		renv = expand(
 			os.path.join(
 				"output", "envs",
-				"{{target}}_{{ref}}_{{treat}}_differential_binding.RData"
+				"{{target}}_{{ref}}_{{treat}}-differential_binding.RData"
 			)
 		),
 		outs = expand(
-			os.path.join("output", "{{target}}", "{{ref}}_{{treat}}_{file}"),
-			file = ['differential_binding.rds', 'down.bed', 'up.bed']
-		),
-		csv = expand(
-		  os.path.join("output", "{{target}}", "{{target}}_{{ref}}_{{treat}}_{file}"),
-		  file = ['differential_binding.csv.gz', 'DE_genes.csv']
+			os.path.join(
+				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{file}"
+			),
+			file = [
+				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv'
+			]
 		),
 		win = os.path.join(
-			"output", "{target}", "{ref}_{treat}_filtered_windows.rds"
+			diff_path, "{target}", "{target}_{ref}_{treat}-filtered_windows.rds"
 		)
+	retries: 3
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
-		tries = 10
+		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads:
 		lambda wildcards: len(df[
@@ -159,6 +160,5 @@ rule compile_differential_binding_html:
 			git add {output.html}
 			git add {output.fig_path}
 			git add {output.outs}
-			git add {output.csv}
 		fi
 		"""

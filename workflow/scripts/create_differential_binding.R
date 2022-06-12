@@ -13,6 +13,8 @@ glue(
 	---
 	title: '{{target}} Differential Binding: {{treat}} Vs. {{ref}}'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
+	bibliography: references.bib
+	link-citations: true
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
