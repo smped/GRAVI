@@ -1383,7 +1383,7 @@ all_windows %>%
 
 `r if (n_targets > 1) "## Distance by Region"`
 
-```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
+```{r distance-by-region, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
 all_windows %>% 
   filter(!is.na(distance)) %>% 
   mutate(region = fct_relabel(
