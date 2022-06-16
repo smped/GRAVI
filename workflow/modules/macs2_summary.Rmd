@@ -437,7 +437,7 @@ oracle_peaks <- treat_levels %>%
       if (k > 0) {
         samp <- dplyr::filter(macs2_logs, treat == x, qc != "fail")$name
         gr$n_reps <- countOverlaps(gr, individual_peaks[samp]) 
-        gr$keep <- gr$n_reps > k
+        gr$keep <- gr$n_reps >= k
       } else {
         gr <- GRanges(seqinfo = sq)
       }
