@@ -76,7 +76,7 @@ rule create_here_file:
 	threads: 1
 	shell:
 		"""
-		touch here_file
+		touch {output}
 		"""
 
 rule compile_annotations_html:

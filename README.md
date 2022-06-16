@@ -42,6 +42,7 @@ snakemake \
 	--use-conda \
 	--conda-prefix '/home/steveped/mambaforge/envs/' \
 	--notemp \
+	--rerun-triggers mtime \
 	--keep-going \
 	--cores 16
 ```

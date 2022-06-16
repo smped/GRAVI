@@ -281,11 +281,11 @@ cp <-  htmltools::em(
     mapped to {comma(length(unique(de_genes_db_regions$gene_id)), 1)} DE genes. 
     These were exported as {basename(all_out$de_genes)}.
     Data are presented in a gene-centric manner and ranges may map to multiple
-    genes. The full set of ranges considered to be showing eveidence of altered 
+    genes. The full set of ranges considered to be showing evidence of altered 
     {target} binding are shown for each gene. The summarised range containing 
     all mapped ranges is given in the collapsed row, along with the range of 
-    distances to gene and the range of signal levels. In the cllapsed row, the 
-    value for logFC represents the average aross all mapped regions, with the 
+    distances to gene and the range of signal levels. In the collapsed row, the 
+    value for logFC represents the average across all mapped regions, with the 
     maximum FDR also shown. If {target} binding occurs within another gene this 
     is indicated in the 'Region' column.
     "
@@ -1224,7 +1224,7 @@ if (!is.null(config$external$coverage)) {
 i <- 1
 ```
 
-Using the ranked list of gens from the RNA-Seq data, the 5 genes most highly ranked for differential expression, with more than one `r target`-bound window mapped to it were selected for visualisation.
+Using the ranked list of genes from the RNA-Seq data, the 5 genes most highly ranked for differential expression, with more than one `r target`-bound window mapped to it were selected for visualisation.
 
 ```{r make-deg-caption, echo = FALSE}
 .makeDEGCaption <- function(id) {

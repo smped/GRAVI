@@ -289,7 +289,7 @@ div(class = "table",
 
 ### Summary
 
-```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-cetric regions using the above workflow and the supplied GTF. Percentages represent the amount of the genome allocated to each region. Blacklisted regions were not considered for this step of the annotation.*"}
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-centric regions using the above workflow and the supplied GTF. Percentages represent the amount of the genome allocated to each region. Blacklisted regions were not considered for this step of the annotation.*"}
 gene_regions %>% 
   lapply(select, region) %>% 
   GRangesList() %>% 
@@ -638,7 +638,7 @@ hic %>%
 
 `r ifelse(has_hic & has_features, "## Feature Distribution of Interaction Pairs", "")`
 
-```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided in {basename(feat_path)}. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' categor*")}
+```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided in {basename(feat_path)}. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' category*")}
 feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 
   as.matrix() %>% 
   apply(

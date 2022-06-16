@@ -98,7 +98,7 @@ cb <- config$genome$build %>%
   str_to_lower() %>% 
   paste0(".cytobands") 
 data(list = cb)
-bands_df <- mget(cb)[[cb]]
+bands_df <- get(cb)
 
 stopifnot(
   colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
@@ -619,7 +619,7 @@ filtered_counts %>%
 
 ### PCA
 
-```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisaton*"}
+```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
 a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
   scale_colour_manual(values = treat_colours)
 b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +
