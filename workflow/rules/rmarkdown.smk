@@ -15,26 +15,15 @@ rule create_site_yaml:
 		r = "workflow/scripts/create_site_yaml.R"
 	output: os.path.join(rmd_path, "_site.yml")
 	params:
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
+		git = git_add
 	conda: "../envs/rmarkdown.yml"
+	retries: 100
 	threads: 1
 	log: log_path + "/rmarkdown/create_site_yaml.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {output} &>> {log}
 		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
 			git add {output}
 		fi
 		"""
@@ -47,26 +36,14 @@ rule create_setup_chunk:
 		rmd = "analysis/setup_chunk.Rmd"
 	params:
 		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
+	retries: 100
 	threads: 1
 	log: log_path + "/rmarkdown/create_setup_chunk.log"
 	shell:
 		"""
 		Rscript --vanilla {input.r} {output.rmd} &>> {log}
 		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-    				echo \
-    				  "ERROR: Timeout waiting for removal of git index.lock" &>> {log}
-    				exit 1
-  				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
 			git add {output}
 		fi
 		"""
@@ -74,9 +51,14 @@ rule create_setup_chunk:
 rule create_here_file:
 	output: here_file
 	threads: 1
+	params:
+		git = git_add
 	shell:
 		"""
 		touch {output}
+		if [[ {params.git} == "True" ]]; then
+			git add {output}
+		fi
 		"""
 
 rule compile_annotations_html:
@@ -133,26 +115,15 @@ rule create_index_rmd:
 		os.path.join("workflow", "modules", "index.Rmd")
 	output:
 		os.path.join(rmd_path, "index.Rmd")
+	retries: 100
 	threads: 1
 	params:
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
+		git = git_add
 	shell:
 		"""
 		cat {input} > {output}
 
 		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" 
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
 			git add {output}
 		fi		
 		"""

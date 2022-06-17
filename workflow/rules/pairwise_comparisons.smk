@@ -12,10 +12,9 @@ rule create_pairwise_comparisons_rmd:
 		)
 	params:
 		git = git_add,
-		interval = random.uniform(0, 1),
 		threads = 4,
-		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
+	retries: git_tries
 	threads: 1
 	log: log_path + "/create_rmd/create_{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_rmd"
 	shell:
@@ -36,18 +35,8 @@ rule create_pairwise_comparisons_rmd:
         cat {input.module_pw} >> {output.rmd}
 
 		if [[ {params.git} == "True" ]]; then
-            TRIES={params.tries}
-            while [[ -f .git/index.lock ]]
-            do
-                if [[ "$TRIES" == 0 ]]; then
-                    echo "ERROR: Timeout while waiting for removal of git index lock" &>> {log}
-                    exit 1
-                fi
-                sleep {params.interval}
-                ((TRIES--))
-            done
-            git add {output.rmd}
-        fi
+			git add {output.rmd}
+		fi
 		"""
 
 rule compile_pairwise_comparisons_html:

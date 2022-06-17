@@ -10,15 +10,14 @@ rule create_differential_binding_rmd:
 		)
 	params:
 		git = git_add,
-		interval = random.uniform(0, 1),
 		threads = lambda wildcards: len(df[
 			(df['target'] == wildcards.target) &
 			((df['treat'] == wildcards.ref) | (df['treat'] == wildcards.treat))
-		]),
-		tries = git_tries
+		])
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
 	threads: 1
+	retries: git_tries # Needed to subvert any issues with the git lock file
 	shell:
 		"""
 		## Create the generic markdown header
@@ -34,16 +33,6 @@ rule create_differential_binding_rmd:
 		cat {input.db_mod} >> {output.rmd}
 
 		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
 			git add {output.rmd}
 		fi
 		"""

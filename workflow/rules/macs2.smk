@@ -306,11 +306,10 @@ rule create_macs2_summary_rmd:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
 	params:
 		git = git_add,
-		interval = random.uniform(0, 1),
-		threads = lambda wildcards: len(df[df['target'] == wildcards.target]),
-		tries = git_tries
+		threads = lambda wildcards: len(df[df['target'] == wildcards.target])
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	retries: git_tries # Work around git lock file
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	shell:
 		"""
@@ -325,17 +324,7 @@ rule create_macs2_summary_rmd:
 		cat {input.module} >> {output.rmd}
 
 		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
-			git add {output.rmd} 
+			git add {output.rmd}
 		fi
 		"""
 
@@ -396,7 +385,8 @@ rule compile_macs2_summary_html:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = git_tries,
-		asset_path = os.path.join("docs", "assets", "{target}")
+		asset_path = os.path.join("docs", "assets", "{target}"),
+		bed_path = os.path.join(macs2_path, "{target}")
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
 	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
@@ -417,5 +407,6 @@ rule compile_macs2_summary_html:
 			done
 			git add {output.html} {output.fig_path} {output.peaks} 
 			git add {params.asset_path}
+			git add {params.bed_path}/*oracle_peaks.bed
 		fi
 		"""
