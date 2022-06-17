@@ -492,7 +492,7 @@ if (any_detected) {
 
 A set of treatment-specific `r target` *oracle peaks* was defined for each condition by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
 Replicates which failed the previous QC steps are omitted from this step.
-Oracle peaks which overlapped a peak in more than `r percent(config$peaks$qc$min_prop_reps)` of the *individual replicates passing QC*, were retained.
+Oracle peaks which overlapped a peak in more than `r percent(config$peaks$qc$min_prop_reps)` of the *individual replicates passing QC* in each treatment group, were retained.
 
 ```{r tab-oracle-peak}
 oracle_peaks %>%
@@ -816,13 +816,15 @@ grl_to_plot[treat_levels] <- treat_levels %>%
   lapply(
     function(x) {
       if (length(oracle_peaks[[x]]) == 0) return(NULL)
-      oracle_peaks[[x]] %>% 
+      tbl <- oracle_peaks[[x]] %>% 
         filter(keep) %>% 
         filter_by_non_overlaps(
           unlist(oracle_peaks[setdiff(treat_levels, x)])
         ) %>% 
         filter_by_non_overlaps(grl_to_plot$consensus) %>% 
-        as_tibble() %>% 
+        as_tibble() 
+      if (nrow(tbl) == 0) return(NULL)
+      tbl %>% 
         arrange(desc(score)) %>% 
         dplyr::slice(1) %>% 
         colToRanges("range", seqinfo = sq)
