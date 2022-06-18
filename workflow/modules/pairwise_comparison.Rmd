@@ -94,6 +94,22 @@ samples[[rep_col]] <- as.factor(samples[[rep_col]])
 annotation_path <- here::here("output", "annotations")
 colours <- read_rds(file.path(annotation_path, "colours.rds"))
 treat_colours <- unlist(colours$treat[levels(samples$treat)])
+combs <- paste(
+  rep(comps, each = 4), c("Up", "Down", "Unchanged", "Undetected")
+  ) %>% 
+  combn(2) %>% 
+  t() %>% 
+  set_colnames(c("S1", "S2")) %>% 
+  as_tibble() %>%
+  mutate(
+    C1 = str_extract(S1, comps[[1]]), 
+    C2 = str_extract(S2, comps[[2]])
+    ) %>%
+  dplyr::filter(C1 != C2) %>%
+  unite(combn, S1, S2, sep = " - ") %>%
+  pull("combn")
+direction_colours <- RColorBrewer::brewer.pal(9, "Set1") %>% 
+  setNames(str_subset(combs, "Undetected", negate = TRUE))
 ```
 
 ```{r load-annotations}
@@ -101,7 +117,7 @@ cb <- config$genome$build %>%
   str_to_lower() %>% 
   paste0(".cytobands") 
 data(list = cb)
-bands_df <- mget(cb)[[cb]]
+bands_df <- get(cb)
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 
 all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
@@ -537,11 +553,13 @@ mcols(all_windows)[[c2_status]] <- mcols(all_windows) %>%
     factor(levels = str_sep_to_title(names(colours$direction))) %>% 
       fct_explicit_na("Undetected") %>% 
     fct_relabel(function(x) paste(comps[[2]], x))  
-mcols(all_windows)[["status"]] <- fct_cross(
-  mcols(all_windows)[[c1_status]],
-  mcols(all_windows)[[c2_status]],
-      sep = " - "
-    )
+mcols(all_windows)[["status"]] <- paste(
+    mcols(all_windows)[[c1_status]],
+    mcols(all_windows)[[c2_status]],
+    sep = " - "
+  ) %>% 
+  factor(levels = combs) %>% 
+  droplevels()
 mcols(all_windows)[["distance"]] <- abs(
   mcols(all_windows)[[glue("{comps[[1]]}_centre")]] - mcols(all_windows)[[glue("{comps[[2]]}_centre")]]
   )
@@ -583,47 +601,6 @@ if (any_detected) all_windows$detected <- endoapply(
 ) 
 ```
 
-
-```{r set-direction-colours}
-direction_colours <- names(colours$direction) %>% 
-  rep(each = length(.)) %>% 
-  cbind(rep(unique(.), times = 4)) %>% 
-  set_colnames(comps) %>% 
-  as_tibble() %>% 
-  mutate(
-    c1 = lapply(
-      !!sym(comps[[1]]), function(x) t(col2rgb(colours$direction[[x]]))
-      ), 
-    c2 = lapply(
-      !!sym(comps[[2]]), function(x) t(col2rgb(colours$direction[[x]]))
-    )
-  ) %>% 
-  split(f = seq_len(nrow(.))) %>% 
-  lapply(unnest, everything()) %>% 
-  lapply(
-    function(x) {
-      vals <- rbind(x$c1, x$c2) %>% 
-        colMeans()
-      rgb <- rgb(
-        vals["red"], vals["green"], vals["blue"], 
-        maxColorValue = colours$direction %>%
-          unlist() %>%
-          col2rgb() %>% 
-          max()
-      )
-      select(x, all_of(comps)) %>% 
-        mutate(rgb = rgb)
-    }
-  ) %>% 
-  bind_rows() %>% 
-  mutate(
-    !!sym(comps[[1]]) := paste(comps[[1]], str_to_title(!!sym(comps[[1]]))),
-    !!sym(comps[[2]]) := paste(comps[[2]], str_to_title(!!sym(comps[[2]])))
-  ) %>% 
-  unite(status, !!!syms(comps), sep = " - ") %>% 
-  mutate(rgb = setNames(rgb, status)) %>% 
-  pull("rgb")
-```
 
 A set of `r comma(length(all_windows))` common windows was formed by obtaining the union of windows produced during the analysis of `r collapseGenes(comps)` individually.
 These common windows were formed using any overlap between target-specific windows.
@@ -744,6 +721,238 @@ div(class = "table",
   )
 )
 ```
+
+
+## Windows By Differential Binding
+
+
+```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+all_windows %>% 
+  as_tibble() %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
+  ) %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.\\.", replacement = ": "
+  ) %>% 
+  dplyr::filter(!str_detect(status, "Undetected")) %>% 
+  droplevels() %>% 
+  ggplot(
+    aes(
+      !!sym(c1_logfc), !!sym(c2_logfc),
+      colour = status
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1) * lambda, 
+    linetype = 2, colour = "grey"
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1)* lambda,
+    linetype = 2, colour = "grey"
+  ) +
+  geom_label_repel(
+    aes(label = lab),
+    data = . %>% 
+      dplyr::filter(
+        !str_detect(status, "Unchanged.+Unchanged"),
+        vapply(detected, length, integer(1)) > 0
+      ) %>% 
+      mutate(
+        total_lfc = abs(!!sym(c1_logfc)) + abs(!!sym(c2_logfc)) 
+      ) %>% 
+      group_by(status) %>%
+      dplyr::filter(total_lfc == max(total_lfc)) %>% 
+      mutate(
+        detected = vapply(detected, paste, character(1), collapse = "; "),
+        lab = paste(status, detected, sep = ": ") %>% str_wrap(25)
+      ),
+    size = 3, alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %>%
+      mutate(
+        x = 0.9*max((!!sym(c1_logfc))),
+        y = min(!!sym(c2_logfc))
+      ) %>% 
+      summarise(
+        x = unique(x), 
+        y = unique(y),
+        n = dplyr::n(),
+        lab = paste("n =", comma(n, 1)),
+        .groups = "drop"
+      ),
+    inherit.aes = FALSE
+  ) +
+  scale_colour_manual(
+    values = direction_colours[levels(df$status)]
+  ) +
+  labs(
+    x = paste(comps[[1]], "logFC"),
+    y = paste(comps[[2]], "logFC"),
+    colour = "Status"
+  ) +
+  theme(legend.position = "top")
+```
+
+
+## Windows By Region
+
+```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+df <- all_windows %>% 
+  as_tibble() %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
+  ) %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.\\.", replacement = ": "
+  ) %>% 
+  dplyr::filter(!str_detect(status, "Undetected")) %>% 
+  droplevels() 
+df %>% 
+  ggplot(
+    aes(
+      !!sym(c1_logfc), !!sym(c2_logfc),
+      colour = status
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1) * lambda,
+    linetype = 2, colour = "grey"
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1) * lambda, 
+    linetype = 2, colour = "grey"
+  ) +
+  geom_label_repel(
+    aes(label = detected),
+    data = . %>% 
+      dplyr::filter(
+        !str_detect(status, "Unchanged.+Unchanged"),
+        vapply(detected, length, integer(1)) > 0
+      ) %>% 
+      mutate(
+        total_lfc = abs(!!sym(c1_logfc)) + abs(!!sym(c2_logfc)) 
+      ) %>% 
+      group_by(region) %>% 
+      dplyr::filter(total_lfc == max(total_lfc)) %>% 
+      mutate(
+        detected = vapply(detected, paste, character(1), collapse = "; ") %>% 
+          str_wrap(25)
+      ),
+    size = 3, alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %>%
+      mutate(
+        x = 0.9*max(!!sym(c1_logfc)),
+        y = min(!!sym(c2_logfc))
+      ) %>% 
+      group_by(region) %>%
+      summarise(
+        x = unique(x), 
+        y = unique(y),
+        n = dplyr::n(),
+        lab = paste("n =", comma(n, 1)),
+        .groups = "drop"
+      ),
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~region) +
+  scale_colour_manual(values = direction_colours[levels(df$status)]) +
+  labs(
+    x = paste(comps[[1]], "logFC"),
+    y = paste(comps[[2]], "logFC"),
+    colour = "Status"
+  ) +
+  theme(legend.position = "top")
+```
+
+`r if (has_features) "## Windows By Feature"`
+
+```{r plot-dbwin-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+df <- all_windows %>% 
+  as_tibble() %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
+  ) %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.\\.", replacement = ": "
+  ) %>% 
+  dplyr::filter(!str_detect(status, "Undetected")) %>% 
+  droplevels() 
+df %>% 
+  ggplot(
+    aes(
+      !!sym(c1_logfc), !!sym(c2_logfc),
+      colour = status
+    )
+  ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0) +
+  geom_hline(
+    yintercept = c(1, -1) * lambda, 
+    linetype = 2, colour = "grey"
+  ) +
+  geom_vline(xintercept = 0) +
+  geom_vline(
+    xintercept = c(1, -1) * lambda,
+    linetype = 2, colour = "grey"
+  ) +
+  geom_label_repel(
+    aes(label = detected),
+    data = . %>% 
+      dplyr::filter(!str_detect(status, "Unchanged.+Unchanged")) %>% 
+      mutate(
+        total_lfc = abs(!!sym(c1_logfc)) + abs(!!sym(c2_logfc)) 
+      ) %>% 
+      group_by(feature) %>% 
+      dplyr::filter(total_lfc == max(total_lfc)) %>% 
+      mutate(
+        detected = vapply(detected, paste, character(1), collapse = "; ") %>% 
+          str_wrap(25)
+      ) %>% 
+      dplyr::filter(detected != ""),
+    size = 3, alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %>%
+      mutate(
+        x = 0.9 * max(!!sym(c1_logfc)),
+        y = min(!!sym(c2_logfc))
+      ) %>% 
+      group_by(feature) %>%
+      summarise(
+        x = unique(x), 
+        y = unique(y),
+        n = dplyr::n(),
+        lab = paste("n =", comma(n, 1)),
+        .groups = "drop"
+      ),
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~feature) +
+  scale_colour_manual(values = direction_colours[levels(df$status)]) +
+  labs(
+    x = paste(comps[[1]], "logFC"),
+    y = paste(comps[[2]], "logFC"),
+    colour = "Status"
+  ) +
+  theme(legend.position = "top")
+```
+
 
 
 ## `r comps[[1]]` By `r comps[[2]]` Status
@@ -1074,250 +1283,6 @@ df %>%
 ```
 
 
-## Windows By Differential Binding
-
-
-```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
-all_windows %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  dplyr::filter(!str_detect(status, "Undetected")) %>% 
-  droplevels() %>% 
-  ggplot(
-    aes(
-      !!sym(c1_logfc), !!sym(c2_logfc),
-      colour = status
-    )
-  ) +
-  geom_point(alpha = 0.6) +
-  geom_hline(yintercept = 0) +
-  geom_hline(
-    yintercept = c(1, -1) * lambda, 
-    linetype = 2, colour = "grey"
-  ) +
-  geom_vline(xintercept = 0) +
-  geom_vline(
-    xintercept = c(1, -1)* lambda,
-    linetype = 2, colour = "grey"
-  ) +
-  geom_label_repel(
-    aes(label = lab),
-    data = . %>% 
-      dplyr::filter(
-        !str_detect(status, "Unchanged.+Unchanged"),
-        vapply(detected, length, integer(1)) > 0
-      ) %>% 
-      mutate(
-        total_lfc = abs(!!sym(c1_logfc)) + abs(!!sym(c2_logfc)) 
-      ) %>% 
-      group_by(status) %>%
-      dplyr::filter(total_lfc == max(total_lfc)) %>% 
-      mutate(
-        detected = vapply(detected, paste, character(1), collapse = "; "),
-        lab = paste(status, detected, sep = ": ") %>% str_wrap(25)
-      ),
-    size = 3, alpha = 0.6,
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(x, y, label = lab),
-    data = . %>%
-      mutate(
-        x = 0.9*max((!!sym(c1_logfc))),
-        y = min(!!sym(c2_logfc))
-      ) %>% 
-      summarise(
-        x = unique(x), 
-        y = unique(y),
-        n = dplyr::n(),
-        lab = paste("n =", comma(n, 1)),
-        .groups = "drop"
-      ),
-    inherit.aes = FALSE
-  ) +
-  scale_colour_manual(
-    values = direction_colours[
-      filter(all_windows, !str_detect(status, "Undetected"))$status %>%
-        droplevels() %>%
-        levels()
-    ]
-  ) +
-  labs(
-    x = paste(comps[[1]], "logFC"),
-    y = paste(comps[[2]], "logFC"),
-    colour = "Status"
-  ) +
-  theme(legend.position = "top")
-```
-
-
-## Windows By Region
-
-```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
-all_windows %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  dplyr::filter(!str_detect(status, "Undetected")) %>% 
-  droplevels() %>% 
-  ggplot(
-    aes(
-      !!sym(c1_logfc), !!sym(c2_logfc),
-      colour = status
-    )
-  ) +
-  geom_point(alpha = 0.6) +
-  geom_hline(yintercept = 0) +
-  geom_hline(
-    yintercept = c(1, -1) * lambda,
-    linetype = 2, colour = "grey"
-  ) +
-  geom_vline(xintercept = 0) +
-  geom_vline(
-    xintercept = c(1, -1) * lambda, 
-    linetype = 2, colour = "grey"
-  ) +
-  geom_label_repel(
-    aes(label = detected),
-    data = . %>% 
-      dplyr::filter(
-        !str_detect(status, "Unchanged.+Unchanged"),
-        vapply(detected, length, integer(1)) > 0
-      ) %>% 
-      mutate(
-        total_lfc = abs(!!sym(c1_logfc)) + abs(!!sym(c2_logfc)) 
-      ) %>% 
-      group_by(region) %>% 
-      dplyr::filter(total_lfc == max(total_lfc)) %>% 
-      mutate(
-        detected = vapply(detected, paste, character(1), collapse = "; ") %>% 
-          str_wrap(25)
-      ),
-    size = 3, alpha = 0.6,
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(x, y, label = lab),
-    data = . %>%
-      mutate(
-        x = 0.9*max(!!sym(c1_logfc)),
-        y = min(!!sym(c2_logfc))
-      ) %>% 
-      group_by(region) %>%
-      summarise(
-        x = unique(x), 
-        y = unique(y),
-        n = dplyr::n(),
-        lab = paste("n =", comma(n, 1)),
-        .groups = "drop"
-      ),
-    inherit.aes = FALSE
-  ) +
-  facet_wrap(~region) +
-  scale_colour_manual(
-    values = direction_colours[
-      filter(all_windows, !str_detect(status, "Undetected"))$status %>% 
-        droplevels() %>% 
-        levels()
-    ]
-  ) +
-  labs(
-    x = paste(comps[[1]], "logFC"),
-    y = paste(comps[[2]], "logFC"),
-    colour = "Status"
-  ) +
-  theme(legend.position = "top")
-```
-
-`r if (has_features) "## Windows By Feature"`
-
-```{r plot-dbwin-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
-all_windows %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  dplyr::filter(!str_detect(status, "Undetected")) %>% 
-  droplevels() %>% 
-  ggplot(
-    aes(
-      !!sym(c1_logfc), !!sym(c2_logfc),
-      colour = status
-    )
-  ) +
-  geom_point(alpha = 0.6) +
-  geom_hline(yintercept = 0) +
-  geom_hline(
-    yintercept = c(1, -1) * lambda, 
-    linetype = 2, colour = "grey"
-  ) +
-  geom_vline(xintercept = 0) +
-  geom_vline(
-    xintercept = c(1, -1) * lambda,
-    linetype = 2, colour = "grey"
-  ) +
-  geom_label_repel(
-    aes(label = detected),
-    data = . %>% 
-      dplyr::filter(!str_detect(status, "Unchanged.+Unchanged")) %>% 
-      mutate(
-        total_lfc = abs(!!sym(c1_logfc)) + abs(!!sym(c2_logfc)) 
-      ) %>% 
-      group_by(feature) %>% 
-      dplyr::filter(total_lfc == max(total_lfc)) %>% 
-      mutate(
-        detected = vapply(detected, paste, character(1), collapse = "; ") %>% 
-          str_wrap(25)
-      ) %>% 
-      dplyr::filter(detected != ""),
-    size = 3, alpha = 0.6,
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(x, y, label = lab),
-    data = . %>%
-      mutate(
-        x = 0.9 * max(!!sym(c1_logfc)),
-        y = min(!!sym(c2_logfc))
-      ) %>% 
-      group_by(feature) %>%
-      summarise(
-        x = unique(x), 
-        y = unique(y),
-        n = dplyr::n(),
-        lab = paste("n =", comma(n, 1)),
-        .groups = "drop"
-      ),
-    inherit.aes = FALSE
-  ) +
-  facet_wrap(~feature) +
-  scale_colour_manual(
-    values = direction_colours[
-      filter(all_windows, !str_detect(status, "Undetected"))$status %>% 
-        droplevels() %>% 
-        levels()
-    ]
-  ) +
-  labs(
-    x = paste(comps[[1]], "logFC"),
-    y = paste(comps[[2]], "logFC"),
-    colour = "Status"
-  ) +
-  theme(legend.position = "top")
-```
-
 ## Window Sizes
 
 ```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows. The x-axis is truncated at the 99.5^th^ percentile of window sizes*"}
@@ -1363,7 +1328,7 @@ all_windows %>%
       group_by(status, n_changed) %>% 
       summarise(n = dplyr::n()) %>% 
       mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = - 0.1 * q ,
+    nudge_x = - 0.07 * q ,
     size = 3.5
   ) +
   facet_grid(
@@ -1399,7 +1364,7 @@ all_windows %>%
       group_by(region) %>% 
       summarise(n = dplyr::n()) %>% 
       mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = - 0.1 * q ,
+    nudge_x = - 0.07 * q ,
     size = 3.5
   ) +
   scale_fill_manual(
@@ -1431,7 +1396,7 @@ all_windows %>%
       group_by(feature) %>% 
       summarise(n = dplyr::n()) %>% 
       mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = - 0.1 * q ,
+    nudge_x = - 0.07 * q ,
     size = 3.5
   ) +
   scale_fill_manual(
@@ -1464,6 +1429,7 @@ all_ids <- genes_gr %>%
       enframe(name = "gene_id", value = "n_windows"),
     by = "gene_id"
   ) %>% 
+  dplyr::filter(gene_id %in% genes_gr$gene_id) %>% 
   mutate(
     n_windows = as.integer(ifelse(is.na(n_windows), 0, n_windows))
   )
@@ -1509,6 +1475,7 @@ comp_ids <- comps %>%
   ) %>% 
   lapply(unlist) %>% 
   lapply(unique) %>% 
+  lapply(intersect, genes_gr$gene_id) %>% 
   setNames(comps)
 mapped_ids <- comp_ids %>% 
   unlist() %>% 
@@ -1553,8 +1520,10 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
 }
 ```
 
-All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** `r collapseGenes(comps, last = " or ")` were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
+All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
+`r if (any_detected) "Regilatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
 Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
+This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
 `r if (nrow(goseq_mapped_res) == 0) "No enrichment was found."`
 
 ```{r tbl-goseq-mapped-res, eval = nrow(goseq_mapped_res) > 0, echo = nrow(goseq_mapped_res) > 0}
@@ -1616,15 +1585,32 @@ goseq_mapped_res %>%
 ```
 
 
-### Genes Mapped to Both `r glue_collapse(comps, last = " and " )`
+`r if (n_targets == 2) glue("### Genes Mapped to Both ", glue_collapse(comps, last = " and " ))`
 
-```{r goseq_t1t2_res, fig.show='hide'}
-pwf_t1t2 <- structure(
-  all_ids$gene_id %in% intersect(comp_ids[[2]], comp_ids[[1]]),
-  names = all_ids$gene_id
-) %>% 
-  nullp(bias.data = log10(all_ids$w), plot.fit = TRUE) 
+```{r empty-goseq-t1t2-res, echo = FALSE}
 goseq_t1t2_res <- tibble(gs_name = character(), adj_p = numeric())
+para <- glue(
+  "
+  All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes with a 
+  mapped binding window to **both** {collapseGenes(comps)} were compared to 
+  the 'universe' of {comma(length(mapped_ids))} genes mapped to **either**, 
+  in order to ascertain whether any key gene-sets were likely to be targeted by 
+  *both factors in combination*. Gene-length was included as the source of any 
+  potential sampling bias for a gene being mapped to a target-bound range.
+  "
+)
+```
+
+
+```{r goseq_t1t2_res, eval = n_targets == 2, fig.show='hide'}
+pwf_t1t2 <- structure(
+  mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
+  names = mapped_ids
+) %>% 
+  nullp(
+    bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
+    plot.fit = TRUE
+  ) 
 if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
   goseq_t1t2_res <- pwf_t1t2 %>% 
     goseq(gene2cat = gs_by_geneid) %>% 
@@ -1643,13 +1629,12 @@ if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
     chop(gene_name) %>% 
   mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
+if (nrow(goseq_t1t2_res) == 0) para <- glue(para, " No enrichment was found.")
 ```
 
-All `r comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))` genes with a mapped binding window to **both** `r collapseGenes(comps)` were compared to the 'universe' of `r comma(nrow(all_ids))` genes, in order to ascertain whether any key gene-sets were likely to be targeted under *both in combination*.
-Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
-`r if (nrow(goseq_t1t2_res) == 0) "No enrichment was found."`
+`r if (n_targets == 2) para`
 
-```{r tbl-goseq-t1t2-res, eval = nrow(goseq_t1t2_res) > 0, echo = nrow(goseq_t1t2_res) > 0}
+```{r tbl-goseq-t1t2-res, eval = nrow(goseq_t1t2_res) > 0 & n_targets == 2, echo = nrow(goseq_t1t2_res) > 0}
 goseq_t1t2_res %>%
   dplyr::select(
     gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
@@ -1928,12 +1913,33 @@ sig_profiles <- mclapply(
   ),
   mc.cores = min(length(grl_to_plot), threads)
 )
+## Currently, this is set to CPM as the only possible output of 
+## extraChIP::getProfileData. Until this is rectified, manually log-transform
+sig_profiles <- sig_profiles %>% 
+  mclapply(
+    function(x) {
+      temp_gr <- unlist(x)
+      temp_gr$profile_data <- lapply(
+        temp_gr$profile_data,
+        function(pd) {
+          pd$score <- log2(pd$score + 1)
+          pd
+        }
+      )
+      temp_gr$profile_data <- as(temp_gr$profile_data, "SplitDataFrameList")
+      out <- split(temp_gr, names(temp_gr))
+      out <- lapply(out, setNames, NULL)[names(x)]
+      GRangesList(out)
+    },
+    mc.cores = min(length(grl_to_plot), threads)
+  ) 
+
 profile_heatmaps <- sig_profiles %>% 
   mclapply(
     plotProfileHeatmap,
     profileCol = "profile_data", 
     xLab = "Distance from Centre (bp)",
-    fillLab = "CPM",
+    fillLab = "logCPM",
     colour = "name",
     mc.cores = min(length(grl_to_plot), threads)
   ) 
@@ -1965,7 +1971,7 @@ profile_heatmaps <- profile_heatmaps %>%
         ) +
         labs(
           x = "Distance from Centre (kb)",
-          fill = "CPM", linetype = "Consensus\nPeak\nOverlap",
+          fill = "logCPM", linetype = "Consensus\nPeak\nOverlap",
           colour = "Sample"
         ) 
     }
