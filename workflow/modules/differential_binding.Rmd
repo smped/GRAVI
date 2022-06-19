@@ -908,6 +908,26 @@ sig_profiles <- bplapply(
   ),
   BPPARAM = MulticoreParam(length(sig_ranges))
 )
+## Currently, this is set to CPM as the only possible output of 
+## extraChIP::getProfileData. Until this is rectified, manually log-transform
+sig_profiles <- sig_profiles %>% 
+  bplapply(
+    function(x) {
+      temp_gr <- unlist(x)
+      temp_gr$profile_data <- lapply(
+        temp_gr$profile_data,
+        function(pd) {
+          pd$score <- log2(pd$score + 1)
+          pd
+        }
+      )
+      temp_gr$profile_data <- as(temp_gr$profile_data, "SplitDataFrameList")
+      out <- split(temp_gr, names(temp_gr))
+      out <- lapply(out, setNames, NULL)[names(x)]
+      GRangesList(out)
+    },
+    BPPARAM = MulticoreParam(length(sig_ranges))
+  ) 
 profile_heatmaps <- sig_profiles %>% 
   bplapply(
     plotProfileHeatmap,
@@ -916,7 +936,7 @@ profile_heatmaps <- sig_profiles %>%
     colour = "name",
     linetype = "overlaps_ref",
     xLab = "Distance from Centre (bp)",
-    fillLab = "CPM",
+    fillLab = "logCPM",
     labeller = as_labeller(
         c(
           setNames(treat_levels, treat_levels),
@@ -945,7 +965,7 @@ profile_heatmaps <- profile_heatmaps %>%
       scale_linetype_manual(values = c("TRUE" = 1, "FALSE" = 2)) +
       labs(
         x = "Distance from Centre (bp)",
-        fill = "CPM", linetype = "Consensus\nPeak\nOverlap",
+        fill = "logCPM", linetype = "Consensus\nPeak\nOverlap",
         colour = "Treat"
       ) +
       theme(
@@ -1210,6 +1230,15 @@ df %>%
     aes(x0 = x0, y0 = y0, r0 = 0, r = r, fill = status, amount = n)
   ) +
   coord_equal() +
+  geom_label(
+    aes(x0, y0, label = comma(total)),
+    data = . %>% 
+      distinct(x0, y0, total) %>% 
+      dplyr::filter(total > 0.01 * sum(total)),
+    alpha = 0.6,
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) +
   scale_x_continuous(
     breaks = seq_along(levels(df$region)), labels = levels(df$region)
   ) +
@@ -2146,6 +2175,13 @@ gs_by_geneid <- msigdb %>%
   lapply(unique)
 gs_url <- msigdb %>% 
   distinct(gs_name, gs_url) %>%
+  mutate(
+    gs_url = ifelse(
+      gs_url == "", "
+      http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
+      gs_url
+    )
+  ) %>% 
   with(setNames(gs_url, gs_name))
 min_genes <- params$enrichment$min_prop_goseq * length(genes_gr)
 max_genes <- params$enrichment$max_prop_goseq * length(genes_gr)

@@ -424,6 +424,7 @@ tbl <- de_genes_db_regions %>%
         ),
         overlaps_ref = colDef(
           name = "Macs Peak",
+          show = FALSE,
           aggregate = "frequency",
           cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
           style = function(value) {
@@ -508,6 +509,59 @@ rnaseq %>%
   facet_wrap(~mapped, nrow = 1) +
   scale_y_continuous(expand = expansion(c(0, 0.05)))
 ```
+
+### Volcano Plots By `r target` Binding
+
+```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing genes separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes will be mapped to {target} binding events which include both an increase and decrease in binding, genes are simply grouped by whether any differential binding was mapped to an associated regulatory region.*")}
+df <- rnaseq %>% 
+  mutate(
+    mapped = case_when(
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
+      TRUE ~ paste("No", target, "Detected")
+    )
+  ) %>% 
+  dplyr::select(
+    all_of(c(rna_p_col, rna_lfc_col)), mapped, starts_with("gene")
+  ) %>% 
+  left_join(rna_status) 
+lp <- "right"
+if (length(unique(df$mapped)) > 2) lp <- c(0.7, 0.2)
+df %>% 
+  ggplot(
+    aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
+  ) +
+  geom_point() +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      dplyr::arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) > 0) %>% 
+      split(.$mapped) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      dplyr::arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) < 0) %>% 
+      split(.$mapped) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  facet_wrap(~mapped, ncol = 2) +
+  scale_colour_manual(
+    values = direction_colours
+  ) +
+  labs(colour = "Status") +
+  theme(
+    legend.position = lp
+  )
+```
+
 
 ## Directional GSEA {.tabset}
 

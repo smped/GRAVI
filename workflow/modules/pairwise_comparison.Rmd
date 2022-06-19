@@ -322,6 +322,40 @@ with_tooltip <- function(value, width = 30) {
 }
 ```
 
+```{r define-outputs}
+out_path <- here::here(
+  "output", "pairwise_comparisons", paste(targets, collapse = "_")
+)
+if (!dir.exists(out_path)) dir.create(out_path)
+all_out <- list(
+  csv = file.path(
+    out_path,
+    glue(
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
+      "pairwise_comparison.csv.gz"
+    )
+  ),
+  results = file.path(
+    out_path,
+    glue(
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
+      "all_windows.rds"
+    )
+  ),
+  renv = here::here(
+    "output", "envs",
+    glue(
+      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
+      "pairwise_comparison.RData"
+    )
+  )
+)
+```
+
+
 # Outline
 
 This stage of the GRAVI workflow takes the results from two individual differential binding analyses and compares the results, by finding peaks which directly overlap and considering the joint behaviour.
@@ -618,6 +652,8 @@ The median distance between windows found in both comparisons was `r  median(all
 Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value < `r fdr_alpha` from either comparison were used to consider a window as showing changed binding in at least one comparison.
 A secondary step was then introduced for each window such that if one target was significant and the other target had 1) received an FDR-adjusted p-value < `r fdr_alpha` *using a point-based* $H_0$, and 2) had an estimated logFC beyond the range specified for the range-based null hypothesis ($H_0: 0 < |\mu| < \lambda$ for $\lambda = `r round(lambda, 2)`$), these windows were then considered significant in the second comparison.
 This was to help *reduce the number of windows incorrectly classified as unchanged* whilst the alternative ChIP target was defined as changed.
+
+Whilst summary tables and figures are presented below, **the full set of windows and mapped genes were exported** as `r str_extract(all_out$csv, "output.+")`
 
 ```{r tbl-summary}
 cp <- htmltools::tags$em(
@@ -1453,6 +1489,13 @@ gs_by_geneid <- msigdb %>%
   mclapply(unique, mc.cores = threads)
 gs_url <- msigdb %>% 
   distinct(gs_name, gs_url) %>%
+  mutate(
+    gs_url = ifelse(
+      gs_url == "", "
+      http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
+      gs_url
+    )
+  ) %>% 
   with(setNames(gs_url, gs_name))
 min_genes <- params$enrichment$min_prop_goseq * length(genes_gr)
 max_genes <- params$enrichment$max_prop_goseq * length(genes_gr)
@@ -1934,7 +1977,6 @@ sig_profiles <- sig_profiles %>%
     },
     mc.cores = min(length(grl_to_plot), threads)
   ) 
-
 profile_heatmaps <- sig_profiles %>% 
   mclapply(
     plotProfileHeatmap,
@@ -2445,36 +2487,6 @@ htmltools::tagList(
 # Data Export
 
 ```{r all-out}
-out_path <- here::here(
-  "output", "pairwise_comparisons", paste(targets, collapse = "_")
-)
-if (!dir.exists(out_path)) dir.create(out_path)
-all_out <- list(
-  csv = file.path(
-    out_path,
-    glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
-      "pairwise_comparison.csv.gz"
-    )
-  ),
-  results = file.path(
-    out_path,
-    glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
-      "all_windows.rds"
-    )
-  ),
-  renv = here::here(
-    "output", "envs",
-    glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
-      "pairwise_comparison.RData"
-    )
-  )
-)
 write_rds(all_windows, all_out$results, compress = "gz")
 save.image(all_out$renv)
 ```
@@ -2486,7 +2498,7 @@ all_windows %>%
   unnest(all_of("gene_id")) %>% # This ensures correct id2gene mappings
   mutate(gene_name = id2gene[gene_id]) %>% 
   dplyr::select(
-    starts_with("gene"), everything()
+    starts_with("gene"), range, any_of(c("region", "feature", "hic")),
   ) %>% 
   write_csv(
     gzfile(all_out$csv)
@@ -2514,3 +2526,4 @@ pander::pander(sessionInfo())
 ```
 
 </div>
+all_out

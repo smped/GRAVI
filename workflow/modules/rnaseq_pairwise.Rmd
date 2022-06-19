@@ -32,17 +32,81 @@ rna_p_col <- colnames(rnaseq)[
 ][1]
 stopifnot(length(rna_p_col) == 1)
 diff_windows <- all_windows %>% 
-  splitAsList(.$status) %>% 
-  lapply(select, gene_id) %>% 
-  lapply(mcols) %>% 
-  lapply(as_tibble) %>% 
-  lapply(pull, "gene_id") %>% 
-  lapply(unlist) %>% 
-  lapply(unique)
+  as_tibble() %>% 
+  mutate(
+    r1 = rank(!!sym(c1_fdr), ties.method = "min"),
+    r2 = rank(!!sym(c2_fdr), ties.method = "min")
+  ) %>% 
+  dplyr::arrange(r1 + r2) %>% 
+  dplyr::select(gene_id, status, r1, r2) %>% 
+  unnest(everything()) %>% 
+  distinct(gene_id, .keep_all = TRUE) %>% 
+  droplevels() %>% 
+  split(.$status) %>% 
+  lapply(pull, "gene_id") 
+```
+
+## Volcano Plots
+
+```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Many genes will have multiple target binding regions mapped to them, and as such only the mapping with the most highly-ranked region for binding across both comparisons was retained. In subsequent enrichment analyses, these genes will appear in multiple groups given that multiple binding patterns may be associated with them.*")}
+names(diff_windows) %>% 
+  lapply(
+    function(x) {
+      rnaseq %>% 
+        dplyr::filter(gene_id %in% diff_windows[[x]]) %>% 
+        mutate(binding_status = x)
+    }
+  ) %>% 
+  bind_rows() %>% 
+  bind_rows(
+    rnaseq %>% 
+      dplyr::filter(!gene_id %in% unlist(diff_windows)) %>% 
+      mutate(binding_status = combs[16])
+  ) %>% 
+  left_join(rna_status) %>% 
+  mutate(
+    binding_status = binding_status %>% 
+      factor(levels = combs) %>% 
+      fct_lump_prop(0.01)
+  ) %>% 
+  ggplot(
+    aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
+  ) +
+  geom_point() +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      arrange(!!sym(rna_p_col)) %>% 
+      split(.$binding_status) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(label = lab),
+    data = . %>% 
+      group_by(binding_status) %>% 
+      summarise(n = dplyr::n()) %>% 
+      mutate(lab = glue("n = {comma(n)}")),
+    x = min(rnaseq[[rna_lfc_col]]) + 0.9 * diff(range(rnaseq[[rna_lfc_col]])),
+    y = 1,
+    colour = "black",
+    inherit.aes = FALSE,
+    show.legend = FALSE
+  ) +
+  facet_wrap(~binding_status) +
+  scale_colour_manual(
+    values = colours$direction[c("up", "down", "unchanged")] %>% 
+      unlist() %>% 
+      setNames(str_to_title(names(.))) 
+  ) +
+  labs(colour = "Status") +
+  theme(legend.position = "bottom")
 ```
 
 
-## Relationship To Differentially Expressed Genes {.tabset}
+
+## Enrichment Analysis {.tabset}
 
 
 ```{r define_genesets}
