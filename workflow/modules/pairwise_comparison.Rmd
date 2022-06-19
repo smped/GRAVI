@@ -727,7 +727,7 @@ div(class = "table",
 
 
 ```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
-all_windows %>% 
+df <- all_windows %>% 
   as_tibble() %>% 
   rename_all(
     str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
@@ -736,7 +736,8 @@ all_windows %>%
     str_replace_all, pattern = "\\.\\.", replacement = ": "
   ) %>% 
   dplyr::filter(!str_detect(status, "Undetected")) %>% 
-  droplevels() %>% 
+  droplevels()
+df %>% 
   ggplot(
     aes(
       !!sym(c1_logfc), !!sym(c2_logfc),
