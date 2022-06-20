@@ -759,7 +759,7 @@ div(class = "table",
 ```
 
 
-## Windows By Differential Binding
+## Pairwise Differential Binding
 
 
 ```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
@@ -838,7 +838,7 @@ df %>%
 ```
 
 
-## Windows By Region
+## logFC By Region
 
 ```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df <- all_windows %>% 
@@ -915,7 +915,7 @@ df %>%
   theme(legend.position = "top")
 ```
 
-`r if (has_features) "## Windows By Feature"`
+`r if (has_features) "## logFC By Feature"`
 
 ```{r plot-dbwin-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df <- all_windows %>% 
@@ -989,7 +989,6 @@ df %>%
   ) +
   theme(legend.position = "top")
 ```
-
 
 
 ## `r comps[[1]]` By `r comps[[2]]` Status
@@ -2526,4 +2525,3 @@ pander::pander(sessionInfo())
 ```
 
 </div>
-all_out

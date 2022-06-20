@@ -32,11 +32,15 @@ rna_p_col <- colnames(rnaseq)[
 ][1]
 stopifnot(length(rna_p_col) == 1)
 diff_windows <- all_windows %>% 
-  as_tibble() %>% 
-  mutate(
-    r1 = rank(!!sym(c1_fdr), ties.method = "min"),
-    r2 = rank(!!sym(c2_fdr), ties.method = "min")
-  ) %>% 
+  as_tibble() 
+diff_windows[["r1"]] <- rank(mcols(all_windows)[[c1_fdr]], ties.method = "min")
+diff_windows[["r2"]] <- rank(mcols(all_windows)[[c2_fdr]], ties.method = "min")
+# %>% 
+#   mutate(
+#     r1 = rank(!!sym(c1_fdr), ties.method = "min"),
+#     r2 = rank(!!sym(c2_fdr), ties.method = "min")
+#   ) %>% 
+diff_windows <- diff_windows %>% 
   dplyr::arrange(r1 + r2) %>% 
   dplyr::select(gene_id, status, r1, r2) %>% 
   unnest(everything()) %>% 
