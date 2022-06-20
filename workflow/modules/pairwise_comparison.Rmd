@@ -323,6 +323,14 @@ with_tooltip <- function(value, width = 30) {
 ```
 
 ```{r define-outputs}
+fig_path <- here::here(
+  "docs", "assets", 
+  glue(
+    "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+    "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}"
+  )
+)
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
 )
@@ -398,8 +406,6 @@ The sets of treatment-specific *oracle-peaks* were then compared across the comb
 `r if (length(unique(targets)) > 1) "## Consensus Peaks"`
 
 ```{r plot-empty-peaks, results = 'hide', eval = length(unique(targets)) == 1, echo = FALSE}
-fig_path <- here::here("docs", "assets", paste(targets, collapse = "_"))
-if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- targets %>% 
   paste(collapse = "_") %>% 
   paste0("_common_peaks.png")
@@ -408,15 +414,13 @@ file.create(file.path(fig_path, fig_name))
 
 
 ```{r plot-consensus, results = 'hide', eval = length(unique(targets)) > 1, eval = length(unique(targets)) > 1}
-fig_path <- here::here("docs", "assets", paste(targets, collapse = "_"))
-if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- targets %>% 
   paste(collapse = "_") %>% 
   paste0("_common_peaks.png")
 lapply(
   consensus_peaks,
   function(x) as.character(subsetByOverlaps(all_consensus, x))
-) %>% 
+)%>% 
   venn.diagram(
     file.path(fig_path, fig_name),
     imagetype = "png",
