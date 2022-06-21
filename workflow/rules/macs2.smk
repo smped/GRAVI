@@ -204,7 +204,7 @@ rule macs2_merged:
 		QC_PASS=$(egrep 'pass' {input.qc} | egrep {wildcards.treat} | cut -f1)
 		SAMPLES=$(for f in $QC_PASS; do echo {params.bamdir}/{wildcards.target}/$f.bam; done)
 		echo -e "The following passed qc:\n$SAMPLES\n" >> {log}
-		INPUT_PASS=$(egrep 'pass$' {input.qc} | egrep 'DHT' | cut -f6 | uniq)
+		INPUT_PASS=$(egrep 'pass$' {input.qc} | egrep {wildcards.treat} | cut -f6 | uniq)
 		INPUT=$(for f in $INPUT_PASS; do echo {params.bamdir}/Input/$f.bam; done)
 		echo -e "Control:\n$INPUT" >> {log}
 		macs2 callpeak \
