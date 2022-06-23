@@ -276,28 +276,33 @@ fdr_column <- ifelse(
 
 ```{r tbl-funs}
 up_col <- function(x) {
+  if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(
     colorRamp(c("#ffffff", colours$direction[["up"]]))(x), maxColorValue = 255
   )
 }
 down_col <- function(x) {
+  if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(
     colorRamp(c("#ffffff", colours$direction[["down"]]))(x), maxColorValue = 255
   )
 }
 unch_col <- function(x) {
+  if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(
     colorRamp(c("#ffffff", colours$direction[["unchanged"]]))(x), 
     maxColorValue = 255
   )
 }
 lfc_col <- function(x){
+  if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(
     colorRamp(c(colours$direction[["down"]], "#ffffff", colours$direction[["up"]]))(x), 
     maxColorValue = 255
   )
 }
 expr_col <- function(x){
+  if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(colorRamp(hcl.colors(9, "TealRose"))(x), maxColorValue = 255)
 }
 bar_style <- function(width = 1, fill = "#e6e6e6", height = "75%", align = c("left", "right"), color = NULL) {
