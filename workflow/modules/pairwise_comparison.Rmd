@@ -328,13 +328,11 @@ with_tooltip <- function(value, width = 30) {
 ```
 
 ```{r define-outputs}
-fig_path <- here::here(
-  "docs", "assets", 
-  glue(
-    "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-    "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}"
-  )
+comp_name <- glue(
+  "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
+  "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}"
 )
+fig_path <- here::here("docs", "assets", comp_name)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
@@ -342,28 +340,15 @@ out_path <- here::here(
 if (!dir.exists(out_path)) dir.create(out_path)
 all_out <- list(
   csv = file.path(
-    out_path,
-    glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
-      "pairwise_comparison.csv.gz"
+    out_path, glue(comp_name, "-pairwise_comparison.csv.gz"
     )
   ),
   results = file.path(
-    out_path,
-    glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
-      "all_windows.rds"
-    )
+    out_path, glue(comp_name, "-all_windows.rds")
   ),
   renv = here::here(
     "output", "envs",
-    glue(
-      "{targets[[1]]}_{pairs[[1]][[1]]}_{pairs[[1]][[2]]}-", 
-      "{targets[[2]]}_{pairs[[2]][[1]]}_{pairs[[2]][[2]]}-",
-      "pairwise_comparison.RData"
-    )
+    glue(comp_name, "-pairwise_comparison.RData")
   )
 )
 ```
@@ -1551,10 +1536,11 @@ pwf_mapped  <- structure(
   names = all_ids$gene_id
 ) %>% 
   nullp(bias.data = log10(all_ids$w), plot.fit = TRUE)
+gs_method <- ifelse(mean(pwf_mapped$DEgenes) > 0.8, "Hypergeometric", "Wallenius")
 goseq_mapped_res <- tibble(gs_name = character(), adj_p = numeric())
 if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
   goseq_mapped_res <- pwf_mapped %>% 
-    goseq(gene2cat = gs_by_geneid) %>% 
+    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
@@ -1574,7 +1560,8 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
 
 All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
 `r if (any_detected) "Regilatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
-Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
+`r if (gs_method == "Hypergeometric") "No sampling bias offset was incorporated, instead using a simple Hypergeometric model for enrichment testing"`
+`r if (gs_method == "Wallenius") "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a source-bound range."`
 This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
 `r if (nrow(goseq_mapped_res) == 0) "No enrichment was found."`
 
@@ -1641,31 +1628,37 @@ goseq_mapped_res %>%
 
 ```{r empty-goseq-t1t2-res, echo = FALSE}
 goseq_t1t2_res <- tibble(gs_name = character(), adj_p = numeric())
+vec_t1t2 <- structure(
+  mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
+  names = mapped_ids
+)
+gs_method <- ifelse(mean(vec_t1t2) > 0.8, "Hypergeometric", "Wallenius")
 para <- glue(
   "
   All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes with a 
   mapped binding window to **both** {collapseGenes(comps)} were compared to 
   the 'universe' of {comma(length(mapped_ids))} genes mapped to **either**, 
   in order to ascertain whether any key gene-sets were likely to be targeted by 
-  *both factors in combination*. Gene-length was included as the source of any 
-  potential sampling bias for a gene being mapped to a target-bound range.
-  "
+  *both factors in combination*. 
+  ",
+  ifelse(
+    gs_method == "Hypergeometric",
+    "No sampling bias offset was incorporated, instead using a simple Hypergeometric model for enrichment testing",
+    "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
+  )
 )
 ```
 
 
 ```{r goseq_t1t2_res, eval = n_targets == 2, fig.show='hide'}
-pwf_t1t2 <- structure(
-  mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
-  names = mapped_ids
-) %>% 
-  nullp(
-    bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-    plot.fit = TRUE
-  ) 
+pwf_t1t2 <- nullp(
+  vec_t1t2
+  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
+  plot.fit = TRUE
+) 
 if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
   goseq_t1t2_res <- pwf_t1t2 %>% 
-    goseq(gene2cat = gs_by_geneid) %>% 
+    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
@@ -1756,8 +1749,9 @@ goseq_group_res <- group_ids %>%
       vec <- structure(mapped_ids %in% x, names = mapped_ids)
       pwf <- nullp(vec, bias.data = n_peaks, plot.fit = FALSE)
       res <- tibble(adj_p = numeric())
+      gs_method <- ifelse(mean(vec) > 0.8, "Hypergeometric", "Wallenius")
       if (sum(pwf$DEgenes) > min_genes & sum(pwf$DEgenes) < max_genes) {
-        res <- goseq(pwf, gene2cat = gs_by_geneid) %>% 
+        res <- goseq(pwf, gene2cat = gs_by_geneid, method = gs_method) %>% 
           as_tibble() %>% 
           dplyr::filter(numDEInCat > 0) %>% 
           mutate(adj_p = p.adjust(over_represented_pvalue, adj_method)) %>% 
@@ -1789,7 +1783,8 @@ goseq_group_res <- group_ids %>%
 
 The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
 The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
-For genes mapped to differentially bound windows, the number of windows mapped to each gene was taken as the potential source of any sampling bias
+For genes mapped to differentially bound windows, the number of windows mapped to each gene was taken as the potential source of any sampling bias.
+However, if the number of genes in the test set exceeded 80% of genes in the 'universe', no sampling bias was included, due to issues with extreme values in the current R implementation of Wallenius' Non-Central Hypergeometric Distribution.
 `r if(length(goseq_group_res) == 0) "No enrichment was found amongst any group of windows"`
 
 
