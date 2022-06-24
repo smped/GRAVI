@@ -1652,7 +1652,7 @@ para <- glue(
 
 ```{r goseq_t1t2_res, eval = n_targets == 2, fig.show='hide'}
 pwf_t1t2 <- nullp(
-  vec_t1t2
+  vec_t1t2,
   bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
   plot.fit = TRUE
 ) 
