@@ -1316,12 +1316,15 @@ df %>%
 ## Window Sizes
 
 ```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows. The x-axis is truncated at the 99.5^th^ percentile of window sizes*"}
-all_windows %>% 
+df <- all_windows %>% 
   mutate(w = width) %>% 
   as_tibble() %>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1] %>% 
+      fct_lump_prop(prop = 0.01)
   ) %>% 
+  droplevels()
+df %>% 
   ggplot(aes(w, fct_rev(status), fill = status)) +
   geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
   facet_grid(
@@ -1330,7 +1333,7 @@ all_windows %>%
   coord_cartesian(xlim = c(0, quantile(width(all_windows), 0.995))) +
   scale_x_continuous(expand = expansion(c(0, 0.05))) +
   scale_fill_manual(
-    values = direction_colours[droplevels(all_windows$status)]
+    values = direction_colours[levels(df$status)]
   ) +
   labs(
     x = "Combined Region Width (bp)",
@@ -1348,7 +1351,8 @@ all_windows %>%
   dplyr::filter(!is.na(distance)) %>% 
   droplevels() %>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1] %>% 
+      fct_lump_prop(prop = 0.01)
   ) %>% 
   ggplot(aes(distance , fct_rev(status), fill = status)) +
   geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
