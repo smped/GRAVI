@@ -185,6 +185,7 @@ This section provides a simple series of visualisations to enable detection of a
 ```{r macs2-logs-individual}
 emphasize.italics.rows(NULL)
 any_fail <- any(macs2_logs$qc == "fail")
+qc_prop <- config$peaks$qc$min_prop_peaks
 if (any_fail) emphasize.italics.rows(which(macs2_logs$qc == "fail"))
 macs2_logs %>%
   dplyr::select(
