@@ -153,7 +153,7 @@ if (has_features)
   )
 direction_colours <- colours$direction %>% 
   setNames(str_to_title(names(.))) %>% 
-  .[c("Up", "Down", "Unchanged")]
+  .[names(.) %in% c("Up", "Down", "Unchanged", "Ambiguous")]
 treat_colours <- colours$treat[treat_levels]
 ```
 
@@ -702,9 +702,9 @@ merged_results <- mergeByCol(
     overlaps_ref = overlapsAny(., consensus_peaks),
     direction = case_when(
       n_up == 0 & n_down == 0 ~ "Unchanged",
-      n_up > n_down ~ "Up",
-      n_down > n_up ~ "Down",
-      n_up == n_down ~ "Ambiguous"
+      logFC > 0 & n_up > n_down ~ "Up",
+      logFC < 0 & n_up < n_down ~ "Down",
+      TRUE ~ "Ambiguous"
     ) %>% 
       factor(levels = c("Up", "Down", "Ambiguous", "Unchanged")) %>% 
       droplevels()
@@ -797,20 +797,20 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = str_to_title(names(colours$direction))) %>% 
-      fct_drop(only = "Undetected")
+      factor(levels = c(levels(direction), "Unchanged")) %>% 
+      droplevels()
   )
 ```
 
 `r ifelse(ihw_method == "none", "No independent Hypothesis Weighting was specified", "")`
 
-```{r ihw-regions, eval = ihw_method == "regions", echo=FALSE, child = here::here('workflow/modules/ihw_regions.Rmd')}
+```{r ihw-regions, eval = ihw_method == "regions", echo=TRUE, child = here::here('workflow/modules/ihw_regions.Rmd')}
 ```
 
-```{r ihw-features, eval = ihw_method == "features", echo=FALSE, child = here::here('workflow/modules/ihw_features.Rmd')}
+```{r ihw-features, eval = ihw_method == "features", echo=TRUE, child = here::here('workflow/modules/ihw_features.Rmd')}
 ```
 
-```{r ihw-targets, eval = ihw_method == "targets", echo=FALSE, child = here::here('workflow/modules/ihw_targets.Rmd')}
+```{r ihw-targets, eval = ihw_method == "targets", echo=TRUE, child = here::here('workflow/modules/ihw_targets.Rmd')}
 ```
 
 ## Mapping Windows
@@ -979,6 +979,8 @@ profile_heatmaps <- profile_heatmaps %>%
 ### MA Plot
 
 ```{r plot-ma, fig.cap = glue("*MA plot showing the status of each window under consideration. The two most extreme regions are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. Windows are plotted in separate panels based on those which overlap a `macs2` consensus peak.*")}
+if (!"Ambiguous" %in% levels(merged_results$status)) 
+  direction_colours <- direction_colours[names(direction_colours) != "Ambiguous"]
 merged_results %>% 
   as_tibble() %>%
   ggplot(aes(AveExpr, logFC)) +
@@ -1087,10 +1089,17 @@ profile_heatmaps$Down
 merged_results %>% 
   select(overlaps_ref, status) %>% 
   as.data.frame() %>% 
-  mutate(status = str_remove(as.character(status), " \\+ Ref Peak")) %>% 
+  mutate(
+    merge_status = fct_collapse(
+      status,
+      Up = "Up",
+      Down = "Down",
+      `Ambiguous/Unchanged` = c("Ambiguous", "Unchanged")
+    )
+  ) %>% 
   ggplot(aes(seqnames, fill = status, alpha = overlaps_ref)) +
   geom_bar() +
-  facet_grid(status~., scales = "free_y") +
+  facet_grid(merge_status~., scales = "free_y") +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   scale_fill_manual(values =  direction_colours) +
   scale_alpha_manual(values = c(0.5, 1)) +
@@ -1308,6 +1317,71 @@ bar_style <- function(width = 1, fill = "#e6e6e6", height = "75%", align = c("le
 with_tooltip <- function(value, width = 30) {
   tags$span(title = value, str_trunc(value, width))
 }
+tbl_cols <- list(
+  `Macs2 Peak` = colDef(footer = htmltools::tags$b("Total")),
+  Region = colDef(
+    footer = htmltools::tags$b("Total"), minWidth = 200, maxWidth = 250
+  ),
+  Feature = colDef(
+    footer = htmltools::tags$b("Total"), minWidth = 200, maxWidth = 250
+  ),
+  Up = colDef(
+    cell = function(value) comma(value, 1),
+    style = function(value) {
+      normalized <- value / (length(merged_results) - sum(df$Unchanged))
+      color <- up_col(normalized)
+      list(background = color)
+    },
+    footer = function(values) htmltools::tags$b(comma(sum(values)))
+  ),
+  Down = colDef(
+    cell = function(value) comma(value, 1),
+    style = function(value) {
+      normalized <- value / (length(merged_results) - sum(df$Unchanged))
+      color <- down_col(normalized)
+      list(background = color)
+    },
+    footer = function(values) htmltools::tags$b(comma(sum(values)))
+  ),
+  Ambiguous = colDef(
+    cell = function(value) comma(value, 1),
+    style = function(value) {
+      normalized <- value / (length(merged_results) - sum(df$Unchanged))
+      color <- unch_col(normalized)
+      list(background = color)
+    },
+    footer = function(values) htmltools::tags$b(comma(sum(values)))
+  ),
+  Unchanged = colDef(
+    cell = function(value) comma(value, 1),
+    style = function(value) {
+      normalized <- value / length(merged_results)#sum(df$Unchanged)
+      color <- unch_col(normalized)
+      list(background = color)
+    },
+    footer = function(values) htmltools::tags$b(comma(sum(values)))
+  ),
+  `% Changed` = colDef(
+    cell = function(value) percent(value, 0.1),
+    style = function(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
+    align = "right",
+    footer = htmltools::tags$b(
+      percent(sum(1 - sum(df$Unchanged) / sum(df$Total)), 0.1)
+    )
+  ),
+  Total = colDef(
+    cell = function(value) comma(value, 1),
+    style = function(value) {
+      bar_style(width = value / length(merged_results), fill = "#B3B3B3", align = "right")
+    },
+    align = "right",
+    footer = function(values) htmltools::tags$b(comma(sum(values)))
+  ),
+  `% Of All Windows` = colDef(
+    style = function(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
+    format = colFormat(digits = 2, percent = TRUE)
+  )
+)
 ```
 
 
@@ -1335,55 +1409,7 @@ cp <- htmltools::em(
     "derived consensus peak."
   )
 )
-tbl <- df %>%
-  reactable(
-    columns = list(
-      `Macs2 Peak` = colDef(footer = htmltools::tags$b("Total")),
-      Up = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / (length(merged_results) - sum(df$Unchanged))
-          color <- up_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      Down = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / (length(merged_results) - sum(df$Unchanged))
-          color <- down_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      Unchanged = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / length(merged_results)#sum(df$Unchanged)
-          color <- unch_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      `% Changed` = colDef(
-        cell = function(value) percent(value, 0.1),
-        style = function(value) bar_style(width = value, fill = "#B3B3B3"),
-        align = "left",
-        footer = htmltools::tags$b(
-          percent(sum(1 - sum(df$Unchanged) / sum(df$Total)), 0.1)
-        )
-      ),
-      Total = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          bar_style(width = value / length(merged_results), fill = "#B3B3B3")
-        },
-        align = "left",
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      )
-    )
-  )
+tbl <- reactable(df, columns = tbl_cols[colnames(df)])
 div(class = "table",
   div(class = "table-header",
       div(class = "caption", cp),
@@ -1403,17 +1429,18 @@ df <- merged_results %>%
   group_by(region, status) %>% 
   summarise(n = dplyr::n(), .groups = "drop") %>% 
   complete(region, status, fill = list(n = 0)) %>% 
-  pivot_wider(names_from = "status", values_from = "n") %>% 
+  group_by(region) %>% 
+  mutate(Total = sum(n)) %>% 
   ungroup() %>% 
+  pivot_wider(names_from = "status", values_from = "n") %>% 
   mutate(
-    Total = Up + Down + Unchanged,
     `% Of All Windows` = Total / length(merged_results),
     `% Changed` = 1 - Unchanged / Total
   ) %>% 
   arrange(region) %>% 
   dplyr::select(
     Region = region,
-    any_of(str_to_title(names(colours$direction))),
+    any_of(names(direction_colours)),
     `% Changed`, Total, `% Of All Windows`
   )
 cp <- htmltools::em(
@@ -1425,52 +1452,10 @@ cp <- htmltools::em(
 )
 tbl <- df %>%
   reactable(
-    columns = list(
-      Region = colDef(footer = htmltools::tags$b("Total")),
-      Up = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / (length(merged_results) - sum(df$Unchanged))
-          color <- up_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      Down = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / (length(merged_results) - sum(df$Unchanged))
-          color <- down_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      Unchanged = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / length(merged_results)#sum(df$Unchanged)
-          color <- unch_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      `% Changed` = colDef(
-        cell = function(value) percent(value, 0.1),
-        footer = htmltools::tags$b(
-          percent(sum(1 - sum(df$Unchanged) / sum(df$Total)), 0.1)
-        )
-      ),
-      Total = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          bar_style(width = value / length(merged_results), fill = "#B3B3B3")
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      `% Of All Windows` = colDef(
-        cell = function(value) percent(value, 0.1),
-        footer = htmltools::tags$b("100%")
-      )
+    columns = tbl_cols[colnames(df)],
+    defaultColDef = colDef(
+      maxWidth = 100,
+      footer = function(values) htmltools::tags$b(comma(sum(values)))
     )
   )
 div(class = "table",
@@ -1493,16 +1478,18 @@ df <- merged_results %>%
   tally() %>% 
   ungroup() %>% 
   complete(feature, status, fill = list(n = 0)) %>% 
+  group_by(feature) %>% 
+  mutate(Total = sum(n)) %>% 
+  ungroup() %>% 
   pivot_wider(names_from = "status", values_from = "n") %>% 
   mutate(
-    Total = Up + Down + Unchanged,
     `% Of All Windows` = Total / length(merged_results),
     `% Changed` = 1 - Unchanged / Total
   ) %>% 
   arrange(feature) %>% 
   dplyr::select(
     Feature = feature,
-    any_of(str_to_title(names(colours$direction))),
+    any_of(names(direction_colours)),
     `% Changed`, Total, `% Of All Windows`
   )
 cp <- htmltools::em(
@@ -1514,53 +1501,10 @@ cp <- htmltools::em(
 )
 tbl <- df %>%
   reactable(
-    columns = list(
-      Feature = colDef(footer = htmltools::tags$b("Total")),
-      Up = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / (length(merged_results) - sum(df$Unchanged))
-          color <- up_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      Down = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / (length(merged_results) - sum(df$Unchanged))
-          color <- down_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      Unchanged = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          normalized <- value / length(merged_results)#sum(df$Unchanged)
-          color <- unch_col(normalized)
-          list(background = color)
-        },
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      `% Changed` = colDef(
-        cell = function(value) percent(value, 0.1),
-        footer = htmltools::tags$b(
-          percent(sum(1 - sum(df$Unchanged) / sum(df$Total)), 0.1)
-        )
-      ),
-      Total = colDef(
-        cell = function(value) comma(value, 1),
-        style = function(value) {
-          bar_style(width = value / length(merged_results), fill = "#B3B3B3")
-        },
-        align = "left",
-        footer = function(values) htmltools::tags$b(comma(sum(values)))
-      ),
-      `% Of All Windows` = colDef(
-        cell = function(value) percent(value, 0.1),
-        footer = htmltools::tags$b("100%")
-      )
+    columns = tbl_cols[colnames(df)],
+    defaultColDef = colDef(
+      maxWidth = 100,
+      footer = function(values) htmltools::tags$b(comma(sum(values)))
     )
   )
 div(class = "table",
@@ -1867,10 +1811,14 @@ makeCaption <- function(.gr) {
     !str_detect(.gr$feature, "^[AEIOU]") ~ paste("a", .gr$feature)
   )
   gn <- unlist(.gr$gene_name)
+  fdr <- mcols(.gr)[[fdr_column]]
+  fdr <- ifelse(
+    fdr < 0.001, sprintf('%.2e', fdr), sprintf('%.3f', fdr)
+  )
   cp <- c(
     glue(
       "*The {width(.gr)}bp region showing {dir} {target} binding in response to ", 
-      "{treat_levels[[2]]} treatment (FDR = {sprintf('%.2e', mcols(.gr)[[fdr_column]])}). ",
+      "{treat_levels[[2]]} treatment (FDR = {fdr}). ",
       "The range mostly overlapped with {reg}, with all ",
       "defined regions shown as a contiguous bar. ",
       ifelse(
@@ -1978,9 +1926,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2002,9 +1948,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2048,9 +1992,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2071,9 +2013,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2095,9 +2035,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2119,9 +2057,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2143,9 +2079,7 @@ plotHFGC(
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
-  annotcol = colours$direction %>% 
-    setNames(str_to_title(names(.))) %>% 
-    .[unique(unlist(lapply(annot, names)))],
+  annotcol = direction_colours,  
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
@@ -2405,7 +2339,8 @@ pwf_diff <- genes_gr %>%
   left_join(mapped_ids, by = "gene_id") %>% 
   mutate(
     n_peaks = ifelse(is.na(n_peaks), 0, n_peaks),
-    diff = ifelse(n_peaks > 0, up|down, FALSE)
+    diff = ifelse(n_peaks > 0, up|down, FALSE),
+    diff = ifelse(is.na(diff), FALSE, diff)
   ) %>% 
   with(
     nullp(
@@ -2541,7 +2476,8 @@ pwf_up <- genes_gr %>%
   left_join(mapped_ids, by = "gene_id") %>% 
   mutate(
     n_peaks = ifelse(is.na(n_peaks), 0, n_peaks),
-    diff = ifelse(n_peaks > 0, up, FALSE)
+    diff = ifelse(n_peaks > 0, up, FALSE),
+    diff = ifelse(is.na(diff), FALSE, diff)
   ) %>% 
   with(
     nullp(
@@ -2676,7 +2612,8 @@ pwf_down <- genes_gr %>%
   left_join(mapped_ids, by = "gene_id") %>% 
   mutate(
     n_peaks = ifelse(is.na(n_peaks), 0, n_peaks),
-    diff = ifelse(n_peaks > 0, down, FALSE)
+    diff = ifelse(n_peaks > 0, down, FALSE),
+    diff = ifelse(is.na(diff), FALSE, diff)
   ) %>% 
   with(
     nullp(

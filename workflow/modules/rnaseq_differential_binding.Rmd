@@ -282,70 +282,64 @@ cmn_genes <- intersect(
   rnaseq %>% dplyr::filter(!!sym(rna_fdr_col) < fdr_alpha) %>% pull("gene_id"),
   merged_results %>% 
     filter(!!sym(fdr_column) < fdr_alpha) %>% 
-    #as_tibble() %>% 
-    as.data.frame() %>%
+    as_tibble() %>% 
     pull("gene_id") %>% 
     unlist()
 )
-de_genes_db_regions <- tibble()
-if (!is.null(cmn_genes)) {
-  de_genes_db_regions <- merged_results %>% 
-    filter(!!sym(fdr_column) < fdr_alpha) %>% 
-    filter(vapply(gene_id, function(x) any(x %in% cmn_genes), logical(1))) %>% 
-    as_tibble() %>% 
-    dplyr::select(
-      range, ChIP_logCPM = AveExpr, ChIP_logFC = logFC, ChIP_FDR := !!sym(fdr_column), overlaps_ref,
-      status, any_of(c("region", "feature")), gene_id
-    ) %>% 
-    unnest(gene_id) %>% 
-    dplyr::filter(gene_id %in% cmn_genes) %>% 
-    left_join(
-      rnaseq %>% 
-        dplyr::filter(gene_id %in% cmn_genes) %>% 
-        dplyr::select(
-          all_of(c("gene_id", "gene_name")), 
-          RNA_logFC := !!sym(rna_lfc_col), RNA_FDR := !!sym(rna_fdr_col)
-        ),
-      by = "gene_id"
-    ) %>% 
-    arrange(RNA_FDR) %>% 
-    # dplyr::slice(1:20) %>%
-    mutate(
-      dist2Gene = mapply(
-        function(x, y) {
-          distance(GRanges(x), subset(genes_gr, gene_id == y)) 
-        },
-        x = range,
-        y = gene_id
-      )
-    ) %>% 
-    mutate(
-      region = case_when(
-        dist2Gene > params$gene_regions$upstream & str_detect(region, "Promoter|Exon|Intron") ~ paste(
-          str_extract(region, ".*(Promoter|Exon|Intron)"), "(Other Gene)"),
-        TRUE ~ as.character(region)
+de_genes_db_regions <- merged_results %>% 
+  filter(!!sym(fdr_column) < fdr_alpha) %>% 
+  filter(vapply(gene_id, function(x) any(x %in% cmn_genes), logical(1))) %>% 
+  as_tibble() %>% 
+  dplyr::select(
+    range, ChIP_logCPM = AveExpr, ChIP_logFC = logFC, ChIP_FDR := !!sym(fdr_column), overlaps_ref,
+    status, any_of(c("region", "feature")), gene_id
+  ) %>% 
+  unnest(gene_id) %>% 
+  dplyr::filter(gene_id %in% cmn_genes) %>% 
+  left_join(
+    rnaseq %>% 
+      dplyr::filter(gene_id %in% cmn_genes) %>% 
+      dplyr::select(
+        all_of(c("gene_id", "gene_name")), 
+        RNA_logFC := !!sym(rna_lfc_col), RNA_FDR := !!sym(rna_fdr_col)
       ),
-      region = factor(
-        region, 
-        levels = c(
-          levels(merged_results$region), 
-          paste(
-            str_extract(levels(merged_results$region), ".*(Promoter|Exon|Intron)"), 
-            "(Other Gene)"
-          )
-        ) %>% 
-          unique()
-      )
-    ) %>% 
-    dplyr::select(
-      gene_name, gene_id, starts_with("RNA"), range, dist2Gene, 
-      starts_with("ChIP"), everything()
-    ) %>% 
-    droplevels()
-}
+    by = "gene_id"
+  ) %>% 
+  arrange(RNA_FDR) %>% 
+  # dplyr::slice(1:20) %>%
+  mutate(
+    dist2Gene = mapply(
+      function(x, y) {
+        distance(GRanges(x), subset(genes_gr, gene_id == y)) 
+      },
+      x = range,
+      y = gene_id
+    )
+  ) %>% 
+  mutate(
+    region = case_when(
+      dist2Gene > params$gene_regions$upstream & str_detect(region, "Promoter|Exon|Intron") ~ paste(
+        str_extract(region, ".*(Promoter|Exon|Intron)"), "(Other Gene)"),
+      TRUE ~ as.character(region)
+    ),
+    region = factor(
+      region, 
+      levels = c(
+        levels(merged_results$region), 
+        paste(
+          str_extract(levels(merged_results$region), ".*(Promoter|Exon|Intron)"), 
+          "(Other Gene)"
+        )
+      ) %>% 
+        unique()
+    )
+  ) %>% 
+  dplyr::select(
+    gene_name, gene_id, starts_with("RNA"), range, dist2Gene, 
+    starts_with("ChIP"), everything()
+  ) %>% 
+  droplevels()
 ```
-
-`r if (nrow(de_genes_db_regions) == 0) "No differentially expressed genes were common to differentially-bound regions"`
 
 ```{r tab-de-genes-db-regions, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0}
 range_js <- JS(
@@ -539,18 +533,22 @@ tbl <- de_genes_db_regions %>%
             if (str_detect(value, "Down")) html_symbol <- "\u21E9"
             paste(html_symbol, value)
           },
-          style = function(value) {
-            colour <- case_when(
-              str_detect(value, "Up") ~ colours$direction[["up"]],
-              str_detect(value, "Down") ~ colours$direction[["down"]],
-              TRUE ~ colours$direction[["unchanged"]]
+          style = JS(
+            glue(
+            "function(rowInfo) {
+              var value = rowInfo.row['ChIP_logFC']
+              if (value < 0) {
+                var color = '{{direction_colours[['Down']]}}'
+              } else if (value > 0) {
+                var color = '{{direction_colours[['Up']]}}'
+              } else {
+                var color = '#000000'
+              }
+              return { color: color, fontSize: {{fs}} }
+            }",
+            .open = "{{", .close = "}}"
             )
-            list(
-              color = colour, 
-              borderRight = "1px solid rgba(0, 0, 0, 0.1)",
-              fontSize = fs
-            )
-          }
+          )
         ),
         region = colDef(
           name = "Binding Region",
@@ -568,7 +566,6 @@ div(class = "table",
   )
 )
 ```
-
 
 
 ## Directional GSEA {.tabset}

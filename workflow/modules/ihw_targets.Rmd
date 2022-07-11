@@ -56,8 +56,8 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = str_to_title(names(colours$direction))) %>% 
-      fct_drop(only = "Undetected")
+      factor(levels = c(levels(direction), "Unchanged")) %>% 
+      droplevels()
   )
 ```
 
@@ -95,9 +95,13 @@ tibble(ihw = ihw_all) %>%
 
 ```{r plot-ihw-pvals, fig.height= 3 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
 y <- ggplot_build(
-  tibble(P.Value = merged_results$P.Value,) %>% 
+  tibble(
+    P.Value = merged_results$P.Value,
+    ihw_covariate = merged_results$ihw_covariate
+    ) %>% 
     ggplot(aes(P.Value, stat(density))) + 
-    geom_histogram(bins = 100) 
+    geom_histogram(bins = 100) +
+    facet_wrap(~ihw_covariate) 
 ) %>% .[["data"]] %>% 
   .[[1]] %>% 
   .[["y"]] %>% 
@@ -120,7 +124,6 @@ merged_results %>%
   ) +
   facet_wrap(~ihw_covariate) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  xlim(c(0, 1)) +
   labs(x = "P Value", y = "Density")
 ```
 

@@ -702,12 +702,14 @@ if (length(missing_treat_cols) > 0) {
 
 ## Direction colours always need up, down, unchanged & undetected
 missing_dir_cols <- setdiff(
-  c("up", "down", "unchanged", "undetected"), names(colours$direction)
+  c("up", "down", "unchanged", "undetected", "ambiguous"), 
+  names(colours$direction)
 )
 if (length(missing_dir_cols) > 0){
   def_dir_cols <- c(
     up = "#CA0020", down = "#0571B0", 
-    unchanged = "#7F7F7F", undetected = "#E5E5E5"
+    unchanged = "#7F7F7F", undetected = "#E5E5E5",
+    ambiguous = "#000000"
   )
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }

@@ -42,8 +42,8 @@ merged_results <- merged_results %>%
       !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
       !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
     ) %>% 
-      factor(levels = str_to_title(names(colours$direction))) %>% 
-      fct_drop(only = "Undetected")
+      factor(levels = c(levels(direction), "Unchanged")) %>% 
+      droplevels()
   )
 ```
 
@@ -113,7 +113,6 @@ merged_results %>%
   ) +
   facet_wrap(~ihw_covariate, ncol = 3, labeller = lblr) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  xlim(c(0, 1)) +
   labs(x = "P Value", y = "Density")
 ```
 

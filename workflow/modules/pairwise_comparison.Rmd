@@ -70,7 +70,6 @@ if (length(unique(targets)) == 1) {
 n_targets = length(unique(names(pairs)))
 samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
   lapply(read_tsv) %>% 
-  lapply(mutate_all, as.character) %>% 
   bind_rows() %>% 
   dplyr::filter(
     qc == "pass",
@@ -592,6 +591,8 @@ mcols(all_windows)[["status"]] <- paste(
 mcols(all_windows)[["distance"]] <- abs(
   mcols(all_windows)[[glue("{comps[[1]]}_centre")]] - mcols(all_windows)[[glue("{comps[[2]]}_centre")]]
   )
+## Remove any with an 'ambiguous' status
+all_windows <- subset(all_windows, !is.na(status))
 
 if (has_features) 
   all_windows$feature <- bestOverlap(
@@ -1317,15 +1318,12 @@ df %>%
 ## Window Sizes
 
 ```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows. The x-axis is truncated at the 99.5^th^ percentile of window sizes*"}
-df <- all_windows %>% 
+all_windows %>% 
   mutate(w = width) %>% 
   as_tibble() %>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1] %>% 
-      fct_lump_prop(prop = 0.01)
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
   ) %>% 
-  droplevels()
-df %>% 
   ggplot(aes(w, fct_rev(status), fill = status)) +
   geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
   facet_grid(
@@ -1334,7 +1332,7 @@ df %>%
   coord_cartesian(xlim = c(0, quantile(width(all_windows), 0.995))) +
   scale_x_continuous(expand = expansion(c(0, 0.05))) +
   scale_fill_manual(
-    values = direction_colours[levels(df$status)]
+    values = direction_colours[droplevels(all_windows$status)]
   ) +
   labs(
     x = "Combined Region Width (bp)",
@@ -1352,8 +1350,7 @@ all_windows %>%
   dplyr::filter(!is.na(distance)) %>% 
   droplevels() %>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1] %>% 
-      fct_lump_prop(prop = 0.01)
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
   ) %>% 
   ggplot(aes(distance , fct_rev(status), fill = status)) +
   geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
@@ -1495,8 +1492,8 @@ gs_url <- msigdb %>%
     )
   ) %>% 
   with(setNames(gs_url, gs_name))
-min_genes <- params$enrichment$min_prop_goseq * length(genes_gr)
-max_genes <- params$enrichment$max_prop_goseq * length(genes_gr)
+min_genes <- params$enrichment$min_prop_goseq 
+max_genes <- params$enrichment$max_prop_goseq
 enrich_alpha <- params$enrichment$alpha
 adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
 adj_desc <- case_when(
@@ -1541,11 +1538,10 @@ pwf_mapped  <- structure(
   names = all_ids$gene_id
 ) %>% 
   nullp(bias.data = log10(all_ids$w), plot.fit = TRUE)
-gs_method <- ifelse(mean(pwf_mapped$DEgenes) > 0.8, "Hypergeometric", "Wallenius")
 goseq_mapped_res <- tibble(gs_name = character(), adj_p = numeric())
-if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
+if (mean(pwf_mapped$DEgenes) > min_genes & mean(pwf_mapped$DEgenes) < max_genes) {
   goseq_mapped_res <- pwf_mapped %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
+    goseq(gene2cat = gs_by_geneid) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
@@ -1565,8 +1561,7 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
 
 All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
 `r if (any_detected) "Regilatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
-`r if (gs_method == "Hypergeometric") "No sampling bias offset was incorporated, instead using a simple Hypergeometric model for enrichment testing"`
-`r if (gs_method == "Wallenius") "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a source-bound range."`
+Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
 This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
 `r if (nrow(goseq_mapped_res) == 0) "No enrichment was found."`
 
@@ -1661,7 +1656,7 @@ pwf_t1t2 <- nullp(
   bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
   plot.fit = TRUE
 ) 
-if (sum(pwf_t1t2$DEgenes) > min_genes & sum(pwf_t1t2$DEgenes) < max_genes) {
+if (mean(pwf_t1t2$DEgenes) > min_genes & mean(pwf_t1t2$DEgenes) < max_genes) {
   goseq_t1t2_res <- pwf_t1t2 %>% 
     goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
@@ -1755,7 +1750,7 @@ goseq_group_res <- group_ids %>%
       pwf <- nullp(vec, bias.data = n_peaks, plot.fit = FALSE)
       res <- tibble(adj_p = numeric())
       gs_method <- ifelse(mean(vec) > 0.8, "Hypergeometric", "Wallenius")
-      if (sum(pwf$DEgenes) > min_genes & sum(pwf$DEgenes) < max_genes) {
+      if (mean(pwf$DEgenes) > min_genes & mean(pwf$DEgenes) < max_genes) {
         res <- goseq(pwf, gene2cat = gs_by_geneid, method = gs_method) %>% 
           as_tibble() %>% 
           dplyr::filter(numDEInCat > 0) %>% 
