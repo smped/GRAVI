@@ -932,18 +932,9 @@ profile_heatmaps <- sig_profiles %>%
   bplapply(
     plotProfileHeatmap,
     profileCol = "profile_data", 
-    facetY = "overlaps_ref",
     colour = "name",
-    linetype = "overlaps_ref",
     xLab = "Distance from Centre (bp)",
     fillLab = "logCPM",
-    labeller = as_labeller(
-        c(
-          setNames(treat_levels, treat_levels),
-          `TRUE` = "Consensus\nPeak",
-          `FALSE` = "No\nConsensus\nPeak"
-        )
-    ),
     BPPARAM = MulticoreParam(length(sig_ranges))
   ) 
 fill_range <- profile_heatmaps %>% 
@@ -955,23 +946,23 @@ sidey_range <- profile_heatmaps %>%
   unlist() %>% 
   range()
 profile_heatmaps <- profile_heatmaps %>% 
-  lapply(function(x) {
-    x + 
-      scale_fill_viridis_c(
-        option = "inferno", direction = -1, limits = fill_range
-      ) +
-      scale_xsidey_continuous(limits = sidey_range) +
-      scale_colour_manual(values = treat_colours) +
-      scale_linetype_manual(values = c("TRUE" = 1, "FALSE" = 2)) +
-      labs(
-        x = "Distance from Centre (bp)",
-        fill = "logCPM", linetype = "Consensus\nPeak\nOverlap",
-        colour = "Treat"
-      ) +
-      theme(
-        strip.text.y = element_text(angle = 0)
-      )
-  }
+  lapply(
+    function(x) {
+      x + 
+        scale_fill_viridis_c(
+          option = "inferno", direction = -1, limits = fill_range
+        ) +
+        scale_xsidey_continuous(limits = sidey_range) +
+        scale_colour_manual(values = treat_colours) +
+        labs(
+          x = "Distance from Centre (bp)",
+          fill = "logCPM", 
+          colour = "Treat"
+        ) +
+        theme(
+          strip.text.y = element_text(angle = 0)
+        )
+    }
   )
 ```
 
@@ -1072,14 +1063,14 @@ merged_results %>%
 
 `r ifelse("Up" %in% names(profile_heatmaps), "### Heatmap: Increased Binding\n", "")`
 
-```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of increased {target} binding in the {treat_levels[[2]]} group, separated by those which did or did not overlap a consensus peak. A total of {comma(length(sig_ranges[['Up']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Up)/1.5e3 + 6)}
+```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of increased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Up']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Up)/1.5e3 + 6)}
 profile_heatmaps$Up
 ```
 
 
 `r ifelse("Down" %in% names(profile_heatmaps), "### Heatmap: Decreased Binding\n", "")`
 
-```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of decreased {target} binding in the {treat_levels[[2]]} group, separated by those which did or did not overlap a consensus peak. A total of {comma(length(sig_ranges[['Down']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Down)/1.5e3 + 6)}
+```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of decreased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Down']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Down)/1.5e3 + 6)}
 profile_heatmaps$Down
 ```
 
@@ -1409,6 +1400,9 @@ cp <- htmltools::em(
     "derived consensus peak."
   )
 )
+tbl_cols$`% Changed`$footer <- htmltools::tags$b(
+      percent(sum(1 - sum(df$Unchanged) / sum(df$Total)), 0.1)
+    )
 tbl <- reactable(df, columns = tbl_cols[colnames(df)])
 div(class = "table",
   div(class = "table-header",

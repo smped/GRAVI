@@ -24,6 +24,7 @@ library(parallel)
 library(Rsamtools)
 library(Biostrings)
 library(ggside)
+library(eulerr)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -133,6 +134,8 @@ cb <- config$genome$build %>%
   paste0(".cytobands") 
 data(list = cb)
 bands_df <- get(cb)
+fig_path <- here::here("docs", "assets", target)
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 ```
 
 ```{r bfl}
@@ -147,6 +150,12 @@ individual_peaks <- file.path(
   macs2_path, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%
   importPeaks(seqinfo = sq, blacklist = blacklist) %>%
+  endoapply(names_to_column, var = "sample") %>% 
+  endoapply(mutate, sample = str_remove(sample, "_peak_[0-9]+$")) %>% 
+  endoapply(
+    mutate, 
+    treat = left_join(tibble(sample = sample), samples, by = "sample")$treat
+  ) %>% 
   setNames(samples$sample)
 ```
 
@@ -424,6 +433,146 @@ samples$sample %>%
 
 ## Results 
 
+### Individual Replicates {.tabset}
+
+```{r load-replicates}
+replicates_by_treat <- individual_peaks %>%
+  unlist() %>% 
+  splitAsList(.$treat) %>% 
+  endoapply(select, sample) %>% 
+  endoapply(reduceMC) %>% 
+  lapply(as_tibble) %>% 
+  lapply(unnest, sample) %>% 
+  lapply(mutate, detected = 1) %>% 
+  lapply(left_join, dplyr::select(samples, sample, label), by = "sample") %>%
+  lapply(dplyr::select, -sample) %>% 
+  lapply(function(x) {
+    split(x, x$label) %>% 
+      lapply(pull, "range")
+    }
+  )
+```
+
+
+```{r plot-replicates}
+htmltools::tagList(
+  treat_levels %>% 
+    lapply(
+      function(i) {
+        x <- replicates_by_treat[[i]]
+        png_path <- file.path(fig_path, glue("{i}_replicates.png"))
+        ## Draw a circle for one replicate
+        if (length(x) == 1) sets <- setNames(length(x[[1]]), names(x)[[1]])
+        ## Euler diagrams for 2-3 replicates
+        if (length(x) == 2) {
+          sets <- c(
+            length(setdiff(x[[1]], x[[2]])),
+            length(setdiff(x[[2]], x[[2]])),
+            length(intersect(x[[1]], x[[2]]))
+          ) %>% 
+            setNames(
+              c(names(x), paste(names(x), collapse = "&"))
+            )
+        }
+        if (length(x) == 3) {
+          sets <- c(
+            length(setdiff(x[[1]], unlist(x[-1]))),
+            length(setdiff(x[[2]], unlist(x[-2]))),
+            length(setdiff(x[[3]], unlist(x[-3]))),
+            length(intersect(x[[1]], x[[2]])),
+            length(intersect(x[[1]], x[[3]])),
+            length(intersect(x[[2]], x[[3]])),
+            length(intersect(x[[1]], x[[2]]) %>% intersect(x[[3]]))
+          ) %>% 
+            setNames(
+              c(
+                names(x), 
+                paste(names(x)[1:2], collapse = "&"),
+                paste(names(x)[-2], collapse = "&"),
+                paste(names(x)[2:3], collapse = "&"),
+                paste(names(x), collapse = "&")
+              )
+            )
+        }
+        if (length(x) <= 3) {
+          png(
+            png_path, 
+            width = knitr::opts_chunk$get("fig.width"),
+            height = ifelse(
+              length(x) < 3,
+              knitr::opts_chunk$get("fig.height") * 0.8,
+              knitr::opts_chunk$get("fig.height") 
+            ),
+            units = "in", res = 300
+          )
+          grid.newpage()
+          grid.draw(
+            plot(
+              euler(sets), 
+              quantities = list(fontsize = 12),
+              edges = list(col = "black", alpha = 1),
+              fills = list(
+                fill = rep(colours$treat[[i]], length(x)),
+                alpha = 0.3
+              ),
+              labels = list(fontsize = 14),
+              adjust_labels = FALSE
+            )
+          )
+          dev.off()
+        }
+        ## An UpSet plot for > 3 replicates
+        if (length(x) > 3) {
+          png(
+            png_path, 
+            width = knitr::opts_chunk$get("fig.width"),
+            height = knitr::opts_chunk$get("fig.height"),
+            units = "in", res = 300
+          )
+          fromList(x) %>% 
+            upset(
+              sets = rev(colnames(.)),
+              keep.order = TRUE,
+              order.by = "freq",
+              set_size.show = TRUE,
+              set_size.scale_max = max(colSums(.)) * 1.15, 
+              text.scale = 1.2, 
+              point.size = 3
+            )
+          dev.off()
+        }
+        
+        ## Define the caption
+        cp <- htmltools::tags$em(
+          glue(
+            "Numbers of peaks detected in each {i} replicate and numbers of 
+              peaks shared between replicates."
+          )
+        )
+        
+        ## Create html tags
+        fig_link <- str_extract(png_path, "assets.+")
+        htmltools::div(
+          htmltools::div(
+            id = glue("{i}-replicates"),
+            class="section level4",
+            htmltools::h4(i),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = 960),
+              htmltools::p(
+                class = "caption", htmltools::tags$em(cp)
+              )
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+
+
 ### Oracle Peaks {.tabset}
 
 ```{r oracle-peaks}
@@ -595,8 +744,6 @@ The number of replicates generating each peak was defined as the total across al
 #### `r ifelse(length(treat_levels) <= 3, "Venn Diagram", "Upset Plot")`
 
 ```{r plot-common-peaks, results = 'hide', echo = length(treat_levels) <= 3}
-fig_path <- here::here("docs", "assets", target)
-if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_name <- glue("{target}_common_peaks.png")
 ## An empty file to keep snakemake happy if > 3 treatments
 file.create(file.path(fig_path, fig_name)) 
@@ -742,65 +889,6 @@ consensus_peaks %>%
   )
 ```
 
-`r ifelse(has_features & any_detected, "#### Detected Genes, External Features And Gene-Centric Regions", "")`
-
-```{r plot-pie-feature-region-detected, eval = has_features & any_detected, echo = has_features & any_detected, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions, separated by whether each peak is mapped to a detected gene. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. In the absence of HiC an excess of Distal Intergenic regions would be expected to remain unmapped.*")}
-df <- consensus_peaks %>% 
-  as_tibble() %>% 
-  mutate(
-     region = fct_relabel(region, str_wrap, width = 20)
-  ) %>% 
-  group_by(region, Feature) %>% 
-  summarise(
-    total = dplyr::n(),
-    detected = sum(detected),
-    .groups = "drop"
-  ) %>% 
-  mutate(
-    not_detected = total - detected,
-    r = total / sum(total)
-  ) %>% 
-  pivot_longer(
-    cols = ends_with("detected"), names_to = "status", values_to = "n"
-  ) %>% 
-  mutate(
-    status = str_sep_to_title(status),
-    x0 = as.integer(region),
-    y0 = as.integer(Feature)
-  ) 
-df %>% 
-  ggplot() +
-  ggforce::stat_pie(
-    aes(
-      x0 = x0, y0 = y0, r0 = 0, r = 0.5 * r / max(r), fill = status, amount = n
-    )
-  ) +
-  geom_label(
-    aes(x0, y0, label = comma(total)),
-    data = . %>% 
-      distinct(region, Feature, .keep_all = TRUE) %>% 
-      dplyr::filter(total > 0.05*sum(total)),
-    alpha = 0.8,
-    size = 4
-  ) +
-  scale_x_continuous(
-    breaks = seq_along(levels(df$region)), labels = levels(df$region)
-  ) +
-  scale_y_continuous(
-    breaks = seq_along(levels(df$Feature)), labels = levels(df$Feature)
-  ) +
-  scale_fill_manual(values = c(Detected = "red", "Not Detected" = "grey70") ) +
-  labs(
-    x = "Region", y = "External Feature",
-    fill = "Mapped To Any\nDetected Genes"
-  ) +
-  coord_equal() +
-  theme(
-    panel.grid = element_blank(),
-    axis.line.x = element_line(),
-    legend.position = "top"
-  )
-```
 
 ## Highly Ranked Peaks {.tabset}
 
