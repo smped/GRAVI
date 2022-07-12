@@ -102,8 +102,8 @@ combs <- paste(
   set_colnames(c("S1", "S2")) %>% 
   as_tibble() %>%
   mutate(
-    C1 = str_extract(S1, comps[[1]]), 
-    C2 = str_extract(S2, comps[[2]])
+    C1 = str_remove(S1, " (Up|Down|Unchanged|Undetected)"),
+    C2 = str_remove(S2, " (Up|Down|Unchanged|Undetected)"),
     ) %>%
   dplyr::filter(C1 != C2) %>%
   unite(combn, S1, S2, sep = " - ") %>%

@@ -187,7 +187,7 @@ if (has_features) {
 
 ### Volcano Plots By `r target` Binding
 
-```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing genes separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes will be mapped to {target} binding events which include both an increase and decrease in binding, genes are simply grouped by whether any differential binding was mapped to an associated regulatory region.*")}
+```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes will be mapped to {target} binding events which include both an increase and decrease in binding, genes are simply grouped by whether any differential binding was mapped to an associated regulatory region.*")}
 df <- rnaseq %>% 
   mutate(
     mapped = case_when(
@@ -605,8 +605,8 @@ de_genes_db_regions %>%
       summarise(
         n = dplyr::n(),
         lab = glue("n = {comma(n)}"),
-        x = max(abs(ChIP_logFC)) * sign(min(ChIP_logFC)),
-        y = max(abs(RNA_logFC)) * sign(min(RNA_logFC)),
+        x = max(abs(ChIP_logFC)) * sign(min(ChIP_logFC)) * 1.05,
+        y = max(abs(RNA_logFC)) * sign(min(RNA_logFC)) * 1.05,
         .groups = "drop"
       ) %>% 
       group_by(DE) %>% 
