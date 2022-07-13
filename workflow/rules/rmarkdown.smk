@@ -11,7 +11,8 @@ rule install_packages:
 
 rule create_site_yaml:
 	input:
-		config = "config/rmarkdown.yml",
+		config_yaml = "config/config.yml",
+		rmd_yaml = "config/rmarkdown.yml",
 		r = "workflow/scripts/create_site_yaml.R"
 	output: os.path.join(rmd_path, "_site.yml")
 	params:
