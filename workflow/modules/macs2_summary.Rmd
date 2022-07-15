@@ -329,6 +329,7 @@ suppressWarnings(
     geom_label(
       aes(x = label, y = total_peaks, label = lab, colour = qc),
       data = . %>%
+        dplyr::filter(total_peaks > 0) %>% 
         mutate(
           lab = comma(total_peaks, accuracy = 1),
           total = total_peaks
@@ -435,10 +436,13 @@ samples$sample %>%
 
 ### Individual Replicates {.tabset}
 
+Replicates within treatment groups are only shown where at least one peak was detected.
+
 ```{r load-replicates}
 replicates_by_treat <- individual_peaks %>%
   unlist() %>% 
   splitAsList(.$treat) %>% 
+  .[vapply(., length, integer(1)) > 0] %>% 
   endoapply(select, sample) %>% 
   endoapply(reduceMC) %>% 
   lapply(as_tibble) %>% 
@@ -456,7 +460,7 @@ replicates_by_treat <- individual_peaks %>%
 
 ```{r plot-replicates}
 htmltools::tagList(
-  treat_levels %>% 
+  names(replicates_by_treat) %>% 
     lapply(
       function(i) {
         x <- replicates_by_treat[[i]]
