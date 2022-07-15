@@ -185,99 +185,16 @@ if (has_features) {
 }
 ```
 
-### Volcano Plots By `r target` Binding
-
-```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes will be mapped to {target} binding events which include both an increase and decrease in binding, genes are simply grouped by whether any differential binding was mapped to an associated regulatory region.*")}
-df <- rnaseq %>% 
-  mutate(
-    mapped = case_when(
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
-      TRUE ~ paste("No", target, "Detected")
-    )
-  ) %>% 
-  dplyr::select(
-    all_of(c(rna_p_col, rna_lfc_col)), mapped, starts_with("gene")
-  ) %>% 
-  left_join(rna_status) 
-lp <- "right"
-if (length(unique(df$mapped)) > 2) lp <- c(0.7, 0.2)
-df %>% 
-  ggplot(
-    aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
-  ) +
-  geom_point() +
-  geom_text_repel(
-    aes(label = gene_name),
-    data = . %>% 
-      dplyr::arrange(!!sym(rna_p_col)) %>% 
-      dplyr::filter(!!sym(rna_lfc_col) > 0) %>% 
-      split(.$mapped) %>% 
-      lapply(dplyr::slice, 1:2) %>% 
-      bind_rows(),
-    show.legend = FALSE
-  ) +
-  geom_text_repel(
-    aes(label = gene_name),
-    data = . %>% 
-      dplyr::arrange(!!sym(rna_p_col)) %>% 
-      dplyr::filter(!!sym(rna_lfc_col) < 0) %>% 
-      split(.$mapped) %>% 
-      lapply(dplyr::slice, 1:2) %>% 
-      bind_rows(),
-    show.legend = FALSE
-  ) +
-  facet_wrap(~mapped, ncol = 2) +
-  scale_colour_manual(
-    values = direction_colours
-  ) +
-  labs(colour = "Status") +
-  theme(
-    legend.position = lp
-  )
-```
-
-
-### P-Values By `r target` Status
-
-```{r plot-p-target, fig.height = 6, fig.cap = glue("*P-Values for differential expression partitioned by {target} ChIP peak status. Genes were considered as being mapped to a differentially bound peak if one or more peaks was considered as differentially bound.*")}
-y <- ggplot_build(
-  tibble(p = rnaseq[[rna_p_col]]) %>% 
-    ggplot(aes(p, stat(density))) + 
-    geom_histogram(bins = 100) 
-) %>% .[["data"]] %>% 
-  .[[1]] %>% 
-  .[["y"]] %>% 
-  max()
-rnaseq %>% 
-  mutate(
-    mapped = case_when(
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
-      TRUE ~ paste("No", target, "Detected")
-    )
-  ) %>% 
-  ggplot(
-    aes(!!sym(rna_p_col), stat(density))
-  ) +
-  geom_histogram(
-    colour = "black", fill = "grey", bins = 100
-  ) +
-  geom_text(
-    aes(0.8, y, label = lab),
-    data = . %>% 
-      group_by(mapped) %>% 
-      tally() %>% 
-      mutate(lab = glue("N = {comma(n, 1)}"))
-  ) +
-  facet_wrap(~mapped, nrow = 1) +
-  scale_y_continuous(expand = expansion(c(0, 0.05)))
-```
-
-
 ### DE Genes Associated with Changed `r target` Binding
 
-```{r de-genes-db-regions}
+```{r any_diff_sites}
+de_genes_db_regions <- tibble()
+any_diff_sites <- sum(mcols(merged_results)[[fdr_column]] < fdr_alpha) > 0
+```
+
+`r if (!any_diff_sites) "No differentially bound sites were detected."`
+
+```{r de-genes-db-regions, eval = any_diff_sites, echo = any_diff_sites}
 cmn_genes <- intersect(
   rnaseq %>% dplyr::filter(!!sym(rna_fdr_col) < fdr_alpha) %>% pull("gene_id"),
   merged_results %>% 
@@ -369,7 +286,6 @@ cp <-  htmltools::em(
     regions which showed evidence of changed binding. 
     {comma(length(unique(de_genes_db_regions$range)), 1)} unique regions were 
     mapped to {comma(length(unique(de_genes_db_regions$gene_id)), 1)} DE genes. 
-    These were exported as {basename(all_out$de_genes)}.
     Data are presented in a gene-centric manner and ranges may map to multiple
     genes. The full set of ranges considered to be showing evidence of altered 
     {target} binding are shown for each gene. The summarised range containing 
@@ -378,6 +294,7 @@ cp <-  htmltools::em(
     value for logFC represents the average across all mapped regions, with the 
     maximum FDR also shown. If {target} binding occurs within another gene this 
     is indicated in the 'Region' column.
+    All sites and genes were exported as {basename(all_out$de_genes)}.
     "
   )
 )
@@ -566,6 +483,98 @@ div(class = "table",
   )
 )
 ```
+
+
+### Volcano Plots By `r target` Binding
+
+```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes may be mapped to {target} binding events which include both an increase and decrease in binding, genes are simply grouped by whether any differential binding was mapped to an associated regulatory region.*")}
+df <- rnaseq %>% 
+  mutate(
+    mapped = case_when(
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
+      TRUE ~ paste("No", target, "Detected")
+    )
+  ) %>% 
+  dplyr::select(
+    all_of(c(rna_p_col, rna_lfc_col)), mapped, starts_with("gene")
+  ) %>% 
+  left_join(rna_status) 
+lp <- "right"
+if (length(unique(df$mapped)) > 2) lp <- c(0.7, 0.2)
+df %>% 
+  ggplot(
+    aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
+  ) +
+  geom_point() +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      dplyr::arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) > 0) %>% 
+      split(.$mapped) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      dplyr::arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) < 0) %>% 
+      split(.$mapped) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  facet_wrap(~mapped, ncol = 2) +
+  scale_colour_manual(
+    values = direction_colours
+  ) +
+  labs(colour = "Status") +
+  theme(
+    legend.position = lp
+  )
+```
+
+
+### P-Values By `r target` Status
+
+```{r plot-p-target, fig.height = 6, fig.cap = glue("*P-Values for differential expression partitioned by {target} ChIP peak status. Genes were considered as being mapped to a differentially bound peak if one or more peaks was considered as differentially bound. No IHW procedure was undertaken using this data.*")}
+y <- ggplot_build(
+  tibble(p = rnaseq[[rna_p_col]]) %>% 
+    ggplot(aes(p, stat(density))) + 
+    geom_histogram(bins = 100) 
+) %>% .[["data"]] %>% 
+  .[[1]] %>% 
+  .[["y"]] %>% 
+  max()
+rnaseq %>% 
+  mutate(
+    mapped = case_when(
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
+      TRUE ~ paste("No", target, "Detected")
+    )
+  ) %>% 
+  ggplot(
+    aes(!!sym(rna_p_col), stat(density))
+  ) +
+  geom_histogram(
+    colour = "black", fill = "grey", bins = 100
+  ) +
+  geom_text(
+    aes(0.8, y, label = lab),
+    data = . %>% 
+      group_by(mapped) %>% 
+      tally() %>% 
+      mutate(lab = glue("N = {comma(n, 1)}"))
+  ) +
+  facet_wrap(~mapped, nrow = 1) +
+  scale_y_continuous(expand = expansion(c(0, 0.05)))
+```
+
+
 
 `r if (nrow(de_genes_db_regions) > 0) "### ChIP logFC Vs RNA logFC"`
 

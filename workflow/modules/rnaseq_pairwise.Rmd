@@ -48,6 +48,7 @@ diff_windows <- diff_windows %>%
   droplevels() %>% 
   split(.$status) %>% 
   lapply(pull, "gene_id") 
+any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
 ```
 
 ## Volcano Plots
@@ -106,6 +107,138 @@ names(diff_windows) %>%
   ) +
   labs(colour = "Status") +
   theme(legend.position = "bottom")
+```
+
+
+`r if (any_de) ## DE Genes And Pairwise Binding`
+
+```{r tab-de-both, eval = any_de, echo=any_de}
+col_defs <- list2(
+      de = colDef(
+        name = "Gene", maxWidth = 120
+      ),
+      logFC = colDef(
+        aggregate = "mean",
+        maxWidth = 100,
+        format = colFormat(digits = 2),
+        style = JS(
+            glue(
+            "function(rowInfo) {
+              var value = rowInfo.row['logFC']
+              if (value < 0) {
+                var color = '{{colours$direction[['down']]}}'
+              } else if (value > 0) {
+                var color = '{{colours$direction[['up']]}}'
+              } 
+              return { color: color }
+            }",
+            .open = "{{", .close = "}}"
+            )
+        )
+      ),
+      range = colDef(
+        aggregate = JS(
+            "function(values){
+              var chrom = [];
+              var rng = [];
+              var start = [];
+              var end = [];
+              for (i = 0; i < values.length; i++) {
+                chrom[i] = values[i].split(':')[0];
+                rng[i] = values[i].split(':')[1];
+                start[i] = rng[i].split('-')[0];
+                end[i] = rng[i].split('-')[1];
+              }
+              
+              min_start = Math.min(...start);
+              max_end = Math.max(...end);
+              var ret_val = [...new Set(chrom)] + ':' + min_start.toString() + '-' + max_end.toString();
+              
+              return ret_val
+              
+            }"
+          )
+      ),
+      region = colDef(
+        aggregate = "unique",
+        name = "Region"
+      ),
+      "{c1_logfc}" := colDef(
+        name = paste0("logFC (", comps[[1]], ")"),
+        maxWidth = 100,
+        format = colFormat(digits = 2),
+        style = function(value) {
+          cl <- ifelse(
+            value > 0, colours$direction[["up"]], colours$direction[["down"]]
+          )
+          list(color = cl)
+        }
+      ),
+      "{c2_logfc}" := colDef(
+        name = paste0("logFC (", comps[[2]], ")"),
+        maxWidth = 100,
+        format = colFormat(digits = 2),
+        style = function(value) {
+          cl <- ifelse(
+            value > 0, colours$direction[["up"]], colours$direction[["down"]]
+          )
+          list(color = cl)
+        }
+      ),
+      "{c1_status}" := colDef(
+        aggregate = "unique",
+        name = comps[[1]],
+        maxWidth = 150
+      ),
+      "{c2_status}" := colDef(
+        aggregate = "unique",
+        name = comps[[2]],
+        maxWidth = 150
+      )
+    ) 
+if (has_features) col_defs$feature <- colDef(
+  name = "Feature",
+  aggregate = "unique"   
+)
+htmltools::tags$caption(
+  htmltools::em(
+    glue(
+    "
+    All differentially expressed genes where binding was detected in both 
+    comparisons.
+    "
+    )
+  )
+)
+de_genes_both_comps <- all_windows %>% 
+  as_tibble() %>% 
+  dplyr::select(
+    any_of(c("range", "region", "feature")), ends_with("logFC"), ends_with("status"), 
+    any_of(c("detected"))
+  ) %>% 
+  mutate(
+    de = lapply(detected, intersect, dplyr::filter(rnaseq, !!sym(rna_fdr_col) < fdr_alpha)$gene_name)
+  ) %>% 
+  dplyr::filter(
+    vapply(de, length, integer(1)) > 0, 
+    str_detect(status, "Up|Down"),
+    !str_detect(status, "Undetected")
+  ) %>% 
+  unnest(de) %>% 
+  left_join(rnaseq, by = c("de" = "gene_name")) %>% 
+  mutate(direction = ifelse(logFC > 0, "Up", "Down")) %>% 
+  droplevels() %>% 
+  dplyr::select(
+    de, logFC, any_of(c("range", "region", "feature")), ends_with("logFC"),
+    ends_with("_status")
+  ) 
+de_genes_both_comps %>% 
+  reactable(
+    filterable = TRUE,
+    groupBy = "de",
+    columns = col_defs,
+    theme = reactableTheme(style = list(fontSize = 14))
+  )
 ```
 
 

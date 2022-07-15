@@ -1010,7 +1010,7 @@ merged_results %>%
 
 ### Volcano Plot
 
-```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} binding. Regions overlapping a consensus peak are coloured separately to those which are not. The most significant regions are labelled along with any genes these regions are mapped to.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} binding. The most significant regions are labelled along with any genes these regions are mapped to.*")}
 merged_results %>% 
   as_tibble() %>% 
   ggplot(aes(logFC, -log10(P.Value))) +

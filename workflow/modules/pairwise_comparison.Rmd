@@ -251,7 +251,7 @@ consensus_peaks <- file.path(macs2_path, "consensus_peaks.bed") %>%
 all_consensus <- consensus_peaks %>% 
   GRangesList() %>% 
   unlist() %>% 
-  reduce() %>% 
+  GenomicRanges::reduce() %>% 
   sort() 
 db_results <- seq_along(pairs) %>% 
   lapply(
@@ -338,10 +338,15 @@ out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
 )
 if (!dir.exists(out_path)) dir.create(out_path)
+de_genes_both_comps <- c()
 all_out <- list(
   csv = file.path(
     out_path, glue(comp_name, "-pairwise_comparison.csv.gz"
     )
+  ),
+  de_genes = file.path(
+    out_path, 
+    glue("{comp_name}-de_genes.csv")
   ),
   results = file.path(
     out_path, glue(comp_name, "-all_windows.rds")
@@ -617,7 +622,7 @@ all_windows <- all_windows %>%
       )[[1]], 
       granges(gene_regions$promoters)) %>% 
       unlist() %>% 
-      reduce(),
+      GenomicRanges::reduce(),
     enh = ifelse(
       "feature" %in% colnames(mcols(external_features)), 
       list(granges(subset(external_features, str_detect(feature, "[Ee]nhanc")))), 
@@ -2506,6 +2511,7 @@ all_windows %>%
   write_csv(
     gzfile(all_out$csv)
   )
+write_csv(de_genes_both_comps, all_out$de_genes)
 ```
 
 

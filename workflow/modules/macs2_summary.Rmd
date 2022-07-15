@@ -554,8 +554,10 @@ htmltools::tagList(
         ## Define the caption
         cp <- htmltools::tags$em(
           glue(
-            "Numbers of peaks detected in each {i} replicate and numbers of 
-              peaks shared between replicates."
+            "
+            Number of peaks detected by macs2 callpeak in each {i} replicate 
+            and then number of peaks shared between replicates.
+            "
           )
         )
         
@@ -582,7 +584,7 @@ htmltools::tagList(
 
 
 
-### Oracle Peaks {.tabset}
+### Oracle Peaks 
 
 ```{r oracle-peaks}
 oracle_peaks <- treat_levels %>%
@@ -691,54 +693,6 @@ oracle_peaks %>%
   scale_y_log10() +
   scale_fill_manual(values = colours$treat[treat_levels]) +
   labs(x = "Replicates", y = "Peak Width", fill = "Treatment")
-```
-
-#### Distance to TSS
-
-```{r plot-oracle-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of each {target} oracle peak to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Between ", lapply(oracle_peaks, overlapsAny, tss) %>% vapply(mean, numeric(1)) %>% range(na.rm = TRUE) %>% percent(0.1) %>% glue_collapse(last = " and "), " of the oracle peaks directly overlapped a TSS.*")}
-df <- oracle_peaks %>% 
-  lapply(join_nearest, mutate(tss, tss = start)) %>% 
-  lapply(mutate, d = (start + width/2 - tss)/1e3) %>%
-  lapply(as_tibble) %>%
-  bind_rows(.id = "treat") %>% 
-  mutate(treat = factor(treat, treat_levels))
-a <- df %>%
-  ggplot(aes(d, colour = treat)) +
-  geom_density() +
-  scale_colour_manual(values = colours$treat[treat_levels]) +
-  coord_cartesian(xlim = c(-100, 100)) +
-  labs(
-    x = "Distance to Nearest TSS (kb)",
-    y = "Density",
-    colour = "Treat"
-  ) +
-  guides(colour = "none")
-b <- df %>% 
-  select(treat, d) %>% 
-  arrange(abs(d)) %>% 
-  mutate(
-    q = seq_along(d) / nrow(.)
-  ) %>% 
-  ggplot(aes(abs(d), q, colour = treat)) +
-  geom_line() +
-  geom_vline(
-    xintercept = max(unlist(params$gene_regions$promoters)) / 1e3, 
-    linetype = 2, colour = "grey40"
-  ) +
-  coord_cartesian(xlim = c(0, 100)) +
-  labs(
-    x = "Distance to Nearest TSS (kb)",
-    y = "Quantile",
-    colour = "Treat"
-  ) +
-  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
-  scale_x_continuous(breaks = seq(0, 100, by = 20)) +
-  scale_colour_manual(values = colours$treat[treat_levels]) 
-plot_grid(
-  a, b + guides(colour = "none"), get_legend(b),
-  rel_widths = c(0.5, 0.5, 0.1),  nrow = 1,
-  labels = c("A", "B")
-)
 ```
 
 
@@ -1085,7 +1039,11 @@ htmltools::tagList(
             any_detected & gn %in% genes_gr$gene_name,
             glue(" which was detected in the RNA-Seq data."),
             glue(".")
-          )
+          ),
+          "
+          Y-axes for each coverage track are set to the most highly ranked peak
+          across all conditions.
+          "
         )
       )
       
