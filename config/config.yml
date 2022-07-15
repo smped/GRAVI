@@ -3,7 +3,7 @@ samples:
   file: "config/samples.tsv"
 
 paths:
-  bam: "data/aligned"
+  bam: "data/bam"
 
 comparisons:
   fc: 1.2
@@ -11,7 +11,7 @@ comparisons:
   paired: false
   filter_q: 0.6
   contrasts:
-    - ["Veh", "DHT"]
+    - ["Control", "Treat"]
   ihw: "regions"
 
 genome:
@@ -31,5 +31,5 @@ peaks:
     keep_duplicates: "all"
   qc:
     min_prop_peaks: 0.1
-    min_prop_reps: 0.4
+    min_prop_reps: 0.5
 

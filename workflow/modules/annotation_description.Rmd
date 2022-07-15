@@ -93,7 +93,7 @@ sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 ```
 
 As the foundation for all annotation objects, the description of the underlying genome is required as a `Seqinfo` object.
-For this analysis, both the mitochondrial genome and scaffolds were excluded, giving only the autosomes and the X/Y chromosomes.
+For this workflow, both the mitochondrial genome and any scaffolds are excluded, giving only the autosomes and the X/Y chromosomes.
 This `Seqinfo` object is added to all subsequent objects requiring information about the underlying genome, such as a `GenomicRanges` object.
 
 ## Blacklisted Regions {.tabset}
@@ -177,10 +177,11 @@ all_gr <- read_rds(file.path(annotation_path, "all_gr.rds"))
 - The complete set of genes, transcripts and exons was loaded from the supplied `gtf`, excluding mitochondrial features.
 - The previously generated `Seqinfo` was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects
 - Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(all_gr$gene)))`) retained.
+- Visualisation using the Bioconductor package `Gviz` requires a specific `GRanges` structure for gene and transcript models to be displayed.
+This object was created at this point so transcript models could be simply visualised throughout the workflow.
 
-In total this object contained annotations for `r comma(length(all_gr$gene))` genes, `r comma(length(all_gr$transcript))` transcripts and `r comma(length(all_gr$exon))` exons.
-Visualisation using the Bioconductor package `Gviz` also requires a specific `GRanges` structure for gene and transcript models to be displayed.
-This object was also created so transcript models could be simply visualised.
+In total this annotation build contained `r comma(length(all_gr$gene))` genes, `r comma(length(all_gr$transcript))` transcripts and `r comma(length(all_gr$exon))` exons.
+
 
 ## Gene-Centric Regions {.tabset}
 
@@ -210,11 +211,11 @@ Using the provided GTF, **unique** gene and transcript-centric features were als
 5. Intergenic regions within `r params$gene_regions$intergenic/1e3`kb of a gene
 6. Intergenic regions >`r params$gene_regions$intergenic/1e3`kb from any defined genes
 
-TSS regions were defined as a separate object given each TSS has single-base width.
+In addition, TSS regions were defined as a separate object given each TSS has single-base width. 
 With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, unstranded manner.
 
 - *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from the same TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
-- *Promoters* were first defined for all individual transcripts as the region `r glue("-{params$gene_regions$promoters$upstream}/+{params$gene_regions$promoters$downstream}")`bp around each TSS.
+- *Promoters* were first defined for all individual transcripts as the region `r glue("-{params$gene_regions$promoters$upstream}/+{params$gene_regions$promoters$downstream}")`bp around each TSS, as specified in `config.params.yml`.
 Overlapping regions were merged to create a single promoter region for all transcripts within that genomic region.
 - *Upstream promoters* were then defined as the region extending `r glue(params$gene_regions$upstream/1e3)`kb upstream from a TSS, but excluding any region already defined as a promoter through the previous merging step.
 Any ranges within these which overlapped other genes were removed.
@@ -262,6 +263,7 @@ tbl <- gene_regions %>%
         cell = function(value) "",
         name = ""
       ),
+      Region = colDef(minWidth = 200),
       N = colDef(
         maxWidth = 150,
         cell = function(value) comma(value, 1)

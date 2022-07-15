@@ -268,6 +268,123 @@ macs2_logs %>%
   )
 ```
 
+
+### Peaks Detected
+
+```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
+suppressWarnings(
+  macs2_logs %>%
+    ggplot(
+      aes(label, total_peaks, fill = qc)
+    ) +
+    geom_col() +
+    geom_label(
+      aes(x = label, y = total_peaks, label = lab, colour = qc),
+      data = . %>%
+        dplyr::filter(total_peaks > 0) %>% 
+        mutate(
+          lab = comma(total_peaks, accuracy = 1),
+          total = total_peaks
+        ),
+      inherit.aes = FALSE,
+      show.legend = FALSE
+    ) +
+    geom_hline(
+      aes(yintercept = min),
+      data = . %>%
+        group_by(treat) %>%
+        summarise(min = config$peaks$qc$min_prop_peaks*max(total_peaks)),
+      linetype = 2,
+      col = "grey"
+    ) +
+    facet_grid(~treat, scales = "free_x", space = "free_x") +
+    scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+    scale_fill_manual(values = colours$qc) +
+    scale_colour_manual(values = colours$qc) +
+    labs(
+      x = "Sample",
+      y = "Total Peaks",
+      fill = "QC"
+    ) +
+    ggtitle(
+      glue("{target}: Number of Peaks")
+    )
+)
+```
+
+
+### FRIP
+
+```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}). The common-use minimum value for an acceptable sample (1%) is shown as a dashed horizontal line*")}
+samples$sample %>%
+  bplapply(
+    function(x) {
+      gr <- individual_peaks[[x]]
+      rip <- 0
+      if (length(gr) > 0) {
+        sbp <- ScanBamParam(which = gr)
+        rip <- sum(countBam(bfl[[x]], param = sbp)$records)
+      }
+      tibble(
+        name = x,
+        reads_in_peaks = rip
+      )
+    }
+  ) %>%
+  bind_rows() %>%
+  left_join(macs2_logs, by = "name") %>%
+  mutate(
+    frip = reads_in_peaks / n_tags_treatment
+  ) %>%
+  ggplot(
+    aes(label, frip, fill = qc)
+  ) +
+  geom_col() +
+  geom_hline(yintercept = 0.01, colour = "grey", linetype = 2) +
+  facet_grid(~treat, scales = "free_x", space = "free") +
+  scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
+  scale_fill_manual(values = colours$qc) +
+  labs(
+    x = "Sample",
+    y = "Fraction of Reads In Peaks",
+    fill = "QC"
+  ) +
+  ggtitle(
+    glue("{target}: Fraction Of Reads In Peaks")
+  )
+```
+
+
+### Cross Correlations
+
+```{r plot_correlation, fig.height=6, fig.cap = glue("*Cross Correlaton between alignments up to 1kb apart. The dashed, grey, vertical line is the fragment length estimated by `macs2 callpeak` for each sample. For speed, only the first 5 chromosomes were used for sample-specific estimates.*")}
+file.path(macs2_path, "cross_correlations.tsv") %>% 
+  read_tsv() %>% 
+  left_join(samples, by = "sample") %>% 
+  ggplot(aes(fl, correlation, colour = treat)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
+  geom_vline(
+    aes(xintercept = fragment_length),
+    data = macs2_logs,
+    colour = "grey40", linetype = 2
+  ) +
+  facet_grid(as.formula(paste("treat ~", rep_col))) +
+  scale_colour_manual(values = colours$treat[treat_levels]) +
+  scale_x_continuous(
+    breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
+  ) +
+  labs(
+    x = "Distance (bp)",
+    y = "Cross Correlation",
+    colour = "Treat"
+  ) +
+  ggtitle(
+    glue("{target}: Cross Correlations")
+  )
+```
+
+
 ### GC Content
 
 ```{r set-yield-size}
@@ -316,120 +433,6 @@ bfl %>%
   )
 ```
 
-
-### Peaks Detected
-
-```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
-suppressWarnings(
-  macs2_logs %>%
-    ggplot(
-      aes(label, total_peaks, fill = qc)
-    ) +
-    geom_col() +
-    geom_label(
-      aes(x = label, y = total_peaks, label = lab, colour = qc),
-      data = . %>%
-        dplyr::filter(total_peaks > 0) %>% 
-        mutate(
-          lab = comma(total_peaks, accuracy = 1),
-          total = total_peaks
-        ),
-      inherit.aes = FALSE,
-      show.legend = FALSE
-    ) +
-    geom_hline(
-      aes(yintercept = min),
-      data = . %>%
-        group_by(treat) %>%
-        summarise(min = config$peaks$qc$min_prop_peaks*max(total_peaks)),
-      linetype = 2,
-      col = "grey"
-    ) +
-    facet_grid(~treat, scales = "free_x", space = "free_x") +
-    scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-    scale_fill_manual(values = colours$qc) +
-    scale_colour_manual(values = colours$qc) +
-    labs(
-      x = "Sample",
-      y = "Total Peaks",
-      fill = "QC"
-    ) +
-    ggtitle(
-      glue("{target}: Number of Peaks")
-    )
-)
-```
-
-### Cross Correlations
-
-```{r plot_correlation, fig.height=6, fig.cap = glue("*Cross Correlaton between alignments up to 1kb apart. The dashed, grey, vertical line is the fragment length estimated by `macs2 callpeak` for each sample. For speed, only the first 5 chromosomes were used for sample-specific estimates.*")}
-file.path(macs2_path, "cross_correlations.tsv") %>% 
-  read_tsv() %>% 
-  left_join(samples, by = "sample") %>% 
-  ggplot(aes(fl, correlation, colour = treat)) +
-  geom_point(alpha = 0.1) +
-  geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
-  geom_vline(
-    aes(xintercept = fragment_length),
-    data = macs2_logs,
-    colour = "grey40", linetype = 2
-  ) +
-  facet_grid(as.formula(paste("treat ~", rep_col))) +
-  scale_colour_manual(values = colours$treat[treat_levels]) +
-  scale_x_continuous(
-    breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
-  ) +
-  labs(
-    x = "Distance (bp)",
-    y = "Cross Correlation",
-    colour = "Treat"
-  ) +
-  ggtitle(
-    glue("{target}: Cross Correlations")
-  )
-```
-
-
-### FRIP
-
-```{r plot-frip, fig.height=6, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}). The common-use minimum value for an acceptable sample (1%) is shown as a dashed horizontal line*")}
-samples$sample %>%
-  bplapply(
-    function(x) {
-      gr <- individual_peaks[[x]]
-      rip <- 0
-      if (length(gr) > 0) {
-        sbp <- ScanBamParam(which = gr)
-        rip <- sum(countBam(bfl[[x]], param = sbp)$records)
-      }
-      tibble(
-        name = x,
-        reads_in_peaks = rip
-      )
-    }
-  ) %>%
-  bind_rows() %>%
-  left_join(macs2_logs, by = "name") %>%
-  mutate(
-    frip = reads_in_peaks / n_tags_treatment
-  ) %>%
-  ggplot(
-    aes(label, frip, fill = qc)
-  ) +
-  geom_col() +
-  geom_hline(yintercept = 0.01, colour = "grey", linetype = 2) +
-  facet_grid(~treat, scales = "free_x", space = "free") +
-  scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-  scale_fill_manual(values = colours$qc) +
-  labs(
-    x = "Sample",
-    y = "Fraction of Reads In Peaks",
-    fill = "QC"
-  ) +
-  ggtitle(
-    glue("{target}: Fraction Of Reads In Peaks")
-  )
-```
 
 
 ## Results 
@@ -677,7 +680,7 @@ oracle_peaks %>%
 
 #### Peak Widths
 
-```{r plot-peak-widths, fig.height=6, fig.cap = "Widths of all Oracle Peaks as a function of the number of replicates the peak was detected in. The y-axis is shown on the log scale."}
+```{r plot-peak-widths, fig.height=6, fig.cap = "*Widths of all Oracle Peaks as a function of the number of replicates the peak was detected in. The y-axis is shown on the log scale.*"}
 oracle_peaks %>%
   lapply(mutate, w = width) %>%
   lapply(as_tibble) %>%

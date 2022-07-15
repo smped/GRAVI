@@ -89,7 +89,7 @@ ext_data <- config$external[map_int(config$external, length) > 0] %>%
   lapply(basename)
 ```
 
-`r ifelse(length(ext_data) > 0, "The external data was:", "No external data was included")`
+`r ifelse(length(ext_data) > 0, "The external data provided was:", "No external data was included")`
 
 `r if (length(ext_data) > 0) pander(ext_data)`
 
@@ -101,8 +101,9 @@ Macs2 callpeak settings were default with the following exceptions:
 
 Two additional QC settings were incorporated for peak filtering.
 
-- For a sample to pass initial QC, at least `r percent(config$peaks$qc$min_prop_peaks)` of the peaks identified in the sample identifying the highest number of peaks need to be returned. Any many instances, no peaks will be returned in any condition and whilst in this situation all samples will be retained. However, samples significantly diverging from the 'best' sample will be excluded.
-- For a peak to be included in the set of "Oracle Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
+- For a sample to pass initial QC, the number of identified peaks needs to be at least `r percent(config$peaks$qc$min_prop_peaks)` of the number of peaks peaks identified in the sample with the highest number of peaks for each specific treatment group, assuming this represents the *best* sample in that group. 
+In many instances, no peaks will be returned in any condition and in this situation all samples will be retained. However, samples significantly diverging from the 'best' sample will be excluded.
+- For a peak to be included in the set of treatment-specific "Oracle Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
 
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
