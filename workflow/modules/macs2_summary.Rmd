@@ -24,7 +24,6 @@ library(parallel)
 library(Rsamtools)
 library(Biostrings)
 library(ggside)
-library(eulerr)
 ```
 
 ```{r remotes, results = 'hide'}
@@ -46,6 +45,7 @@ theme_set(
 )
 register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/biovenn.R"))
 ## This has been pushed to the main repo of ggside, but is not yet
 ## incorporated into the package. The functions are geom_*sidelabel
 ## Once ggside 0.2.1 is released, this can be deleted
@@ -445,7 +445,7 @@ Replicates within treatment groups are only shown where at least one peak was de
 replicates_by_treat <- individual_peaks %>%
   unlist() %>% 
   splitAsList(.$treat) %>% 
-  .[vapply(., length, integer(1)) > 0] %>% 
+  .[vapply(., length, integer(1)) > 1] %>% 
   endoapply(select, sample) %>% 
   endoapply(reduceMC) %>% 
   lapply(as_tibble) %>% 
@@ -468,39 +468,7 @@ htmltools::tagList(
       function(i) {
         x <- replicates_by_treat[[i]]
         png_path <- file.path(fig_path, glue("{i}_replicates.png"))
-        ## Draw a circle for one replicate
-        if (length(x) == 1) sets <- setNames(length(x[[1]]), names(x)[[1]])
         ## Euler diagrams for 2-3 replicates
-        if (length(x) == 2) {
-          sets <- c(
-            length(setdiff(x[[1]], x[[2]])),
-            length(setdiff(x[[2]], x[[2]])),
-            length(intersect(x[[1]], x[[2]]))
-          ) %>% 
-            setNames(
-              c(names(x), paste(names(x), collapse = "&"))
-            )
-        }
-        if (length(x) == 3) {
-          sets <- c(
-            length(setdiff(x[[1]], unlist(x[-1]))),
-            length(setdiff(x[[2]], unlist(x[-2]))),
-            length(setdiff(x[[3]], unlist(x[-3]))),
-            length(intersect(x[[1]], x[[2]])),
-            length(intersect(x[[1]], x[[3]])),
-            length(intersect(x[[2]], x[[3]])),
-            length(intersect(x[[1]], x[[2]]) %>% intersect(x[[3]]))
-          ) %>% 
-            setNames(
-              c(
-                names(x), 
-                paste(names(x)[1:2], collapse = "&"),
-                paste(names(x)[-2], collapse = "&"),
-                paste(names(x)[2:3], collapse = "&"),
-                paste(names(x), collapse = "&")
-              )
-            )
-        }
         if (length(x) <= 3) {
           png(
             png_path, 
@@ -512,19 +480,9 @@ htmltools::tagList(
             ),
             units = "in", res = 300
           )
-          grid.newpage()
-          grid.draw(
-            plot(
-              euler(sets), 
-              quantities = list(fontsize = 12),
-              edges = list(col = "black", alpha = 1),
-              fills = list(
-                fill = rep(colours$treat[[i]], length(x)),
-                alpha = 0.3
-              ),
-              labels = list(fontsize = 14),
-              adjust_labels = FALSE
-            )
+          biovenn(
+            x, 
+            title = glue("Individual {i} Replicates")
           )
           dev.off()
         }
@@ -540,10 +498,10 @@ htmltools::tagList(
           p <- fromList(x) %>% 
             upset(
               sets = rev(colnames(.)),
-              keep.order = TRUE,
+              # keep.order = TRUE,
               order.by = "freq",
               set_size.show = TRUE,
-              set_size.scale_max = max(colSums(.)) * 1.15, 
+              set_size.scale_max = max(colSums(.)) * 1.2, 
               text.scale = 1.2, 
               point.size = 3
             )

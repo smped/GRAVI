@@ -1,7 +1,10 @@
 #' This is a significant modification of BioVenn::draw.venn customised for the
-#' GRAVI workflow. This may be integrated within extraChIPs at some point.
-#' The input `data` shuold be a list. If length(data) > 3, only the 1st three
+#' GRAVI workflow. This may be further modified and incorporated within
+#' extraChIPs at some point.
+#'
+#' The input `data` should be a list. If length(data) > 3, only the 1st three
 #' elements will be used
+#'
 #' @import plotrix
 biovenn <- function (
     data,
@@ -16,7 +19,8 @@ biovenn <- function (
     nbr.cex = 1.5,
     cols = c("red", "green", "blue"),
     bg_c = "white",
-    shift_lab = 1.2
+    alpha = 0.2,
+    show_labels = TRUE
     ) {
 
   stopifnot(is(data, "list"))
@@ -26,7 +30,7 @@ biovenn <- function (
   xtitle <- names(data)[[1]]
   ytitle <- names(data)[[2]]
   list_z <- NULL
-  if (length(x) == 3) {
+  if (length(data) > 2) {
     list_z <- unique(data[[3]])
     ztitle <- names(data)[[3]]
   }
@@ -90,31 +94,48 @@ biovenn <- function (
   xy_d = x_r + y_r
   if (x && y) {
     while (
-      xy * 0.999 > sq(x_r) * arccos((sq(xy_d) + sq(x_r) -
-                                     sq(y_r))/(2 * xy_d * x_r)) + sq(y_r) * arccos((sq(xy_d) +
-                                                                                    sq(y_r) - sq(x_r))/(2 * xy_d * y_r)) - 0.5 * sqr(round((xy_d +
-                                                                                                                                            x_r + y_r) * (xy_d + x_r - y_r) * (xy_d - x_r + y_r) *
-                                                                                                                                           (-xy_d + x_r + y_r), 5))) {
+      xy * 0.999 >
+      sq(x_r) * arccos((sq(xy_d) + sq(x_r) - sq(y_r))/(2 * xy_d * x_r)) +
+      sq(y_r) * arccos((sq(xy_d) +  sq(y_r) - sq(x_r))/(2 * xy_d * y_r)) -
+      0.5 * sqr(
+        round(
+          (xy_d + x_r + y_r) * (xy_d + x_r - y_r) * (xy_d - x_r + y_r) * (-xy_d + x_r + y_r),
+          5
+        )
+      )
+    ) {
       xy_d = xy_d - min(x_r, y_r)/1000
     }
   }
   xz_d = x_r + z_r
   if (x && z) {
-    while (xz * 0.999 > sq(x_r) * arccos((sq(xz_d) + sq(x_r) -
-                                          sq(z_r))/(2 * xz_d * x_r)) + sq(z_r) * arccos((sq(xz_d) +
-                                                                                         sq(z_r) - sq(x_r))/(2 * xz_d * z_r)) - 0.5 * sqr(round((xz_d +
-                                                                                                                                                 x_r + z_r) * (xz_d + x_r - z_r) * (xz_d - x_r + z_r) *
-                                                                                                                                                (-xz_d + x_r + z_r), 5))) {
+    while (
+      xz * 0.999 >
+      sq(x_r) * arccos((sq(xz_d) + sq(x_r) - sq(z_r))/(2 * xz_d * x_r)) +
+      sq(z_r) * arccos((sq(xz_d) + sq(z_r) - sq(x_r))/(2 * xz_d * z_r)) -
+      0.5 * sqr(
+        round(
+          (xz_d +x_r + z_r) * (xz_d + x_r - z_r) * (xz_d - x_r + z_r) * (-xz_d + x_r + z_r),
+          5
+        )
+      )
+    ) {
       xz_d = xz_d - min(x_r, z_r)/1000
     }
   }
   yz_d = y_r + z_r
   if (y && z) {
-    while (yz * 0.999 > sq(y_r) * arccos((sq(yz_d) + sq(y_r) -
-                                          sq(z_r))/(2 * yz_d * y_r)) + sq(z_r) * arccos((sq(yz_d) +
-                                                                                         sq(z_r) - sq(y_r))/(2 * yz_d * z_r)) - 0.5 * sqr(round((yz_d +
-                                                                                                                                                 y_r + z_r) * (yz_d + y_r - z_r) * (yz_d - y_r + z_r) *
-                                                                                                                                                (-yz_d + y_r + z_r), 5))) {
+    while (
+      yz * 0.999 >
+      sq(y_r) * arccos((sq(yz_d) + sq(y_r) - sq(z_r))/(2 * yz_d * y_r)) +
+      sq(z_r) * arccos((sq(yz_d) + sq(z_r) - sq(y_r))/(2 * yz_d * z_r)) -
+      0.5 * sqr(
+        round(
+          (yz_d +y_r + z_r) * (yz_d + y_r - z_r) * (yz_d - y_r + z_r) * (-yz_d + y_r + z_r),
+          5
+        )
+      )
+    ) {
       yz_d = yz_d - min(y_r, z_r)/1000
     }
   }
@@ -365,6 +386,8 @@ biovenn <- function (
       max(x_h - x_r, y_h - y_r, z_h - z_r) + min(x_h + x_r, y_h + y_r, z_h + z_r)
     )
   }
+  if (alpha > 0 & alpha < 1) alpha <- ceiling(alpha * 255)
+  stopifnot(alpha < 255 & alpha > 0)
   opar <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(opar))
   graphics::par(mar = c(1, 1, 4, 1))
@@ -387,7 +410,7 @@ biovenn <- function (
       grDevices::col2rgb(x_c)[, 1][1],
       grDevices::col2rgb(x_c)[, 1][2],
       grDevices::col2rgb(x_c)[, 1][3],
-      maxColorValue = 255, alpha = 128)
+      maxColorValue = 255, alpha = alpha)
   )
   plotrix::draw.circle(
     ppu * y_h, ppu * y_v, ppu * y_r,
@@ -396,7 +419,7 @@ biovenn <- function (
       grDevices::col2rgb(y_c)[, 1][1],
       grDevices::col2rgb(y_c)[, 1][2],
       grDevices::col2rgb(y_c)[, 1][3],
-      maxColorValue = 255, alpha = 128)
+      maxColorValue = 255, alpha = alpha)
   )
   plotrix::draw.circle(
     ppu * z_h, ppu * z_v, ppu * z_r,
@@ -405,8 +428,9 @@ biovenn <- function (
       grDevices::col2rgb(z_c)[, 1][1],
       grDevices::col2rgb(z_c)[, 1][2],
       grDevices::col2rgb(z_c)[, 1][3],
-      maxColorValue = 255, alpha = 128)
+      maxColorValue = 255, alpha = alpha)
   )
+  # browser()
   if (x_only) {
     graphics::text(
       ppu * x_f_h, ppu * x_f_v, x_only,
@@ -456,32 +480,36 @@ biovenn <- function (
       font = nbr.font, cex = nbr.cex
     )
   }
-  if (x) {
+  if (x & show_labels) {
     graphics::text(
       x = ppu * x_h,
-      y = ppu * x_v - ppu * x_r * shift_lab / 1.15,
+      y = ppu * x_v - 1.05 * ppu * x_r ,
       xtitle,
-      adj = c(0.5, 0),
+      adj = c(0.5, 0.5),
       col = fontcol, family = fontfamily, font = label.font, cex = labels.cex
     )
   }
-  if (y) {
+  if (y & show_labels) {
     graphics::text(
-      x = ppu * y_h - shift_lab * 2 * ppu * y_r / 3,
-      y = ppu * y_v + shift_lab * 2 * ppu * y_r / 3,
+      x = ppu * y_h - 0.95*ppu * y_r,#  + 0.1 * width_p,
+      y = ppu * y_v + 0.95*ppu * y_r,# - 0.1 * height_p,
       ytitle,
-      adj = c(0, 0),
+      adj = c(0.5, 0.5),
       col = fontcol, family = fontfamily, font = label.font, cex = labels.cex
     )
   }
-  if (z) {
+  if (z & show_labels) {
     graphics::text(
-      x = ppu * z_h + shift_lab * 2 * ppu * z_r / 3,
-      y = ppu * z_v + shift_lab * 2 * ppu * z_r / 3,
+      x = ppu * z_h + 0.95* ppu * z_r,
+      y = ppu * z_v + 0.95* ppu * z_r ,
       ztitle,
-      adj = c(1, 0),
+      adj = c(0.5, 0.5),
       col = fontcol, family = fontfamily, font = label.font, cex = labels.cex
     )
   }
   invisible(NULL)
 }
+#' TODO: Change the location of number labels by taken the average of the 3
+#' intersection points for each 3-way intersection (for 3 sets)
+#' In reality, finding the point of maximal distance from all bounding lines
+#' would probably be preferable. This will suffice for now though
