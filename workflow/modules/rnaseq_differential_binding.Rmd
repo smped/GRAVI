@@ -585,7 +585,7 @@ rnaseq %>%
 
 `r if (nrow(de_genes_db_regions) > 0) "### ChIP logFC Vs RNA logFC"`
 
-```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = "*logFC values for differentially bound ChIP-Seq peaks mapped to DE genes. The most highly ranked peak for each quandrant is labelled at the centre of the binding region. Whilst binding sites may be mapped to multiple genes, only the most highly ranked binding site mapped each gene is shown. Points are coloured by differential expression status.*"}
+```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = "*logFC values for differentially bound ChIP-Seq peaks mapped to DE genes. The most highly ranked peak for each quandrant is labelled at showing both the gene and centre of the binding region. Whilst binding sites may be mapped to multiple genes, only the most highly ranked binding site is shown mapped to the mosthighly ranked DE genes. Points are coloured by differential expression status.*"}
 de_genes_db_regions %>% 
   dplyr::filter(ChIP_FDR < fdr_alpha) %>% 
   group_by(gene_name) %>%
@@ -715,10 +715,10 @@ tbl <- gsea_dir_sig %>%
           list(color = colour)
         }
       ),
-      Windows = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80, format = colFormat(separators = TRUE)),
       Direction = colDef(
         name = "Gene Direction",
-        maxWidth = 120,
+        maxWidth = 150,
         style = function(value) {
           colour <- ifelse(
             str_detect(value, "Up"), 
@@ -827,10 +827,10 @@ tbl <- gsea_reg_dir_sig %>%
           list(color = colour)
         }
       ),
-      Windows = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80, format = colFormat(separators = TRUE)),
       Direction = colDef(
         name = "Gene Direction",
-        maxWidth = 120,
+        maxWidth = 150,
         style = function(value) {
           colour <- ifelse(
             str_detect(value, "Up"), 
@@ -928,7 +928,7 @@ tbl <- gsea_feat_dir_sig %>%
         minWidth = 100, name = "Region"
       ),
       "{target}" := colDef(
-        maxWidth = 90,
+        maxWidth = 120,
         cell = function(value) {
           html_symbol <- ""
           if (str_detect(value, "Up")) html_symbol <- "\u21E7"
@@ -944,7 +944,7 @@ tbl <- gsea_feat_dir_sig %>%
           list(color = colour)
         }
       ),
-      Windows = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80, format = colFormat(separators = TRUE)),
       Direction = colDef(
         name = "Gene Direction",
         maxWidth = 120,
@@ -1035,7 +1035,7 @@ tbl <- gsea_nondir_sig %>%
     filterable = TRUE,
     columns = list2(
       "{target}" := colDef(
-        maxWidth = 120,
+        maxWidth = 150,
         cell = function(value) {
           html_symbol <- ""
           if (str_detect(value, "Up")) html_symbol <- "\u21E7"
@@ -1051,7 +1051,7 @@ tbl <- gsea_nondir_sig %>%
           list(color = colour)
         }
       ),
-      Windows = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80, format = colFormat(separators = TRUE)),
       p = colDef(
         cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
@@ -1146,7 +1146,7 @@ tbl <- gsea_reg_nondir_sig %>%
           list(color = colour)
         }
       ),
-      Windows = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80, format = colFormat(separators = TRUE)),
       p = colDef(
         cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
@@ -1250,7 +1250,7 @@ tbl <- gsea_feat_nondir_sig %>%
           list(color = colour)
         }
       ),
-      Windows = colDef(maxWidth = 80),
+      Windows = colDef(maxWidth = 80, format = colFormat(separators = TRUE)),
       Direction = colDef(
         name = "Gene Direction",
         maxWidth = 120,

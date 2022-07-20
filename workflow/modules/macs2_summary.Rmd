@@ -440,7 +440,8 @@ bfl %>%
 ### Individual Replicates {.tabset}
 
 Replicates within treatment groups are only shown where at least one peak was detected.
-Euler (Venn) Diagrams were generated using a modified version of the plotting function provided in the CRAN package `BioVenn` [@HulsenBiovenn2021].
+For three or fewer replicates, Euler (Venn) Diagrams were generated using a modified version of the plotting function provided in the CRAN package `BioVenn` [@HulsenBiovenn2021].
+In the case of four or more replicates, the package `UpSetR` was used to create UpSet plots [@Upset2014].
 
 ```{r load-replicates}
 replicates_by_treat <- individual_peaks %>%
