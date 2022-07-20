@@ -69,7 +69,62 @@ In order for IHW to be a viable strategy, partitions should be greater than 1000
 The provided consensus peaks were used as initial partitions in combination, merging the smallest groups below this size until all partitions were of a suitable size.
 
 Windows were classified as overlapping a peak from a secondary ChIP target if *any* section of the window overlapped the secondary peak.
-`r ifelse(ihw_proceed, "Only one partition > 1000 was able to be formed and IHW was not executed.", "")`
+`r if (!ihw_proceed) "Only one partition > 1000 was able to be formed and IHW was not executed."`
+
+`r if (ihw_proceed) "### Summary Table"`
+
+```{r ihw-tab, eval = ihw_proceed, echo = ihw_proceed}
+ihw %>%
+  as.data.frame() %>% 
+  mutate(
+    fdr = p.adjust(pvalue, "fdr"),
+    status = case_when(
+      fdr < fdr_alpha & adj_pvalue > fdr_alpha ~ "Lost",
+      fdr < fdr_alpha & adj_pvalue < fdr_alpha ~ "Retained",
+      fdr > fdr_alpha & adj_pvalue < fdr_alpha ~ "Gained",
+      fdr > fdr_alpha & adj_pvalue > fdr_alpha ~ "Never Significant"
+    ) %>% 
+      factor(
+        levels = c("Never Significant", "Retained", "Gained", "Lost")
+      )
+  ) %>% 
+  as_tibble() %>% 
+  group_by(covariate, status) %>% 
+  tally() %>% 
+  ungroup() %>% 
+  complete(status = status, covariate = covariate, fill = list(n = 0)) %>% 
+  pivot_wider(
+    names_from = status, values_from = n, values_fill = 0
+  ) %>% 
+  mutate(
+    `Nett Change` = Gained - Lost
+  ) %>% 
+  bind_rows(
+    summarise_if(., is.numeric, sum)
+  ) %>% 
+  mutate(
+    covariate = str_replace_na(covariate, "Total"),
+    Significant = Retained + Gained
+  ) %>% 
+  dplyr::select(
+    Covariate = covariate, ends_with("Significant"), Retained, everything()
+  ) %>% 
+  pander(
+    justify = "lrrrrrr",
+    caption = paste(
+      "*Summary of changes introduced by IHW for windows considered as being", 
+      paste0("differentially bound by ", target, "."),
+      "This corresponds to a __nett change of", 
+        dplyr::slice(., nrow(.)) %>% 
+        mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 
+        .[["p"]] %>% 
+        percent(0.1),
+      "from the initial list__.*"
+    ),
+    emphasize.strong.rows = nrow(.)
+  )
+```
+
 
 ### Initial Group Sizes
 
@@ -93,7 +148,7 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, fig.height= 3 + 3 * (length(levels(merged_results$ihw_covariate)) %% 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
+```{r plot-ihw-pvals, fig.height= 3 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
 y <- ggplot_build(
   tibble(
     P.Value = merged_results$P.Value,
@@ -171,57 +226,4 @@ ihw %>%
   )
 ```
 
-`r ifelse(ihw_proceed, "### Summary Table", "")`
-
-```{r ihw-tab, eval = ihw_proceed, echo = ihw_proceed}
-ihw %>%
-  as.data.frame() %>% 
-  mutate(
-    fdr = p.adjust(pvalue, "fdr"),
-    status = case_when(
-      fdr < fdr_alpha & adj_pvalue > fdr_alpha ~ "Lost",
-      fdr < fdr_alpha & adj_pvalue < fdr_alpha ~ "Retained",
-      fdr > fdr_alpha & adj_pvalue < fdr_alpha ~ "Gained",
-      fdr > fdr_alpha & adj_pvalue > fdr_alpha ~ "Never Significant"
-    ) %>% 
-      factor(
-        levels = c("Never Significant", "Retained", "Gained", "Lost")
-      )
-  ) %>% 
-  as_tibble() %>% 
-  group_by(covariate, status) %>% 
-  tally() %>% 
-  ungroup() %>% 
-  complete(status = status, covariate = covariate, fill = list(n = 0)) %>% 
-  pivot_wider(
-    names_from = status, values_from = n, values_fill = 0
-  ) %>% 
-  mutate(
-    `Nett Change` = Gained - Lost
-  ) %>% 
-  bind_rows(
-    summarise_if(., is.numeric, sum)
-  ) %>% 
-  mutate(
-    covariate = str_replace_na(covariate, "Total"),
-    Significant = Retained + Gained
-  ) %>% 
-  dplyr::select(
-    Covariate = covariate, ends_with("Significant"), Retained, everything()
-  ) %>% 
-  pander(
-    justify = "lrrrrrr",
-    caption = paste(
-      "*Summary of changes introduced by IHW for windows considered as being", 
-      paste0("differentially bound by ", target, "."),
-      "This corresponds to a __nett change of", 
-        dplyr::slice(., nrow(.)) %>% 
-        mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 
-        .[["p"]] %>% 
-        percent(0.1),
-      "from the initial list__.*"
-    ),
-    emphasize.strong.rows = nrow(.)
-  )
-```
 

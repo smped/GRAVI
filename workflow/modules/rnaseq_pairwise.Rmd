@@ -120,6 +120,8 @@ col_defs <- list2(
         name = "Gene", maxWidth = 120
       ),
       logFC = colDef(
+        name = "logFC<br>(RNA-Seq)",
+        html = TRUE,
         aggregate = "mean",
         maxWidth = 100,
         format = colFormat(digits = 2),
@@ -139,6 +141,7 @@ col_defs <- list2(
         )
       ),
       range = colDef(
+        name = "Range",
         aggregate = JS(
             "function(values){
               var chrom = [];
@@ -166,7 +169,7 @@ col_defs <- list2(
         name = "Region"
       ),
       "{c1_logfc}" := colDef(
-        name = paste0("logFC (", comps[[1]], ")"),
+        name = comps[[1]],
         maxWidth = 100,
         format = colFormat(digits = 2),
         style = function(value) {
@@ -177,7 +180,7 @@ col_defs <- list2(
         }
       ),
       "{c2_logfc}" := colDef(
-        name = paste0("logFC (", comps[[2]], ")"),
+        name = comps[[2]],
         maxWidth = 100,
         format = colFormat(digits = 2),
         style = function(value) {
@@ -239,6 +242,16 @@ de_genes_both_comps %>%
     filterable = TRUE,
     groupBy = "de",
     columns = col_defs,
+    columnGroups = list(
+      colGroup(
+        name = "ChIP logFC", 
+        columns = c(as.character(c1_logfc), as.character(c2_logfc))
+      ),
+      colGroup(
+        name = "ChIP Status",
+        columns =  c(as.character(c1_status), as.character(c2_status))
+      )
+    ),
     theme = reactableTheme(style = list(fontSize = 14))
   )
 ```

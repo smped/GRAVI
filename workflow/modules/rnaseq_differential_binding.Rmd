@@ -43,7 +43,7 @@ diff_windows <- merged_results %>%
 
 ### Detected Genes By `r target` Binding Region
 
-Firstly, the distribution of merged windows, where `r target` was considered as present, was compared to genes within the RNA-Seq dataset.
+The distribution of merged windows, where `r target` was considered as present, was firstly compared to genes within the RNA-Seq dataset.
 Genes were simply considered as detected if present in the RNA-Seq data, or undetected if not present.
 Gene-centric regions were as defined previously.
 
@@ -318,7 +318,7 @@ tbl <- de_genes_db_regions %>%
           show = FALSE
         ),
         RNA_logFC = colDef(
-          name = "logFC (RNA)",
+          name = "logFC",
           aggregate = "mean", 
           style = JS(
             glue(
@@ -341,7 +341,7 @@ tbl <- de_genes_db_regions %>%
           cell = function(value) ""
         ),
         RNA_FDR = colDef(
-          name = "FDR (RNA)",
+          name = "FDR",
           aggregate = "min",
           format = colFormat(digits = 4),
           maxWidth = fs*6,
@@ -353,7 +353,7 @@ tbl <- de_genes_db_regions %>%
         ),
         range = colDef(
           name = "Range",
-          minWidth = 200,
+          minWidth = 160,
           aggregate = JS(
             "function(values){
               var chrom = [];
@@ -380,14 +380,14 @@ tbl <- de_genes_db_regions %>%
           name = "Distance to Gene",
           aggregate = range_js,
           format = colFormat(digits = 0, separators = TRUE),
-          maxWidth = fs*7,
+          maxWidth = fs*8,
           style = list(
             borderRight = "1px solid rgba(0, 0, 0, 0.1)",
             fontSize = fs
           ),
         ),
         ChIP_logCPM = colDef(
-          name = paste(target, "signal (logCPM)"),
+          name = "logCPM",
           maxWidth = fs*6,
           aggregate = range_js,
           format = colFormat(digits = 2),
@@ -396,7 +396,7 @@ tbl <- de_genes_db_regions %>%
           )
         ),
         ChIP_logFC = colDef(
-          name = paste(target, "logFC"),
+          name = "logFC",
           aggregate = "mean",
           maxWidth = fs*5,
           format = colFormat(digits = 2),
@@ -419,9 +419,9 @@ tbl <- de_genes_db_regions %>%
           )
         ),
         ChIP_FDR = colDef(
-          name = paste0("FDR (", target, ")"),
+          name = "FDR",
           aggregate = "max",
-          maxWidth = fs*5,
+          maxWidth = 10 + fs*5,
           format = colFormat(prefix = "< ", digits = 4),
           cell = function(value) ifelse(
             value < 0.001,
@@ -441,7 +441,7 @@ tbl <- de_genes_db_regions %>%
           maxWidth = fs*5
         ),
         status = colDef(
-          name = paste(target, "Status"),
+          name = "Status",
           aggregate = "frequency",
           maxWidth = fs*6,
           cell = function(value) {
@@ -473,6 +473,13 @@ tbl <- de_genes_db_regions %>%
         )
       ),
       feat_def
+    ),
+    columnGroups = list(
+      colGroup(name = "RNA-Seq", columns = c("RNA_logFC", "RNA_FDR")),
+      colGroup(
+        name = paste(target, "ChIP-Seq"), 
+        columns = c("ChIP_logCPM", "ChIP_logFC", "ChIP_FDR", "status")
+      )
     ),
     theme = reactableTheme(style = list(fontSize = fs))
   )

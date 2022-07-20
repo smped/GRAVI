@@ -565,14 +565,14 @@ assay(filtered_counts, "qsmooth") <- qsmoothData(qs)
 
 ### QSmooth Weights
 
-```{r plot-qs-weights, fig.height = 6, fig.cap = "*Quantile-specific weights used by the Smooth-Quantile normalisation. Low weights indicate expression quantiles which appear to be more specific within a group, whilst higher weights indicate similarity between groups.*"}
-qsmoothPlotWeights(qs)
+```{r plot-qs-weights, fig.height = 6, fig.cap = "*Quantile-specific weights used by the Smooth-Quantile normalisation. Low weights indicate signal quantiles which appear to be more specific within a group, whilst higher weights indicate similarity between groups.*"}
+qsmoothPlotWeights(qs, xLab = "Quantiles", yLab = "Weights", mainLab = "QSmooth Weights")
 ```
 
 
 ### Density Plot: All Sliding Windows
 
-```{r plot-density-windows, fig.cap = "*Density plot for __all windows prior to filtering__, and the selection of those more likely to contain true signal.*"}
+```{r plot-density-windows, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
 plotAssayDensities(
   window_counts, trans = "log1p", n_max = n_max, colour = "treat",
   linetype = "target"
@@ -583,24 +583,27 @@ plotAssayDensities(
   )
 ```
 
-### logCPM Densities (Pre-SQN)
+### logCPM Densities
 
-```{r plot-logcpm-densities, fig.cap = "*logCPM distributions for all retained windows __prior__ to smooth quantile normalisation*"}
-filtered_counts %>% 
+```{r plot-logcpm-densities, fig.cap = "*logCPM distributions for all retained windows A) prior to smooth quantile normalisation, and 2) after SQ normalisations*"}
+a <- filtered_counts %>% 
   plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
   scale_colour_manual(values = treat_colours) +
   labs(colour = "Treat")
-```
-
-### logCPM Densities (Post-SQN)
-
-```{r plot-qsmooth-densities, fig.cap = "*SQ-normalised logCPM distributions for all retained windows.*"}
-filtered_counts %>% 
+b <- filtered_counts %>% 
   plotAssayDensities("qsmooth", colour = "treat", n_max = n_max) +
   scale_colour_manual(values = treat_colours) +
   labs(
     x = "Normalised logCPM", colour = "Treat"
   )
+plot_grid(
+  a + theme(legend.position = "none"), 
+  b + theme(legend.position = "none"),
+  get_legend(b),
+  nrow = 1,
+  rel_widths = c(5, 5, 1),
+  labels = c("A", "B")
+)
 ```
 
 ### RLE (Post-SQN)
@@ -1311,10 +1314,10 @@ with_tooltip <- function(value, width = 30) {
 tbl_cols <- list(
   `Macs2 Peak` = colDef(footer = htmltools::tags$b("Total")),
   Region = colDef(
-    footer = htmltools::tags$b("Total"), minWidth = 200, maxWidth = 250
+    footer = htmltools::tags$b("Total"), minWidth = 200
   ),
   Feature = colDef(
-    footer = htmltools::tags$b("Total"), minWidth = 200, maxWidth = 250
+    footer = htmltools::tags$b("Total"), minWidth = 200
   ),
   Up = colDef(
     cell = function(value) comma(value, 1),
@@ -1448,9 +1451,9 @@ tbl <- df %>%
   reactable(
     columns = tbl_cols[colnames(df)],
     defaultColDef = colDef(
-      maxWidth = 100,
       footer = function(values) htmltools::tags$b(comma(sum(values)))
-    )
+    ),
+    fullWidth = TRUE
   )
 div(class = "table",
   div(class = "table-header",
@@ -1497,7 +1500,6 @@ tbl <- df %>%
   reactable(
     columns = tbl_cols[colnames(df)],
     defaultColDef = colDef(
-      maxWidth = 100,
       footer = function(values) htmltools::tags$b(comma(sum(values)))
     )
   )
@@ -1526,10 +1528,10 @@ cp <- htmltools::em(
     "overlap with the merged window. ",
     ifelse(
       has_features, 
-      glue("Features are as provided in the file {basename(config$external$features)}"),
+      glue("Features are as provided in the file {basename(config$external$features)}. "),
       glue("")
     ),
-    "For windows mapped to large numbers of genes, hovering your mouse over the ", 
+    "For windows mapped to large numbers of genes, hovering a mouse over the ", 
     "cell will reveal the full set of genes. ",
     ifelse(
       any_detected,

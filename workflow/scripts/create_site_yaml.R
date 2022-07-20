@@ -121,20 +121,13 @@ if (!is.null(site_yaml$output_dir)) {
   message(out_dir, " exists")
 }
 
-annotation_html <- list(
-      list(
-        text = "Genome and Transcriptome Annotations",
-        href = "annotation_description.html"
-      )
-)
-
 site_yaml$navbar$left <- list(
   ## This first item shouldn't change
   list(icon = "fa-home", text = "Home", href = "index.html"),
   ## The Annotations
   list(
     text = "Annotations",
-    menu = annotation_html
+    href = "annotation_description.html"
   ),
   ## MACS2 Results
   list(

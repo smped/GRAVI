@@ -1924,6 +1924,7 @@ htmltools::tagList(
 A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where binding was detected as changed in at least one of the comparisons.
 If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
 If only one target is detected within a range, peaks are centred at the range with maximal signal.
+Scales for fill and average signal (both logCPM) are held constant across all plots for easier comparison between groups.
 
 ```{r form-profile-heatmaps}
 ## Set the BWFL as a single object incorporating target & treatment names
@@ -1999,6 +2000,10 @@ fill_range <- profile_heatmaps %>%
   unlist() %>%
   c(0) %>% 
   range()
+sidey_range <- profile_heatmaps %>% 
+  lapply(function(x) x$layers[[3]]$data$y) %>% 
+  unlist() %>% 
+  range()
 profile_heatmaps <- profile_heatmaps %>% 
   lapply(
     function(x) {
@@ -2006,6 +2011,7 @@ profile_heatmaps <- profile_heatmaps %>%
         scale_x_continuous(
           breaks = x_lab * 1e3, labels = x_lab, expand = expansion(0)
         ) +
+        scale_xsidey_continuous(limits = sidey_range) +
         scale_fill_viridis_c(
           option = "inferno", direction = -1, limits = fill_range
         ) +
