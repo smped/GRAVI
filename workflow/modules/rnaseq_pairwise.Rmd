@@ -3,6 +3,8 @@
 ```{r define-objects}
 library(fgsea)
 library(cowplot)
+library(BiocParallel)
+register(MulticoreParam(workers = threads))
 id2gene <- structure(all_gr$gene$gene_name, names = all_gr$gene$gene_id)
 rna_status <- rnaseq %>% 
   mutate(
@@ -110,7 +112,7 @@ names(diff_windows) %>%
 ```
 
 
-`r if (any_de) ## DE Genes And Pairwise Binding`
+`r if (any_de) "## DE Genes And Pairwise Binding"`
 
 ```{r tab-de-both, eval = any_de, echo=any_de}
 col_defs <- list2(
