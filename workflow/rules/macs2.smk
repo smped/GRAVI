@@ -306,7 +306,10 @@ rule create_macs2_summary_rmd:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
 	params:
 		git = git_add,
-		threads = lambda wildcards: len(df[df['target'] == wildcards.target])
+		threads = lambda wildcards: min(
+			len(df[df['target'] == wildcards.target]),
+			max_threads
+		)
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	retries: git_tries # Work around git lock file
@@ -388,7 +391,11 @@ rule compile_macs2_summary_html:
 		asset_path = os.path.join("docs", "assets", "{target}"),
 		bed_path = os.path.join(macs2_path, "{target}")
 	conda: "../envs/rmarkdown.yml"
-	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
+	threads: 
+		lambda wildcards: min(
+			len(df[df['target'] == wildcards.target]),
+			max_threads
+		)
 	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
 	shell:
 		"""

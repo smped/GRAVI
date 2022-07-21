@@ -67,7 +67,6 @@ def check_git(x = "."):
 		print("No viable git repository detected", file = sys.stderr)
 	return(ret_val)
 
-
 # Define all contrasts
 # x will be config['comparisons']['contrasts']:
 def make_contrasts(x):
@@ -102,6 +101,8 @@ def make_pairwise(x):
 git_add = check_git(".")
 git_tries = 100
 # git_add = False
+
+max_threads = workflow.cores
 
 ####################
 ## Define Samples ##
