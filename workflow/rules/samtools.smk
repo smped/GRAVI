@@ -7,8 +7,5 @@ rule index_bam:
 	threads: 8
 	shell:
 		"""
-		samtools index \
-			-@ {threads} \
-			{input.bam} \
-			{output.bai}
+		samtools index -@ {threads} {input.bam} {output.bai}
 		"""

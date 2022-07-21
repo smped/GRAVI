@@ -13,9 +13,7 @@ rule download_gtf:
 	log: log_path + "/downloads/download_gtf.log"
 	shell:
 		"""
-		curl \
-			-o {output} \
-			{params.url} 2> {log}
+		curl -o {output} {params.url} 2> {log}
 		"""
 
 rule download_blacklist:

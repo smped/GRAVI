@@ -51,20 +51,14 @@ rule macs2_individual:
 			macs2_path, "{target}", "{sample}_peaks.narrowPeak"
 		),
 		bedgraph = temp(
-			os.path.join(
-				macs2_path, "{target}", "{sample}_treat_pileup.bdg"
-			)
+			os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.bdg")
 		),
 		log = os.path.join(macs2_path, "{target}", "{sample}_callpeak.log"),
 		summits = os.path.join(macs2_path, "{target}", "{sample}_summits.bed"),
 		other = temp(
 			expand(
-				os.path.join(
-					macs2_path, "{{target}}", "{{sample}}{suffix}"
-				),
-				suffix = [
-					'_model.r', '_peaks.xls', '_control_lambda.bdg'
-				]
+				os.path.join(macs2_path, "{{target}}", "{{sample}}{suffix}"),
+				suffix = ['_model.r', '_peaks.xls', '_control_lambda.bdg']
 			)
 		)
 	log: log_path + "/macs2_individual/{target}/{sample}.log"
@@ -187,7 +181,9 @@ rule bedgraph_to_bigwig:
 		),
 		chrom_sizes = chrom_sizes
 	output:
-		bigwig = os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.bw")
+		bigwig = os.path.join(
+			macs2_path, "{target}", "{sample}_treat_pileup.bw"
+		)
 	conda: "../envs/bedgraph_to_bigwig.yml"
 	log: log_path + "/bedgraph_to_bigwig/{target}/{sample}.log"
 	threads: 1
@@ -286,9 +282,7 @@ rule compile_macs2_summary_html:
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
 		merged_macs2 = lambda wildcards: expand(
-			os.path.join(
-				macs2_path, "{{target}}", "{treat}_merged_{suffix}"
-			),
+			os.path.join(macs2_path, "{{target}}", "{treat}_merged_{suffix}"),
 			treat = set(df[df.target == wildcards.target]['treat']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
@@ -300,15 +294,10 @@ rule compile_macs2_summary_html:
 	output:
 		html = "docs/{target}_macs2_summary.html",
 		fig_path = directory(
-			os.path.join(
-				"docs", "{target}_macs2_summary_files",
-				"figure-html"
-			)
+			os.path.join("docs", "{target}_macs2_summary_files", "figure-html")
 		),
 		peaks = expand(
-			os.path.join(
-				macs2_path, "{{target}}", "{file}"
-			),
+			os.path.join(macs2_path, "{{target}}", "{file}"),
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 		),
 		renv = temp(
@@ -319,8 +308,7 @@ rule compile_macs2_summary_html:
 		git = git_add,
 		interval = random.uniform(0, 1),
 		tries = git_tries,
-		asset_path = os.path.join("docs", "assets", "{target}"),
-		bed_path = os.path.join(macs2_path, "{target}")
+		asset_path = os.path.join("docs", "assets", "{target}")
 	conda: "../envs/rmarkdown.yml"
 	threads: 
 		lambda wildcards: min(
@@ -343,8 +331,7 @@ rule compile_macs2_summary_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html} {output.fig_path} {output.peaks} 
+			git add {output.html} {output.fig_path}
 			git add {params.asset_path}
-			git add {params.bed_path}/*oracle_peaks.bed
 		fi
 		"""

@@ -91,8 +91,7 @@ rule compile_pairwise_comparisons_html:
 		interval = random.uniform(0, 1),
 		tries = git_tries,
 		asset_path = os.path.join(
-			"docs", "assets", 
-			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}"
+			"docs", "assets", "{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}"
 		)
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
