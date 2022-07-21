@@ -6,7 +6,6 @@ This is a `snakemake` workflow for:
 2. Calling ChIP peaks
 3. Performing Differential Binding Analysis
 4. Comparing results across ChIP targets
-5. Identifying TF motifs (to be added soon)
 
 The minimum required input is one ChIP target with two conditions.
 
