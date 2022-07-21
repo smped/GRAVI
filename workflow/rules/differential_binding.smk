@@ -110,10 +110,10 @@ rule compile_differential_binding_html:
 				"figure-html"
 			)
 		),
-		renv = expand(
+		renv = temp(
 			os.path.join(
 				"output", "envs",
-				"{{target}}_{{ref}}_{{treat}}-differential_binding.RData"
+				"{target}_{ref}_{treat}-differential_binding.RData"
 			)
 		),
 		outs = expand(
@@ -164,6 +164,5 @@ rule compile_differential_binding_html:
 			done
 			git add {output.html}
 			git add {output.fig_path}
-			git add {output.outs}
 		fi
 		"""

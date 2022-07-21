@@ -79,6 +79,12 @@ rule compile_pairwise_comparisons_html:
 		rds = os.path.join(
 			"output", "pairwise_comparisons", "{t1}_{t2}",
 			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-all_windows.rds"
+		),
+		renv = temp(
+			os.path.join(
+				"output" "envs",
+				"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.RData"
+			)
 		)
 	params:
 		git = git_add,
@@ -107,7 +113,6 @@ rule compile_pairwise_comparisons_html:
                 ((TRIES--))
             done
             git add {output.html} {output.fig_path}
-			git add {output.csv} {output.rds}
 			git add {params.asset_path}
         fi
 		"""

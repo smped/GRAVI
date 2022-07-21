@@ -74,10 +74,7 @@ rule macs2_individual:
 		prefix = "{sample}",
 		gsize = config['peaks']['macs2']['gsize'],
 		fdr = config['peaks']['macs2']['fdr'],
-		keep_duplicates = config['peaks']['macs2']['keep_duplicates'],
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
+		keep_duplicates = config['peaks']['macs2']['keep_duplicates']
 	threads: 1
 	shell:
 		"""
@@ -93,21 +90,6 @@ rule macs2_individual:
 			-n {params.prefix} \
 			--bdg --SPMR \
 			--outdir {params.outdir} 2> {output.log}
-
-		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
-			git add {output.narrow_peaks}
-			git add -f {output.log}
-		fi
 		"""
 
 rule macs2_qc:
@@ -131,10 +113,6 @@ rule macs2_qc:
 	output:
 		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
 		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
-	params:
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
 	log: log_path + "/macs2_individual/{target}/{target}_macs2_qc.log"
@@ -145,20 +123,6 @@ rule macs2_qc:
 			{input.r} \
 			{wildcards.target} \
 			{threads} &>> {log}
-
-		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
-			git add {output}
-		fi
 		"""
 
 rule macs2_merged:
@@ -185,7 +149,7 @@ rule macs2_merged:
 		),
 		log = os.path.join(
 			macs2_path, "{target}", "{treat}_merged_callpeak.log"
-		),
+		)
 	log: log_path + "/macs2_merged/{target}/{treat}_merged.log"
 	conda: "../envs/macs2.yml"
 	params:
@@ -194,10 +158,7 @@ rule macs2_merged:
 		prefix = "{treat}_merged",
 		gsize = config['peaks']['macs2']['gsize'],
 		fdr = config['peaks']['macs2']['fdr'],
-		keep_duplicates = config['peaks']['macs2']['keep_duplicates'],
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
+		keep_duplicates = config['peaks']['macs2']['keep_duplicates']
 	threads: 1
 	shell:
 		"""
@@ -217,21 +178,6 @@ rule macs2_merged:
 			-n {params.prefix} \
 			--bdg --SPMR \
 			--outdir {params.outdir} 2> {output.log}
-
-		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
-			git add {output.narrow_peaks}
-			git add -f {output.log}
-		fi
 		"""
 
 rule bedgraph_to_bigwig:
@@ -268,10 +214,7 @@ rule get_coverage_summary:
 	input: rules.bedgraph_to_bigwig.output.bigwig
 	output: os.path.join(macs2_path, "{target}", "{sample}_treat_pileup.summary")
 	params:
-		script = "workflow/scripts/get_bigwig_summary.R",
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries
+		script = "workflow/scripts/get_bigwig_summary.R"
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
@@ -282,20 +225,6 @@ rule get_coverage_summary:
 			{params.script} \
 			{input} \
 			{output} &>> {log}
-
-		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
-			git add {output}
-		fi
 		"""
 
 rule create_macs2_summary_rmd:
@@ -382,7 +311,9 @@ rule compile_macs2_summary_html:
 			),
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 		),
-		renv = os.path.join("output", "envs", "{target}_macs2_summary.RData"),
+		renv = temp(
+			os.path.join("output", "envs", "{target}_macs2_summary.RData")
+		),
 		venn = "docs/assets/{target}/{target}_common_peaks.png"
 	params:
 		git = git_add,

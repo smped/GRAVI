@@ -107,7 +107,7 @@ rule compile_annotations_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output}
+			git add {output.rmd} {output.html} {output.fig_path}
 		fi
 	  """
 
