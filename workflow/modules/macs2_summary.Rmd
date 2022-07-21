@@ -484,7 +484,7 @@ htmltools::tagList(
           )
           biovenn(
             x, 
-            title = glue("Individual {i} Replicates")
+            title = glue("{target}: All {i} Replicates")
           )
           dev.off()
         }
@@ -515,7 +515,7 @@ htmltools::tagList(
         cp <- htmltools::tags$em(
           glue(
             "
-            Number of peaks detected by macs2 callpeak in each {i} replicate 
+            Number of {target} peaks detected by macs2 callpeak in each {i} replicate 
             and then number of peaks shared between replicates.
             "
           )

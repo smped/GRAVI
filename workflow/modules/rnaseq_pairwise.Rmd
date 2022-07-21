@@ -216,7 +216,10 @@ htmltools::tags$caption(
   )
 )
 de_genes_both_comps <- all_windows %>% 
-  as_tibble() %>% 
+  as_tibble()
+## Placeholder until conda-forge sort out R4.2.1
+colnames(de_genes_both_comps) <- c("range", colnames(mcols(all_windows)))
+de_genes_both_comps <- de_genes_both_comps %>% 
   dplyr::select(
     any_of(c("range", "region", "feature")), ends_with("logFC"), ends_with("status"), 
     any_of(c("detected"))
