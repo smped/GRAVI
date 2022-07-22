@@ -82,7 +82,7 @@ rule compile_pairwise_comparisons_html:
 		),
 		renv = temp(
 			os.path.join(
-				"output" "envs",
+				"output", "envs",
 				"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.RData"
 			)
 		)
