@@ -215,7 +215,7 @@ macs2_logs %>%
         glue(
           "Samples shown in italics were marked (F) for exclusion from ",
           "downstream analysis as they identified fewer than ",
-          "{percent(qc_prop)} of the peaks identified in the sample returning ",
+          "{percent(config$peaks$qc$min_prop_peaks)} of the peaks identified in the sample returning ",
           "the maximum number of peaks."
         ),
         glue(
