@@ -101,8 +101,8 @@ Macs2 callpeak settings were default with the following exceptions:
 
 Two additional QC settings were incorporated for peak filtering.
 
-- For a sample to pass initial QC, the number of identified peaks needs to be at least `r percent(config$peaks$qc$min_prop_peaks)` of the number of peaks peaks identified in the sample with the highest number of peaks for each specific treatment group, assuming this represents the *best* sample in that group. 
-In many instances, no peaks will be returned in any condition and in this situation all samples will be retained. However, samples significantly diverging from the 'best' sample will be excluded.
+- For a sample to pass initial QC, the number of identified peaks needs to be &lt; `r config$peaks$qc$outlier_threshold`-fold (or &gt; 1/`r config$peaks$qc$outlier_threshold`-fold ) the median number of peaks identified in each specific treatment group.
+`r if (config$peaks$qc$allow_zero) "- Samples with zero peaks were permitted given the possibility of cytoplasmic sequestering of ChIP targets under some conditions"`
 - For a peak to be included in the set of treatment-specific "Oracle Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
 
 

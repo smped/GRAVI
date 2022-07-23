@@ -86,7 +86,9 @@ samples <- samples %>%
   mutate(
     treat = factor(treat, levels = treat_levels),
     "{rep_col}" := as.factor(!!sym(rep_col))
-  )
+  ) %>% 
+  dplyr::filter(treat %in% treat_levels)
+stopifnot(nrow(samples) > 0)
 ```
 
 
@@ -186,7 +188,7 @@ This section provides a simple series of visualisations to enable detection of a
 
 - Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak` [@Zhang18798982]
 - GC Content: Most variation in GC-content should have been identified prior to performing alignments, using common tools such as [FastQC](https://github.com/s-andrews/FastQC), MultiQC [@EwelsMultiQC2016] or `ngsReports` [@WardNgsReports2019]. However, these plots may still be informative for detection of potential sequencing issues not previously addressed
-- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful. Using the settings provided in `config.yml` (i.e. `peaks:qc:min_prop_peaks`), any replicates where the number of peaks falls below `r percent(config$peaks$qc$min_prop_peaks)` of the replicate with the highest number of peaks (i.e. the 'best' sample), **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
+- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible smple mis-labelling. Using the settings provided in `config.yml` (i.e. `peaks:qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r config$peaks$qc$outliers_threshold`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
 - Cross Correlations: Shows the cross-correlation coefficients between read positions across a series of intervals [@LunSmythCsaw2014]. Weak cross-correlations can also indicate low-quality samples. These values are also used to estimate fragment length within each sample, as the peak value of the cross-correlations
 - Fraction Of Reads In Peaks (FRIP): This plot shows the proportion of the alignments which fall within peaks identified by `macs2 callpeak`, with the remainder of alignments being assumed to be background [@Landt01092012]. This can provide guidance as to the success of the IP protocol, and the common-use threshold of 1% is indicated as a horizontal line. This value is not enforced as a hard QC criteria, but may be used to manually exclude samples from the file `samples.tsv` of deemed to be appropriate.
 
@@ -213,10 +215,10 @@ macs2_logs %>%
       ifelse(
         any_fail,
         glue(
-          "Samples shown in italics were marked (F) for exclusion from ",
-          "downstream analysis as they identified fewer than ",
-          "{percent(config$peaks$qc$min_prop_peaks)} of the peaks identified in the sample returning ",
-          "the maximum number of peaks."
+          "Samples shown in italics were marked for exclusion from ",
+          "downstream analysis as they identified a number of peaks beyond ",
+          "+/- {config$peaks$qc$outlier_threshold}-fold the median number of ",
+          "peaks amongst all samples within the relevant treatment group.",
         ),
         glue(
           "No samples were identified as failing QC based on the number of ",
@@ -271,7 +273,7 @@ macs2_logs %>%
 
 ### Peaks Detected
 
-```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. The number of retained peaks required for inclusion is shown for each treatment as the dashed grey line, with any samples marked for exclusion marked with an F.*")}
+```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
 suppressWarnings(
   macs2_logs %>%
     ggplot(
@@ -288,14 +290,6 @@ suppressWarnings(
         ),
       inherit.aes = FALSE,
       show.legend = FALSE
-    ) +
-    geom_hline(
-      aes(yintercept = min),
-      data = . %>%
-        group_by(treat) %>%
-        summarise(min = config$peaks$qc$min_prop_peaks*max(total_peaks)),
-      linetype = 2,
-      col = "grey"
     ) +
     facet_grid(~treat, scales = "free_x", space = "free_x") +
     scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +

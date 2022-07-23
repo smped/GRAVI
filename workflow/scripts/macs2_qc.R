@@ -1,10 +1,14 @@
 #' This script runs very simple QC on the results from running macs2 callpeak
-#' on individual samples. For any sample group, the sample with the maximum
-#' number of peaks (n_max) is identified as the likely best sample. Any samples
-#' with n < p*n_max peaks is identified and marked for exclusion from the
+#' on individual samples. For each sample group, any sample with > X-fold, or
+#' fewer than 1/X-fold peaks when copmared to the median for each sample group
+#' is marked for exclusion from the
 #' calling of oracle/consensus peaks, as well as any downstream detection of
-#' differential binding. This value 'p' is specified in the main config.yml
-#' as the parameter `p = min_prop_peaks`
+#' differential binding. This value 'X' is specified in the main config.yml
+#' as the parameter `outlier_threshold`
+#'
+#' Given that some ChIP targets may yield no peaks under some conditions due to
+#' cytoplasmic location, the additional parameter `allow_zero` can be set to
+#' `true/false` in config.yml
 #'
 #' Additionally, the cross-correlation between reads is calculated with a tsv
 #' generated for later inclusion in differential_binding and macs2_summary
@@ -55,7 +59,8 @@ samples <- samples %>%
 ## QC ##
 ########
 
-qc_prop <- config$peaks$qc$min_prop_peaks
+outlier_thresh <- config$peaks$qc$outlier_threshold
+allow_zero <- as.logical(config$peaks$qc$allow_zero)
 
 annotation_path <- here::here("output", "annotations")
 macs2_path <- here::here("output", "macs2", target)
@@ -90,9 +95,11 @@ macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
   ) %>%
   group_by(treat) %>%
   mutate(
+    med = median(filtered_peaks),
     qc = case_when(
-      filtered_peaks >= qc_prop*max(filtered_peaks) ~ "pass",
-      filtered_peaks < qc_prop*max(filtered_peaks) ~ "fail"
+      filtered_peaks == 0 & allow_zero ~ "pass",
+      abs(log10(filtered_peaks / med)) > log10(outlier_thresh) ~ "fail",
+      TRUE ~ "pass"
     ),
     label = case_when(
       qc == "fail" ~ paste(label, "(F)"),
