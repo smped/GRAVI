@@ -2342,7 +2342,7 @@ pwf_diff <- genes_gr %>%
     nullp(
       structure(diff, names = gene_id),
       genome = config$genome$build,
-      bias.data = n_peaks,
+      bias.data = log1p(n_peaks),
       plot.fit = TRUE
     )
   )
@@ -2479,7 +2479,7 @@ pwf_up <- genes_gr %>%
     nullp(
       structure(diff, names = gene_id),
       genome = config$genome$build,
-      bias.data = n_peaks,
+      bias.data = log1p(n_peaks),
       plot.fit = TRUE
     )
   )
@@ -2615,7 +2615,7 @@ pwf_down <- genes_gr %>%
     nullp(
       structure(diff, names = gene_id),
       genome = config$genome$build,
-      bias.data = n_peaks,
+      bias.data = log1p(n_peaks),
       plot.fit = TRUE
     )
   )
