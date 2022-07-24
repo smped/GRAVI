@@ -610,17 +610,19 @@ Oracle peaks which overlapped a peak in more than `r percent(config$peaks$qc$min
 
 ```{r tab-oracle-peak}
 oracle_peaks %>%
-  lapply(mutate, w = width) %>% 
-  lapply(as_tibble) %>% 
+  lapply(
+    function(x) {
+      tibble(
+        detected_peaks = length(x),
+        retained = sum(x$keep),
+        `% retained` = percent(retained / detected_peaks, 0.1),
+        median_width = median(width(x))
+      )
+    }
+  ) %>% 
   bind_rows(.id = "treat") %>% 
   mutate(treat = factor(treat, levels = treat_levels)) %>% 
   group_by(treat) %>% 
-  summarise(
-    detected_peaks = dplyr::n(),
-    retained = sum(keep),
-    `% retained` = percent(retained / detected_peaks, 0.1),
-    median_width = median(w)
-  ) %>% 
   rename_all(str_sep_to_title) %>% 
   dplyr::rename(`% Retained` = ` Retained`) %>% 
   pander(
@@ -1068,6 +1070,8 @@ names(oracle_peaks) %>%
   lapply(
     function(x) {
       id <- glue("{x}_oracle_peaks_bed")
+      ## Create an empty file
+      file.create(all_out[[id]])
       oracle_peaks[[x]] %>% 
         subset(keep) %>% 
         select(score, signalValue, pValue, qValue, peak) %>% 
