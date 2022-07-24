@@ -70,6 +70,7 @@ if (length(unique(targets)) == 1) {
 n_targets = length(unique(names(pairs)))
 samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
   lapply(read_tsv) %>% 
+  lapply(mutate_all, as.character) %>% 
   bind_rows() %>% 
   dplyr::filter(
     qc == "pass",
