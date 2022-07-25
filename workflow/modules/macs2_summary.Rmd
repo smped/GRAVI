@@ -704,10 +704,10 @@ The number of replicates generating each peak was defined as the total across al
 
 ```{r plot-common-peaks, results = 'hide', echo = length(treat_levels) <= 3}
 fig_name <- glue("{target}_common_peaks.png")
+png_out <- file.path(fig_path, fig_name)
 ## An empty file to keep snakemake happy if > 3 treatments
-file.create(file.path(fig_path, fig_name)) 
-if (length(treat_levels) <= 3) {
-  vd <- oracle_peaks %>%
+file.create(png_out) 
+vd <- oracle_peaks %>%
     lapply(
       function(x) {
         names(
@@ -719,38 +719,30 @@ if (length(treat_levels) <= 3) {
       }
     ) %>%
     setNames(treat_levels) %>%
+    .[vapply(., length, integer(1)) > 0] 
+if (length(vd) < 3) {
+  vd <- vd %>% 
     venn.diagram(
-      filename = file.path(fig_path, fig_name),
+      filename = png_out,
       imagetype = "png",
       units = "in",
       cat.cex = 1.4,
       height = 9, 
       width = 10,
-      fill = colours$treat[treat_levels],
+      fill = colours$treat[names(vd)],
       alpha = 0.3
     )
   file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
-}
+} 
 ```
 
-`r ifelse(length(treat_levels) <= 3, glue("![*Number of {target} consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.png)"), "")`
+`r if(length(vd) < 3) glue("![*Number of {target} consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.png)")`
 
-```{r plot-common-upset, eval = length(treat_levels) > 3, echo = length(treat_levels) > 3, fig.height = 7, fig.cap = glue("*Number of {target} consensus peaks which overlap the oracle peaks defined within each condition.*")}
-oracle_peaks %>%
-  lapply(
-    function(x) {
-        names(
-          subsetByOverlaps(
-            consensus_peaks, 
-            subset(x, keep)
-          )
-        )
-    }
-  ) %>%
-  setNames(treat_levels) %>%
+```{r plot-common-upset, eval = length(vd) >= 3, echo = length(vd) >= 3, fig.height = 7, fig.cap = glue("*Number of {target} consensus peaks which overlap the oracle peaks defined within each condition.*")}
+vd %>%
   fromList() %>%
   upset(
-    sets = treat_levels,
+    sets = colnames(.),
     keep.order = TRUE,
     order.by = "freq",
     sets.bar.color = colours$treat[treat_levels],
