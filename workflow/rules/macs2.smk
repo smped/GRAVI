@@ -296,11 +296,6 @@ rule compile_macs2_summary_html:
 		fig_path = directory(
 			os.path.join("docs", "{target}_macs2_summary_files", "figure-html")
 		),
-		oracle_peaks = lambda wildcards: expand(
-			os.path.join(macs2_path, "{{target}}", "{treat}_{file}"),
-			treat = set(df[df.target == wildcards.target]['treat']),
-			file = ['oracle_peaks.bed']
-		),
 		peaks = expand(
 			os.path.join(macs2_path, "{{target}}", "{file}"),
 			file = ['consensus_peaks.bed', 'oracle_peaks.rds']

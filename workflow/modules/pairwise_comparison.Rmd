@@ -1325,11 +1325,13 @@ df %>%
 
 ```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows. The x-axis is truncated at the 99.5^th^ percentile of window sizes*"}
 all_windows %>% 
-  mutate(w = width) %>% 
-  as_tibble() %>% 
+  as_tibble()%>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
+    w = width(GRanges(range)),
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1],
+    n_changed = fct_lump_prop(n_changed, prop = 0.05)
   ) %>% 
+  droplevels() %>% 
   ggplot(aes(w, fct_rev(status), fill = status)) +
   geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
   facet_grid(
@@ -1356,7 +1358,8 @@ all_windows %>%
   dplyr::filter(!is.na(distance)) %>% 
   droplevels() %>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1]
+    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1],
+    n_changed = fct_lump_prop(n_changed, prop = 0.05)
   ) %>% 
   ggplot(aes(distance , fct_rev(status), fill = status)) +
   geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
