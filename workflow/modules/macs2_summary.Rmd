@@ -490,8 +490,23 @@ htmltools::tagList(
       function(i) {
         x <- replicates_by_treat[[i]]
         png_path <- file.path(fig_path, glue("{i}_replicates.png"))
+        if (length(x) == 1) {
+          png(
+            png_path, 
+            width = knitr::opts_chunk$get("fig.width"),
+            height = ifelse(
+              length(x) < 3,
+              knitr::opts_chunk$get("fig.height") * 0.8,
+              knitr::opts_chunk$get("fig.height") * 0.8
+            ),
+            units = "in", res = 300
+          )
+          grid.newpage()
+          draw.single.venn(length(x[[1]]), category = names(x))
+          dev.off()
+        }
         ## Euler diagrams for 2-3 replicates
-        if (length(x) <= 3) {
+        if (length(x) %in% 2:3) {
           png(
             png_path, 
             width = knitr::opts_chunk$get("fig.width"),
