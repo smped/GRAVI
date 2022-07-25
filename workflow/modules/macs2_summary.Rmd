@@ -435,6 +435,8 @@ bfl %>%
 
 Replicates within treatment groups are only shown where at least one peak was detected.
 For three or fewer replicates, Euler (Venn) Diagrams were generated using a modified version of the plotting function provided in the CRAN package `BioVenn` [@HulsenBiovenn2021].
+Peak numbers may differ from above as those shown below are overlapping peaks which have been merged across replicates
+
 In the case of four or more replicates, the package `UpSetR` was used to create UpSet plots [@Upset2014].
 
 ```{r load-replicates}
@@ -442,8 +444,8 @@ replicates_by_treat <- individual_peaks %>%
   unlist() %>% 
   splitAsList(.$treat) %>% 
   .[vapply(., length, integer(1)) > 1] %>% 
-  endoapply(select, sample) %>% 
-  endoapply(reduceMC) %>% 
+  lapply(select, sample) %>% 
+  lapply(reduceMC) %>% 
   lapply(as_tibble) %>% 
   lapply(unnest, sample) %>% 
   lapply(mutate, detected = 1) %>% 

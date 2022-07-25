@@ -107,7 +107,7 @@ macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
     )
   ) %>%
   ungroup()
-## Now exprt for use in the merged peak calling
+## Now export for use in the merged peak calling
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
   write_tsv(
