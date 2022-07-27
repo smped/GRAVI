@@ -694,19 +694,7 @@ oracle_peaks %>%
 
 ### Consensus Peaks {.tabset}
 
-In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
-Consensus ranges were the *union* of all overlapping ranges defined and retained in one or more sets of oracle peaks.
-Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *maximum* across all treatments.
-*Peak summits* were taken as the median position of all summits which comprise the consensus peak.
-The number of replicates generating each peak was defined as the total across all treatment groups.
-
-#### `r ifelse(length(treat_levels) <= 3, "Venn Diagram", "Upset Plot")`
-
-```{r plot-common-peaks, results = 'hide', echo = length(treat_levels) <= 3}
-fig_name <- glue("{target}_common_peaks.png")
-png_out <- file.path(fig_path, fig_name)
-## An empty file to keep snakemake happy if > 3 treatments
-file.create(png_out) 
+```{r vd}
 vd <- oracle_peaks %>%
     lapply(
       function(x) {
@@ -720,6 +708,22 @@ vd <- oracle_peaks %>%
     ) %>%
     setNames(treat_levels) %>%
     .[vapply(., length, integer(1)) > 0] 
+```
+
+
+In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
+Consensus ranges were the *union* of all overlapping ranges defined and retained in one or more sets of oracle peaks.
+Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *maximum* across all treatments.
+*Peak summits* were taken as the median position of all summits which comprise the consensus peak.
+The number of replicates generating each peak was defined as the total across all treatment groups.
+
+#### `r ifelse(length(vd) < 3, "Venn Diagram", "Upset Plot")`
+
+```{r plot-common-peaks, results = 'hide', echo = length(treat_levels) <= 3}
+fig_name <- glue("{target}_common_peaks.png")
+png_out <- file.path(fig_path, fig_name)
+## An empty file to keep snakemake happy if > 3 treatments
+file.create(png_out) 
 if (length(vd) < 3) {
   vd <- vd %>% 
     venn.diagram(
