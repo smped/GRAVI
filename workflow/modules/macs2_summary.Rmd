@@ -517,11 +517,11 @@ htmltools::tagList(
           args <- glue(
             here::here("workflow", "scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} ",
-            "-s1 {names(x)[[1]]} -s2 {names(x)[[2]]} ", 
-            "-c1 {rep_col[[1]]} -c2 {rep_col[[3]]} ",
+            "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' ", 
+            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
-            "-o {png_path}"
+            "-o '{png_path}'"
           )
           system2(which_py, args)
         }
@@ -537,11 +537,11 @@ htmltools::tagList(
             here::here("workflow", "scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
             "-a13 {a13} -a23 {a23} -a123 {a123} ",
-            "-s1 {names(x)[[1]]} -s2 {names(x)[[2]]} -s3 {names(x)[[3]]} ", 
-            "-c1 {rep_col[[1]]} -c2 {rep_col[[2]]} -c3 {rep_col[[3]]} ",
+            "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' -s3 '{names(x)[[3]]}' ", 
+            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[2]]}' -c3 '{rep_col[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
-            "-o {png_path}"
+            "-o '{png_path}'"
           )
           system2(which_py, args)
         }
@@ -762,12 +762,12 @@ if (length(vd) == 2) {
   args <- glue(
     here::here("workflow", "scripts", "plot_venn.py "),
     "-a1 {a1} -a2 {a2} -a12 {a12} ",
-    "-s1 {names(vd)[[1]]} -s2 {names(vd)[[2]]} ", 
-    "-c1 {colours$treat[[names(vd)[[1]]]]} ",
-    "-c2 {colours$treat[[names(vd)[[2]]]]} ",
+    "-s1 '{names(vd)[[1]]}' -s2 '{names(vd)[[2]]}' ", 
+    "-c1 '{colours$treat[[names(vd)[[1]]]]}' ",
+    "-c2 '{colours$treat[[names(vd)[[2]]]]}' ",
     "-ht {knitr::opts_chunk$get('fig.height')} ", 
     "-w {knitr::opts_chunk$get('fig.width')} ", 
-    "-o {png_out}"
+    "-o '{png_out}'"
   )
   system2(which_py, args)
 }
@@ -783,13 +783,13 @@ if (length(vd) == 3) {
     here::here("workflow", "scripts", "plot_venn.py "),
     "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
     "-a13 {a13} -a23 {a23} -a123 {a123} ",
-    "-s1 {names(vd)[[1]]} -s2 {names(vd)[[2]]} -s3 {names(vd)[[3]]} ", 
-    "-c1 {colours$treat[[names(vd)[[1]]]]} ",
-    "-c2 {colours$treat[[names(vd)[[2]]]]} ",
-    "-c3 {colours$treat[[names(vd)[[3]]]]} ",
+    "-s1 '{names(vd)[[1]]}' -s2 '{names(vd)[[2]]}' -s3 '{names(vd)[[3]]}' ", 
+    "-c1 '{colours$treat[[names(vd)[[1]]]]}' ",
+    "-c2 '{colours$treat[[names(vd)[[2]]]]}' ",
+    "-c3 '{colours$treat[[names(vd)[[3]]]]}' ",
     "-ht {knitr::opts_chunk$get('fig.height')} ", 
     "-w {knitr::opts_chunk$get('fig.width')} ", 
-    "-o {png_out}"
+    "-o '{png_out}'"
   )
   system2(which_py, args)
 } 
