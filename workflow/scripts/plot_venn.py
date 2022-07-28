@@ -22,6 +22,7 @@ parser.add_argument("-s3", type = str, default = "Z", help = "Label for Set 3")
 parser.add_argument("-c1", type = str, default = "white", help = "Colour for Set 1")
 parser.add_argument("-c2", type = str, default = "white", help = "Colour for Set 2")
 parser.add_argument("-c3", type = str, default = "white", help = "Colour for Set 3")
+parser.add_argument("-al", "--alpha", type=float, default = 0.3, help = "Alpha for fills")
 parser.add_argument("-lc", type = str, default = "#4d4d4d", help = "Line Colour")
 parser.add_argument("-lw", type = float, default = 1, help = "Line Width")
 parser.add_argument("-ht", type = float, default = 8, help = "Figure Height (in inches)")
@@ -52,7 +53,7 @@ if draw2:
 		if item is None:
 			areas[index] = 0
 
-	venn2(areas, set_labels = labels, set_colors=colours)
+	venn2(areas, set_labels = labels, set_colors=colours, alpha=config['alpha'])
 	venn2_circles(subsets = areas, color=config['lc'], linewidth=config['lw'])
 
 ## Draw 3-way if required
@@ -67,7 +68,7 @@ if not draw2:
 	
 	labels.append(config['s3'])
 	colours.append(config['c3'])
-	venn3(areas, set_labels = labels, set_colors=colours,)
+	venn3(areas, set_labels = labels, set_colors=colours, alpha=config['alpha'])
 	venn3_circles(subsets = areas,color=config['lc'], linewidth=config['lw'])
 
 ## Modify dimensions & export
