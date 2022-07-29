@@ -1754,10 +1754,10 @@ if (!is.null(config$external$coverage)) {
     ext_cov_path %>% 
       lapply(
         function(x) {
-          missing <- setdiff(names(x), names(treat_colours))
-          cmn <- intersect(names(x), names(treat_colours))
+          missing <- setdiff(names(x), names(colours$treat))
+          cmn <- intersect(names(x), names(colours$treat))
           col <- setNames(character(length(names(x))), names(x))
-          if (length(cmn) > 0) col[cmn] <- treat_colours[cmn]
+          if (length(cmn) > 0) col[cmn] <- colours$treat[cmn]
           if (length(missing) > 0) 
             col[missing] <- hcl.colors(
               max(5, length(missing)), "Zissou 1")[seq_along(missing)]
