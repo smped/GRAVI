@@ -455,8 +455,9 @@ replicates_by_treat <- individual_peaks %>%
 
 #### All Samples
 
-```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group.*"}
+```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. However, this can still be dependent on the success of each individual IP*"}
 samp_cols <- setNames(colours$treat[as.character(samples$treat)], samples$label)
+lwr <- 0.2 + nrow(samples) / 60
 individual_peaks %>%
   unlist() %>%
   select(sample) %>%
@@ -464,7 +465,7 @@ individual_peaks %>%
   as_tibble() %>%
   unnest(sample) %>% 
   left_join(samples, by = "sample") %>% 
-  mutate(label = fct_infreq(label)) %>% 
+  mutate(label = fct_rev(label)) %>% 
   split(.$label) %>% 
   lapply(pull, "range") %>% 
   fromList() %>% 
@@ -473,7 +474,11 @@ individual_peaks %>%
     keep.order = TRUE, order.by = "freq", 
     sets.bar.color = samp_cols[colnames(.)],
     set_size.show = TRUE,
-    set_size.scale_max = 1.2 * max(colSums(.))
+    set_size.scale_max = 1.2 * max(colSums(.)), 
+    mb.ratio = c(1 -lwr, lwr), 
+    text.scale = 1.2, point.size = 3,
+    sets.x.label = glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})"),
+    mainbar.y.label = "Peaks In Intersection"
   )
 ```
 
@@ -562,7 +567,9 @@ htmltools::tagList(
               set_size.show = TRUE,
               set_size.scale_max = max(colSums(.)) * 1.2, 
               text.scale = 1.2, 
-              point.size = 3
+              point.size = 3,
+              sets.x.label = glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})"),
+              mainbar.y.label = "Peaks In Intersection"
             )
           print(p)
           dev.off()
