@@ -476,7 +476,8 @@ individual_peaks %>%
     set_size.show = TRUE,
     set_size.scale_max = 1.2 * max(colSums(.)), 
     mb.ratio = c(1 -lwr, lwr), 
-    text.scale = 1.2, point.size = 3,
+    text.scale = 1.2, point.size = 2.5,
+    nintersects = 35,
     sets.x.label = glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})"),
     mainbar.y.label = "Peaks In Intersection"
   )
@@ -814,7 +815,9 @@ vd %>%
     sets.bar.color = colours$treat[treat_levels],
     set_size.show = TRUE,
     set_size.scale_max = nrow(.) * 1.2,
-    text.scale = 1.2
+    text.scale = 1.2, 
+    mainbar.y.label = "Peaks In Intersection", 
+    sets.x.label = "Consensus Peak Overlaps"
   )
 ```
 
