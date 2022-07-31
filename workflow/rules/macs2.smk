@@ -303,7 +303,7 @@ rule compile_macs2_summary_html:
 		renv = temp(
 			os.path.join("output", "envs", "{target}_macs2_summary.RData")
 		),
-		venn = "docs/assets/{target}/{target}_common_peaks.png"
+		venn = "docs/assets/{target}/{target}_common_peaks." + fig_type
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),

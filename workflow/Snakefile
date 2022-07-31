@@ -6,6 +6,7 @@ import urllib
 import sys
 import random
 import itertools
+import yaml
 
 configfile: "config/config.yml"
 
@@ -125,6 +126,14 @@ annotation_path = os.path.join("output", "annotations")
 diff_path = os.path.join("output", "differential_binding")
 macs2_path = os.path.join("output", "macs2")
 log_path = os.path.join("workflow", "logs")
+
+
+#################
+## Figure Type ##
+#################
+rmdconfigfile = "config/rmarkdown.yml"
+rmd_config: yaml.safe_load(open(rmdconfigfile))
+fig_type = config['knitr_opts']['dev'][0]
 
 ###############################
 ## External Annotation Files ##
