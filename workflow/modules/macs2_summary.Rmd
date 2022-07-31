@@ -133,10 +133,7 @@ data(list = cb)
 bands_df <- get(cb)
 ```
 
-```{figure-params}
-rmd_yaml <- read_yaml(
-  here::here("config" , "rmarkdown.yml")
-)
+```{r figure-params}
 fig_path <- here::here("docs", "assets", target)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_type <- knitr::opts_chunk$get("dev")[[1]]
