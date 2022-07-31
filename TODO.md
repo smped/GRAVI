@@ -5,7 +5,6 @@
 - Checks for input file consistency/structure
 - Add Jon Bischlak's install of R4.2.0
 - Update manual to include all recent changes
-- Change font types and font-sizes for plot_venn
 
 ## Bugs
 

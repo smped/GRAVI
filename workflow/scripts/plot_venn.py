@@ -53,7 +53,11 @@ if draw2:
 		if item is None:
 			areas[index] = 0
 
-	venn2(areas, set_labels = labels, set_colors=colours, alpha=config['alpha'])
+	v=venn2(areas, set_labels = labels, set_colors=colours, alpha=config['alpha'])
+	for ID in ["10", "01", "11"]:
+		if v.get_label_by_id(ID).get_text() == "0":
+			v.get_label_by_id(ID).set_text("")
+	
 	venn2_circles(subsets = areas, color=config['lc'], linewidth=config['lw'])
 
 ## Draw 3-way if required

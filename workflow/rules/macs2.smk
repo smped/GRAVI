@@ -290,6 +290,7 @@ rule compile_macs2_summary_html:
 		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,
+		venn_script = os.path.join("workflow", "scripts", "plot_venn.py"),
 		yaml = rules.create_site_yaml.output
 	output:
 		html = "docs/{target}_macs2_summary.html",
