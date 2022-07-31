@@ -1,4 +1,4 @@
-# Input Files and Directories {#input-files}
+# Files and Directories {#input-files}
 
 
 ```{r set-knitr-opts, echo=FALSE}
@@ -31,22 +31,23 @@ project_home/
 - Key configuration files are provided in the `config` directory
 - *Your data* should be placed in the `data` directory as described below
 - The `html` output summarising all results will be produced in the `docs` directory
-- Additional output files will be placed in `output`
+- Additional output files will be placed in `output` with all figures written within the respective folder for each html page, or with `docs/assets`.
 - The workflow itself is run by all code supplied in the `workflow` directory
+- The complete `R Environment` for each compiled RMarkdown document is also saved in `output/envs`, and given their larger sizes, these can be deleted using `snakemake --delete-temp-output --cores 1` to conserve storage space.
 
 ## Alignments {#alignments}
 
 The GRAVI workflow currently takes `bam` files as the primary input.
 Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.
 
-Files should be placed in the `data/aligned` directory as set in `config.yml`, although this can be changed if desired.
+Files should be placed in the `data/bam` directory as set in `config.yml`, although this can be changed if desired.
 Each ChIP target should be placed in a separate directory using the example layout as given below.
 As IgG input may be shared between ChIP targets, these can all be placed in the directory `data/Input` and this is hard-wired into the workflow.
 
 ```
 project_home/
  └── data
-      └── aligned 
+      └── bam 
            ├── TF1 
            │    ├── control_rep1.bam
            │    ├── control_rep2.bam
@@ -107,6 +108,7 @@ Common column names may be `replicate` or `passage` (for cell lines)
 ## Additional Files {#additional-files}
 
 Additional, optional files can also be supplied and is it customary to place these in `data/external` with paths (relative to `project_home`) added to `config.yml`.
+Full details are demonstrated in Section \@ref(config-yml)
 Names can be any informative name chosen by the user.
 
 ```

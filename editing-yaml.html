@@ -104,7 +104,10 @@ div.csl-indent {
 <li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
 <li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
 <li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
-<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a></li>
+<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="workflow.html"><a href="workflow.html#key-outputs-2"><i class="fa fa-check"></i><b>2.4.1</b> Key Outputs</a></li>
+</ul></li>
 </ul></li>
 <li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
 <ul>
@@ -115,8 +118,14 @@ div.csl-indent {
 <li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
 <li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
 </ul></li>
+<li class="chapter" data-level="3.4" data-path="quick-start.html"><a href="quick-start.html#tips-and-tricks"><i class="fa fa-check"></i><b>3.4</b> Tips And Tricks</a>
+<ul>
+<li class="chapter" data-level="3.4.1" data-path="quick-start.html"><a href="quick-start.html#removing-large-files"><i class="fa fa-check"></i><b>3.4.1</b> Removing Large files</a></li>
+<li class="chapter" data-level="3.4.2" data-path="quick-start.html"><a href="quick-start.html#shared-conda-environments"><i class="fa fa-check"></i><b>3.4.2</b> Shared Conda Environments</a></li>
+<li class="chapter" data-level="3.4.3" data-path="quick-start.html"><a href="quick-start.html#running-restricted-sections-of-the-worklow"><i class="fa fa-check"></i><b>3.4.3</b> Running Restricted Sections of the Worklow</a></li>
 </ul></li>
-<li class="chapter" data-level="4" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>4</b> Input Files and Directories</a>
+</ul></li>
+<li class="chapter" data-level="4" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>4</b> Files and Directories</a>
 <ul>
 <li class="chapter" data-level="4.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>4.1</b> Directory Structure</a></li>
 <li class="chapter" data-level="4.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>4.2</b> Alignments</a></li>
@@ -176,9 +185,7 @@ This is the only file parsed directly by <code>snakemake</code> and subsequent r
   file: &quot;config/samples.tsv&quot;
 
 paths:
-  bam: &quot;data/aligned&quot;
-  bigwig: &quot;data/bigwig&quot;
-  macs2: &quot;data/macs2&quot;
+  bam: &quot;data/bam&quot;
 
 genome:
   build: &quot;GRCh37&quot;
@@ -208,20 +215,19 @@ peaks:
     fdr: 0.05
     keep_duplicates: &quot;all&quot;
   qc:
-    min_prop_peaks: 0.1
-    min_prop_reps: 0.3</code></pre>
+    outlier_threshold: 10
+    allow_zero: true
+    min_prop_reps: 0.5</code></pre>
 <div id="settings-which-dont-need-to-be-modified" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Settings Which Don’t Need To Be Modified<a href="editing-yaml.html#settings-which-dont-need-to-be-modified" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>In general, the paths to key files don’t need to be changed and default configurations are well tested.
 Whilst varying these has been intermittently attempted successfully, unexpected instability may occur and as such, is discouraged.</p>
 <p><code>samples:</code> (Default: “config/samples.tsv”)</p>
 <p>By default, the file which contains all sample-level information is defined as <code>config/samples.tsv</code>.
-In theory, this can be changed but this may adversely impact the pipeline.</p>
+This can be changed to reflect any requirements after inspecting QC reports.</p>
 <p><code>paths:</code></p>
 <ul>
-<li><code>bam:</code> (Default: “data/aligned”) Alignments should be placed in <code>data/aligned</code> as advised in section <a href="input-files.html#alignments">4.2</a>, although this can be changed to <code>data/bam</code> or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability</li>
-<li><code>macs2:</code> (Default: “data/macs2”) Output from <code>macs2 callpeak</code> will be placed in this directory, mirroring the input structure from <code>data/aligned</code> where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.</li>
-<li><code>bigwig:</code> (Default: “data/bigwig”) After running <code>macs2 callpeak</code>, <code>bedGraph</code> files will be converted to the more space efficient <code>bigwig</code> files. The directory structure from both <code>data/aligned</code> and <code>data/macs2</code> will again be mirrored such that each ChIP target has all samples written to the same directory</li>
+<li><code>bam:</code> (Default: “data/bam”) Alignments should be placed in <code>data/bam</code> as advised in section <a href="input-files.html#alignments">4.2</a>, although this can be changed to any other relative path as desired.</li>
 </ul>
 </div>
 <div id="settings-which-should-be-modified" class="section level3 unlisted unnumbered hasAnchor">
@@ -234,7 +240,7 @@ The gtf corresponding to the specified <a href="https://www.gencodegenes.org/">G
 <p>Provide paths to all optional data files here.
 Only files provided will be included in the workflow.</p>
 <ul>
-<li><code>rnaseq</code> should be the results as output by <code>limma::topTable()</code> or similar. Gene IDs should match those provided in the Gencode GTF (e.g. Ensembl IDs) and these should be in a column names <code>gene_id</code>. Columns such as <code>logFC</code> and <code>FDR</code> will be searched for during the workflow using regular expressions to find the best match. Can be in <code>csv</code> or <code>tsv</code> format. Excel-specific (<code>xls</code>, <code>xlsx</code>) formats are not supported.</li>
+<li><code>rnaseq</code> should be the results as output by <code>limma::topTable()</code> or similar. Gene IDs should match those provided in the Gencode GTF (e.g. Ensembl IDs) and these should be in a column names <code>gene_id</code>. Columns such as <code>logFC</code> and <code>FDR</code> will be searched for during the workflow using regular expressions to find the best match. Can <strong>only</strong> be in <code>csv</code> or <code>tsv</code> format. Excel-specific (<code>xls</code>, <code>xlsx</code>) formats are not supported.</li>
 <li><code>features</code> can be determined by any method, with common choices being relevant histone marks, or promoters, enhancers and super-enhancers determined by H3K27ac marks. Features should be non-overlapping with the field <code>feature</code> defining the different feature types. Must be provided in GTF format.</li>
 <li><code>hic</code> HiC interactions must be provided as a <code>bedpe</code> file</li>
 <li><code>coverage</code> Tracks provided in this argument will be added to all genomic plots showing binding peaks or differential binding. Multiple files provided within each YAML list element will be overlaid as a single track. There is no upper limit to the number of tracks, however more tracks generally detract from an informative figure.</li>
@@ -260,8 +266,9 @@ Only files provided will be included in the workflow.</p>
 Please see the <a href="https://macs3-project.github.io/MACS/"><code>macs2</code> manual</a> for more detailed explanations.</p>
 <p><code>qc</code> parameters are used for determining if samples are of a high enough quality, and how to determine consensus/oracle peaks for each target and treatment group.</p>
 <ul>
-<li><code>min_prop_peaks:</code> (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the “best” sample within the relevant treatment group, i.e. the sample with the most number of peaks identified by <code>macs2 callpeak</code>. This is an inclusive threshold which will only discard clearly poor samples, which themselves are more likely to occur in tissue/organoid than in cell-line derived data.</li>
-<li><code>min_prop_reps</code> (Default: 0.3) When forming <strong>oracle</strong> peaks within each <em>target and treatment group</em>, peaks must be represented in at least this proportion of samples. This defaults to 0.3 which would equate to 1 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.</li>
+<li><code>outlier_threshold</code> (Default: 10) As previously described, samples with peak numbers beyond this value relative to the median peak numbers in each treatment group are marked for removal. To ignore this parameter, set this to <code>.inf</code> which effectively sets the threshold to <span class="math inline">\(\infty\)</span></li>
+<li><code>allow_zero</code> (Default: <code>true</code>) Allow samples with no identified peaks. If a ChIP target is expected to be cytoplasmic in one condition, this can allow samples with no peaks to be retained.</li>
+<li><code>min_prop_reps</code> (Default: 0.5) When forming <strong>oracle</strong> peaks within each <em>target and treatment group</em>, peaks must be represented in at least this proportion of samples. This defaults to 0.5 which would equate to 2 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.</li>
 </ul>
 </div>
 </div>
@@ -300,8 +307,12 @@ features:
 </div>
 <div id="params-yml" class="section level2 hasAnchor" number="5.3">
 <h2><span class="header-section-number">5.3</span> Additional Parameters: <code>params.yml</code><a href="editing-yaml.html#params-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
-<p>Default settings for defining initial annotations and enrichment testing.
-In general, these will not need to be changed, but can be if required.</p>
+<p>Default settings for defining initial annotations, mapping of peaks to genes and enrichment testing.
+In general, these will not need to be changed, but can be if required.
+In particular, the value <strong>enh2gene</strong> can be set to zero if using data such as H3K27ac HiChIP to determine long-range interactions.</p>
+<p>For enrichment testing, the preferred p-value adjustment method can be specified using any value that match <code>p.adjust.methods</code> with an appropraite threshold also set in this section.
+Default settings are relatively inclusive and more stringent setting may be preferred by some users.
+Given intermittent issues with edge-cases in the <code>BiasedUrn</code> package, threshold for enrichment testing can also be specified here, such that genes in a group considered for testing must represent <span class="math inline">\(&gt;\)</span> <code>100*min_prop_goseq</code>% of genes, and must also be <span class="math inline">\(&lt;\)</span> <code>100*max_propr_goseq</code>% of all genes.</p>
 <p>Parameters for <code>msigdb</code><span class="citation">(<a href="#ref-msigdb" role="doc-biblioref">Liberzon et al. 2015</a>)</span> are passed to <code>msigdbr</code><span class="citation">(<a href="#ref-msigdbr" role="doc-biblioref">Dolgalev 2022</a>)</span> and fields should match this layout.
 Any categories passed to <code>gs_cat</code> will lead to all subcategories being used from that category.
 Specific sub-categories of larger databases can be passed using <code>gs_subcat</code> element.</p>
@@ -311,14 +322,25 @@ Specific sub-categories of larger databases can be passed using <code>gs_subcat<
     downstream: 500
   upstream: 5000
   intergenic: 10000
+  
+mapping:
+  gr2gene: 100000
+  prom2gene: 0
+  enh2gene: 100000
+  gi2gene: 0  
 
-msigdb:
-  gs_cat: &quot;H&quot;
-  gs_subcat:
-    - &quot;CP:KEGG&quot;
-    - &quot;CP:REACTOME&quot;
-    - &quot;CP:WIKIPATHWAYS&quot;
-    - &quot;TFT:GTRD&quot;</code></pre>
+enrichment:
+  adj: &quot;fdr&quot;
+  alpha: 0.05
+  min_prop_goseq: 0.001
+  max_prop_goseq: 0.95
+  msigdb:
+    gs_cat: &quot;H&quot;
+    gs_subcat:
+      - &quot;CP:KEGG&quot;
+      - &quot;CP:REACTOME&quot;
+      - &quot;CP:WIKIPATHWAYS&quot;
+      - &quot;TFT:GTRD&quot;</code></pre>
 </div>
 <div id="rmarkdown-yml" class="section level2 hasAnchor" number="5.4">
 <h2><span class="header-section-number">5.4</span> HTML Settings: <code>rmarkdown.yml</code><a href="editing-yaml.html#rmarkdown-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
@@ -329,11 +351,14 @@ The two available fields to supply here are:</p>
 <li><code>rmarkdown_site</code> which determines the layout and style of the final HTML report.
 All <em>left</em> elements of the <code>navbar</code> are determined automatically during the workflow and will be ignored if supplied here, whilst all other parameters are passed via the file <code>_site.yaml</code> which will be generated during the workflow.</li>
 </ol>
+<p>Figure height and width parameters must be passed to <code>knitr::opts_set()</code> in inches, and the workflow defaults to <code>svg</code> output for most figures.
+Some figures which can become excessively large under this setting, such as those with many thousands of overlapping points, are set to always produce <code>png</code> output.
+Multiple output formats can also be set using values such as <code>['png', 'pdf']</code> if preferred.</p>
 <pre><code>knitr_opts:
   echo: TRUE
   message: FALSE
   warning: FALSE
-  dev: [&quot;png&quot;, &quot;pdf&quot;]
+  dev: &quot;svg&quot;
   fig.align: &quot;center&quot;
   fig.width: 10
   fig.height: 8

@@ -4,18 +4,18 @@
 
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Chapter 4 Input Files and Directories | GRAVI User Guide (v0.1.3)</title>
+  <title>Chapter 4 Files and Directories | GRAVI User Guide (v0.1.3)</title>
   <meta name="description" content="This is the main documentation for the GRAVI workflow" />
   <meta name="generator" content="bookdown 0.27 and GitBook 2.6.7" />
 
-  <meta property="og:title" content="Chapter 4 Input Files and Directories | GRAVI User Guide (v0.1.3)" />
+  <meta property="og:title" content="Chapter 4 Files and Directories | GRAVI User Guide (v0.1.3)" />
   <meta property="og:type" content="book" />
   
   <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
   <meta name="github-repo" content="steveped/GRAVI" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Chapter 4 Input Files and Directories | GRAVI User Guide (v0.1.3)" />
+  <meta name="twitter:title" content="Chapter 4 Files and Directories | GRAVI User Guide (v0.1.3)" />
   
   <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
   
@@ -104,7 +104,10 @@ div.csl-indent {
 <li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
 <li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
 <li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
-<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a></li>
+<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="workflow.html"><a href="workflow.html#key-outputs-2"><i class="fa fa-check"></i><b>2.4.1</b> Key Outputs</a></li>
+</ul></li>
 </ul></li>
 <li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
 <ul>
@@ -115,8 +118,14 @@ div.csl-indent {
 <li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
 <li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
 </ul></li>
+<li class="chapter" data-level="3.4" data-path="quick-start.html"><a href="quick-start.html#tips-and-tricks"><i class="fa fa-check"></i><b>3.4</b> Tips And Tricks</a>
+<ul>
+<li class="chapter" data-level="3.4.1" data-path="quick-start.html"><a href="quick-start.html#removing-large-files"><i class="fa fa-check"></i><b>3.4.1</b> Removing Large files</a></li>
+<li class="chapter" data-level="3.4.2" data-path="quick-start.html"><a href="quick-start.html#shared-conda-environments"><i class="fa fa-check"></i><b>3.4.2</b> Shared Conda Environments</a></li>
+<li class="chapter" data-level="3.4.3" data-path="quick-start.html"><a href="quick-start.html#running-restricted-sections-of-the-worklow"><i class="fa fa-check"></i><b>3.4.3</b> Running Restricted Sections of the Worklow</a></li>
 </ul></li>
-<li class="chapter" data-level="4" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>4</b> Input Files and Directories</a>
+</ul></li>
+<li class="chapter" data-level="4" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>4</b> Files and Directories</a>
 <ul>
 <li class="chapter" data-level="4.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>4.1</b> Directory Structure</a></li>
 <li class="chapter" data-level="4.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>4.2</b> Alignments</a></li>
@@ -162,7 +171,7 @@ div.csl-indent {
 
             <section class="normal" id="section-">
 <div id="input-files" class="section level1 hasAnchor" number="4">
-<h1><span class="header-section-number">Chapter 4</span> Input Files and Directories<a href="input-files.html#input-files" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<h1><span class="header-section-number">Chapter 4</span> Files and Directories<a href="input-files.html#input-files" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <div id="directories" class="section level2 hasAnchor" number="4.1">
 <h2><span class="header-section-number">4.1</span> Directory Structure<a href="input-files.html#directories" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>The GRAVI workflow requires a set directory structure.
@@ -180,20 +189,21 @@ The required directory structure is</p>
 <li>Key configuration files are provided in the <code>config</code> directory</li>
 <li><em>Your data</em> should be placed in the <code>data</code> directory as described below</li>
 <li>The <code>html</code> output summarising all results will be produced in the <code>docs</code> directory</li>
-<li>Additional output files will be placed in <code>output</code></li>
+<li>Additional output files will be placed in <code>output</code> with all figures written within the respective folder for each html page, or with <code>docs/assets</code>.</li>
 <li>The workflow itself is run by all code supplied in the <code>workflow</code> directory</li>
+<li>The complete <code>R Environment</code> for each compiled RMarkdown document is also saved in <code>output/envs</code>, and given their larger sizes, these can be deleted using <code>snakemake --delete-temp-output --cores 1</code> to conserve storage space.</li>
 </ul>
 </div>
 <div id="alignments" class="section level2 hasAnchor" number="4.2">
 <h2><span class="header-section-number">4.2</span> Alignments<a href="input-files.html#alignments" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>The GRAVI workflow currently takes <code>bam</code> files as the primary input.
 Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.</p>
-<p>Files should be placed in the <code>data/aligned</code> directory as set in <code>config.yml</code>, although this can be changed if desired.
+<p>Files should be placed in the <code>data/bam</code> directory as set in <code>config.yml</code>, although this can be changed if desired.
 Each ChIP target should be placed in a separate directory using the example layout as given below.
 As IgG input may be shared between ChIP targets, these can all be placed in the directory <code>data/Input</code> and this is hard-wired into the workflow.</p>
 <pre><code>project_home/
  └── data
-      └── aligned 
+      └── bam 
            ├── TF1 
            │    ├── control_rep1.bam
            │    ├── control_rep2.bam
@@ -302,6 +312,7 @@ Common column names may be <code>replicate</code> or <code>passage</code> (for c
 <div id="additional-files" class="section level2 hasAnchor" number="4.4">
 <h2><span class="header-section-number">4.4</span> Additional Files<a href="input-files.html#additional-files" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Additional, optional files can also be supplied and is it customary to place these in <code>data/external</code> with paths (relative to <code>project_home</code>) added to <code>config.yml</code>.
+Full details are demonstrated in Section <a href="editing-yaml.html#config-yml">5.1</a>
 Names can be any informative name chosen by the user.</p>
 <pre><code>project_home/
  └── data

@@ -23,10 +23,39 @@ If you are running the pipeline on an HPC and are unsure, please consult with yo
 To run using 16 cores without any queuing system (e.g. on a local machine), enter the following
 
 ```
-snakemake -p --use-conda --notemp --keep-going --cores 16
+snakemake -p --use-conda --notemp --keep-going --rerun-triggers mtime --cores 16
 ```
 
 ### Run On An HPC
 
 Please consult with your local support team for their advice running a `snakemake` workflow.
 In essence, the above command will need to be provided to your queuing system through the preferred strategy.
+
+## Tips And Tricks
+
+### Removing Large files
+
+Some large files, such as R Environments and BedGraph files are marked as `temp` files internally and these can be removed after completion of the workflow using 
+
+```
+snakemake --delete-temp-output --cores 1
+```
+
+### Shared Conda Environments
+
+`conda` environments can easily become bloated and if running multiple GRAVI analyses it may be simpler to host a common set of `conda` environments to avoid their constant recreation.
+This can be performed by adding the argument `--conda-prefix '/path/to/my/envs/'` in the call to `snakemake`
+
+Conda environments can also be built prior to running the workflow using the standalone command
+
+```
+snakemake \
+	--use-conda \
+	--conda-prefix '/path/to/my/envs/' \
+	--conda-create-envs-only \
+	--cores 1
+```
+
+### Running Restricted Sections of the Worklow
+
+Snakemake has the capacity to run a workflow up until a certain point and this can be easily done using the argument `--until` and specifying the stage you wish to terminate the workflow at. For example, the argument `--until compile_macs2_summary_html` would only run the workflow until the macs2 summaries are compiled, which may be preferable for checking QC before proceeding to differential expression and pairwise comparisons.

@@ -342,6 +342,7 @@ This is particularly important given the hypothesised role of ChIP targets which
 The combined behaviours of both ChIP targets is then compared directly, described by genomic region and external features (if provided).
 Distances between the windows with representative statistics (i.e. maximal signal) are determined where both targets are present.
 The combined changes in signal are then compared as a complete set for all windows where both targets are detected, as well as broken down by genomic region and external features.
+Distances between the windows where the maximal signal was observed are also presented
 
 ### Enrichment Analysis {.unlisted .unnumbered}
 
@@ -359,6 +360,8 @@ Enrichment is performed at multiple levels:
     
 ### Combined Visualisations {.unlisted .unnumbered}
 
+Profile heatmaps for all behavioural groups which are detected (e.g. TF1 Up - TF2 Up, TF1 Up - TF2 - Unchanged etc) are all presented.
+
 The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
 Using only combinations of Up/Down/Unchanged, six windows for each are presented.
 As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.
@@ -366,6 +369,15 @@ As with all genomic visualisations, any coverage provided as an external track (
 ### Integration With RNA-Seq Results {.unlisted .unnumbered}
 
 The set of genes mapped to each pair-wise combination of Up/Down/Unchanged/Undetected are then compared to the external DE results using GSEA incorporating direction of change, and overall significance.
+Differential expression is displayed as a multi-panel volcano plot, separating genes by combined binding patterns. 
 Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for *all* significant combined-binding groups are also provided in the results table.
 
+### Key Outputs
+
+Key output files produced by this step of the workflow include
+
+- Pairwise binding patterns across both comparisons (`output/pairwise_comparisons/<ChIP_target1>_<ChIP_target2>/<comparison1>-<comparison2>-pairwise_comparison.csv.gz`)
+- The above file as an RDS object for easier parsing into an `R` environment.
+
+If RNA-Seq data is provided, the file `output/pairwise_comparisons/<ChIP_target1>_<ChIP_target2>/<comparison1>-<comparison2>-de_genes.csv` will contain mappings between DE genes and combined ChIP target binding patterns.
 

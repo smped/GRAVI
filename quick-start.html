@@ -104,7 +104,10 @@ div.csl-indent {
 <li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
 <li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
 <li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
-<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a></li>
+<li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="workflow.html"><a href="workflow.html#key-outputs-2"><i class="fa fa-check"></i><b>2.4.1</b> Key Outputs</a></li>
+</ul></li>
 </ul></li>
 <li class="chapter" data-level="3" data-path="quick-start.html"><a href="quick-start.html"><i class="fa fa-check"></i><b>3</b> Quick Start Guide</a>
 <ul>
@@ -115,8 +118,14 @@ div.csl-indent {
 <li class="chapter" data-level="3.3.1" data-path="quick-start.html"><a href="quick-start.html#run-on-a-local-server"><i class="fa fa-check"></i><b>3.3.1</b> Run On A Local Server</a></li>
 <li class="chapter" data-level="3.3.2" data-path="quick-start.html"><a href="quick-start.html#run-on-an-hpc"><i class="fa fa-check"></i><b>3.3.2</b> Run On An HPC</a></li>
 </ul></li>
+<li class="chapter" data-level="3.4" data-path="quick-start.html"><a href="quick-start.html#tips-and-tricks"><i class="fa fa-check"></i><b>3.4</b> Tips And Tricks</a>
+<ul>
+<li class="chapter" data-level="3.4.1" data-path="quick-start.html"><a href="quick-start.html#removing-large-files"><i class="fa fa-check"></i><b>3.4.1</b> Removing Large files</a></li>
+<li class="chapter" data-level="3.4.2" data-path="quick-start.html"><a href="quick-start.html#shared-conda-environments"><i class="fa fa-check"></i><b>3.4.2</b> Shared Conda Environments</a></li>
+<li class="chapter" data-level="3.4.3" data-path="quick-start.html"><a href="quick-start.html#running-restricted-sections-of-the-worklow"><i class="fa fa-check"></i><b>3.4.3</b> Running Restricted Sections of the Worklow</a></li>
 </ul></li>
-<li class="chapter" data-level="4" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>4</b> Input Files and Directories</a>
+</ul></li>
+<li class="chapter" data-level="4" data-path="input-files.html"><a href="input-files.html"><i class="fa fa-check"></i><b>4</b> Files and Directories</a>
 <ul>
 <li class="chapter" data-level="4.1" data-path="input-files.html"><a href="input-files.html#directories"><i class="fa fa-check"></i><b>4.1</b> Directory Structure</a></li>
 <li class="chapter" data-level="4.2" data-path="input-files.html"><a href="input-files.html#alignments"><i class="fa fa-check"></i><b>4.2</b> Alignments</a></li>
@@ -188,12 +197,35 @@ If you are running the pipeline on an HPC and are unsure, please consult with yo
 <div id="run-on-a-local-server" class="section level3 hasAnchor" number="3.3.1">
 <h3><span class="header-section-number">3.3.1</span> Run On A Local Server<a href="quick-start.html#run-on-a-local-server" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>To run using 16 cores without any queuing system (e.g. on a local machine), enter the following</p>
-<pre><code>snakemake -p --use-conda --notemp --keep-going --cores 16</code></pre>
+<pre><code>snakemake -p --use-conda --notemp --keep-going --rerun-triggers mtime --cores 16</code></pre>
 </div>
 <div id="run-on-an-hpc" class="section level3 hasAnchor" number="3.3.2">
 <h3><span class="header-section-number">3.3.2</span> Run On An HPC<a href="quick-start.html#run-on-an-hpc" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>Please consult with your local support team for their advice running a <code>snakemake</code> workflow.
 In essence, the above command will need to be provided to your queuing system through the preferred strategy.</p>
+</div>
+</div>
+<div id="tips-and-tricks" class="section level2 hasAnchor" number="3.4">
+<h2><span class="header-section-number">3.4</span> Tips And Tricks<a href="quick-start.html#tips-and-tricks" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<div id="removing-large-files" class="section level3 hasAnchor" number="3.4.1">
+<h3><span class="header-section-number">3.4.1</span> Removing Large files<a href="quick-start.html#removing-large-files" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Some large files, such as R Environments and BedGraph files are marked as <code>temp</code> files internally and these can be removed after completion of the workflow using</p>
+<pre><code>snakemake --delete-temp-output --cores 1</code></pre>
+</div>
+<div id="shared-conda-environments" class="section level3 hasAnchor" number="3.4.2">
+<h3><span class="header-section-number">3.4.2</span> Shared Conda Environments<a href="quick-start.html#shared-conda-environments" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p><code>conda</code> environments can easily become bloated and if running multiple GRAVI analyses it may be simpler to host a common set of <code>conda</code> environments to avoid their constant recreation.
+This can be performed by adding the argument <code>--conda-prefix '/path/to/my/envs/'</code> in the call to <code>snakemake</code></p>
+<p>Conda environments can also be built prior to running the workflow using the standalone command</p>
+<pre><code>snakemake \
+    --use-conda \
+    --conda-prefix &#39;/path/to/my/envs/&#39; \
+    --conda-create-envs-only \
+    --cores 1</code></pre>
+</div>
+<div id="running-restricted-sections-of-the-worklow" class="section level3 hasAnchor" number="3.4.3">
+<h3><span class="header-section-number">3.4.3</span> Running Restricted Sections of the Worklow<a href="quick-start.html#running-restricted-sections-of-the-worklow" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Snakemake has the capacity to run a workflow up until a certain point and this can be easily done using the argument <code>--until</code> and specifying the stage you wish to terminate the workflow at. For example, the argument <code>--until compile_macs2_summary_html</code> would only run the workflow until the macs2 summaries are compiled, which may be preferable for checking QC before proceeding to differential expression and pairwise comparisons.</p>
 
 </div>
 </div>

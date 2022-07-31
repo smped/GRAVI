@@ -17,9 +17,7 @@ samples:
   file: "config/samples.tsv"
 
 paths:
-  bam: "data/aligned"
-  bigwig: "data/bigwig"
-  macs2: "data/macs2"
+  bam: "data/bam"
 
 genome:
   build: "GRCh37"
@@ -49,8 +47,9 @@ peaks:
     fdr: 0.05
     keep_duplicates: "all"
   qc:
-    min_prop_peaks: 0.1
-    min_prop_reps: 0.3
+    outlier_threshold: 10
+    allow_zero: true
+    min_prop_reps: 0.5
 ```
 
 
@@ -62,13 +61,11 @@ Whilst varying these has been intermittently attempted successfully, unexpected 
 `samples:` (Default: "config/samples.tsv")
 
 By default, the file which contains all sample-level information is defined as `config/samples.tsv`.
-In theory, this can be changed but this may adversely impact the pipeline.
+This can be changed to reflect any requirements after inspecting QC reports.
 
 `paths:`
 
-- `bam:` (Default: "data/aligned") Alignments should be placed in `data/aligned` as advised in section \@ref(alignments), although this can be changed to `data/bam` or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability
-- `macs2:` (Default: "data/macs2") Output from `macs2 callpeak` will be placed in this directory, mirroring the input structure from `data/aligned` where each ChIP target (e.g. TF1, TF2) will have results written to separate directories.
-- `bigwig:` (Default: "data/bigwig") After running `macs2 callpeak`, `bedGraph` files will be converted to the more space efficient `bigwig` files. The directory structure from both `data/aligned` and `data/macs2` will again be mirrored such that each ChIP target has all samples written to the same directory
+- `bam:` (Default: "data/bam") Alignments should be placed in `data/bam` as advised in section \@ref(alignments), although this can be changed to any other relative path as desired. 
 
 ### Settings Which Should Be Modified {.unlisted .unnumbered}
 
@@ -83,7 +80,7 @@ The gtf corresponding to the specified [Gencode release](https://www.gencodegene
 Provide paths to all optional data files here.
 Only files provided will be included in the workflow.
 
-- `rnaseq` should be the results as output by `limma::topTable()` or similar. Gene IDs should match those provided in the Gencode GTF (e.g. Ensembl IDs) and these should be in a column names `gene_id`. Columns such as `logFC` and `FDR` will be searched for during the workflow using regular expressions to find the best match. Can be in `csv` or `tsv` format. Excel-specific (`xls`, `xlsx`) formats are not supported.
+- `rnaseq` should be the results as output by `limma::topTable()` or similar. Gene IDs should match those provided in the Gencode GTF (e.g. Ensembl IDs) and these should be in a column names `gene_id`. Columns such as `logFC` and `FDR` will be searched for during the workflow using regular expressions to find the best match. Can **only** be in `csv` or `tsv` format. Excel-specific (`xls`, `xlsx`) formats are not supported.
 - `features` can be determined by any method, with common choices being relevant histone marks, or promoters, enhancers and super-enhancers determined by H3K27ac marks. Features should be non-overlapping with the field `feature` defining the different feature types. Must be provided in GTF format.
 - `hic` HiC interactions must be provided as a `bedpe` file
 - `coverage` Tracks provided in this argument will be added to all genomic plots showing binding peaks or differential binding. Multiple files provided within each YAML list element will be overlaid as a single track. There is no upper limit to the number of tracks, however more tracks generally detract from an informative figure.
@@ -110,8 +107,9 @@ Please see the [`macs2` manual](https://macs3-project.github.io/MACS/) for more 
 
 `qc` parameters are used for determining if samples are of a high enough quality, and how to determine consensus/oracle peaks for each target and treatment group.
 
-- `min_prop_peaks:` (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the "best" sample within the relevant treatment group, i.e. the sample with the most number of peaks identified by `macs2 callpeak`. This is an inclusive threshold which will only discard clearly poor samples, which themselves are more likely to occur in tissue/organoid than in cell-line derived data.
-- `min_prop_reps` (Default: 0.3) When forming **oracle** peaks within each *target and treatment group*, peaks must be represented in at least this proportion of samples. This defaults to 0.3 which would equate to 1 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.
+- `outlier_threshold` (Default: 10) As previously described, samples with peak numbers beyond this value relative to the median peak numbers in each treatment group are marked for removal. To ignore this parameter, set this to `.inf` which effectively sets the threshold to $\infty$
+- `allow_zero` (Default: `true`) Allow samples with no identified peaks. If a ChIP target is expected to be cytoplasmic in one condition, this can allow samples with no peaks to be retained.
+- `min_prop_reps` (Default: 0.5) When forming **oracle** peaks within each *target and treatment group*, peaks must be represented in at least this proportion of samples. This defaults to 0.5 which would equate to 2 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.
 
 ## Colour Schemes: `colours.yml` [#colours-yml]
 
@@ -151,8 +149,13 @@ features:
 
 ## Additional Parameters: `params.yml` {#params-yml}
 
-Default settings for defining initial annotations and enrichment testing. 
+Default settings for defining initial annotations, mapping of peaks to genes and enrichment testing. 
 In general, these will not need to be changed, but can be if required.
+In particular, the value **enh2gene** can be set to zero if using data such as H3K27ac HiChIP to determine long-range interactions.
+
+For enrichment testing, the preferred p-value adjustment method can be specified using any value that match `p.adjust.methods` with an appropraite threshold also set in this section.
+Default settings are relatively inclusive and more stringent setting may be preferred by some users.
+Given intermittent issues with edge-cases in the `BiasedUrn` package, threshold for enrichment testing can also be specified here, such that genes in a group considered for testing must represent $>$ `100*min_prop_goseq`% of genes, and must also be $<$ `100*max_propr_goseq`% of all genes.
 
 Parameters for `msigdb`[@msigdb] are passed to `msigdbr`[@msigdbr] and fields should match this layout.
 Any categories passed to `gs_cat` will lead to all subcategories being used from that category.
@@ -165,14 +168,25 @@ gene_regions:
     downstream: 500
   upstream: 5000
   intergenic: 10000
+  
+mapping:
+  gr2gene: 100000
+  prom2gene: 0
+  enh2gene: 100000
+  gi2gene: 0  
 
-msigdb:
-  gs_cat: "H"
-  gs_subcat:
-    - "CP:KEGG"
-    - "CP:REACTOME"
-    - "CP:WIKIPATHWAYS"
-    - "TFT:GTRD"
+enrichment:
+  adj: "fdr"
+  alpha: 0.05
+  min_prop_goseq: 0.001
+  max_prop_goseq: 0.95
+  msigdb:
+    gs_cat: "H"
+    gs_subcat:
+      - "CP:KEGG"
+      - "CP:REACTOME"
+      - "CP:WIKIPATHWAYS"
+      - "TFT:GTRD"
 ```
 
 
@@ -185,12 +199,16 @@ The two available fields to supply here are:
 2. `rmarkdown_site` which determines the layout and style of the final HTML report.
 All *left* elements of the `navbar` are determined automatically during the workflow and will be ignored if supplied here, whilst all other parameters are passed via the file `_site.yaml` which will be generated during the workflow.
 
+Figure height and width parameters must be passed to `knitr::opts_set()` in inches, and the workflow defaults to `svg` output for most figures.
+Some figures which can become excessively large under this setting, such as those with many thousands of overlapping points, are set to always produce `png` output.
+Multiple output formats can also be set using values such as `['png', 'pdf']` if preferred.
+
 ```
 knitr_opts:
   echo: TRUE
   message: FALSE
   warning: FALSE
-  dev: ["png", "pdf"]
+  dev: "svg"
   fig.align: "center"
   fig.width: 10
   fig.height: 8
