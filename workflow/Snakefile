@@ -132,8 +132,11 @@ log_path = os.path.join("workflow", "logs")
 ## Figure Type ##
 #################
 rmdconfigfile = "config/rmarkdown.yml"
-rmd_config: yaml.safe_load(open(rmdconfigfile))
-fig_type = config['knitr_opts']['dev'][0]
+rmd_config = yaml.safe_load(open(rmdconfigfile))
+fig_type = rmd_config['knitr_opts']['dev']
+if type(fig_type) is list:
+	fig_type = fig_type[0]
+
 
 ###############################
 ## External Annotation Files ##
