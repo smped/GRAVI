@@ -608,7 +608,7 @@ plot_grid(
 
 ### RLE (Post-SQN)
 
-```{r plot-rle-normalised, fig.height=6, fig.cap = glue("*RLE plot showing logCPM values after Smooth Quantile normalisation. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values after Smooth Quantile normalisation. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
 filtered_counts %>% 
   plotAssayRle(
   "qsmooth", fill = "treat", rle_group = "treat", x_col = "label", n_max = n_max
@@ -722,7 +722,7 @@ FDR-adjustment was performed with `r comma(sum(merged_results$P.Value_fdr < fdr_
 
 ### Merged Windows
 
-```{r plot-merged-size, fig.height=7, fig.cap = glue("*Comparison of {target} signal intensity (logCPM) and merged window size (kb) for windows which overlap a macs2 consensus peak and those which don't. A mall amount of jitter has been added to the y-axis in the lower-left panel.*")}
+```{r plot-merged-size, dev='png', fig.height=7, fig.cap = glue("*Comparison of {target} signal intensity (logCPM) and merged window size (kb) for windows which overlap a macs2 consensus peak and those which don't. A mall amount of jitter has been added to the y-axis in the lower-left panel.*")}
 merged_results %>% 
   mutate(kb = width / 1e3) %>% 
   as_tibble() %>% 
@@ -761,7 +761,7 @@ merged_results %>%
 
 ### Mean-Variance Relationship
 
-```{r plot-mean-var, fig.height = 6, fig.cap = "*Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend [@LawVoom2014], whilst the loess curve through the initial estimates is shown in blue.*"}
+```{r plot-mean-var, dev = 'png', fig.height = 6, fig.cap = "*Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend [@LawVoom2014], whilst the loess curve through the initial estimates is shown in blue.*"}
 tibble(A = fit$Amean, pre = fit$sigma, post = sqrt(fit$s2.post)) %>% 
   sample_n(n_max) %>% 
   pivot_longer(c("pre", "post"), names_to = "step", values_to = "sigma") %>%

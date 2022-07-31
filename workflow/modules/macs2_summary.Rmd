@@ -393,7 +393,7 @@ yieldSize(bfl) <- ys
 ```
 
 
-```{r plot-gc-content, fig.height = 6, fig.cap = glue("*GC content for each bam file, taking the first {comma(ys)} alignments from each sample. QC status is based on the number of peaks identified (see table above)*")}
+```{r plot-gc-content, dev = 'png', fig.height = 6, fig.cap = glue("*GC content for each bam file, taking the first {comma(ys)} alignments from each sample. QC status is based on the number of peaks identified (see table above)*")}
 bfl %>% 
   bplapply(
     function(x){
