@@ -113,6 +113,7 @@ direction_colours <- RColorBrewer::brewer.pal(9, "Set1") %>%
   setNames(str_subset(combs, "Undetected", negate = TRUE))
 ```
 
+
 ```{r load-annotations}
 cb <- config$genome$build %>% 
   str_to_lower() %>% 
@@ -360,6 +361,17 @@ all_out <- list(
 ```
 
 
+```{r figure-params}
+fig_type <- knitr::opts_chunk$get("dev")[[1]]
+if (is.null(fig_type)) stop("Couldn't detect figure type")
+fig_fun <- match.fun(fig_type)
+if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
+  ## These figure types require dpi & resetting to be inches
+  formals(fig_fun)$units <- "in"
+  formals(fig_fun)$res <- 300
+}
+```
+
 # Outline
 
 This stage of the GRAVI workflow takes the results from two individual differential binding analyses and compares the results, by finding peaks which directly overlap and considering the joint behaviour.
@@ -404,7 +416,7 @@ The sets of treatment-specific *oracle-peaks* were then compared across the comb
 ```{r plot-empty-peaks, results = 'hide', eval = length(unique(targets)) == 1, echo = FALSE}
 fig_name <- targets %>% 
   paste(collapse = "_") %>% 
-  paste0("_common_peaks.png")
+  paste0("_common_peaks.", fig_type)
 file.create(file.path(fig_path, fig_name))
 ```
 
@@ -412,14 +424,14 @@ file.create(file.path(fig_path, fig_name))
 ```{r plot-consensus, results = 'hide', eval = length(unique(targets)) > 1, eval = length(unique(targets)) > 1}
 fig_name <- targets %>% 
   paste(collapse = "_") %>% 
-  paste0("_common_peaks.png")
+  paste0("_common_peaks.", fig_type)
 lapply(
   consensus_peaks,
   function(x) as.character(subsetByOverlaps(all_consensus, x))
 )%>% 
   venn.diagram(
     file.path(fig_path, fig_name),
-    imagetype = "png",
+    imagetype = fig_type,
     units = "in",
     cat.cex = 1.4,
     height = 9, 
@@ -2044,31 +2056,30 @@ htmltools::tagList(
   mclapply(
     seq_along(profile_heatmaps),
     function(x) {
-      ## Export the png
+      ## Export the image
       pw <- names(profile_heatmaps)[[x]] 
-      png_out <- file.path(
+      img_out <- file.path(
         fig_path,
         pw %>% 
           str_remove_all("(:|Vs. |- )") %>% 
           str_replace_all(" ", "_") %>% 
           str_replace_all("_-_", "-") %>% 
-          paste0("_profile_heatmap.png")
+          paste0("_profile_heatmap.", fig_type)
       )
       n_ranges <- length(unique(profile_heatmaps[[x]]$data$range))
       n_samples<- length(unique(profile_heatmaps[[x]]$data$name))
-      png(
-        filename = png_out,
+      fig_fun(
+        filename = img_out,
         width = knitr::opts_current$get("fig.width") * n_samples / 4, 
         height = min(
           3 + knitr::opts_current$get("fig.height") * n_ranges / 1e3, 
           10
-        ),
-        units = "in", res = 300
+        )
       )
       print(profile_heatmaps[[x]])
       dev.off()
       ## Create html tags
-      fig_link <- str_extract(png_out, "assets.+")
+      fig_link <- str_extract(img_out, "assets.+")
       cp <- htmltools::tags$em(
         glue(
           "
@@ -2079,9 +2090,9 @@ htmltools::tagList(
       )
       htmltools::div(
         htmltools::div(
-          id = png_out %>% 
+          id = img_out %>% 
             basename() %>% 
-            str_remove_all(".png$") %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
             str_to_lower() %>% 
             str_replace_all("_", "-"),
           class="section level3",
@@ -2286,17 +2297,16 @@ htmltools::tagList(
   mclapply(
     seq_along(grl_to_plot),
     function(x) {
-      ## Export the png
-      png_out <- file.path(
+      ## Export the image
+      img_out <- file.path(
         fig_path,
         names(grl_to_plot)[[x]] %>% 
           str_remove_all("(:|Vs. |- )") %>% 
           str_replace_all(" ", "_") %>% 
-          paste0("_AveExpr.png")
+          paste0("_AveExpr.", fig_type)
       )
-      png(
-        filename = png_out,
-        width = 10, height = 8, units = "in", res = 300
+      fig_fun(
+        filename = img_out, width = 10, height = 8
       )
       ct <- FALSE
       if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
@@ -2316,7 +2326,7 @@ htmltools::tagList(
       )
       dev.off()
       ## Create html tags
-      fig_link <- str_extract(png_out, "assets.+")
+      fig_link <- str_extract(img_out, "assets.+")
       gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
       cp <- htmltools::tags$em(
         glue(
@@ -2432,17 +2442,16 @@ htmltools::tagList(
   mclapply(
     seq_along(grl_to_plot),
     function(x) {
-      ## Export the png
-      png_out <- file.path(
+      ## Export the image
+      img_out <- file.path(
         fig_path,
         names(grl_to_plot)[[x]] %>% 
           str_remove_all("(:|Vs. |- )") %>% 
           str_replace_all(" ", "_") %>% 
-          paste0("_logFC.png")
+          paste0("_logFC.", fig_type)
       )
-      png(
-        filename = png_out,
-        width = 10, height = 8, units = "in", res = 300
+      fig_fun(
+        filename = img_out, width = 10, height = 8
       )
       ct <- FALSE
       if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
@@ -2462,7 +2471,7 @@ htmltools::tagList(
       )
       dev.off()
       ## Create html tags
-      fig_link <- str_extract(png_out, "assets.+")
+      fig_link <- str_extract(img_out, "assets.+")
       gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
       cp <- htmltools::tags$em(
         glue(
