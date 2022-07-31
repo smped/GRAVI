@@ -111,11 +111,15 @@ One summary report will be produced each ChIP target specified in the `target` c
 Basic QC statistics such as Library Size, Read Lengths, Total Detected Peaks and Fraction Of Reads In Peaks (FRIP) are provided in tabular and visual form.
 Plots showing sample-specific GC content and Cross Correlations are also provided to enable visual identification of any outlier samples which can be excluded manually, or handled in any other suitable manner.
 
-Taking the best sample from each treatment group (i.e. the one with the largest number of peaks, $n_\text{max}$), low quality samples can be *automatically excluded* if failing to capture $> p_\text{peaks} * n_\text{max}$ peaks, where $p_\text{peaks}$ represents the minimum acceptable proportion of peaks obtained in the best sample ($n_\text{max}$).
-The value $p_\text{peaks}$ can be defined in `config.yml` as the parameter `min_prop_peaks` (Section \@ref(config-yml)) and setting this to zero will ensure all samples are included.
-This can be particularly useful when dealing with difficult biological source material such as tissue samples or organoids, as opposed to cell lines where consistent results are more common.
+One feature of the GRAVI workflow is to compare between replicates within a treatment group to determine any low-quality samples.
+Taking the median number of peaks within a sample group ($np_i$), and sample with $>N$-fold or $<N$-fold $np_i$ peaks will be marked as an outlier.
+By default, this is set to 10-fold using the parameter `outlier_threshold`  (Section \@ref(config-yml)) and can be disabled by setting this parameter to `.inf`, which will be passed to `R` as the value $\infty$.
+Given that some ChIP targets may be cytoplasmic and yield zero peaks in some treatment groups, samples with zero peaks can also be allowed by setting `allow_zero` to be `true`.
 
 ### Results {.unlisted .unnumbered}
+
+**Individual Replicates**: UpSet plots[@upsetr] of all samples are first produced to enable identification of any possible mislabelling.
+Venn Diagrams are then produced for all replicates with each treatment groups (if $n \leq3$), or UpSet plots are produced for $n \geq4$ replicates to show consistency between replicates.
 
 **Oracle Peaks**: During this step of the workflow a set of treatment-specific *oracle peaks* will be produced for each ChIP target. 
 The set of peaks obtained by merging samples will be compared to all individual samples, and only those peaks identified in at least $100*p_\text{reps}\%$ of the samples which passed QC will be included in the set of oracle peaks.
@@ -129,21 +133,21 @@ Peaks overlapping a blacklisted region are excluded at all steps of the analysis
 
 The final HTML report produced for each target will contain:
 
-1. A Venn Diagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot[@upsetr] will be produced instead
+1. A Venn Diagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot will be produced instead
 2. Distance to TSS plots as actual and cumulative distributions using consensus peaks.
 3. A pie chart describing the distribution of consensus peaks within the genomic regions defined previously
 
 Additional plots will be produced in the presence of external data
 
-1. The distribution of consensus peaks which directly overlap a detected gene will be shown separated by genomic region, *if RNA-Seq data is provided*
-2. The distribution of consensus peaks within external features will be shown *if external features are provided*
-3. The distribution of consensus peaks within external features and genomic regions will be shown *if external features are provided*
-4. The distribution of consensus peaks which directly overlap a detected gene will be shown separated by external feature and genomic region
+1. The distribution of consensus peaks within external features will be shown *if external features are provided*
+2. The distribution of consensus peaks within external features and genomic regions will be shown *if external features are provided*
+
+Highly ranked consensus and treatment-specific oracle peaks are also shown in their genomic context alongside regulatory/external features and nearby gene models.
 
 ### Key Outputs {.unlisted .unnumbered}
 
 - Consensus peaks will be exported as `output/<ChIP_target>/consensus_peaks.bed`
-- Oracle peaks will be exported as `output/<ChIP_target>/oracle_peaks.rds`
+- Oracle peaks will be exported as individual bed files for each treatment group, as well as combined in a single `RDS` object for faster parsing into an `R` environment as `output/<ChIP_target>/oracle_peaks.rds`
 
 
 ## Differential Binding {#differential-binding}
@@ -278,10 +282,10 @@ Using the gene-sets and pathways specified in `params.yml` four enrichment analy
 Gene-width is used as an offset for biased sampling, as longer genes are more likely to have a peak mapped to them.
 These are
 
-1. Comparison of genes mapped to a site with bound target and genes which are not mapped to a target-bound site
-2. Comparison of genes mapped to a differentially bound site against genes mapped to a binding site, but with no differentially bound sites
-3. Comparison of genes mapped to a site with increased binding against genes mapped to a binding site, but with no differentially bound sites
-4. Comparison of genes mapped to a site with decreased binding against genes mapped to a binding site, but with no differentially bound sites
+1. Comparison of genes mapped to a site with **bound target** and genes which are not mapped to a target-bound site
+2. Comparison of genes mapped to a **differentially bound site** against genes mapped to a binding site, but with no differentially bound sites
+3. Comparison of genes mapped to a site with **increased binding** against genes mapped to a binding site, but with no differentially bound sites
+4. Comparison of genes mapped to a site with **decreased binding** against genes mapped to a binding site, but with no differentially bound sites
 
 All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions
 
