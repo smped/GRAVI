@@ -442,7 +442,7 @@ lapply(
  file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 ```
 
-`r if (length(unique(targets)) > 1) glue("![*Union of peaks found in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of consensus peaks, which are themselves independent of treatment group.*](assets/{targets[[1]]}_{targets[[2]]}/{fig_name})")`
+`r if (length(unique(targets)) > 1) glue("![*Union of peaks found in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of consensus peaks, which are themselves independent of treatment group.*](assets/{basename(fig_path)}/{fig_name})")`
 
 ## Treatment Specific Peaks
 
