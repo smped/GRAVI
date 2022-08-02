@@ -756,7 +756,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -868,7 +868,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-reg-dir-sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-reg-dir-sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -984,7 +984,7 @@ div(class = "table",
 ```
 
 
-```{r barcode-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0,fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1078,7 +1078,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1173,7 +1173,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1290,7 +1290,7 @@ div(class = "table",
 ```
 
 
-```{r barcode-gsea-feat-nondir-sig, eval = nrow(gsea_feat_nondir_sig) > 0, echo = nrow(gsea_feat_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __nondirectional__ changes in gene expression.*")}
+```{r barcode-gsea-feat-nondir-sig, eval = nrow(gsea_feat_nondir_sig) > 0, echo = nrow(gsea_feat_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __nondirectional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
