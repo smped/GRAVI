@@ -2114,7 +2114,7 @@ gs <- c(
 
 `r if (length(gs) > 0) "### Visualisation: Genes By Group"`
 
-```{r plot-circe-gs, fig.height=min(12, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with asterisks. The number of asterisks increases with the level of significance, with 3 asterisks indicating an adjusted p-value < 0.001. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
+```{r plot-circe-gs, fig.height=min(12, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with double asterisks. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
 list(
   t1t2 = goseq_t1t2_res,
   t1only = goseq_t1only_res,
@@ -2141,12 +2141,13 @@ list(
       fct_rev() %>% 
       fct_relabel(str_trunc, width = 50),
     prop = percent(mapped / gs_size, 1),
-    lab = case_when(
-      adj_p < 0.001 ~ paste0("***", prop),
-      adj_p < 0.01 ~ paste0("**", prop),
-      adj_p < 0.05 ~ paste0("*", prop),
-      TRUE ~ prop
-    )
+    lab = ifelse(enriched, paste0("**", prop), prop)
+    # lab = case_when(
+    #   adj_p < 0.001 ~ paste0("***", prop),
+    #   adj_p < 0.01 ~ paste0("**", prop),
+    #   adj_p < 0.05 ~ paste0("*", prop),
+    #   TRUE ~ prop
+    # )
   ) %>%
   ggplot(
     aes(group, gs_name, size = mapped, fill = -log10(pval))
@@ -2159,8 +2160,7 @@ list(
     inherit.aes = FALSE, size = 4, alpha = 0.6
   ) +
   scale_size_continuous(range = c(0, 200 / length(gs))) +
-  scale_fill_viridis_c(option = "inferno") +
-  # scale_fill_gradientn(colors = hcl.colors(100, "Inferno", rev = FALSE)) +
+  scale_fill_gradientn(colors = hcl.colors(100, "Reds", rev = TRUE)) +
   guides(size = "none") +
   labs(
     x = "Enrichment Test Subset", y = "Gene Set", 
