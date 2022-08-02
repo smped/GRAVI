@@ -340,7 +340,6 @@ if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_dev <- knitr::opts_chunk$get("dev")[[1]]
 fig_type <- fig_dev[[1]]
 if (is.null(fig_type)) stop("Couldn't detect figure type")
-if (is.null(fig_type)) stop("Couldn't detect figure type")
 fig_fun <- match.fun(fig_type)
 if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
   ## These figure types require dpi & resetting to be inches
@@ -437,7 +436,7 @@ lapply(
     cat.cex = 1.4,
     height = 9, 
     width = 10,
-    fill = comp_cols, 
+    fill = comp_cols[comps], 
     alpha = 0.3
   )
  file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
@@ -2122,7 +2121,7 @@ if (n_targets == 2) {
 
 `r if (length(gs) > 0) "### Visualisation: Genes By Group"`
 
-```{r plot-circe-gs, fig.height=min(12, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with doubleasterisks. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
+```{r plot-circe-gs, fig.height=min(15, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with doubleasterisks. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
 list(
   t1t2 = goseq_t1t2_res,
   t1only = goseq_t1only_res,
@@ -2525,7 +2524,6 @@ htmltools::tagList(
     },
     mc.cores = threads
   )
-  
 )
 ```
 
