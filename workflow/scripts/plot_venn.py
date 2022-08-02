@@ -31,6 +31,7 @@ parser.add_argument('-dpi', type = int, default = 300, help = "Output DPI")
 parser.add_argument('-ff', type = str, default='serif', help = 'Font Family')
 parser.add_argument('-fs', type = int, default=12, help = "Font Size")
 parser.add_argument('--hide-areas', action='store_true', help = 'Hide numbers for all areas')
+parser.add_argument('-sf', type = float, default=1.05, help="Scale factor for shifting 2way intersection labels. Set to 1 for default positions")
 parser.add_argument("-o", "--output", default = "venn.png", help = 'Output File')
 
 ## Make a dictionary of all arguments
@@ -79,6 +80,13 @@ if not draw2:
 	if config['hide_areas']:
 		for ID in ["100", "010", "110", "001", "101", "011", "111"]:
 			v.get_label_by_id(ID).set_text("")
+	
+	if not config['hide_areas']:
+		sf = config['sf']
+		x0,y0 = v.get_label_by_id('111').get_position()
+		for ID in ['110', '101', '011']:
+			x1,y1 = v.get_label_by_id(ID).get_position()
+			v.get_label_by_id(ID).set_position((x0 + sf*(x1-x0), y0 + sf*(y1-y0)))
 
 	venn3_circles(subsets = areas,color=config['lc'], linewidth=config['lw'])
 
