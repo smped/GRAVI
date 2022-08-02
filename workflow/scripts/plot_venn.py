@@ -30,6 +30,7 @@ parser.add_argument("-w", type = float, default = 10, help = "Figure Width (in i
 parser.add_argument('-dpi', type = int, default = 300, help = "Output DPI")
 parser.add_argument('-ff', type = str, default='serif', help = 'Font Family')
 parser.add_argument('-fs', type = int, default=12, help = "Font Size")
+parser.add_argument('--hide-areas', action='store_true', help = 'Hide numbers for all areas')
 parser.add_argument("-o", "--output", default = "venn.png", help = 'Output File')
 
 ## Make a dictionary of all arguments
@@ -57,6 +58,8 @@ if draw2:
 	for ID in ["10", "01", "11"]:
 		if v.get_label_by_id(ID).get_text() == "0":
 			v.get_label_by_id(ID).set_text("")
+		if config['hide_areas']:
+			v.get_label_by_id(ID).set_text("")
 	
 	venn2_circles(subsets = areas, color=config['lc'], linewidth=config['lw'])
 
@@ -72,7 +75,11 @@ if not draw2:
 	
 	labels.append(config['s3'])
 	colours.append(config['c3'])
-	venn3(areas, set_labels = labels, set_colors=colours, alpha=config['alpha'])
+	v=venn3(areas, set_labels = labels, set_colors=colours, alpha=config['alpha'])
+	if config['hide_areas']:
+		for ID in ["100", "010", "110", "001", "101", "011", "111"]:
+			v.get_label_by_id(ID).set_text("")
+
 	venn3_circles(subsets = areas,color=config['lc'], linewidth=config['lw'])
 
 ## Modify dimensions & export
