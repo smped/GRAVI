@@ -155,7 +155,7 @@ direction_colours <- colours$direction %>%
   setNames(str_to_title(names(.))) %>% 
   .[names(.) %in% c("Up", "Down", "Unchanged", "Ambiguous")]
 treat_colours <- colours$treat[treat_levels]
-fig_dev <- knitr::opts_chunk$get("dev")[[1]]
+fig_dev <- knitr::opts_chunk$get("dev")
 fig_type <- fig_dev[[1]]
 if (is.null(fig_type)) stop("Couldn't detect figure type")
 ```

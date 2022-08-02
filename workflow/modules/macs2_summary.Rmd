@@ -136,7 +136,7 @@ bands_df <- get(cb)
 ```{r figure-params}
 fig_path <- here::here("docs", "assets", target)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
-fig_dev <- knitr::opts_chunk$get("dev")[[1]]
+fig_dev <- knitr::opts_chunk$get("dev")
 fig_type <- fig_dev[[1]]
 if (is.null(fig_type)) stop("Couldn't detect figure type")
 fig_fun <- match.fun(fig_type)
