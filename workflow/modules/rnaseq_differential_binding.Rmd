@@ -646,6 +646,11 @@ de_genes_db_regions %>%
 
 ## Directional GSEA {.tabset}
 
+```{r dev-to-png, echo = FALSE}
+knitr::opts_chunk$set(dev = 'png')
+```
+
+
 ### All Windows
 
 ```{r gsea-dir-sig}
@@ -751,7 +756,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-dir-sig, dev = 'png', eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -863,7 +868,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-reg-dir-sig, dev = 'png', eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-reg-dir-sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -979,7 +984,7 @@ div(class = "table",
 ```
 
 
-```{r barcode-gsea-feat-dir-sig, dev = 'png', eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1073,7 +1078,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-nondir-sig, dev = 'png', eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1168,7 +1173,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-reg-nondir-sig, dev = 'png', eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1290,6 +1295,9 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
 
+```{r dev-to-fig-type}
+knitr::opts_chunk$set(dev = fig_dev)
+```
 
 
 <!-- Could be done regardless of changes in expression -->
