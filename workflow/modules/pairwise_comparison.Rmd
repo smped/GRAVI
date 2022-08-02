@@ -2105,16 +2105,19 @@ goseq_mapped_res %>%
 ```
 
 ```{r sig-gs}
-gs <- c(
-  dplyr::filter(goseq_t1only_res, enriched)$gs_name,
-  dplyr::filter(goseq_t2only_res, enriched)$gs_name,
-  dplyr::filter(goseq_t1t2_res, enriched)$gs_name
-)
+gs <- NULL
+if (n_targets == 2) {
+  gs <- c(
+    dplyr::filter(goseq_t1only_res, enriched)$gs_name,
+    dplyr::filter(goseq_t2only_res, enriched)$gs_name,
+    dplyr::filter(goseq_t1t2_res, enriched)$gs_name
+  )
+}
 ```
 
 `r if (length(gs) > 0) "### Visualisation: Genes By Group"`
 
-```{r plot-circe-gs, fig.height=min(12, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with double asterisks. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
+```{r plot-circe-gs, fig.height=min(12, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with doubleasterisks. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
 list(
   t1t2 = goseq_t1t2_res,
   t1only = goseq_t1only_res,
