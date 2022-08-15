@@ -723,6 +723,11 @@ Colours were checked where provided and any missing colours were automatically a
 These colour schemes are shown below and will be propagated through all steps of the workflow.
 To change any colours, simply add them to `config/rmarkdown.yml`.
 
+```{r set-dev-to-png, echo=FALSE}
+knitr::opts_chunk$set(dev = "png")
+```
+
+
 ## QC
 
 ```{r plot-qc, fig.height=3, fig.width=2 + length(colours$qc)}

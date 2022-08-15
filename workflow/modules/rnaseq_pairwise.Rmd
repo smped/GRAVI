@@ -263,6 +263,11 @@ de_genes_both_comps %>%
 
 ## Enrichment Analysis {.tabset}
 
+```{r dev-to-png, echo = FALSE}
+knitr::opts_chunk$set(dev = 'png')
+```
+
+
 
 ```{r define_genesets}
 rna_dir_ranks <- rnaseq %>% 
@@ -542,8 +547,7 @@ div(class = "table",
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
-```{r, echo=FALSE}
-## Reset the default device 
-knitr::opts_chunk$set(dev = fig_type)
+```{r dev-to-figure-dev}
+knitr::opts_chunk$set(dev = fig_dev)
 ```
 
