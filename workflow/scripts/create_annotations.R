@@ -277,5 +277,5 @@ o <- c(
 )
 gene_regions <- gene_regions[o]
 write_rds(gene_regions, all_out$gene_regions, compress = "gz")
-cat("Date export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
+cat("Data export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 

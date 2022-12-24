@@ -425,13 +425,7 @@ if (length(feat_path)> 0) {
     mcols(external_features),
     gene_regions %>% 
       lapply(function(x) propOverlap(external_features, x)) %>% 
-      as("DataFrame"),
-    gene_regions %>% 
-      lapply(
-        function(x) propOverlap(external_features, subset(x, detected))
-      ) %>% 
-      as("DataFrame") %>% 
-      setNames(paste0(names(.), "_detected"))
+      as("DataFrame")
   )
   keep_cols <- !vapply(
     mcols(external_features), function(x) all(is.na(x)), logical(1)
@@ -457,29 +451,18 @@ colours$features <- feat_col
 
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Regions associated with detected genes are shown as solid colours, whilst those with no information are shown as semi-transparent colours.*")}
+```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above.*")}
 suppressWarnings(
   external_features %>% 
     mutate(w = width) %>% 
     mcols() %>% 
     as_tibble() %>% 
     pivot_longer(
-      cols = c(all_of(names(regions)), ends_with("detected")),
+      cols = all_of(names(regions)),
       names_to = "region", values_to = "prop"
     ) %>% 
     group_by(feature, region) %>% 
     summarise(ol = sum(prop*w/1e6), .groups = "drop") %>% 
-    mutate(
-      detected = str_detect(region, "detected"),
-      region = str_remove_all(region, "_detected")
-    ) %>% 
-    pivot_wider(names_from = "detected", values_from = ol) %>% 
-    mutate(`FALSE` = `FALSE` - `TRUE`) %>% 
-    pivot_longer(
-      cols = all_of(c("TRUE", "FALSE")),
-      names_to = "detected",
-      values_to = "ol"
-    ) %>% 
     left_join(
       external_features %>%
         group_by(feature) %>% 
@@ -494,7 +477,7 @@ suppressWarnings(
       region = factor(regions[region], levels = regions)
     ) %>% 
     ggplot(
-      aes(fct_rev(region), p, fill = feature, alpha = detected)
+      aes(fct_rev(region), p, fill = feature)
     ) +
     geom_col(colour = "grey80") +
     geom_label(
@@ -508,7 +491,6 @@ suppressWarnings(
     coord_flip() +
     facet_grid(Feature~., scales = "free_y", space = "free") +
     scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-    scale_alpha_discrete(range = c(0.4, 1)) +
     scale_fill_manual(values = feat_col) +
     labs(x = "", y = "") +
     theme(legend.position = "none")
@@ -520,10 +502,10 @@ suppressWarnings(
 ```{r tab-features, eval = has_features, echo = has_features}
 cp <- em(
   glue(
-      "*Summary of external features provided in the file ", 
+      "Summary of external features provided in the file ", 
       "{basename(config$external$feature)}. All peaks and windows will be ", 
       "compared to these throughout the workflow. The colours defined for each ",
-      "feature is show as a guide on the left.*"
+      "feature is show as a guide on the left."
     )
 )
 tbl <- external_features %>% 
@@ -631,7 +613,7 @@ hic$regions <- anchors(hic) %>%
 hic %>% 
   as_tibble() %>% 
   mutate(
-    regions = fct_lump_prop(regions, prop = 0.01)
+    regions = fct_lump_prop(regions, prop = 0.02)
   ) %>% 
   plotPie(fill = "regions", min_p = 0.05, category_width = 20, label_size = 4) +
   labs(fill = "Interacting\n Regions") +
