@@ -19,7 +19,7 @@ library(plyranges)
 library(yaml)
 library(Rsamtools)
 library(BiocParallel)
-stopifnot(library(extraChIPs, logical.return = TRUE))
+library(extraChIPs)
 
 args <- commandArgs(TRUE)
 gtf <- args[[1]]
@@ -110,28 +110,24 @@ write_rds(trans_models, all_out$transcript_models, compress = "gz")
 cat("trans_models.rds written successfully...\n")
 
 #### Optional RNA-Seq ####
-rna_path <- here::here(config$external$rnaseq)
-rnaseq <- tibble(gene_id = character())
-if (length(rna_path) > 0) {
-  stopifnot(file.exists(rna_path))
-  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
-  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
-  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-  cat("RNA-Seq imported. detected will be an informative column...\n")
-}
-tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
-rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
-rna_col <- c(tx_col, "gene_id")[[1]]
+# rna_path <- here::here(config$external$rnaseq)
+# rnaseq <- tibble(gene_id = character())
+# if (length(rna_path) > 0) {
+#   stopifnot(file.exists(rna_path))
+#   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
+#   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
+#   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
+#   cat("RNA-Seq imported. detected will be an informative column...\n")
+# }
+# tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
+# rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
+# rna_col <- c(tx_col, "gene_id")[[1]]
 
 #### TSS ####
 tss <- all_gr$transcript %>%
   resize(width = 1) %>%
-  mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>%
   reduceMC() %>%
-  mutate(
-    region = "TSS",
-    detected = vapply(detected, any, logical(1))
-  ) %>%
+  mutate(region = "TSS") %>%
   select(region, everything(), -type)
 write_rds(tss, all_out$tss, compress = "gz")
 cat("TSS regions exported...\n")
@@ -144,85 +140,80 @@ gene_regions <- list(
       upstream = prom_params$upstream,
       downstream = prom_params$downstream
     ) %>%
-    mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>%
+    select(-ends_with("type"), -starts_with("exon")) %>%
     reduceMC(ignore.strand = TRUE) %>%
     mutate(
       region = glue(
         "Promoter (-{prom_params$upstream}/+{prom_params$downstream}bp)"
-      ),
-      detected = vapply(detected, any, logical(1))
+      )
     ) %>%
-    select(region, everything(), -type)
+    select(region, everything())
 )
 cat("Promoters defined...\n")
 
 #### Upstream Promoters ####
 cat("Began defining upstream promoters at ", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
+## Remove any which are shorter than 1% of the requested distance as these are likely
+## chopped by an exon
+min_width <- 0.01 * (params$gene_regions$upstream - params$gene_regions$promoters$upstream)
 gene_regions$upstream <- all_gr$transcript %>%
   promoters(upstream = params$gene_regions$upstream, downstream = 0)  %>%
-  mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>%
-  setdiffMC(gene_regions$promoters, ignore.strand = TRUE) %>%
+  select(-ends_with("type"), -starts_with("exon")) %>%
+  setdiffMC(gene_regions$promoters, ignore.strand = TRUE)%>%
+  # Ignoring any exon overlaps ensures an upstream promoter is annotated as
+  # being more important than an exon, given that exons refer to RNA structure
+  # setdiffMC(all_gr$exon, ignore.strand = TRUE) %>%
   reduceMC() %>%
+  subset(width > min_width) %>%
   mutate(
-    region = glue("Upstream Promoter (<{params$gene_regions$upstream/1e3}kb)"),
-    detected = vapply(detected, any, logical(1))
+    region = glue("Upstream Promoter (<{params$gene_regions$upstream/1e3}kb)")
   ) %>%
-  select(region, everything(), -type) %>%
+  select(region, everything())
   ## Some of these will possibly extend into other genes.
   ## The only real solution is to cut any sections from the upstream ranges
   ## which overlap other genes, whilst retaining those ranges which are internal
   ## to the gene-of-origin. The only viable way to do that is to manually exclude
   ## the gene-of-origin then take the setdiff. This will take an hour or two
-  split(f = seq_along(.)) %>%
-  bplapply(
-    function(x) {
-      gr <- subset(all_gr$gene, !gene_id %in% unlist(x$gene_id))
-      setdiffMC(x, gr, ignore.strand = TRUE)
-    },
-    BPPARAM = bpparam()
-  ) %>%
-  GRangesList() %>%
-  unlist() %>%
-  setNames(c())
+  # split(f = seq_along(.)) %>%
+  # bplapply(
+  #   function(x) {
+  #     gr <- subset(all_gr$gene, !gene_id %in% unlist(x$gene_id))
+  #     setdiffMC(x, gr, ignore.strand = TRUE)
+  #   },
+  #   BPPARAM = bpparam()
+  # ) %>%
+  # GRangesList() %>%
+  # unlist() %>%
+  # setNames(c())
 cat("Finished defining upstream promoters at ", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Exons ####
 gene_regions$exons <- all_gr$exon %>%
-  mutate(detected = !!sym(rna_gr_col) %in% rnaseq[[rna_col]]) %>%
   unstrand() %>%
+  select(-ends_with("type")) %>%
   reduceMC() %>%
   setdiffMC(
+    ## Exons overlapping promoter regions are assigned as promoters
     lapply(gene_regions[c("promoters", "upstream")], granges) %>%
       GRangesList() %>%
       unlist
   ) %>%
-  mutate(
-    region = "Exon",
-    detected = vapply(detected, any, logical(1))
-  ) %>%
-  select(region, everything(), -type)
+  mutate(region = "Exon") %>%
+  select(region, everything())
 cat("Exons defined at ", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Introns ####
 gene_regions$introns <- all_gr$gene %>%
-  ## Here, we can only revert to gene-level detection
-  mutate(
-    detected = gene_id %in% unlist(
-      subset(gene_regions$promoters, detected)$gene_id
-    )
-  ) %>%
   unstrand() %>%
+  select(-ends_with("type"), -starts_with("trans"), -starts_with("exon")) %>%
   setdiffMC(
     lapply(gene_regions[c("promoters", "upstream", "exons")], granges) %>%
       GRangesList() %>%
       unlist()
   ) %>%
   reduceMC() %>%
-  mutate(
-    region = "Intron",
-    detected = vapply(detected, any, logical(1))
-  ) %>%
-  select(region, everything(), -type)
+  mutate(region = "Intron") %>%
+  select(region, everything())
 cat("Introns defined at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Intergenic Distal ####
@@ -239,8 +230,7 @@ suppressWarnings(
         unstrand()
     ) %>%
     mutate(
-      region = glue("Intergenic (>{params$gene_regions$intergenic/1e3}kb)"),
-      detected = FALSE
+      region = glue("Intergenic (>{params$gene_regions$intergenic/1e3}kb)")
     )
 )
 cat("Distal Intergenic Regions defined at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
@@ -248,18 +238,18 @@ cat("Distal Intergenic Regions defined at", format(Sys.time(), "%H:%M:%S, %d %b 
 #### Intergenic Proximal ####
 gene_regions$proximal <- setdiff(
   GRanges(sq),
-  lapply(gene_regions, granges) %>%
+  lapply(
+    gene_regions[c("promoters", "upstream", "exons", "introns", "distal")],
+    granges
+  ) %>%
     GRangesList() %>%
     unlist()
 ) %>%
   join_nearest(all_gr$gene) %>%
   mutate(
     region = glue("Intergenic (<{params$gene_regions$intergenic/1e3}kb)"),
-    detected = gene_id %in% unlist(
-      subset(gene_regions$promoters, detected)$gene_id
-    )
   ) %>%
-  select(region, everything(), -type)
+  select(region, gene_id, gene_name)
 cat("Proximal Intergenic Regions defined at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 #### Final Tidy Up ####
