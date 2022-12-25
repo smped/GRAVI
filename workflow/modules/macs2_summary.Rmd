@@ -15,7 +15,7 @@ library(scales)
 library(plyranges)
 library(yaml)
 library(ngsReports)
-library(UpSetR)
+library(ComplexUpset)
 library(VennDiagram)
 library(cowplot)
 library(rlang)
@@ -24,13 +24,7 @@ library(parallel)
 library(Rsamtools)
 library(Biostrings)
 library(ggside)
-```
-
-```{r remotes, results = 'hide'}
-## Deal with github packages
-if (!"extraChIPs" %in% rownames(installed.packages()))
-  BiocManager::install("steveped/extraChIPs", ask = FALSE)
-stopifnot(library(extraChIPs, logical.return = TRUE))
+library(extraChIPs)
 ```
 
 ```{r options}
@@ -46,7 +40,6 @@ theme_set(
 register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
 ```
-
 
 ```{r config-paths}
 config <- read_yaml(
@@ -109,9 +102,6 @@ if (!is.null(config$external$features)) {
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
-any_detected <- gene_regions %>% 
-  vapply(function(x) any(x$detected), logical(1)) %>% 
-  any()
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
 if (length(rna_path) > 0) {
@@ -467,32 +457,69 @@ replicates_by_treat <- individual_peaks %>%
 
 #### All Samples
 
-```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. However, this can still be dependent on the success of each individual IP*"}
-samp_cols <- setNames(colours$treat[as.character(samples$treat)], samples$label)
-lwr <- 0.2 + nrow(samples) / 60
-individual_peaks %>%
-  unlist() %>%
-  select(sample) %>%
-  reduceMC() %>%
-  as_tibble() %>%
-  unnest(sample) %>% 
-  left_join(samples, by = "sample") %>% 
-  mutate(label = fct_rev(label)) %>% 
-  split(.$label) %>% 
-  lapply(pull, "range") %>% 
-  fromList() %>% 
-  upset(
-    sets = colnames(.),
-    keep.order = TRUE, order.by = "freq", 
-    sets.bar.color = samp_cols[colnames(.)],
-    set_size.show = TRUE,
-    set_size.scale_max = 1.2 * max(colSums(.)), 
-    mb.ratio = c(1 -lwr, lwr), 
-    text.scale = 1.2, point.size = 2.5,
-    nintersects = 35,
-    sets.x.label = glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})"),
-    mainbar.y.label = "Peaks In Intersection"
+```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. The top panel shows a boxplot of the median $q$-values produced by `macs2 callpeak` for each peak in the intersection. The y-axis for this panel is truncated at the 99^th^ percentile of values. Only intersections with 10 or more peaks are shown.*"}
+df <- individual_peaks %>% 
+  makeConsensus(var = "qValue") %>% 
+  as_tibble() %>% 
+  mutate(qValue = vapply(qValue, median, numeric(1))) %>% 
+  rename_with(
+      function(x) dplyr::filter(samples, sample == x)$label,
+      all_of(samples$sample)
   )
+ql <- samples$label %>% 
+  lapply(
+    function(x) upset_query(
+      set = x, 
+      fill = colours$treat[as.character(dplyr::filter(samples, label == x)$treat)]
+    )
+  )
+df %>% 
+  upset(
+    intersect = rev(samples$label),
+    base_annotations = list(
+      `Peaks in Intersection` = intersection_size(
+        bar_number_threshold = 1, text_colors = "black"
+      ) +
+        scale_y_continuous(expand = expansion(c(0, 0.1))) +
+        theme(
+          panel.grid = element_blank(), 
+          axis.line = element_line(colour = "grey20"),
+          panel.border = element_rect(colour = "grey20", fill=  NA)
+        )
+    ),
+    annotations = list(
+      qValue = ggplot(mapping = aes(y = qValue)) +
+        geom_boxplot(na.rm = TRUE, outlier.colour = rgb(0, 0, 0, 0.2)) +
+        coord_cartesian(ylim = c(0, quantile(df$qValue, 0.99))) +
+        scale_y_continuous(expand = expansion(c(0, 0.05))) +
+        ylab(expr(paste("Macs2 ", q[med]))) +
+        theme(
+          panel.grid = element_blank(), 
+          axis.line = element_line(colour = "grey20"),
+          panel.border = element_rect(colour = "grey20", fill=  NA)
+        )
+    ),
+    set_sizes = (
+      upset_set_size() +
+        geom_text(aes(label = after_stat(count)), hjust = 1.1, stat = 'count') +
+        scale_y_reverse(expand = expansion(c(0.2, 0))) +
+        ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
+        theme(
+          panel.grid = element_blank(), 
+          axis.line = element_line(colour = "grey20"),
+          panel.border = element_rect(colour = "grey20", fill=  NA)
+        )
+    ),
+    queries = ql,
+    min_size = 10,
+    sort_sets = FALSE
+  ) +
+  theme(
+    panel.grid = element_blank(), 
+    panel.border = element_rect(colour = "grey20", fill=  NA),
+    axis.line = element_line(colour = "grey20")
+  ) +
+  labs(x = "Intersection")
 ```
 
 
@@ -640,19 +667,18 @@ oracle_peaks <- treat_levels %>%
     simplify = FALSE
   ) %>%
   GRangesList() 
-consensus_peaks <- oracle_peaks %>%
-  unlist() %>%
-  subset(keep) %>%
-  mutate(peak_position = start + peak) %>% 
-  reduceMC() %>% 
-  setNames(as.character(.)) %>% 
+consensus_peaks <- oracle_peaks %>% 
+  endoapply(subset, keep) %>% 
+  endoapply(mutate, centre = start + peak) %>% 
+  makeConsensus(
+    var = c("score", "signalValue", "pValue", "qValue", "centre")
+  ) %>% 
   mutate(
-    score = vapply(score, max, numeric(1)),
-    signalValue = vapply(signalValue, max, numeric(1)),
-    pValue = vapply(pValue, max, numeric(1)),
-    qValue = vapply(qValue, max, numeric(1)),
-    n_reps = vapply(n_reps, sum, integer(1)),
-    peak = round(vapply(peak_position, median, numeric(1)) - start, 0),
+    score = vapply(score, median, numeric(1)),
+    signalValue = vapply(signalValue, median, numeric(1)),
+    pValue = vapply(pValue, median, numeric(1)),
+    qValue = vapply(qValue, median, numeric(1)),
+    centre = vapply(centre, median, numeric(1)),
     region = bestOverlap(
       ., 
       lapply(gene_regions, select, region) %>% 
@@ -661,8 +687,7 @@ consensus_peaks <- oracle_peaks %>%
       var = "region"
     ) %>% 
       factor(levels = regions)
-  ) %>% 
-  select(-keep, -peak_position)
+  ) 
 if (has_features) {
   consensus_peaks$Feature <- bestOverlap(
     consensus_peaks, external_features, 
@@ -670,17 +695,6 @@ if (has_features) {
   ) %>% 
     factor(levels = names(colours$features)) %>% 
     fct_relabel(str_sep_to_title)
-}
-if (any_detected) {
-  consensus_peaks$detected <- bestOverlap(
-    consensus_peaks, 
-    gene_regions %>% 
-      lapply(select, any_of("detected")) %>% 
-      GRangesList() %>% 
-      unlist(), 
-    var = "detected"
-  ) %>% 
-    as.logical()
 }
 ```
 
@@ -716,21 +730,6 @@ oracle_peaks %>%
   )
 ```
 
-#### Peak Widths
-
-```{r plot-peak-widths, fig.height=6, fig.cap = "*Widths of all Oracle Peaks as a function of the number of replicates the peak was detected in. The y-axis is shown on the log scale.*"}
-oracle_peaks %>%
-  lapply(mutate, w = width) %>%
-  lapply(as_tibble) %>%
-  bind_rows(.id = "treat") %>%
-  dplyr::filter(keep) %>%
-  ggplot(aes(as.factor(n_reps), w, fill = treat)) +
-  geom_boxplot(alpha = 0.8) +
-  scale_y_log10() +
-  scale_fill_manual(values = colours$treat[treat_levels]) +
-  labs(x = "Replicates", y = "Peak Width", fill = "Treatment")
-```
-
 
 ### Consensus Peaks {.tabset}
 
@@ -738,7 +737,7 @@ oracle_peaks %>%
 vd <- oracle_peaks %>%
     lapply(
       function(x) {
-        names(
+        as.character(
           subsetByOverlaps(
             consensus_peaks, 
             subset(x, keep)
@@ -753,9 +752,8 @@ vd <- oracle_peaks %>%
 
 In addition to the oracle peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
 Consensus ranges were the *union* of all overlapping ranges defined and retained in one or more sets of oracle peaks.
-Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *maximum* across all treatments.
+Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *median* across all treatments.
 *Peak summits* were taken as the median position of all summits which comprise the consensus peak.
-The number of replicates generating each peak was defined as the total across all treatment groups.
 
 #### `r ifelse(length(vd) <= 3, "Venn Diagram", "Upset Plot")`
 
@@ -978,12 +976,13 @@ if (has_features) {
     )
   feature_colours <- c(feature_colours, colours$features)
 }
-## The genes track
+## The genes track defaults to transcript models
 hfgc_genes <- read_rds(
   here::here("output", "annotations", "trans_models.rds")
 )
 gene_col <- "grey"
-if (any_detected){
+## If RNA-Seq data is present, the genes track switches to Up/Down etc
+if (nrow(rnaseq)){
   rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
   rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
   if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
@@ -1102,7 +1101,7 @@ htmltools::tagList(
             paste0("The nearest gene was ", gn, ", ", round(d/1e3, 1), "kb away")
           ),
           ifelse(
-            any_detected & gn %in% genes_gr$gene_name,
+            (nrow(rnaseq) > 0) & (gn %in% genes_gr$gene_name),
             glue(" which was detected in the RNA-Seq data."),
             glue(".")
           ),
