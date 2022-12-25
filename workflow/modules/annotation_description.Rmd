@@ -18,14 +18,9 @@ library(reactable)
 library(htmltools)
 library(plyranges)
 library(GenomicInteractions)
+library(extraChIPs)
 ```
 
-```{r remotes, results='hide'}
-## Deal with github packages
-# BiocManager::install("steveped/extraChIPs", ask = FALSE)
-
-stopifnot(library(extraChIPs, logical.return = TRUE))
-```
 
 ```{r options}
 panderOptions("big.mark", ",")
@@ -218,7 +213,7 @@ With the exception of TSS and Promoters, these features were non-overlapping and
 - *Promoters* were first defined for all individual transcripts as the region `r glue("-{params$gene_regions$promoters$upstream}/+{params$gene_regions$promoters$downstream}")`bp around each TSS, as specified in `config.params.yml`.
 Overlapping regions were merged to create a single promoter region for all transcripts within that genomic region.
 - *Upstream promoters* were then defined as the region extending `r glue(params$gene_regions$upstream/1e3)`kb upstream from a TSS, but excluding any region already defined as a promoter through the previous merging step.
-Any ranges within these which overlapped other genes were removed.
+<!-- Any ranges within these which overlapped other genes were removed. -->
 - *Exons* and *Introns* were considered to be any exon or intron, not previously included in one of the above regions.
 - *Intergenic* regions were defined as those within `r params$gene_regions$intergenic/1e3`kb (excluding upstream promoters) or those >`r params$gene_regions$intergenic/1e3`kb from any gene
 
@@ -613,9 +608,9 @@ hic$regions <- anchors(hic) %>%
 hic %>% 
   as_tibble() %>% 
   mutate(
-    regions = fct_lump_prop(regions, prop = 0.02)
-  ) %>% 
-  plotPie(fill = "regions", min_p = 0.05, category_width = 20, label_size = 4) +
+    regions = fct_lump_prop(regions, prop = 0.01)
+  ) %>%
+  plotPie(fill = "regions", min_p = 0.02, category_width = 20, label_size = 4) +
   labs(fill = "Interacting\n Regions") +
   scale_fill_viridis_d(direction = -1)
 ```

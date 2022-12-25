@@ -48,7 +48,7 @@ rule create_annotations:
 		),
 		chrom_sizes = chrom_sizes
 	conda: "../envs/rmarkdown.yml"
-	threads: max_threads
+	threads: 1
 	log: log_path + "/scripts/create_annotations.log"
 	shell:
 		"""

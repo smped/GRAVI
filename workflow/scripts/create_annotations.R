@@ -23,8 +23,8 @@ library(extraChIPs)
 
 args <- commandArgs(TRUE)
 gtf <- args[[1]]
-threads <- args[[2]]
-register(MulticoreParam(threads))
+# threads <- args[[2]]
+# register(MulticoreParam(threads))
 
 config <- read_yaml(here::here("config", "config.yml"))
 params <- read_yaml(here::here("config", "params.yml"))
