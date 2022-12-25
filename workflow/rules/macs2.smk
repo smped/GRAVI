@@ -100,7 +100,6 @@ rule macs2_qc:
 			sample = set(df[df.target == wildcards.target]['sample']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		pkgs = rules.install_packages.output,
 		samples = config['samples']['file'],
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
 		r = "workflow/scripts/macs2_qc.R"
@@ -286,7 +285,6 @@ rule compile_macs2_summary_html:
 			treat = set(df[df.target == wildcards.target]['treat']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		pkgs = rules.install_packages.output,
 		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,

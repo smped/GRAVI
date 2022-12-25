@@ -45,7 +45,6 @@ rule compile_pairwise_comparisons_html:
 		config = "config/config.yml",
 		here = here_file,
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
-		pkgs = rules.install_packages.output,
 		results_t1 = "docs/{t1}_{ref1}_{treat1}_differential_binding.html",
 		results_t2 = "docs/{t2}_{ref2}_{treat2}_differential_binding.html",
 		rmd = expand(

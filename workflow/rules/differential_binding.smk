@@ -88,7 +88,6 @@ rule compile_differential_binding_html:
 				)
 			]
 		),
-		pkgs = rules.install_packages.output,
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
 		),

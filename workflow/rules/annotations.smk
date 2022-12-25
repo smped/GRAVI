@@ -39,7 +39,6 @@ rule create_annotations:
 		config = ancient(os.path.join("config", "config.yml")),
 		gtf = gtf,
 		r = os.path.join("workflow", "scripts", "create_annotations.R"),
-		pkgs = rules.install_packages.output,
 		yaml = os.path.join("config", "params.yml")
 	output:
 		rds = expand(

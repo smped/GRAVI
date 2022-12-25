@@ -1,14 +1,3 @@
-rule install_packages:
-  input: "workflow/scripts/install_packages.R"
-  output: "output/packages.installed"
-  conda: "../envs/rmarkdown.yml"
-	threads: 1
-	log: log_path + "/rmarkdown/install_packages.log"
-	shell:
-	  """
-	  Rscript --vanilla {input} {output} &>> {log}
-	  """
-
 rule create_site_yaml:
 	input:
 		config_yaml = "config/config.yml",
