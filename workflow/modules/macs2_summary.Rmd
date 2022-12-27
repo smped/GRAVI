@@ -473,12 +473,16 @@ ql <- samples$label %>%
       fill = colours$treat[as.character(dplyr::filter(samples, label == x)$treat)]
     )
   )
+lb <- samples %>% 
+  arrange(treat, !!sym(rep_col)) %>% 
+  pull("label") %>% 
+  rev()
 df %>% 
   upset(
-    intersect = rev(samples$label),
+    intersect = lb,
     base_annotations = list(
       `Peaks in Intersection` = intersection_size(
-        bar_number_threshold = 1, text_colors = "black"
+        bar_number_threshold = 1, text_colors = "black", text = list(size = 3)
       ) +
         scale_y_continuous(expand = expansion(c(0, 0.1))) +
         theme(
@@ -501,7 +505,9 @@ df %>%
     ),
     set_sizes = (
       upset_set_size() +
-        geom_text(aes(label = after_stat(count)), hjust = 1.1, stat = 'count') +
+        geom_text(
+          aes(label = after_stat(count)), hjust = 1.1, stat = 'count', size = 3
+        ) +
         scale_y_reverse(expand = expansion(c(0.2, 0))) +
         ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
         theme(
@@ -512,6 +518,7 @@ df %>%
     ),
     queries = ql,
     min_size = 10,
+    n_intersections = 35,
     sort_sets = FALSE
   ) +
   theme(
@@ -519,7 +526,8 @@ df %>%
     panel.border = element_rect(colour = "grey20", fill=  NA),
     axis.line = element_line(colour = "grey20")
   ) +
-  labs(x = "Intersection")
+  labs(x = "Intersection") +
+  patchwork::plot_layout(heights = c(2, 3, 2))
 ```
 
 
@@ -901,8 +909,11 @@ consensus_peaks %>%
 
 `r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
 
-```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap.*")}
+```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
 consensus_peaks %>% 
+  subset(Feature != "No Feature") %>% 
+  as_tibble() %>% 
+  droplevels() %>% 
   plotPie(fill = "region", x = "Feature", label_size = 4, label_alpha = 0.7) +
   scale_fill_manual(
     values = colours$regions %>%
