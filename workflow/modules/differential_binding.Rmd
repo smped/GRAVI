@@ -1193,7 +1193,7 @@ cp <- htmltools::em(
     "For windows mapped to large numbers of genes, hovering a mouse over the ", 
     "cell will reveal the full set of genes. ",
     ifelse(
-      any_detected,
+      has_rnaseq,
       "Only genes considered as detected in the RNA-Seq data are shown. ",
       ""
     ),
@@ -2770,7 +2770,7 @@ div(class = "table",
 )
 ```
 
-```{r add-rna, eval = any_detected, child = here::here('workflow/modules/rnaseq_differential_binding.Rmd')}
+```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_differential_binding.Rmd')}
 ```
 
 
@@ -2801,7 +2801,7 @@ merged_results %>%
 write_rds(merged_results, all_out$results, compress = "gz")
 write_rds(filtered_counts, all_out$windows, compress = "gz")
 file.create(all_out$de_genes)
-if (any_detected) write_csv(de_genes_db_regions, all_out$de_genes)
+if (has_rnaseq) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
 if (sum(merged_results$status == "Up") > 0) {

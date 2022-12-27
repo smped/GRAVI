@@ -49,7 +49,7 @@ Gene-centric regions were as defined previously.
 
 ```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 w <- 0.8
-min_p <- 0.05
+min_p <- 0.025
 merged_results %>%
   mutate(
     any_detected = ifelse(
@@ -134,7 +134,6 @@ merged_results %>%
 ```
 
 
-
 ## Relationship To Differentially Expressed Genes {.tabset}
 
 
@@ -190,9 +189,46 @@ if (has_features) {
 ```{r any_diff_sites}
 de_genes_db_regions <- tibble()
 any_diff_sites <- sum(mcols(merged_results)[[fdr_column]] < fdr_alpha) > 0
+any_de <- any(rnaseq$DE)
+para <- ""
+if (any_de & any_diff_sites) {
+  ft_df <- rnaseq %>%
+    dplyr::filter(gene_id %in% unlist(diff_windows)) %>% 
+    mutate(
+      window = case_when(
+        gene_id %in% unlist(diff_windows[c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
+        TRUE ~ "Unchanged"
+      ) %>%
+        fct_infreq()
+    ) %>% 
+    group_by(DE, window) %>% 
+    tally() %>% 
+    pivot_wider(names_from = "DE", values_from = "n", names_prefix = "DE_") 
+  ft <- ft_df%>% 
+    as.data.frame() %>% 
+    column_to_rownames("window") %>% 
+    fisher.test()
+  para <- glue(
+    "
+    Using the {comma(length(unique(unlist(diff_windows))))} genes mapped to a 
+    {target} binding site, genes were tested for any association between sites 
+    showing evidence of diferential binding and differential expression.
+    {comma(length(unique(unlist(diff_windows[c('Up', 'Down')]))))} genes were 
+    mapped to at least one site showing differential {target} binding with 
+    {comma(ft_df$DE_TRUE[2])} (
+    {percent(ft_df$DE_TRUE[2] / sum(unlist(ft_df[2, 2:3])), 0.1)}) of these 
+    being considered differentially expressed. This compares to 
+    {percent(ft_df$DE_TRUE[1] / sum(unlist(ft_df[1, 2:3])), 0.1)} of genes
+    where no differential {target} binding was detected. Fisher's Exact test
+    for any association gave this a p-value of {sprintf('%.2e', ft$p.value)}.
+    "
+  )
+}
 ```
 
 `r if (!any_diff_sites) "No differentially bound sites were detected."`
+
+`r if (any_de & any_diff_sites) para`
 
 ```{r de-genes-db-regions, eval = any_diff_sites, echo = any_diff_sites}
 cmn_genes <- intersect(
@@ -578,7 +614,8 @@ rnaseq %>%
       mutate(lab = glue("N = {comma(n, 1)}"))
   ) +
   facet_wrap(~mapped, nrow = 1) +
-  scale_y_continuous(expand = expansion(c(0, 0.05)))
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  labs(y = "Density", x = "P (Differential Expression)")
 ```
 
 
@@ -641,7 +678,6 @@ de_genes_db_regions %>%
     colour = "Differential\nExpression"
   )
 ```
-
 
 
 ## Directional GSEA {.tabset}
@@ -1632,7 +1668,8 @@ cp <- htmltools::tags$em(
     tested for enrichment using goseq, and results were compared to GSEA results
     for the RNA-Seq dataset. The {comma(length(cmn_gs), 1)} Gene Sets found in
     both analyses are detailed below. Leading Edge genes represent the genes
-    as ranked in the provided RNA-Seq dataset.
+    as ranked in the provided RNA-Seq dataset, subset to only include those 
+    with a mapped site showing change in {target} signal.
     "
   )
 )
@@ -1652,6 +1689,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   mutate(
     edge_size = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, intersect, unlist(diff_windows[c("Up", "Down")])),
     leadingEdge = vapply(
       leadingEdge,
       function(x) paste(id2gene[x], collapse = "; "),
@@ -1749,7 +1787,8 @@ cp <- htmltools::tags$em(
     were tested for enrichment using goseq, and results were compared to GSEA 
     results for the RNA-Seq dataset. The {comma(length(cmn_gs), 1)} Gene Sets 
     found in both analyses are detailed below. Leading Edge genes represent 
-    the genes as ranked in the provided RNA-Seq dataset.
+    the genes as ranked in the provided RNA-Seq dataset, subset by those with 
+    a mapped site showing {target} increase.
     "
   )
 )
@@ -1769,6 +1808,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   mutate(
     edge_size = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, intersect, diff_windows$Up),
     leadingEdge = vapply(
       leadingEdge,
       function(x) paste(id2gene[x], collapse = "; "),
@@ -1866,7 +1906,8 @@ cp <- htmltools::tags$em(
     were tested for enrichment using goseq, and results were compared to GSEA 
     results for the RNA-Seq dataset. The {comma(length(cmn_gs), 1)} Gene Sets 
     found in both analyses are detailed below. Leading Edge genes represent 
-    the genes as ranked in the provided RNA-Seq dataset.
+    the genes as ranked in the provided RNA-Seq dataset, subset by those with 
+    mapped {target} site showing a decrease in signal.
     "
   )
 )
@@ -1886,6 +1927,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   mutate(
     edge_size = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, intersect, unlist(diff_windows[c("Down")])),
     leadingEdge = vapply(
       leadingEdge,
       function(x) paste(id2gene[x], collapse = "; "),

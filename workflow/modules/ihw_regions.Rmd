@@ -61,6 +61,7 @@ Where multiple overlapping regions were found, the region with the *largest* ove
 `r if (ihw_proceed) "### Summary Table"`
 
 ```{r ihw-tab, eval = ihw_proceed, echo = ihw_proceed}
+lblr <- as_labeller(c(regions, "Other" = "Other"))
 ihw %>%
   as.data.frame() %>% 
   mutate(
@@ -142,7 +143,6 @@ tibble(ihw = ihw_all) %>%
 ### P-Value Distributions
 
 ```{r plot-ihw-pvals, echo = TRUE, fig.height= 3 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
-lblr <- as_labeller(c(regions, "Other" = "Other"))
 y <- ggplot_build(
   tibble(P.Value = merged_results$P.Value,) %>% 
     ggplot(aes(P.Value, stat(density))) + 
