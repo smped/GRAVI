@@ -26,13 +26,7 @@ library(htmltools)
 library(goseq)
 library(parallel)
 library(GenomicInteractions)
-```
-
-```{r remotes, results = 'hide'}
-# if (!"extraChIPs" %in% rownames(installed.packages()))
-#   BiocManager::install("steveped/extraChIPs", ask = FALSE)
-
-stopifnot(library(extraChIPs, logical.return = TRUE))
+library(extraChIPs)
 source(here::here("workflow", "scripts", "custom_functions.R"))
 ```
 
@@ -150,9 +144,6 @@ if (!is.null(config$external$features)) {
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 region_colours <-  unlist(colours$regions) %>% setNames(regions[names(.)])
-any_detected <- gene_regions %>% 
-  vapply(function(x) any(x$detected), logical(1)) %>% 
-  any()
 ```
 
 ```{r load-rna}
@@ -165,6 +156,7 @@ if (length(rna_path) > 0) {
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
   genes_gr <- subset(genes_gr, gene_id %in% rnaseq$gene_id)
 }
+has_rnaseq <- as.logical(nrow(rnaseq))
 tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
 rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
 rna_col <- c(tx_col, "gene_id")[[1]]
@@ -644,7 +636,7 @@ all_windows <- all_windows %>%
     gi = hic
   ) 
 all_windows$detected <- all_windows$gene_name
-if (any_detected) all_windows$detected <- endoapply(
+if (has_rnaseq) all_windows$detected <- endoapply(
   all_windows$detected, intersect, rnaseq$gene_name
 ) 
 ```
@@ -1606,7 +1598,7 @@ if (mean(pwf_mapped$DEgenes) > min_genes & mean(pwf_mapped$DEgenes) < max_genes)
 ```
 
 All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
-`r if (any_detected) "Regulatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
+`r if (has_rnaseq) "Regulatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
 Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
 This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
 `r if (sum(goseq_mapped_res$enriched) == 0) "No enrichment was found."`
@@ -2629,7 +2621,7 @@ if (has_features) {
 ## The genes track
 hfgc_genes <- trans_models
 gene_col <- "grey"
-if (any_detected){
+if (has)rnaseq{
   rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
   rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
   if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
@@ -2924,7 +2916,7 @@ htmltools::tagList(
 ```
 
 
-```{r add-rna, eval = any_detected, child = here::here('workflow/modules/rnaseq_pairwise.Rmd')}
+```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_pairwise.Rmd')}
 ```
 
 # Data Export
