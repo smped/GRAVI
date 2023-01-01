@@ -121,7 +121,8 @@ pairs=make_pairwise(config['comparisons']['contrasts'])
 wildcard_constraints:
 	target = "(" + '|'.join(targets) + ")",
 	samples = "(" + '|'.join(samples) + ")",
-	treat = "(" + '|'.join(treats) + ")"
+	treat = "(" + '|'.join(treats) + ")",
+	ref = "(" + '|'.join(treats) + ")"
 
 ###############
 ## Key Paths ##
