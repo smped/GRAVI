@@ -343,7 +343,7 @@ out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
 )
 if (!dir.exists(out_path)) dir.create(out_path)
-de_genes_both_comps <- c()
+de_genes_both_comps <- tibble()
 all_out <- list(
   csv = file.path(
     out_path, glue(comp_name, "-pairwise_comparison.csv.gz"

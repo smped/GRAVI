@@ -118,6 +118,11 @@ treats = list(set(df['treat']))
 inputs = list(set(df['input']))
 pairs=make_pairwise(config['comparisons']['contrasts'])
 
+wildcard_constraints:
+	target = "(" + '|'.join(targets) + ")",
+	samples = "(" + '|'.join(samples) + ")",
+	treat = "(" + '|'.join(treats) + ")"
+
 ###############
 ## Key Paths ##
 ###############

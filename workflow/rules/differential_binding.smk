@@ -1,7 +1,7 @@
 rule make_greylist:
 	input: 
 		bam = os.path.join(bam_path, "Input", "{ip_sample}.bam"),
-		bai = os.path.join(bam_path, "Input", "{ip_sample}.bam.bai"),
+		bim = os.path.join(bam_path, "Input", "{ip_sample}.bam.bai"),
 		r = os.path.join("workflow", "scripts", "make_greylist.R"),
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds")
 	output:
@@ -89,7 +89,15 @@ rule compile_differential_binding_html:
 		extrachips = rules.update_extrachips.output,
 		greylist = lambda wildcards: expand(
 			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
-			ip_sample = list(set(df['input'][df['treat'] == wildcards.treat]))
+			ip_sample = set(
+				df['input'][
+					(df['target'] == wildcards.target) &
+					(
+						(df['treat'] == wildcards.ref) |
+						(df['treat'] == wildcards.treat)
+					)
+				]
+			),
 		),
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
