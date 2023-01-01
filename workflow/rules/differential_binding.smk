@@ -59,6 +59,7 @@ rule compile_differential_binding_html:
 			],
 			suffix = ['bam', 'bam.bai']
 		),
+		extrachips = rules.update_extrachips.output,
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}", "{pre}_merged_callpeak.log"

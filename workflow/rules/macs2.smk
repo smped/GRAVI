@@ -95,6 +95,7 @@ rule macs2_qc:
 		),
 		blacklist = blacklist,
 		config = "config/config.yml",
+		extrachips = rules.update_extrachips.output,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
@@ -274,6 +275,7 @@ rule compile_macs2_summary_html:
 		),
 		config = "config/config.yml",
 		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
+		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),

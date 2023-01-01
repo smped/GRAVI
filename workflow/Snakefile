@@ -7,6 +7,7 @@ import sys
 import random
 import itertools
 import yaml
+import hashlib
 
 configfile: "config/config.yml"
 
@@ -151,6 +152,11 @@ gtf = os.path.join(
 )
 blacklist = os.path.join(annotation_path, "blacklist.bed.gz")
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
+
+##################################
+## Hash for updating extraChIPs ##
+##################################
+rmd_hash = hashlib.md5(open('workflow/envs/rmarkdown.yml', "rb").read()).hexdigest()
 
 #####################
 ## Prepare Outputs ##

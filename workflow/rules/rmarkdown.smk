@@ -1,3 +1,16 @@
+rule update_extrachips:
+	input: os.path.join("workflow", "scripts", "update_extrachips.R")
+	output: os.path.join("output", "envs", rmd_hash + "extrachips.txt")
+	params:
+	    version = "1.2.3"
+	conda: "../envs/rmarkdown.yml"
+	threads: 1
+	log: log_path + "/rmarkdown/update_extrachips.log"
+	shell:
+		"""
+		Rscript --vanilla {input} {output} {params.version} &>> {log}
+		"""
+
 rule create_site_yaml:
 	input:
 		config_yaml = "config/config.yml",
@@ -54,6 +67,7 @@ rule create_here_file:
 rule compile_annotations_html:
   input:
     blacklist = blacklist,
+    extrachips = rules.update_extrachips.output,
     here = here_file,
     rmd = "workflow/modules/annotation_description.Rmd",
     rds = expand(
@@ -120,6 +134,7 @@ rule create_index_rmd:
 
 rule compile_index_html:
 	input:
+		extrachips = rules.update_extrachips.output,
 		html = HTML_OUT,
         here = here_file,		
 		rmd = os.path.join(rmd_path, "index.Rmd"),

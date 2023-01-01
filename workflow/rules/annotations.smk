@@ -37,6 +37,7 @@ rule create_annotations:
 	input:
 		bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = indiv_pre),
 		config = ancient(os.path.join("config", "config.yml")),
+		extrachips = rules.update_extrachips.output,
 		gtf = gtf,
 		r = os.path.join("workflow", "scripts", "create_annotations.R"),
 		yaml = os.path.join("config", "params.yml")

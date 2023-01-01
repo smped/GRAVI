@@ -43,6 +43,7 @@ rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		config = "config/config.yml",
+		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
 		results_t1 = "docs/{t1}_{ref1}_{treat1}_differential_binding.html",

@@ -2621,7 +2621,7 @@ if (has_features) {
 ## The genes track
 hfgc_genes <- trans_models
 gene_col <- "grey"
-if (has)rnaseq{
+if (has_rnaseq) {
   rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
   rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
   if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
