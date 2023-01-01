@@ -4,7 +4,7 @@ reqd_version <- args[[2]]
 
 cat("Checking for extraChIPs >= v", reqd_version, "\n")
 inst_version <- packageVersion("extraChIPs")
-cat("Installed version is ", inst_version, "\n")
+cat("Installed version is ", as.character(inst_version), "\n")
 
 needs_update <- inst_version < reqd_version
 cat(ifelse(needs_update, "Updating...", "No update required"))
