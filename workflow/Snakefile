@@ -115,6 +115,7 @@ df = pd.read_table(config['samples']['file'])
 samples = list(set(df['sample']))
 targets = list(set(df['target']))
 treats = list(set(df['treat']))
+inputs = list(set(df['input']))
 pairs=make_pairwise(config['comparisons']['contrasts'])
 
 ###############

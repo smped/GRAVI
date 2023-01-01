@@ -35,7 +35,6 @@ library(htmltools)
 library(msigdbr)
 library(goseq)
 library(extraChIPs)
-library(GreyListChIP)
 ```
 
 ```{r options}
@@ -397,28 +396,13 @@ Taking the first `r comma(ys)` alignments, a brief inspection of the Bam Files r
 
 ## Sliding Window Counts
 
-```{r make-greylist}
-## This should really be run as a stand-alone script for each input file with
-## a bed file exported once for each input file. These can then be loaded for 
-## each relevant comparison. The approach would be to define a set in the 
-## Snakefile using `unique(read_tsv(config$samples$file)$input)` and obtain the 
-## greylist for each using a standalone script
-ip <- file.path(
-  bam_path, "Input", glue("{unique(samples$input)}.bam")
-)
-set.seed(100)
-greylist <- ip %>% 
-  bplapply(
-    function(x) {
-      gl <- new("GreyList", karyotype = sq) %>% 
-        countReads(x) %>% 
-        calcThreshold() %>% 
-        makeGreyList()
-      gl@regions
-    }
-  ) %>% 
-  GRangesList() %>% 
-  unlist() %>% 
+```{r load-greylist}
+greylist <- file.path(
+  annotation_path, glue("{unique(samples$input)}_greylist.bed")
+  ) %>%
+  lapply(import.bed, seqinfo = sq) %>%
+  GRangesList() %>%
+  unlist() %>%
   reduce()
 ```
 
