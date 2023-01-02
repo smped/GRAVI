@@ -1,5 +1,4 @@
 library(readr)
-library(GenomeInfoDb)
 library(GreyListChIP)
 
 args <- commandArgs(TRUE)
@@ -9,7 +8,7 @@ bed <- args[[3]]
 
 ## This is set for only a single input file
 gl <- new("GreyList", karyotype = sq)
-cat("Counting reads...\n")
+cat("Counting reads in ", bam, "...\n")
 gl <- countReads(gl, bam)
 cat("Calculating thresholds...\n")
 set.seed(100)

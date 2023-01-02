@@ -406,6 +406,9 @@ greylist <- file.path(
   reduce()
 ```
 
+Prior to this workflow, high-signal regions in any input samples associated with the ChIP target were detected and grey-lists formed.
+For these samples, this constituted `r comma(length(greylist))` regions with total width of `r comma(sum(width(greylist))/1e3)`kb.
+Regions assigned to the greylist were added to the blacklisted regions and excluded from all analyses.
 
 ```{r window-counts}
 macs2_merged_logs <- file.path(
