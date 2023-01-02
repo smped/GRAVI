@@ -406,7 +406,7 @@ greylist <- file.path(
   reduce()
 ```
 
-Prior to this workflow, high-signal regions in any input samples associated with the ChIP target were detected and grey-lists formed.
+Prior to this workflow, high-signal regions were detected in any input samples associated with `r target` libraries and grey-lists formed.
 For these samples, this constituted `r comma(length(greylist))` regions with total width of `r comma(sum(width(greylist))/1e3)`kb.
 Regions assigned to the greylist were added to the blacklisted regions and excluded from all analyses.
 
@@ -728,69 +728,6 @@ Similarly, p-values from the above tests were also selected from the same slidin
 The number of windows showing increased or decreased binding within each merged region were also included, by counting those within each set of windows with p-values lower than the selected window.
 FDR-adjustment was performed with `r comma(sum(merged_results$P.Value_fdr < fdr_alpha))` regions (`r percent(mean(merged_results$P.Value_fdr < fdr_alpha), accuracy = 0.1)`) showing significance, based on an FDR-adjusted p-value alone.
 
-### Merged Windows
-
-```{r plot-merged-size, dev='png', fig.height=7, fig.cap = glue("*Comparison of {target} signal intensity (logCPM) and merged window size (kb) for windows which overlap a macs2 consensus peak and those which don't. A mall amount of jitter has been added to the y-axis in the lower-left panel.*")}
-merged_results %>% 
-  mutate(kb = width / 1e3) %>% 
-  as_tibble() %>% 
-  mutate(
-    overlaps_ref = unlist(facet_labeller(overlaps_ref)) %>% 
-      str_replace_all(" Peak", "\nPeak")
-  ) %>% 
-  ggplot(aes(AveExpr, kb)) +
-  geom_jitter(
-    aes(colour = overlaps_ref), 
-    alpha = 0.6, width = 0, height = 0.04
-  ) +
-  geom_xsideboxplot(
-    aes(y = overlaps_ref, fill = overlaps_ref), orientation = "y"
-  ) +
-  geom_ysideboxplot(
-    aes(x = overlaps_ref, fill = overlaps_ref), orientation = "x"
-  ) +
-  scale_xsidey_discrete() +
-  scale_ysidex_discrete() +
-  scale_colour_brewer(palette = "Set1") +
-  scale_fill_brewer(palette = "Set1") +
-  labs(
-    x = "logCPM", y = "Merged Window Size (kb)",
-    fill = glue("{target} Macs2 Peak"), colour = glue("{target} Macs2 Peak")
-  ) +
-  theme(
-    axis.title.x = element_text(hjust = 0.45),
-    axis.title.y = element_text(hjust = 0.4),
-    ggside.axis.text.y = element_text(hjust = 0.5),
-    ggside.panel.scale.x = 0.3,
-    ggside.panel.scale.y = 0.25,
-    legend.position = c(0.9, 0.9)
-  )
-```
-
-### Mean-Variance Relationship
-
-```{r plot-mean-var, dev = 'png', fig.height = 6, fig.cap = "*Mean-variance for all retained windows. Black dots indicate the estimated standard deviation for each window as a function of signal. Red dots are the shrunken estimates after applying limma-trend [@LawVoom2014], whilst the loess curve through the initial estimates is shown in blue.*"}
-tibble(A = fit$Amean, pre = fit$sigma, post = sqrt(fit$s2.post)) %>% 
-  sample_n(n_max) %>% 
-  pivot_longer(c("pre", "post"), names_to = "step", values_to = "sigma") %>%
-  mutate(
-    step = factor(step, levels = c("pre", "post"))
-  ) %>% 
-  ggplot(aes(A, sigma, colour = step)) +
-  geom_point(size = 1, alpha = 0.5) +
-  geom_smooth(
-    se = FALSE, method = "loess", formula = y ~ x,
-    data = . %>% dplyr::filter(step == "pre"),
-    colour = "blue",
-    show.legend = FALSE
-  ) +
-  labs(
-    x = "logCPM", y = expression(hat(sigma)), colour = "limma-trend"
-  ) +
-  scale_colour_manual(values = c(pre = "black", post = "red")) +
-  theme(axis.title.y = element_text(angle = 0, vjust = 0.5))
-```
-
 
 ## Independent Hypothesis Weighting {.tabset}
 
@@ -1022,18 +959,49 @@ tbl_cols <- list(
 ### Overall Results
 
 ```{r tab-overall}
-df <- merged_results %>% 
+tbl <- merged_results %>% 
+  mutate(w = width) %>% 
   as_tibble() %>% 
   group_by(status) %>% 
-  summarise(n = dplyr::n(), .groups = "drop") %>% 
-  complete(status, fill = list(n = 0)) %>% 
-  ungroup() %>% 
-  pivot_wider(names_from = "status", values_from = "n", values_fill = 0) %>% 
-  mutate(
-    Total = length(merged_results),
-    `% Changed` = 1 - n_unch / Total
+  summarise(
+    n = dplyr::n(), 
+    width = median(w),
+    AveExpr = median(AveExpr),
+    .groups = "drop"
   ) %>% 
-  dplyr::select(Total, everything())
+  mutate(`%` = n / sum(n)) %>% 
+  dplyr::select(status, n, `%`, everything()) %>% 
+  reactable(
+    searchable = FALSE, filterable = FALSE,
+    columns = list(
+      status = colDef(
+        name = "Status", maxWidth = 150,
+        footer = htmltools::tags$b("Overall")
+      ),
+      n = colDef(
+        name = "Nbr of Windows", maxWidth = 150, format = colFormat(separators = TRUE),
+        footer = htmltools::tags$b(comma(length(merged_results)))
+      ),
+      width = colDef(
+        name = "Median Width (bp)", format = colFormat(digits = 1),
+        footer = htmltools::tags$b(round(median(width(merged_results)), 1)),
+        maxWidth = 200
+      ),
+      `%` = colDef(
+        name = "% Total Windows", format = colFormat(percent = TRUE, digits = 1),
+        style = function(value) bar_style(width = value, align = "right"),
+        maxWidth = 150
+      ),
+      AveExpr = colDef(
+        name = "Median Signal (logCPM)",
+        format = colFormat(digits = 3),
+        maxWidth = 200,
+        footer = htmltools::tags$b(
+          round(median(merged_results$AveExpr), 3)
+        )
+      )
+    )
+  )
 cp <- htmltools::em(
   glue(
     "Overall results for changed {target} binding in the ",
@@ -1041,18 +1009,6 @@ cp <- htmltools::em(
     " comparison."
   )
 )
-tbl <- df %>% 
-  reactable(
-    columns = list(
-      Total = tbl_cols$Total[c("cell")],
-      Up = tbl_cols$Up[c("cell", "style")],
-      Down = tbl_cols$Down[c("cell", "style")],
-      Unchanged = tbl_cols$Unchanged[c("cell", "style")],
-      Ambiguous = tbl_cols$Ambiguous[c("cell", "style")],
-      `% Changed` = tbl_cols$`% Changed`[c("cell", "style")]
-    )[colnames(df)] %>% 
-      lapply(set_attr, which = "class", value = "colDef")
-  )
 div(class = "table",
   div(class = "table-header",
       div(class = "caption", cp),
@@ -1060,6 +1016,7 @@ div(class = "table",
   )
 )
 ```
+
 
 ### Summary By Region
 
@@ -1160,7 +1117,7 @@ div(class = "table",
 
 ### Most Highly Ranked
 
-```{r tab-highy-ranked}
+```{r tab-highly-ranked}
 show_n <- min(200, length(merged_results))
 scaling_vals <- list(
   logFC = c(-1, 1)*max(abs(merged_results$logFC)),
@@ -1169,9 +1126,9 @@ scaling_vals <- list(
 )
 cp <- htmltools::em(
   glue(
-    "The {show_n} most highly-ranked merged windows by FDR. ",
+    "The {show_n} most highly-ranked windows by FDR. ",
     "Regions were assigned based on which genomic region showed the largest ",
-    "overlap with the merged window. ",
+    "overlap with the final merged window. ",
     ifelse(
       has_features, 
       glue("Features are as provided in the file {basename(config$external$features)}. "),
@@ -1198,7 +1155,7 @@ tbl <- merged_results %>%
   ) %>% 
   as_tibble() %>% 
   dplyr::rename(
-    Range = range, `Width (kb)` = w, `Macs2 Peak` = overlaps_ref
+    Range = range, `Width (bp)` = w, `Macs2 Peak` = overlaps_ref
   ) %>% 
   rename_all(str_replace_all, "feature", "Feature") %>% 
   mutate(Genes = vapply(Genes, paste, character(1), collapse = "; ")) %>% 
@@ -1214,8 +1171,7 @@ tbl <- merged_results %>%
           str_replace_all(value, ":", ": ")
         }
       ),
-      `Width (kb)` = colDef(
-        cell = function(value) round(value / 1e3, 1),
+      `Width (bp)` = colDef(
         style = function(value) {
           x <- value / scaling_vals$Width
           colour <- expr_col(x)
@@ -2106,7 +2062,7 @@ plotHFGC(
 )
 ```
 
-# Enrichment Testing {.tabset}
+# Enrichment Testing 
 
 ```{r msigdb}
 msigdb <- msigdbr(species = "Homo sapiens") %>% 
@@ -2212,7 +2168,8 @@ Testing was only performed if the number of genes mapped to the specific treatme
 `r comma(min_genes, 1)` (`r percent(params$enrichment$min_prop_goseq, 0.1)` of included genes) and `r comma(max_genes, 1)` (`r percent(params$enrichment$max_prop_goseq)`).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
-## Windows With Detected `r target`
+## Windows With Detected `r target` {.tabset}
+
 
 ```{r goseq-mapped, fig.show='hide'}
 pwf_mapped <- genes_gr %>% 
@@ -2242,11 +2199,15 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
     dplyr::filter(numDEInCat > 0) %>% 
     mutate(adj_p = p.adjust(pval, adj_method))
 }
+any_goseq_mapped <- sum(goseq_mapped$adj_p < enrich_alpha) > 0
+tg_mapped <- make_tbl_graph(goseq_mapped, gs = gs_by_gsid)
+plot_network_mapped <- length(tg_mapped) > 2
 ```
 
-`r ifelse(sum(goseq_mapped$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to any window", "")`
+`r ifelse(!any_goseq_mapped, "No enrichment was found amongst genes mapped to any window", "### Results Table")`
 
-```{r tbl-goseq-mapped, eval = sum(goseq_mapped$adj_p < enrich_alpha) > 0, echo = sum(goseq_mapped$adj_p < enrich_alpha) > 0}
+
+```{r tbl-goseq-mapped, eval = any_goseq_mapped, echo = any_goseq_mapped}
 cp <- htmltools::tags$caption(
   htmltools::em(
     glue(
@@ -2345,7 +2306,37 @@ div(class = "table",
 )
 ```
 
-## Windows With Differentially Bound `r target`
+`r ifelse(plot_network_mapped, "### Network Plot", "")`
+
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_mapped %>% 
+  ggraph(layout = "stress", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+
+## Windows With Differentially Bound `r target` {.tabset}
 
 ```{r goseq-diff, fig.show='hide'}
 pwf_diff <- genes_gr %>% 
@@ -2353,16 +2344,16 @@ pwf_diff <- genes_gr %>%
   distinct(gene_id) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   mutate(
-    n_peaks = ifelse(is.na(n_peaks), 0, n_peaks),
     diff = ifelse(n_peaks > 0, up|down, FALSE),
     diff = ifelse(is.na(diff), FALSE, diff)
   ) %>% 
+  dplyr::filter(!is.na(n_peaks)) %>% 
   with(
     nullp(
       structure(diff, names = gene_id),
       genome = config$genome$build,
       bias.data = log1p(n_peaks),
-      plot.fit = TRUE
+      plot.fit = FALSE
     )
   )
 goseq_diff <- tibble(gs_name = character(), adj_p = numeric())
@@ -2377,12 +2368,16 @@ if (sum(pwf_diff$DEgenes) > min_genes & sum(pwf_diff$DEgenes) < max_genes) {
     dplyr::filter(numDEInCat > 0) %>% 
     mutate(adj_p = p.adjust(pval, adj_method))
 }
+any_goseq_diff <- sum(goseq_diff$adj_p < enrich_alpha) > 0
+tg_diff <- make_tbl_graph(goseq_diff, gs = gs_by_gsid)
+plot_network_diff <- length(tg_diff) > 2
 ```
 
 
-`r ifelse(sum(goseq_diff$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites showing any differential binding.", "")`
+`r ifelse(!any_goseq_diff, "No enrichment was found amongst genes mapped to sites showing any differential binding", "### Results Table")`
 
-```{r tbl-goseq-diff, eval = sum(goseq_diff$adj_p < enrich_alpha) > 0, echo = sum(goseq_diff$adj_p < enrich_alpha) > 0}
+
+```{r tbl-goseq-diff, eval = any_goseq_diff, echo = any_goseq_diff}
 cp <- htmltools::tags$caption(
   htmltools::em(
     glue(
@@ -2482,8 +2477,36 @@ div(class = "table",
 )
 ```
 
+`r ifelse(plot_network_diff, "### Network Plot", "")`
 
-## Windows With Increased `r target` Binding
+```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those differential signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_diff %>% 
+  ggraph(layout = "stress", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+## Windows With Increased `r target` Binding {.tabset}
 
 ```{r goseq-up, fig.show='hide'}
 pwf_up <- genes_gr %>% 
@@ -2491,16 +2514,16 @@ pwf_up <- genes_gr %>%
   distinct(gene_id) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   mutate(
-    n_peaks = ifelse(is.na(n_peaks), 0, n_peaks),
     diff = ifelse(n_peaks > 0, up, FALSE),
     diff = ifelse(is.na(diff), FALSE, diff)
-  ) %>% 
+  ) %>%
+  dplyr::filter(!is.na(n_peaks)) %>% 
   with(
     nullp(
       structure(diff, names = gene_id),
       genome = config$genome$build,
       bias.data = log1p(n_peaks),
-      plot.fit = TRUE
+      plot.fit = FALSE
     )
   )
 goseq_up <- tibble(gs_name = character(), adj_p = numeric())
@@ -2515,12 +2538,16 @@ if (sum(pwf_up$DEgenes) > min_genes & sum(pwf_up$DEgenes) < max_genes) {
     dplyr::filter(numDEInCat > 0) %>% 
     mutate(adj_p = p.adjust(pval, adj_method))
 }
+any_goseq_up <- sum(goseq_up$adj_p < enrich_alpha) > 0
+tg_up <- make_tbl_graph(goseq_up, gs = gs_by_gsid)
+plot_network_up <- length(tg_up) > 2
 ```
 
 
-`r ifelse(sum(goseq_up$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites with increased binding", "")`
+`r ifelse(!any_goseq_up, glue("No enrichment was found amongst genes mapped to sites showing increased {target} binding"), "### Results Table")`
 
-```{r tbl-goseq-up, eval = sum(goseq_up$adj_p < enrich_alpha) > 0, echo = sum(goseq_up$adj_p < enrich_alpha) > 0}
+
+```{r tbl-goseq-up, eval = any_goseq_up, echo = any_goseq_up}
 cp <- htmltools::tags$caption(
   htmltools::em(
     glue(
@@ -2620,7 +2647,37 @@ div(class = "table",
 )
 ```
 
-## Windows With Decreased `r target` Binding
+`r ifelse(plot_network_up, "### Network Plot", "")`
+
+```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those showing increased signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_up %>% 
+  ggraph(layout = "stress", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+
+## Windows With Decreased `r target` Binding {.tabset}
 
 ```{r goseq-down, fig.show='hide'}
 pwf_down <- genes_gr %>% 
@@ -2628,10 +2685,10 @@ pwf_down <- genes_gr %>%
   distinct(gene_id) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   mutate(
-    n_peaks = ifelse(is.na(n_peaks), 0, n_peaks),
     diff = ifelse(n_peaks > 0, down, FALSE),
     diff = ifelse(is.na(diff), FALSE, diff)
   ) %>% 
+  dplyr::filter(!is.na(n_peaks)) %>% 
   with(
     nullp(
       structure(diff, names = gene_id),
@@ -2652,12 +2709,16 @@ if (sum(pwf_down$DEgenes) > min_genes & sum(pwf_down$DEgenes) < max_genes) {
     dplyr::filter(numDEInCat > 0) %>% 
     mutate(adj_p = p.adjust(pval, adj_method))
 }
+any_goseq_down <- sum(goseq_down$adj_p < enrich_alpha) > 0
+tg_down <- make_tbl_graph(goseq_down, gs = gs_by_gsid)
+plot_network_down <- length(tg_down) > 2
 ```
 
 
-`r ifelse(sum(goseq_down$adj_p < enrich_alpha) == 0, "No enrichment was found amongst genes mapped to sites with decreased binding", "")`
+`r ifelse(!any_goseq_down, glue("No enrichment was found amongst genes mapped to sites showing decreased {target} binding"), "### Results Table")`
 
-```{r tbl-goseq-down, eval = sum(goseq_down$adj_p < enrich_alpha) > 0, echo = sum(goseq_down$adj_p < enrich_alpha) > 0}
+
+```{r tbl-goseq-down, eval = any_goseq_down, echo = any_goseq_down}
 cp <- htmltools::tags$caption(
   htmltools::em(
     glue(
@@ -2756,6 +2817,37 @@ div(class = "table",
   )
 )
 ```
+
+`r ifelse(plot_network_down, "### Network Plot", "")`
+
+```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those showing decreased signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_down %>% 
+  ggraph(layout = "stress", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+
 
 ```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_differential_binding.Rmd')}
 ```
