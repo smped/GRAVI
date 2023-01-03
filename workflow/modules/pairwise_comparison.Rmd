@@ -27,6 +27,8 @@ library(goseq)
 library(parallel)
 library(GenomicInteractions)
 library(extraChIPs)
+library(ggraph)
+library(tidygraph)
 source(here::here("workflow", "scripts", "custom_functions.R"))
 ```
 
@@ -1325,134 +1327,93 @@ df %>%
 ```
 
 
-## Window Sizes
-
-```{r vioplot-window-sizes, fig.cap = "*Combined window sizes for each set of windows. The x-axis is truncated at the 99.5^th^ percentile of window sizes*"}
-all_windows %>% 
-  as_tibble()%>% 
-  mutate(
-    w = width(GRanges(range)),
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1],
-    n_changed = fct_lump_prop(n_changed, prop = 0.05)
-  ) %>% 
-  droplevels() %>% 
-  ggplot(aes(w, fct_rev(status), fill = status)) +
-  geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
-  facet_grid(
-    n_changed ~ ., scales = "free_y", space= "free_y"
-  ) +
-  coord_cartesian(xlim = c(0, quantile(width(all_windows), 0.995))) +
-  scale_x_continuous(expand = expansion(c(0, 0.05))) +
-  scale_fill_manual(
-    values = direction_colours[droplevels(all_windows$status)]
-  ) +
-  labs(
-    x = "Combined Region Width (bp)",
-    y = "Status"
-  ) +
-  theme(legend.position = "none")
-```
-
 `r if (n_targets > 1) "## Distance By Status"`
 
-```{r vioplot-distances, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.cap = "*Distances between windows where maximal signal was detected for each target. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
-q <- quantile(all_windows$distance,, na.rm = TRUE, probs =  0.995)
+```{r distances-bystatus, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.cap = "*Distances between windows where maximal signal was detected for each target. Windows are only shown if change was detected in one or more comparisons. The x-axis is truncated at 1kb*"}
 all_windows %>% 
   as_tibble() %>% 
   dplyr::filter(!is.na(distance)) %>% 
-  droplevels() %>% 
+  arrange(status, distance) %>% 
+  group_by(status) %>% 
   mutate(
-    n_changed = c("Both Unchanged", "One Changed", "Both Changed")[str_count(status, "Up|Down") + 1],
-    n_changed = fct_lump_prop(n_changed, prop = 0.05)
+    n = dplyr::n(),
+    q = seq_along(status) / n
   ) %>% 
-  ggplot(aes(distance , fct_rev(status), fill = status)) +
-  geom_violin(draw_quantiles = 0.5, alpha = 0.7) +
-  geom_text(
-    aes(0, fct_rev(status), label = lab),
-    data = . %>% 
-      group_by(status, n_changed) %>% 
-      summarise(n = dplyr::n()) %>% 
-      mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = - 0.07 * q ,
-    size = 3.5
+  dplyr::filter(distance < 1e3, !str_detect(status, "Unchanged.+Unchanged")) %>% 
+  ggplot(aes(distance, q, colour = status)) +
+  geom_line(linewidth = 1) +
+  scale_x_continuous(breaks = seq(0, 10, by = 2) * 100) +
+  scale_y_continuous(
+    labels = percent, expand = expansion(c(0, 0.05)), 
+    breaks = seq(0, 1, by = 0.2)
   ) +
-  facet_grid(
-    n_changed ~ ., scales = "free_y", space= "free_y"
-  ) +
-  coord_cartesian(xlim = c(- 0.1 *  q, q)) +
-  scale_fill_manual(
-    values = direction_colours[droplevels(all_windows$status)]
+  scale_colour_manual(
+    values = direction_colours
   ) +
   labs(
     x = "Distance Between Window Centres (bp)",
-    y = "Status"
-  ) +
-  theme(legend.position = "none")
+    y = "Percentile",
+    colour = "Combined Status"
+  )
 ```
 
 
 `r if (n_targets > 1) "## Distance by Region"`
 
-```{r distance-by-region, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
+```{r distance-by-region, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed binding. The x-axis is truncated 1kb.*"}
 all_windows %>% 
-  filter(!is.na(distance)) %>% 
-  mutate(region = fct_relabel(
-    region, str_replace_all, pattern = " \\(", replacement = "\n("
-    )
-  ) %>% 
   as_tibble() %>% 
-  ggplot(aes(distance, fct_rev(region), fill = region)) +
-  geom_violin(draw_quantiles = 0.5) +
-  geom_text(
-    aes(0, fct_rev(region), label = lab),
-    data = . %>% 
-      group_by(region) %>% 
-      summarise(n = dplyr::n()) %>% 
-      mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = - 0.07 * q ,
-    size = 3.5
+  dplyr::filter(!is.na(distance)) %>% 
+  arrange(region, distance) %>% 
+  group_by(region) %>% 
+  mutate(
+    n = dplyr::n(),
+    q = seq_along(region) / n
+  ) %>% 
+  dplyr::filter(distance < 1e3) %>% 
+  ggplot(aes(distance, q, colour = region)) +
+  geom_line(linewidth = 1) +
+  scale_x_continuous(breaks = seq(0, 10, by = 2) * 100) +
+  scale_y_continuous(
+    labels = percent, expand = expansion(c(0, 0.05)), 
+    breaks = seq(0, 1, by = 0.2)
   ) +
-  scale_fill_manual(
-    values = region_colours %>% 
-      setNames(str_replace_all(names(.), " \\(", "\n("))
-  ) +
-  coord_cartesian(
-    xlim = c(- 0.1 * q, q)
-  ) +
+  scale_colour_manual(values = region_colours) +
   labs(
     x = "Distance Between Window Centres (bp)",
-    y = "Region"
-  ) +
-  theme(legend.position = "none")
+    y = "Percentile",
+    colour = "Genomic Region"
+  )
 ```
 
 `r if (has_features & n_targets > 1) "## Distance By Feature"`
 
-```{r distance-by-feature, echo = has_features & n_targets > 1, eval = has_features & n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. The x-axis is truncated at the 99.5^th^ percentile of all observed distances*"}
+```{r distance-by-feature, echo = has_features & n_targets > 1, eval = has_features & n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed binding. The x-axis is truncated 1kb.*"}
 all_windows %>% 
-  filter(!is.na(distance)) %>% 
   as_tibble() %>% 
-  mutate(feature = fct_infreq(feature)) %>% 
-  ggplot(aes(distance, fct_rev(feature), fill = feature)) +
-  geom_violin(draw_quantiles = 0.5) +
-  geom_text(
-    aes(0, fct_rev(feature), label = lab),
-    data = . %>% 
-      group_by(feature) %>% 
-      summarise(n = dplyr::n()) %>% 
-      mutate(lab = glue("n = {comma(n)}")),
-    nudge_x = - 0.07 * q ,
-    size = 3.5
+  dplyr::filter(!is.na(distance)) %>% 
+  mutate(feature = factor(feature, levels = names(feature_colours))) %>% 
+  arrange(feature, distance) %>% 
+  group_by(feature) %>% 
+  mutate(
+    n = dplyr::n(),
+    q = seq_along(feature) / n
+  ) %>% 
+  dplyr::filter(distance < 1e3) %>% 
+  droplevels() %>% 
+  ggplot(aes(distance, q, colour = feature)) +
+  geom_line(linewidth = 1) +
+  scale_x_continuous(breaks = seq(0, 10, by = 2) * 100) +
+  scale_y_continuous(
+    labels = percent, expand = expansion(c(0, 0.05)), 
+    breaks = seq(0, 1, by = 0.2)
   ) +
-  scale_fill_manual(
-    values = setNames(feature_colours, str_sep_to_title(names(feature_colours)))
-  ) +
-  coord_cartesian(xlim = c(- 0.1 * q, q)) +
+  scale_colour_manual(values = unlist(feature_colours)) +
   labs(
     x = "Distance Between Window Centres (bp)",
-    y = "Feature"
-  ) +
-  theme(legend.position = "none")
+    y = "Percentile",
+    colour = "External Feature"
+  )
 ```
 
 
@@ -1508,6 +1469,7 @@ gs_url <- msigdb %>%
 min_genes <- params$enrichment$min_prop_goseq 
 max_genes <- params$enrichment$max_prop_goseq
 enrich_alpha <- params$enrichment$alpha
+min_network_size <- 3
 adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
 adj_desc <- case_when(
   p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
@@ -1579,8 +1541,7 @@ if (mean(pwf_mapped$DEgenes) > min_genes & mean(pwf_mapped$DEgenes) < max_genes)
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
-      gs_name = category, pval = over_represented_pvalue,
-      mapped = numDEInCat, universe = numInCat
+      gs_name = category, pval = over_represented_pvalue, starts_with("num")
     ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
@@ -1595,6 +1556,9 @@ if (mean(pwf_mapped$DEgenes) > min_genes & mean(pwf_mapped$DEgenes) < max_genes)
       gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
     )
 }
+any_goseq_mapped <- sum(goseq_mapped_res$adj_p < enrich_alpha) > 0
+tg_mapped <- make_tbl_graph(goseq_mapped_res, gs = gs_by_gsid)
+plot_network_mapped <- length(tg_mapped) >= min_network_size
 ```
 
 All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
@@ -1603,11 +1567,11 @@ Gene-length was included as the source of any potential sampling bias for a gene
 This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
 `r if (sum(goseq_mapped_res$enriched) == 0) "No enrichment was found."`
 
-```{r tbl-goseq-mapped-res, eval = sum(goseq_mapped_res$enriched) > 0, echo = sum(goseq_mapped_res$enriched) > 0}
+```{r tbl-goseq-mapped-res, eval = any_goseq_mapped, echo =any_goseq_mapped}
 goseq_mapped_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
-    gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
+    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -1644,12 +1608,12 @@ goseq_mapped_res %>%
         ),
         maxWidth = 80
       ),
-      mapped = colDef(
+      numDEInCat = colDef(
         name = "Mapped Genes",
         cell = function(value) comma(value, 1),
         maxWidth = 80
       ),
-      universe = colDef(
+      numInCat = colDef(
         name = "Genes in Gene-Set",
         cell = function(value) comma(value, 1),
         maxWidth = 80
@@ -1660,6 +1624,37 @@ goseq_mapped_res %>%
       )
     )
   )
+```
+
+`r if (plot_network_mapped) "### Network Plot: All Mapped Genes"`
+
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for either target. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_mapped %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
 ```
 
 
@@ -1673,7 +1668,7 @@ vec_t1t2 <- structure(
   mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
   names = mapped_ids
 )
-gs_method <- ifelse(mean(vec_t1t2) > 0.8, "Hypergeometric", "Wallenius")
+gs_method <- "Hypergeometric"
 para <- glue(
   "
   All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes with a 
@@ -1703,8 +1698,7 @@ if (mean(pwf_t1t2$DEgenes) > min_genes & mean(pwf_t1t2$DEgenes) < max_genes) {
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
-      gs_name = category, pval = over_represented_pvalue,
-      mapped = numDEInCat, universe = numInCat
+      gs_name = category, pval = over_represented_pvalue, starts_with("num")
     ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
@@ -1717,16 +1711,19 @@ if (mean(pwf_t1t2$DEgenes) > min_genes & mean(pwf_t1t2$DEgenes) < max_genes) {
     chop(gene_name) %>% 
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
-if (sum(goseq_t1t2_res$enriched) == 0) para <- glue(para, " No enrichment was found.")
+any_goseq_t1t2 <- sum(goseq_t1t2_res$adj_p < enrich_alpha) > 0
+tg_t1t2 <- make_tbl_graph(goseq_t1t2_res, gs = gs_by_gsid)
+plot_network_t1t2 <- length(tg_t1t2) >= min_network_size
+if (!any_goseq_t1t2) para <- glue(para, " No enrichment was found.")
 ```
 
 `r if (n_targets == 2) para`
 
-```{r tbl-goseq-t1t2-res, eval = sum(goseq_t1t2_res$enriched) > 0 & n_targets == 2, echo = sum(goseq_t1t2_res$enriched) > 0}
+```{r tbl-goseq-t1t2-res, eval = any_goseq_t1t2 & n_targets == 2, echo = any_goseq_t1t2}
 goseq_t1t2_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
-    gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
+    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -1763,13 +1760,13 @@ goseq_t1t2_res %>%
         ),
         maxWidth = 80
       ),
-      mapped = colDef(
-        name = "Mapped Genes",
+      numDEInCat = colDef(
+        name = "Genes Mapped to Both",
         cell = function(value) comma(value, 1),
         maxWidth = 80
       ),
-      universe = colDef(
-        name = "Genes in Gene-Set",
+      numInCat = colDef(
+        name = "Genes Mapped to Either",
         cell = function(value) comma(value, 1),
         maxWidth = 80
       ),
@@ -1781,11 +1778,44 @@ goseq_t1t2_res %>%
   )
 ```
 
+`r if (plot_network_t1t2) "### Network Plot: Genes Mapped to Both"`
+
+```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_t1t2 %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+
 `r if (n_targets == 2) glue("### Genes Mapped to {comps[[1]]} Only")`
 
 ```{r empty-goseq-t1only}
 goseq_t1only_res <- tibble(
-  gs_name = character(), mapped = numeric(), enriched = logical()
+  gs_name = character(), mapped = numeric(), enriched = logical(),
+  adj_p = numeric()
 )
 vec_t1only <- structure(
   mapped_ids %in% setdiff(comp_ids[[1]], comp_ids[[2]]),
@@ -1820,8 +1850,7 @@ if (mean(pwf_t1only$DEgenes) > min_genes & mean(pwf_t1only$DEgenes) < max_genes)
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
-      gs_name = category, pval = over_represented_pvalue,
-      mapped = numDEInCat, universe = numInCat
+      gs_name = category, pval = over_represented_pvalue, starts_with("num")
     ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
@@ -1834,7 +1863,10 @@ if (mean(pwf_t1only$DEgenes) > min_genes & mean(pwf_t1only$DEgenes) < max_genes)
     chop(gene_name) %>% 
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
-if (sum(goseq_t1only_res$enriched) == 0) para <- glue(para, " No enrichment was found.")
+any_goseq_t1only <- sum(goseq_t1only_res$adj_p < enrich_alpha) > 0
+tg_t1only <- make_tbl_graph(goseq_t1only_res, gs = gs_by_gsid)
+plot_network_t1only <- length(tg_t1only) >= min_network_size
+if (!any_goseq_t1only) para <- glue(para, " No enrichment was found.")
 ```
 
 `r if (n_targets == 2) para`
@@ -1843,7 +1875,7 @@ if (sum(goseq_t1only_res$enriched) == 0) para <- glue(para, " No enrichment was 
 goseq_t1only_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
-    gs_name, gs_description, pval, adj_p, mapped, universe, gene_name
+    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -1880,13 +1912,13 @@ goseq_t1only_res %>%
         ),
         maxWidth = 80
       ),
-      mapped = colDef(
-        name = "Mapped Genes",
+      numDEInCat = colDef(
+        name = glue("Genes Mapped to {comps[[1]]} Only"),
         cell = function(value) comma(value, 1),
         maxWidth = 80
       ),
-      universe = colDef(
-        name = "Genes in Gene-Set",
+      numInCat = colDef(
+        name = "Genes Mapped to Both",
         cell = function(value) comma(value, 1),
         maxWidth = 80
       ),
@@ -1896,6 +1928,37 @@ goseq_t1only_res %>%
       )
     )
   )
+```
+
+`r if (plot_network_t1only) glue("### Network Plot: Genes Mapped to {comps[[1]]} Only"`
+
+```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_t1only %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
 ```
 
 `r if (n_targets == 2) glue("### Genes Mapped to {comps[[2]]} Only")`
@@ -1937,8 +2000,7 @@ if (mean(pwf_t2only$DEgenes) > min_genes & mean(pwf_t2only$DEgenes) < max_genes)
     dplyr::filter(numDEInCat > 0) %>% 
     as_tibble() %>% 
     dplyr::select(
-      gs_name = category, pval = over_represented_pvalue,
-      mapped = numDEInCat, universe = numInCat
+      gs_name = category, pval = over_represented_pvalue, starts_with("num")
     ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
@@ -1951,7 +2013,10 @@ if (mean(pwf_t2only$DEgenes) > min_genes & mean(pwf_t2only$DEgenes) < max_genes)
     chop(gene_name) %>% 
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
-if (sum(goseq_t2only_res$enriched) == 0) para <- glue(para, " No enrichment was found.")
+any_goseq_t2only <- sum(goseq_t2only_res$adj_p < enrich_alpha) > 0
+tg_t2only <- make_tbl_graph(goseq_t2only_res, gs = gs_by_gsid)
+plot_network_t2only <- length(tg_t2only) >= min_network_size
+if (!any_goseq_t2only) para <- glue(para, " No enrichment was found.")
 ```
 
 `r if (n_targets == 2) para`
@@ -2015,11 +2080,43 @@ goseq_t2only_res %>%
   )
 ```
 
+`r if (plot_network_t2only) glue("### Network Plot: Genes Mapped to {comps[[1]]} Only"`
+
+```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[2]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_t2only %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+
 `r if (sum(goseq_mapped_res$enriched) > 0) "### Visualisation: All Mapped"`
 
 ```{r barplot-all-mapped, fig.height=min(15, 5 + 0.15*sum(goseq_mapped_res$enriched)), eval = sum(goseq_mapped_res$enriched) > 0, echo = sum(goseq_mapped_res$enriched) > 0, fig.cap = glue("*Summary of gene sets considered enriched across the set of genes mapped in __either__ comparison. Using {params$enrichment$adj}-adjusted p-values < {enrich_alpha} as indicative of enrichment, all shown gene-sets were considered to be enriched in this analysis, and are presented in order of significance fro top to bottom. The distribution of genes across regions only mapped in one comparison, or mapped in both is also indicated. Asterisk overlays indicate any subsequent analyses where gene-sets were also considered to be enriched.*")}
 goseq_mapped_res %>%
-  dplyr::select(gs_name, mapped, universe, adj_p) %>%
+  dplyr::select(gs_name, mapped = numDEInCat, universe = numInCat, adj_p) %>%
   dplyr::filter(adj_p < enrich_alpha) %>% 
   mutate(
     Both = vapply(
@@ -2100,86 +2197,18 @@ goseq_mapped_res %>%
   labs(x = "Gene Set", y = "Set Size", fill = "Group")
 ```
 
-```{r sig-gs}
-gs <- NULL
-if (n_targets == 2) {
-  gs <- c(
-    dplyr::filter(goseq_t1only_res, enriched)$gs_name,
-    dplyr::filter(goseq_t2only_res, enriched)$gs_name,
-    dplyr::filter(goseq_t1t2_res, enriched)$gs_name
-  )
-}
-```
-
-`r if (length(gs) > 0) "### Visualisation: Genes By Group"`
-
-```{r plot-circe-gs, fig.height=min(15, 5 + length(gs) / 3), eval = length(gs) > 0, echo = length(gs) > 0, fig.cap = glue("*Gene-sets considered as enriched in genes from either of the above Venn Diagram subsets. Circle sizes correspond to the number of genes in each subset, with the percentage this represents of each pathway also being presented. Circle fill indicates significance using -log~10~ p-values (unadjusted), with those formally considered enriched indicated with doubleasterisks. Labels are only shown where the number of genes exceeds 5% of the gene set.*")}
-list(
-  t1t2 = goseq_t1t2_res,
-  t1only = goseq_t1only_res,
-  t2only = goseq_t2only_res
-) %>% 
-  lapply(dplyr::filter, gs_name %in% gs) %>%
-  bind_rows(.id = "group") %>% 
-  mutate(
-    gs_size = vapply(gs_by_gsid[gs_name], length, integer(1)),
-    group = case_when(
-      group == 't1only' ~ paste(comps[[1]], "Only"), 
-      group == 't2only' ~ paste(comps[[2]], "Only"),
-      group == "t1t2"~ "Both",
-      TRUE ~ group
-    ),
-    group = factor(
-      group,
-      levels = c(
-        paste(comps[[1]], "Only"), paste(comps[[2]], "Only"), "Both", "Unmapped"
-      )
-    ),
-    gs_name = gs_name %>% 
-      fct_inorder() %>% 
-      fct_rev() %>% 
-      fct_relabel(str_trunc, width = 50),
-    prop = percent(mapped / gs_size, 1),
-    lab = ifelse(enriched, paste0("**", prop), prop)
-    # lab = case_when(
-    #   adj_p < 0.001 ~ paste0("***", prop),
-    #   adj_p < 0.01 ~ paste0("**", prop),
-    #   adj_p < 0.05 ~ paste0("*", prop),
-    #   TRUE ~ prop
-    # )
-  ) %>%
-  ggplot(
-    aes(group, gs_name, size = mapped, fill = -log10(pval))
-  ) +
-  geom_point(pch = 21, stroke = 0.8) +
-  geom_label(
-    aes(group, gs_name, label = lab),
-    data = . %>% 
-      dplyr::filter(mapped / gs_size > 0.05),
-    inherit.aes = FALSE, size = 4, alpha = 0.6
-  ) +
-  scale_size_continuous(range = c(0, 200 / length(gs))) +
-  scale_fill_gradientn(colors = hcl.colors(100, "Reds", rev = TRUE)) +
-  guides(size = "none") +
-  labs(
-    x = "Enrichment Test Subset", y = "Gene Set", 
-    fill = expression(paste("-", log[10], "p"))
-  )
-```
-
-
-
-## Comparison of Differentially Bound Windows {.tabset}
+## Comparison of Differentially Bound Windows
 
 ```{r goseq-groups, fig.show='hide'}
 n_peaks <- structure(all_ids$n_windows, names = all_ids$gene_id)[mapped_ids]
 goseq_group_res <- group_ids %>% 
+  .[str_detect(names(.), "Up|Down")] %>% 
   mclapply(
     function(x) {
       vec <- structure(mapped_ids %in% x, names = mapped_ids)
       pwf <- nullp(vec, bias.data = n_peaks, plot.fit = FALSE)
       res <- tibble(adj_p = numeric())
-      gs_method <- ifelse(mean(vec) > 0.8, "Hypergeometric", "Wallenius")
+      gs_method <- "Hypergeometric"
       if (mean(pwf$DEgenes) > min_genes & mean(pwf$DEgenes) < max_genes) {
         res <- goseq(pwf, gene2cat = gs_by_geneid, method = gs_method) %>% 
           as_tibble() %>% 
@@ -2209,13 +2238,19 @@ goseq_group_res <- group_ids %>%
   pivot_longer(everything(), names_to = "group") %>% 
   unnest(everything()) %>% 
   split(.$group)
+tg_group_res <- goseq_group_res %>% 
+  mclapply(make_tbl_graph, gs = gs_by_gsid, mc.cores = threads) %>% 
+  .[vapply(., length, integer(1)) >= min_network_size]
 ```
 
 The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
 The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
 For genes mapped to differentially bound windows, the number of windows mapped to each gene was taken as the potential source of any sampling bias.
-However, if the number of genes in the test set exceeded 80% of genes in the 'universe', no sampling bias was included, due to issues with extreme values in the current R implementation of Wallenius' Non-Central Hypergeometric Distribution.
+No sampling bias was included, with test results using a simple Hypergeometric Distribution.
 `r if(length(goseq_group_res) == 0) "No enrichment was found amongst any group of windows"`
+
+
+`r if(length(goseq_group_res) > 0) "### Result Tables {.tabset}"`
 
 
 ```{r tbl-goseq-groups, eval = length(goseq_group_res) > 0, echo = length(goseq_group_res) > 0}
@@ -2237,8 +2272,8 @@ htmltools::tagList(
               str_to_lower %>% 
               str_replace_all(" ", "-") %>% 
               str_replace_all("-+", "-"),
-            class="section level3",
-            htmltools::h3(class = "tabset", x),
+            class="section level4",
+            htmltools::h4(class = "tabset", x),
             htmltools::tags$em(cp),
             goseq_group_res[[x]] %>% 
               separate(group, into = comps, sep = " - ") %>% 
@@ -2341,6 +2376,89 @@ htmltools::tagList(
     )
 )
 ```
+
+`r if(length(goseq_group_res) > 0) "### Network Plots {.tabset}"`
+
+
+```{r network-plots-goseq-groups, eval = length(tg_group_res) > 0, echo = length(tg_group_res) > 0}
+htmltools::tagList(
+  names(tg_group_res) %>% 
+    mclapply(
+      function(x) {
+        ## Export the image
+        img_out <- file.path(
+          fig_path,
+          x %>% 
+            str_replace_all(" ", "_") %>% 
+            str_replace_all("_-_", "-") %>% 
+            paste0("_network.", fig_type)
+        )
+        fig_fun(
+          filename = img_out,
+          width = knitr::opts_current$get("fig.width"),
+          height = knitr::opts_current$get("fig.height")
+        )
+        p <- tg_group_res[[x]] %>%
+          ggraph(layout = "fr", weights = 1/d^2) +
+          geom_edge_link(aes(width = d, alpha = d)) +
+          geom_node_point(
+            aes(fill = -log10(pval), size = 100 * prop),
+            shape = 21
+          ) +
+          geom_node_text(
+            aes(label = label),
+            colour = "black",# alpha = 0.9,
+            data = . %>%
+              mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+            repel = TRUE,
+            size = 3
+          ) +
+          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_fill_viridis_c(option = "inferno") +
+          scale_size_continuous(
+            range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+          ) +
+          scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+          scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+          guides(edge_width = "none", edge_alpha= "none") +
+          labs(size = "% Gene-Set") +
+          theme_void()
+        print(p)
+        dev.off()
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "
+            Network plot showing all enriched pathways mapped to genes 
+            associated with {x}. 
+            "
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>%
+              basename() %>%
+              str_remove_all(glue(".{fig_type}$")) %>%
+              str_to_lower() %>%
+              str_replace_all("_", "-"),
+            class="section level4",
+            htmltools::h4(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      },
+      mc.cores = threads
+    )
+)
+```
+  
+
 
 # Combined Binding Visualisation
 

@@ -821,7 +821,7 @@ if (length(vd) == 3) {
 
 `r if(length(vd) <= 3) glue("![*Number of {target} consensus peaks which overlap oracle peaks defined within each condition.*](assets/{target}/{target}_common_peaks.{fig_type})")`
 
-```{r plot-common-upset, eval = length(vd) > 3, echo = length(vd) > 3, fig.height = 7, fig.cap = glue("*Number of {target} consensus peaks which overlap the oracle peaks defined within each condition.*")}
+```{r plot-common-upset, eval = length(vd) > 3, echo = length(vd) > 3, fig.height = 6, fig.cap = glue("*Number of {target} consensus peaks which overlap the oracle peaks defined within each condition.*")}
 ql <- names(oracle_peaks) %>% 
   lapply(
     function(x) upset_query(set = x, fill = colours$treat[[x]])
