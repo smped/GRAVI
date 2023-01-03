@@ -56,7 +56,7 @@ str_sep_to_title <- function(
 #'
 make_tbl_graph <- function(res, gs, min_dist = 0.9, alpha = enrich_alpha) {
   res <- dplyr::filter(res, adj_p < alpha)
-  if (nrow(res) == 0) return(tbl_graph())
+  if (nrow(res) < 2) return(tbl_graph())
   nm <- res$gs_name
   combs <- combn(nm, 2)
   d <- lapply(

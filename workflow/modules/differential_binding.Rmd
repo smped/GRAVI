@@ -2097,6 +2097,7 @@ gs_url <- msigdb %>%
   with(setNames(gs_url, gs_name))
 min_genes <- params$enrichment$min_prop_goseq * length(genes_gr)
 max_genes <- params$enrichment$max_prop_goseq * length(genes_gr)
+min_network_size <- 3
 enrich_alpha <- params$enrichment$alpha
 adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
 adj_desc <- case_when(
@@ -2170,6 +2171,8 @@ Testing was only performed if the number of genes mapped to the specific treatme
 `r comma(min_genes, 1)` (`r percent(params$enrichment$min_prop_goseq, 0.1)` of included genes) and `r comma(max_genes, 1)` (`r percent(params$enrichment$max_prop_goseq)`).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
+If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis.
+
 ## Windows With Detected `r target` {.tabset}
 
 
@@ -2203,7 +2206,7 @@ if (sum(pwf_mapped$DEgenes) > min_genes & sum(pwf_mapped$DEgenes) < max_genes) {
 }
 any_goseq_mapped <- sum(goseq_mapped$adj_p < enrich_alpha) > 0
 tg_mapped <- make_tbl_graph(goseq_mapped, gs = gs_by_gsid)
-plot_network_mapped <- length(tg_mapped) > 2
+plot_network_mapped <- length(tg_mapped) >= min_network_size
 ```
 
 `r ifelse(!any_goseq_mapped, "No enrichment was found amongst genes mapped to any window", "### Results Table")`
@@ -2372,7 +2375,7 @@ if (sum(pwf_diff$DEgenes) > min_genes & sum(pwf_diff$DEgenes) < max_genes) {
 }
 any_goseq_diff <- sum(goseq_diff$adj_p < enrich_alpha) > 0
 tg_diff <- make_tbl_graph(goseq_diff, gs = gs_by_gsid)
-plot_network_diff <- length(tg_diff) > 2
+plot_network_diff <- length(tg_diff) >= min_network_size
 ```
 
 
@@ -2542,7 +2545,7 @@ if (sum(pwf_up$DEgenes) > min_genes & sum(pwf_up$DEgenes) < max_genes) {
 }
 any_goseq_up <- sum(goseq_up$adj_p < enrich_alpha) > 0
 tg_up <- make_tbl_graph(goseq_up, gs = gs_by_gsid)
-plot_network_up <- length(tg_up) > 2
+plot_network_up <- length(tg_up) >= min_network_size
 ```
 
 
@@ -2713,7 +2716,7 @@ if (sum(pwf_down$DEgenes) > min_genes & sum(pwf_down$DEgenes) < max_genes) {
 }
 any_goseq_down <- sum(goseq_down$adj_p < enrich_alpha) > 0
 tg_down <- make_tbl_graph(goseq_down, gs = gs_by_gsid)
-plot_network_down <- length(tg_down) > 2
+plot_network_down <- length(tg_down) >= min_network_size
 ```
 
 
