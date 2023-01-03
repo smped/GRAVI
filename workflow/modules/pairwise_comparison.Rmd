@@ -38,9 +38,9 @@ panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
 theme_set(
   theme_bw() +
-  theme(
-    plot.title = element_text(hjust = 0.5)
-  )
+    theme(
+      plot.title = element_text(hjust = 0.5)
+    )
 )
 ```
 
@@ -93,7 +93,7 @@ colours <- read_rds(file.path(annotation_path, "colours.rds"))
 treat_colours <- unlist(colours$treat[levels(samples$treat)])
 combs <- paste(
   rep(comps, each = 4), c("Up", "Down", "Unchanged", "Undetected")
-  ) %>% 
+) %>% 
   combn(2) %>% 
   t() %>% 
   set_colnames(c("S1", "S2")) %>% 
@@ -101,7 +101,7 @@ combs <- paste(
   mutate(
     C1 = str_remove(S1, " (Up|Down|Unchanged|Undetected)"),
     C2 = str_remove(S2, " (Up|Down|Unchanged|Undetected)"),
-    ) %>%
+  ) %>%
   dplyr::filter(C1 != C2) %>%
   unite(combn, S1, S2, sep = " - ") %>%
   pull("combn")
@@ -433,7 +433,7 @@ lapply(
     fill = comp_cols[comps], 
     alpha = 0.3
   )
- file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
+file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 ```
 
 `r if (length(unique(targets)) > 1) glue("![*Union of peaks found in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of consensus peaks, which are themselves independent of treatment group.*](assets/{targets[[1]]}_{targets[[2]]}/{fig_name})")`
@@ -576,9 +576,9 @@ switch_down <- mcols(all_windows)[[c2_fdr]] < fdr_alpha &
 mcols(all_windows)[[c1_status]][switch_down] <- "Down"
 mcols(all_windows)[[c1_status]] <- mcols(all_windows) %>% 
   .[[c1_status]] %>% 
-      factor(levels = str_sep_to_title(names(colours$direction))) %>% 
-      fct_explicit_na("Undetected") %>% 
-    fct_relabel(function(x) paste(comps[[1]], x))  
+  factor(levels = str_sep_to_title(names(colours$direction))) %>% 
+  fct_explicit_na("Undetected") %>% 
+  fct_relabel(function(x) paste(comps[[1]], x))  
 ## Now reclassify the second comparison using changed windows in the first
 switch_up <- mcols(all_windows)[[c1_fdr]] < fdr_alpha &
   mcols(all_windows)[[glue("{comps[[2]]}_fdr_mu0")]] < fdr_alpha &
@@ -590,19 +590,19 @@ switch_down <- mcols(all_windows)[[c1_fdr]] < fdr_alpha &
 mcols(all_windows)[[c2_status]][switch_down] <- "Down"
 mcols(all_windows)[[c2_status]] <- mcols(all_windows) %>% 
   .[[c2_status]] %>% 
-    factor(levels = str_sep_to_title(names(colours$direction))) %>% 
-      fct_explicit_na("Undetected") %>% 
-    fct_relabel(function(x) paste(comps[[2]], x))  
+  factor(levels = str_sep_to_title(names(colours$direction))) %>% 
+  fct_explicit_na("Undetected") %>% 
+  fct_relabel(function(x) paste(comps[[2]], x))  
 mcols(all_windows)[["status"]] <- paste(
-    mcols(all_windows)[[c1_status]],
-    mcols(all_windows)[[c2_status]],
-    sep = " - "
-  ) %>% 
+  mcols(all_windows)[[c1_status]],
+  mcols(all_windows)[[c2_status]],
+  sep = " - "
+) %>% 
   factor(levels = combs) %>% 
   droplevels()
 mcols(all_windows)[["distance"]] <- abs(
   mcols(all_windows)[[glue("{comps[[1]]}_centre")]] - mcols(all_windows)[[glue("{comps[[2]]}_centre")]]
-  )
+)
 ## Remove any with an 'ambiguous' status
 all_windows <- subset(all_windows, !is.na(status))
 
@@ -759,10 +759,10 @@ tbl <- all_windows %>%
     )
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -1533,7 +1533,8 @@ pwf_mapped  <- structure(
 ) %>% 
   nullp(bias.data = log10(all_ids$w), plot.fit = TRUE)
 goseq_mapped_res <- tibble(
-  gs_name = character(), adj_p = numeric(), enriched = logical()
+  gs_name = character(), adj_p = numeric(), enriched = logical(),
+  adj_p = numeric()
 )
 if (mean(pwf_mapped$DEgenes) > min_genes & mean(pwf_mapped$DEgenes) < max_genes) {
   goseq_mapped_res <- pwf_mapped %>% 
@@ -1662,7 +1663,8 @@ tg_mapped %>%
 
 ```{r empty-goseq-t1t2-res, echo = FALSE}
 goseq_t1t2_res <- tibble(
-  gs_name = character(), mapped = numeric(), enriched = logical()
+  gs_name = character(), mapped = numeric(), enriched = logical(),
+  adj_p = numeric()
 )
 vec_t1t2 <- structure(
   mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
@@ -1965,7 +1967,8 @@ tg_t1only %>%
 
 ```{r empty-goseq-t2only}
 goseq_t2only_res <- tibble(
-  gs_name = character(), mapped = numeric(), enriched = logical()
+  gs_name = character(), mapped = numeric(), enriched = logical(),
+  adj_p = numeric()
 )
 vec_t2only <- structure(
   mapped_ids %in% setdiff(comp_ids[[2]], comp_ids[[1]]),
@@ -2457,7 +2460,7 @@ htmltools::tagList(
     )
 )
 ```
-  
+
 
 
 # Combined Binding Visualisation
@@ -2707,7 +2710,7 @@ annot <- comps %>%
   ) %>% 
   setNames(comps)
 annot_col <- unlist(colours$direction) %>% 
-    setNames(str_to_title(names(.)))
+  setNames(str_to_title(names(.)))
 
 
 
@@ -2939,7 +2942,7 @@ y_lim <- lapply(
 
 ## External Coverage (Optional)
 if (!is.null(config$external$coverage)) {
-    y_ranges <- grl_to_plot %>% 
+  y_ranges <- grl_to_plot %>% 
     unlist() %>% 
     granges() %>% 
     resize(w = 10 * width(.), fix = 'center')
