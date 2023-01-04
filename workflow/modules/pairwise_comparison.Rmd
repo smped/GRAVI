@@ -1933,7 +1933,7 @@ goseq_t1only_res %>%
   )
 ```
 
-`r if (plot_network_t1only) glue("### Network Plot: Genes Mapped to {comps[[1]]} Only"`
+`r if (plot_network_t1only) glue("### Network Plot: Genes Mapped to {comps[[1]]} Only")`
 
 ```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_t1only %>% 
@@ -2085,7 +2085,7 @@ goseq_t2only_res %>%
   )
 ```
 
-`r if (plot_network_t2only) glue("### Network Plot: Genes Mapped to {comps[[1]]} Only"`
+`r if (plot_network_t2only) glue("### Network Plot: Genes Mapped to {comps[[2]]} Only")`
 
 ```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[2]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_t2only %>% 
