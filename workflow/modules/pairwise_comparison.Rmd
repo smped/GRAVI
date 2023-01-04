@@ -387,7 +387,6 @@ Across two comparisons, this gives 15 possible classifications for each region f
 ## Enrichment Testing
 
 After direct comparison of binding patterns, enrichment analysis is performed in a similar manner to for individual analyses.
-The `goseq` method [@YoungGoseq2010] is again used, taking the number of windows mapped to each gene as the source of any sampling bias for genes mapped to differentially bound peaks.
 If RNA-Seq data is provided, genes will be restricted to those present within the RNA-Seq dataset, as representative of detected genes.
 Enrichment testing is performed on:
 
@@ -440,7 +439,7 @@ file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 
 ## Treatment Specific Peaks
 
-```{r oracle-peaks-upset, fig.height = 7, fig.cap = glue("*Macs2 peaks detected for ", glue_collapse(unique(targets), sep = " and " ), " in the treatment groups ", glue_collapse(unique(unlist(pairs)), sep = ", ", last = " or "), ".*")}
+```{r oracle-peaks-upset, fig.height = 6, fig.cap = glue("*Macs2 peaks detected for ", glue_collapse(unique(targets), sep = " and " ), " in the treatment groups ", glue_collapse(unique(unlist(pairs)), sep = ", ", last = " or "), ".*")}
 bar_cols <- treat_colours[rev(unlist(pairs))]
 if (length(unique(targets)) == 1)
   bar_cols <- treat_colours[
@@ -544,22 +543,11 @@ all_windows <- db_results %>%
         !!sym(glue("{comps[[2]]}_centre")) := peak_centre
       )
   ) %>% 
-  # This will all be unneccessary once conda-forge updates to R4.2
-  # The bug has been fixed in extraChIPs 1.0.1
-  as_tibble() %>% 
-  dplyr::rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  dplyr::rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
   ## Remove duplicate mappings to each range, just selecting the one with the
   ## lowest FDR
   arrange(!!sym(c2_fdr)) %>% 
-  distinct(range, !!sym(c1_fdr), .keep_all = TRUE) %>% 
+  distinctMC(!!sym(c1_fdr), .keep_all = TRUE) %>% 
   arrange(!!sym(c1_fdr)) %>% 
-  distinct(range, .keep_all = TRUE) %>% 
-  colToRanges("range", seqinfo = sq) %>% 
   sort() 
 ## plyranges::mutate changes the column names using `make.names()`. Avoid!!
 ## Reclassify windows from the first comparison using data from the second
@@ -1189,25 +1177,6 @@ df <- all_windows %>%
     !!sym(c1_status) := fct_relabel(!!sym(c1_status), str_extract, pattern = "Up|Down|Un.+"),
     !!sym(c2_status) := fct_relabel(!!sym(c2_status), str_extract, pattern = "Up|Down|Un.+")
   )
-## The following code works for extraChIPs >= 1.0.1 but not earlier
-# df <- all_windows %>%
-#   as_tibble() %>%
-#   dplyr::filter(
-#     str_detect(!!sym(c1_status), "Up|Down") | str_detect(!!sym(c2_status), "Up|Down")
-#   ) %>% 
-#   group_by(
-#     !!sym(c1_status), !!sym(c2_status),
-#     region
-#   ) %>%
-#   summarise(n = dplyr::n(), .groups = "drop_last") %>%
-#   mutate(total = sum(n)) %>%
-#   ungroup() %>%
-#   mutate(
-#     x0 = as.integer(!!sym(c1_status)),
-#     y0 = as.integer(!!sym(c2_status)),
-#     r = total / sum(total),
-#     r =  0.5* r / max(r)
-#   )
 df %>% 
   ggplot() +
   ggforce::stat_pie(
@@ -1276,20 +1245,6 @@ df <- all_windows %>%
     !!sym(c1_status) := fct_relabel(!!sym(c1_status), str_extract, pattern = "Up|Down|Un.+"),
     !!sym(c2_status) := fct_relabel(!!sym(c2_status), str_extract, pattern = "Up|Down|Un.+")
   )
-# df <- all_windows %>%
-#   as_tibble() %>% 
-#   group_by(
-#     !!sym(c1_status), !!sym(c2_status), feature
-#   ) %>% 
-#   summarise(n = dplyr::n(), .groups = "drop_last") %>% 
-#   mutate(total = sum(n)) %>% 
-#   ungroup() %>% 
-#   mutate(
-#     x0 = as.integer(!!sym(c1_status)),
-#     y0 = as.integer(!!sym(c2_status)),
-#     r = total / sum(total),
-#     r =  0.5* r / max(r)
-#   ) 
 df %>% 
   ggplot() +
   ggforce::stat_pie(
@@ -1421,7 +1376,7 @@ all_windows %>%
 
 
 ```{r msigdb}
-all_ids <- genes_gr %>% 
+all_ids <- genes_gr %>%
   mutate(w = width) %>% 
   as_tibble() %>% 
   dplyr::select(gene_id, w) %>% 
@@ -1508,7 +1463,7 @@ group_ids <- all_windows %>%
 The first level of enrichment testing performed was to simply check the genes mapped to a binding site in either comparison, with no consideration being paid to the dynamics of binding in either comparison.
 This will capture and describe the overall biological activity being jointly regulated.
 
-The genes in each section and intersection in the following Venn Diagram will then be analysed against the complete set of genes mapped to either `r glue_collapse(comps, last = ' or ')` 
+The genes in each section and intersection in the following Venn Diagram will then be analysed against the complete set of `r comma(length(unique(unlist(comp_ids))))` genes mapped to either `r glue_collapse(comps, last = ' or ')`.
 
 ```{r venn-shared-genes, results='hide', fig.show='asis', fig.cap = glue("*Venn Diagram showing __genes__ mapped to a binding region associated with {glue_collapse(comps, sep = ' or ')}. Of the {comma(nrow(all_ids))} genes under consideration, a total of {comma(length(mapped_ids))} genes were mapped to a binding region across both comparisons, leaving {comma(nrow(all_ids) - length(mapped_ids))} genes unmapped to a binding region across either comparison.*")}
 venn_params <- list(
@@ -1528,35 +1483,32 @@ do.call("draw.pairwise.venn", venn_params)
 #### Mapped Genes To Either `r glue_collapse(comps, last = " or ")`
 
 ```{r goseq-mapped-res, fig.show='hide'}
-pwf_mapped  <- structure(
-  all_ids$gene_id %in%mapped_ids,
-  names = all_ids$gene_id
-) %>% 
-  nullp(bias.data = log10(all_ids$w), plot.fit = TRUE)
-goseq_mapped_res <- tibble(
-  gs_name = character(), adj_p = numeric(), enriched = logical()
-)
-if (mean(pwf_mapped$DEgenes) > min_genes & mean(pwf_mapped$DEgenes) < max_genes) {
-  goseq_mapped_res <- pwf_mapped %>% 
-    goseq(gene2cat = gs_by_geneid) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
-    as_tibble() %>% 
-    dplyr::select(
-      gs_name = category, pval = over_represented_pvalue, starts_with("num")
-    ) %>% 
-    mutate(
-      adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha
-    ) %>% 
-    left_join(
-      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
-      by = "gs_name"
-    ) %>% 
-    chop(gene_name) %>% 
-    mutate(
-      gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
-    )
-}
+pwf_mapped <- all_gr$gene %>%
+  mutate(w = width) %>%
+  as_tibble() %>% 
+  arrange(gene_id, desc(w)) %>%
+  distinct(gene_id, w) %>% 
+  mutate(mapped = gene_id %in% mapped_ids) %>% 
+  with(nullp(setNames(mapped, gene_id), bias.data = log10(w)))
+goseq_mapped_res <- pwf_mapped %>% 
+  goseq(gene2cat = gs_by_geneid) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
+  as_tibble() %>% 
+  dplyr::select(
+    gs_name = category, pval = over_represented_pvalue, starts_with("num")
+  ) %>% 
+  mutate(
+    adj_p = p.adjust(pval, adj_method),
+    enriched = adj_p < enrich_alpha
+  ) %>% 
+  left_join(
+    dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+    by = "gs_name"
+  ) %>% 
+  chop(gene_name) %>% 
+  mutate(
+    gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
+  )
 any_goseq_mapped <- sum(goseq_mapped_res$adj_p < enrich_alpha) > 0
 tg_mapped <- make_tbl_graph(goseq_mapped_res, gs = gs_by_gsid)
 plot_network_mapped <- length(tg_mapped) >= min_network_size
@@ -1564,7 +1516,7 @@ plot_network_mapped <- length(tg_mapped) >= min_network_size
 
 
 ```{r tbl-goseq-mapped-res, eval = any_goseq_mapped, echo =any_goseq_mapped}
-goseq_mapped_res %>%
+tbl <- goseq_mapped_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
     gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
@@ -1620,13 +1572,32 @@ goseq_mapped_res %>%
       )
     )
   )
+cp <- glue(
+  "
+  All {comma(length(mapped_ids))} genes with a mapped binding window from 
+  either comparison were compared to the complete set of 
+  {comma(length(unique(all_gr$gene$gene_id)))} annotated genes, in order to 
+  ascertain which key gene-sets and pathways were likely to be targeted in either analysis. 
+  ",
+  ifelse(
+    has_rnaseq,
+    "Genes were restricted to those in the set of detected genes from the provided RNA-Seq dataset. ", 
+    ""
+  ),
+  "
+  Gene-length was included as the source of any potential sampling bias for a 
+  gene being mapped to any target-bound range. This analysis provides an overall 
+  viewpoint as to which pathways are regulated across either dataset.
+  "
+)
+div(class = "table",
+    div(class = "table-header", div(class = "caption", cp)),
+    tbl
+)
 ```
 
-All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
-`r if (has_rnaseq) "Regulatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
-Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
-This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
-`r if (sum(goseq_mapped_res$enriched) == 0) "No enrichment was found."`
+`r if(!any_goseq_mapped) "No pathway enrichment was detected amongst genes mapped in either comparison."`
+
 
 `r if (n_targets == 2) glue("#### Genes Mapped to Both ", glue_collapse(comps, last = " and " ))`
 
@@ -1640,21 +1611,17 @@ vec_t1t2 <- structure(
   names = mapped_ids
 )
 gs_method <- "Hypergeometric"
+any_goseq_t1t2 <- plot_network_t1t2 <- FALSE
 para <- glue(
   "
   All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes with a 
-  mapped binding window to **both** {collapseGenes(comps)} were compared to 
-  the 'universe' of {comma(length(mapped_ids))} genes mapped to **either**, 
+  mapped binding window to both {glue_collapse(comps, last = ' and ')} were compared to 
+  the {comma(length(mapped_ids))} genes mapped to either, 
   in order to ascertain whether any key gene-sets were likely to be targeted by 
-  *both factors in combination*. 
-  ",
-  ifelse(
-    gs_method == "Hypergeometric",
-    "No sampling bias offset was incorporated, instead using a simple Hypergeometric model for enrichment testing.",
-    "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
-  )
+  both factors in combination. No sampling bias offset was incorporated, instead 
+  using a simple Hypergeometric model for enrichment testing.
+  "
 )
-any_goseq_t1t2 <- plot_network_t1t2 <- FALSE
 ```
 
 
@@ -1689,10 +1656,10 @@ plot_network_t1t2 <- length(tg_t1t2) >= min_network_size
 if (!any_goseq_t1t2) para <- glue(para, " No enrichment was found.")
 ```
 
-`r if (n_targets == 2) para`
+`r if (!any_goseq_t1t2) para`
 
 ```{r tbl-goseq-t1t2-res, eval = any_goseq_t1t2 & n_targets == 2, echo = any_goseq_t1t2}
-goseq_t1t2_res %>%
+tbl <- goseq_t1t2_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
     gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
@@ -1748,9 +1715,15 @@ goseq_t1t2_res %>%
       )
     )
   )
+div(class = "table",
+    div(class = "table-header", div(class = "caption", para)),
+    tbl
+)
 ```
 
+
 `r if (n_targets == 2) glue("#### Genes Mapped to {comps[[1]]} Only")`
+
 
 ```{r empty-goseq-t1only}
 goseq_t1only_res <- tibble(
@@ -1761,22 +1734,18 @@ vec_t1only <- structure(
   mapped_ids %in% setdiff(comp_ids[[1]], comp_ids[[2]]),
   names = mapped_ids
 )
-gs_method <- ifelse(mean(vec_t1only) > 0.8, "Hypergeometric", "Wallenius")
+gs_method <- "Hypergeometric"
+any_goseq_t1only <- plot_network_t1only <- FALSE
 para <- glue(
   "
   All {comma(length(setdiff(comp_ids[[1]], comp_ids[[2]])))} genes with a 
-  mapped binding window to **only** {comps[[1]]} were compared to 
-  the 'universe' of {comma(length(mapped_ids))} genes mapped to **either** 
-  {collapseGenes(comps)}, in order to ascertain whether any key gene-sets 
-  were likely to be targeted exclusively.
-  ",
-  ifelse(
-    gs_method == "Hypergeometric",
-    "No sampling bias offset was incorporated, instead using a simple Hypergeometric model for enrichment testing.",
-    "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
-  )
+  mapped binding window to only {comps[[1]]} were compared to 
+  the {comma(length(mapped_ids))} genes mapped to either
+  {glue_collapse(comps, last = ' or ')}, in order to ascertain whether any gene-sets 
+  were likely to be targeted exclusively. No sampling bias offset was 
+  incorporated, instead using a simple Hypergeometric model for enrichment testing.
+  "
 )
-any_goseq_t1only <- plot_network_t1only <- FALSE
 ```
 
 ```{r goseq-t1only-res, fig.show='hide'}
@@ -1810,10 +1779,10 @@ plot_network_t1only <- length(tg_t1only) >= min_network_size
 if (!any_goseq_t1only) para <- glue(para, " No enrichment was found.")
 ```
 
-`r if (n_targets == 2) para`
+`r if (!any_goseq_t1only) para`
 
 ```{r tbl-goseq-t1only-res, eval = n_targets == 2 & any_goseq_t1only, echo = any_goseq_t1only}
-goseq_t1only_res %>%
+tbl <- goseq_t1only_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
     gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
@@ -1869,10 +1838,15 @@ goseq_t1only_res %>%
       )
     )
   )
+div(class = "table",
+    div(class = "table-header", div(class = "caption", para)),
+    tbl
+)
 ```
 
 
-`r if (n_targets == 2) glue("### Genes Mapped to {comps[[2]]} Only")`
+`r if (n_targets == 2) glue("#### Genes Mapped to {comps[[2]]} Only")`
+
 
 ```{r empty-goseq-t2only}
 goseq_t2only_res <- tibble(
@@ -1883,20 +1857,16 @@ vec_t2only <- structure(
   mapped_ids %in% setdiff(comp_ids[[2]], comp_ids[[1]]),
   names = mapped_ids
 )
-gs_method <- ifelse(mean(vec_t2only) > 0.8, "Hypergeometric", "Wallenius")
+gs_method <- "Hypergeometric"
 para <- glue(
   "
   All {comma(length(setdiff(comp_ids[[2]], comp_ids[[1]])))} genes with a 
-  mapped binding window to **only** {comps[[2]]} were compared to 
-  the 'universe' of {comma(length(mapped_ids))} genes mapped to **either** 
-  {collapseGenes(comps)}, in order to ascertain whether any key gene-sets 
-  were likely to be targeted exclusively.
-  ",
-  ifelse(
-    gs_method == "Hypergeometric",
-    "No sampling bias offset was incorporated, instead using a simple Hypergeometric model for enrichment testing.",
-    "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
-  )
+  mapped binding window to only {comps[[2]]} were compared to 
+  the {comma(length(mapped_ids))} genes mapped to either 
+  {glue_collapse(comps, last = ' or ')}, in order to ascertain whether any gene-sets 
+  were likely to be targeted exclusively. No sampling bias offset was 
+  incorporated, instead using a simple Hypergeometric model for enrichment testing.
+  "
 )
 any_goseq_t2only <- plot_network_t2only <- FALSE
 ```
@@ -1932,10 +1902,10 @@ plot_network_t2only <- length(tg_t2only) >= min_network_size
 if (!any_goseq_t2only) para <- glue(para, " No enrichment was found.")
 ```
 
-`r if (n_targets == 2) para`
+`r if (!any_goseq_t2only) para`
 
-```{r tbl-goseq-t2only-res, eval = n_targets == 2 & any_goseq_t2only, echo = any_goseq_t2only}
-goseq_t2only_res %>%
+```{r tbl-goseq-t2only-res, eval = any_goseq_t2only, echo = any_goseq_t2only}
+tbl <- goseq_t2only_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
     gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
@@ -1991,6 +1961,10 @@ goseq_t2only_res %>%
       )
     )
   )
+div(class = "table",
+    div(class = "table-header", div(class = "caption", para)),
+    tbl
+)
 ```
 
 
@@ -2008,17 +1982,19 @@ tg_mapped %>%
   ) +
   geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+    range = c(1, 10), breaks = seq(0, 100, by = 10)
   ) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2039,17 +2015,19 @@ tg_t1t2 %>%
   ) +
   geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+    range = c(1, 10), breaks = seq(0, 100, by = 10)
   ) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2070,17 +2048,19 @@ tg_t1only %>%
   ) +
   geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+    range = c(1, 10), breaks = seq(0, 100, by = 10)
   ) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2101,17 +2081,19 @@ tg_t2only %>%
   ) +
   geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+    range = c(1, 10), breaks = seq(0, 100, by = 10)
   ) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2331,17 +2313,19 @@ htmltools::tagList(
           ) +
           geom_node_text(
             aes(label = label),
-            colour = "black",# alpha = 0.9,
+            colour = "black", size = 3, 
             data = . %>%
-              mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-            repel = TRUE,
-            size = 3
+              mutate(
+                label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+              ),
+            repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+            bg.color = "white", bg.r = 0.1, 
           ) +
           scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno") +
+          scale_fill_viridis_c(option = "inferno", begin = 0.25) +
           scale_size_continuous(
-            range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+            range = c(1, 10), breaks = seq(0, 100, by = 10)
           ) +
           scale_edge_width(range = c(1, 6), trans = "reciprocal") +
           scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2434,7 +2418,7 @@ sig_profiles <- mclapply(
   mc.cores = min(length(grl_to_plot), threads)
 )
 ## Currently, this is set to CPM as the only possible output of 
-## extraChIP::getProfileData. Until this is rectified, manually log-transform
+## extraChIPs::getProfileData. Until this is rectified, manually log-transform
 sig_profiles <- sig_profiles %>% 
   mclapply(
     function(x) {
@@ -2653,11 +2637,12 @@ feat_gr <- gene_regions %>%
   GRangesList()
 feature_colours <- colours$regions
 if (has_features) {
-  feat_gr <- feat_gr %>% 
-    c(
-      splitAsList(external_features, external_features$feature)
-    )
-  feature_colours <- c(feature_colours, colours$features)
+  feat_gr <- list(Regions = feat_gr)
+  feat_gr$Features <- splitAsList(external_features, external_features$feature)
+  feature_colours <- list(
+    Regions = unlist(colours$regions),
+    Features = unlist(colours$features)
+  )
 }
 
 ## The genes track
@@ -2763,7 +2748,7 @@ htmltools::tagList(
         ct <- "meta"
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours,
+        features = feat_gr, featcol = feature_colours, featsize = length(feat_gr),
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         annotation = annot, annotcol = annot_col,

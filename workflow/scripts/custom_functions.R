@@ -53,9 +53,11 @@ str_sep_to_title <- function(
 #' @param gs List of gene-sets with gene ids with each element. Names are gene-sets
 #' @param min_dist remove any edges with distances < min_dist
 #' @param alpha Threshold for filtering goseq results
+#' @param max_gs The maximum number of genesets to draw
 #'
-make_tbl_graph <- function(res, gs, min_dist = 0.9, alpha = enrich_alpha) {
+make_tbl_graph <- function(res, gs, min_dist = 0.9, alpha = enrich_alpha, max_gs = 100) {
   res <- dplyr::filter(res, adj_p < alpha)
+  res <- dplyr::slice(res, seq_len(max_gs))
   if (nrow(res) < 2) return(tbl_graph())
   nm <- res$gs_name
   combs <- combn(nm, 2)
