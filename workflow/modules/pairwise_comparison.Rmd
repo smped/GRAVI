@@ -1684,6 +1684,7 @@ para <- glue(
     "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
   )
 )
+any_goseq_t1t2 <- FALSE
 ```
 
 
@@ -1837,6 +1838,7 @@ para <- glue(
     "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
   )
 )
+any_goseq_t1only <- FALSE
 ```
 
 ```{r goseq-t1only-res, fig.show='hide'}
@@ -1872,7 +1874,7 @@ if (!any_goseq_t1only) para <- glue(para, " No enrichment was found.")
 
 `r if (n_targets == 2) para`
 
-```{r tbl-goseq-t1only-res, eval = n_targets == 2 & sum(goseq_t1only_res$enriched) > 0, echo = sum(goseq_t1only_res$enriched) > 0}
+```{r tbl-goseq-t1only-res, eval = n_targets == 2 & any_goseq_t1only, echo = any_goseq_t1only}
 goseq_t1only_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
@@ -1988,6 +1990,7 @@ para <- glue(
     "Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range."
   )
 )
+any_goseq_t2only <- FALSE
 ```
 
 ```{r goseq-t2only-res, fig.show='hide'}
@@ -2023,7 +2026,7 @@ if (!any_goseq_t2only) para <- glue(para, " No enrichment was found.")
 
 `r if (n_targets == 2) para`
 
-```{r tbl-goseq-t2only-res, eval = n_targets == 2 & sum(goseq_t2only_res$enriched) > 0, echo = sum(goseq_t2only_res$enriched) > 0}
+```{r tbl-goseq-t2only-res, eval = n_targets == 2 & any_goseq_t2only, echo = any_goseq_t2only}
 goseq_t2only_res %>%
   dplyr::filter(enriched) %>% 
   dplyr::select(
