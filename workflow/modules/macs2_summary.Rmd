@@ -482,9 +482,10 @@ df %>%
     intersect = lb,
     base_annotations = list(
       `Peaks in Intersection` = intersection_size(
-        bar_number_threshold = 1, text_colors = "black", text = list(size = 3)
+        bar_number_threshold = 1, text_colors = "black", 
+        text = list(size = 3, angle = 90)
       ) +
-        scale_y_continuous(expand = expansion(c(0, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0, 0.15)), label = comma) +
         theme(
           panel.grid = element_blank(), 
           axis.line = element_line(colour = "grey20"),
@@ -506,9 +507,10 @@ df %>%
     set_sizes = (
       upset_set_size() +
         geom_text(
-          aes(label = after_stat(count)), hjust = 1.1, stat = 'count', size = 3
+          aes(label = comma(after_stat(count))), 
+          hjust = 1.1, stat = 'count', size = 3
         ) +
-        scale_y_reverse(expand = expansion(c(0.2, 0))) +
+        scale_y_reverse(expand = expansion(c(0.2, 0)), label = comma) +
         ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
         theme(
           panel.grid = element_blank(), 
