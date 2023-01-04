@@ -74,7 +74,7 @@ rule compile_annotations_html:
       os.path.join(annotation_path, "{file}.rds"),
       file = ['all_gr', 'gene_regions', 'seqinfo', 'trans_models', 'tss']
     ),
-	scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
+    scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
     setup = rules.create_setup_chunk.output,
     site_yaml = rules.create_site_yaml.output,
     yaml = expand(
