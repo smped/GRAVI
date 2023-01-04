@@ -1987,15 +1987,13 @@ tg_mapped %>%
       mutate(
         label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_mapped) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 10)
-  ) +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2020,15 +2018,13 @@ tg_t1t2 %>%
       mutate(
         label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_t1t2) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 10)
-  ) +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2053,15 +2049,13 @@ tg_t1only %>%
       mutate(
         label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_t1only) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 10)
-  ) +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2086,15 +2080,13 @@ tg_t2only %>%
       mutate(
         label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_t2only) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 10)
-  ) +
+  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2318,15 +2310,14 @@ htmltools::tagList(
               mutate(
                 label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
               ),
-            repel = TRUE, max.overlaps = round(length(tg_mapped) / 4, 0),
-            bg.color = "white", bg.r = 0.1, 
+            repel = TRUE,
+            max.overlaps = max(10, round(length(tg_group_res[[x]]) / 4, 0)),
+            bg.color = "white", bg.r = 0.1
           ) +
           scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-          scale_size_continuous(
-            range = c(1, 10), breaks = seq(0, 100, by = 10)
-          ) +
+          scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
           scale_edge_width(range = c(1, 6), trans = "reciprocal") +
           scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
           guides(edge_width = "none", edge_alpha= "none") +

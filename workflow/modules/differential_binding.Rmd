@@ -2320,15 +2320,17 @@ tg_mapped %>%
   ) +
   geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_mapped) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2489,17 +2491,19 @@ tg_diff %>%
     aes(fill = -log10(pval), size = 100 * prop),
     shape = 21
   ) +
-  geom_node_text(
+    geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2659,17 +2663,19 @@ tg_up %>%
     aes(fill = -log10(pval), size = 100 * prop),
     shape = 21
   ) +
-  geom_node_text(
+    geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_up) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -2830,17 +2836,23 @@ tg_down %>%
     aes(fill = -log10(pval), size = 100 * prop),
     shape = 21
   ) +
-  geom_node_text(
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+    geom_node_text(
     aes(label = label),
-    colour = "black",# alpha = 0.9,
+    colour = "black", size = 3, 
     data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_down) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
