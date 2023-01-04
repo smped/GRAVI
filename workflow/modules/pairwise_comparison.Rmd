@@ -1972,7 +1972,7 @@ div(class = "table",
 
 `r if (plot_network_mapped) "#### All Mapped Genes"`
 
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for either target. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site from __either__ comparison.*")}
 tg_mapped %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2003,7 +2003,7 @@ tg_mapped %>%
 
 `r if (plot_network_t1t2) paste("#### Genes Mapped to Both", glue_collapse(comps, last = ' or '))`
 
-```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}.*")}
 tg_t1t2 %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2034,7 +2034,7 @@ tg_t1t2 %>%
 
 `r if (plot_network_t1only) glue("#### Genes Mapped to {comps[[1]]} Only")`
 
-```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[1]]} only__.*")}
 tg_t1only %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2065,7 +2065,7 @@ tg_t1only %>%
 
 `r if (plot_network_t2only) glue("#### Genes Mapped to {comps[[2]]} Only")`
 
-```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[2]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[2]]} only__.*")}
 tg_t2only %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2330,7 +2330,7 @@ htmltools::tagList(
         cp <- htmltools::tags$em(
           glue(
             "
-            Network plot showing all enriched pathways mapped to genes 
+            Network plot showing enriched pathways mapped to genes 
             associated with {x}. 
             "
           )

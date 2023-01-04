@@ -2310,7 +2310,7 @@ div(class = "table",
 
 `r ifelse(plot_network_mapped, "### Network Plot", "")`
 
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site for {target}.*")}
 tg_mapped %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2483,7 +2483,7 @@ div(class = "table",
 
 `r ifelse(plot_network_diff, "### Network Plot", "")`
 
-```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those differential signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing gene-sets enriched amongst those differential signal for {target}.*")}
 tg_diff %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2655,7 +2655,7 @@ div(class = "table",
 
 `r ifelse(plot_network_up, "### Network Plot", "")`
 
-```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those showing increased signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing  gene-sets enriched amongst those showing increased signal for {target}.*")}
 tg_up %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
@@ -2828,7 +2828,7 @@ div(class = "table",
 
 `r ifelse(plot_network_down, "### Network Plot", "")`
 
-```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those showing decreased signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing gene-sets enriched amongst those showing decreased signal for {target}.*")}
 tg_down %>% 
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
