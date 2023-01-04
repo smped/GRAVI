@@ -1050,7 +1050,7 @@ if (nrow(rnaseq)){
           )$gene_id ~ "Down",
           gene %in% dplyr::filter(
             rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
-          )$gene_id ~ "Unchanged",
+          )$gene_id ~ "Unchanged"
         )
       ) %>%
       splitAsList(.$status) %>%
