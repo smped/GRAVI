@@ -1680,11 +1680,12 @@ feat_gr <- gene_regions %>%
   GRangesList()
 feature_colours <- colours$regions
 if (has_features) {
-  feat_gr <- feat_gr %>% 
-    c(
-      splitAsList(external_features, external_features$feature)
-    )
-  feature_colours <- c(feature_colours, colours$features)
+  feat_gr <- list(Regions = feat_gr)
+  feat_gr$Features <- splitAsList(external_features, external_features$feature)
+  feature_colours <- list(
+    Regions = unlist(colours$regions),
+    Features = unlist(colours$features)
+  )
 }
 
 ## The genes track
@@ -1895,7 +1896,7 @@ grl_to_plot %>%
 plotHFGC(
   grl_to_plot$top_down_by_expr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1905,7 +1906,6 @@ plotHFGC(
   zoom = 10,
   max = 10 * width(grl_to_plot$top_down_by_expr),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -1917,7 +1917,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_fdr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1927,7 +1927,6 @@ plotHFGC(
   zoom = 10,
   max = 10 * width(grl_to_plot$top_down_by_fdr),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -1939,7 +1938,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_lfc,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1949,7 +1948,6 @@ plotHFGC(
   zoom = 10, 
   max = 10 * width(grl_to_plot$top_down_by_lfc),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -1961,7 +1959,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_no_macs2,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1970,8 +1968,7 @@ plotHFGC(
   collapseTranscripts = FALSE,
   zoom = 10,
   max = 10 * width(grl_to_plot$top_down_no_macs2),
-  ylim = y_lim,
-  featsize = 2
+  ylim = y_lim
 )
 ```
 
@@ -1982,7 +1979,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_expr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1992,7 +1989,6 @@ plotHFGC(
   zoom = 10,
   max = 10 * width(grl_to_plot$top_up_by_expr),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -2004,7 +2000,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_fdr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -2014,7 +2010,6 @@ plotHFGC(
   zoom = 10,
   max = 10 * width(grl_to_plot$top_up_by_fdr),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -2026,7 +2021,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_lfc,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -2036,7 +2031,6 @@ plotHFGC(
   zoom = 10,
   max = 10 * width(grl_to_plot$top_up_by_lfc),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -2048,7 +2042,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_no_macs2,
   hic = hic,
-  features = feat_gr,featcol = feature_colours,
+  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -2058,7 +2052,6 @@ plotHFGC(
   zoom = 10,
   max = 10 * width(grl_to_plot$top_up_no_macs2),
   ylim = y_lim,
-  featsize = 2,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
@@ -2172,6 +2165,10 @@ Testing was only performed if the number of genes mapped to the specific treatme
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
 If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis.
+The distances between gene-sets were calculated using the overlap coefficient (OC), such that $d = 1 - OC$.
+Gene-sets with a large overlap will thus be given small distances and in the case of a complete overlap ($OC = 1$) the only most highly ranked gene-set was retained.
+Gene-set (i.e. node) pairs with a distance > 0.9 will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
+All network plots were generated using the Fruchterman-Reingold (`fr`) layout algorithm.
 
 ## Windows With Detected `r target` {.tabset}
 
@@ -2315,7 +2312,7 @@ div(class = "table",
 
 ```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_mapped %>% 
-  ggraph(layout = "stress", weights = 1/d^2) +
+  ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = 100 * prop),
@@ -2486,7 +2483,7 @@ div(class = "table",
 
 ```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those differential signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_diff %>% 
-  ggraph(layout = "stress", weights = 1/d^2) +
+  ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = 100 * prop),
@@ -2656,7 +2653,7 @@ div(class = "table",
 
 ```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those showing increased signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_up %>% 
-  ggraph(layout = "stress", weights = 1/d^2) +
+  ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = 100 * prop),
@@ -2827,7 +2824,7 @@ div(class = "table",
 
 ```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing all gene-sets enriched amongst those showing decreased signal for {target}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_down %>% 
-  ggraph(layout = "stress", weights = 1/d^2) +
+  ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = 100 * prop),

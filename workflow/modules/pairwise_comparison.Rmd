@@ -2748,7 +2748,8 @@ htmltools::tagList(
         ct <- "meta"
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours, featsize = length(feat_gr),
+        features = feat_gr, featcol = feature_colours, 
+        featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         annotation = annot, annotcol = annot_col,
@@ -2894,6 +2895,7 @@ htmltools::tagList(
       plotHFGC(
         grl_to_plot[[x]],
         features = feat_gr, featcol = feature_colours,
+        featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         annotation = annot, annotcol = annot_col,

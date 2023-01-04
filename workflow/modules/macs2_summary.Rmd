@@ -1019,11 +1019,12 @@ feat_gr <- gene_regions %>%
   GRangesList()
 feature_colours <- colours$regions
 if (has_features) {
-  feat_gr <- feat_gr %>% 
-    c(
-      splitAsList(external_features, external_features$feature)
-    )
-  feature_colours <- c(feature_colours, colours$features)
+  feat_gr <- list(Regions = feat_gr)
+  feat_gr$Features <- splitAsList(external_features, external_features$feature)
+  feature_colours <- list(
+    Regions = unlist(colours$regions),
+    Features = unlist(colours$features)
+  )
 }
 ## The genes track defaults to transcript models
 hfgc_genes <- read_rds(
@@ -1117,7 +1118,7 @@ htmltools::tagList(
       ## Generate the plot
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours,
+        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
