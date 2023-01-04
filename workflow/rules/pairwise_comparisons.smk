@@ -56,6 +56,7 @@ rule compile_pairwise_comparisons_html:
 			f = "pairwise_comparison.Rmd"
 		),
 		rmd_config = "config/rmarkdown.yml",
+		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output
 	output:

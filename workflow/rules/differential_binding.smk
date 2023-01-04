@@ -132,6 +132,7 @@ rule compile_differential_binding_html:
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
 		),
 		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
+		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
 		yml = expand(
