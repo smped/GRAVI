@@ -1977,7 +1977,7 @@ tg_mapped %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
   geom_node_text(
@@ -1993,7 +1993,7 @@ tg_mapped %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2008,7 +2008,7 @@ tg_t1t2 %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
   geom_node_text(
@@ -2024,7 +2024,7 @@ tg_t1t2 %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2039,7 +2039,7 @@ tg_t1only %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
   geom_node_text(
@@ -2055,7 +2055,7 @@ tg_t1only %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2070,7 +2070,7 @@ tg_t2only %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
   geom_node_text(
@@ -2086,7 +2086,7 @@ tg_t2only %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
@@ -2300,7 +2300,7 @@ htmltools::tagList(
           ggraph(layout = "fr", weights = 1/d^2) +
           geom_edge_link(aes(width = d, alpha = d)) +
           geom_node_point(
-            aes(fill = -log10(pval), size = 100 * prop),
+            aes(fill = -log10(pval), size = numDEInCat),
             shape = 21
           ) +
           geom_node_text(
@@ -2317,7 +2317,7 @@ htmltools::tagList(
           scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-          scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+          scale_size_continuous(range = c(1, 10)) +
           scale_edge_width(range = c(1, 6), trans = "reciprocal") +
           scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
           guides(edge_width = "none", edge_alpha= "none") +

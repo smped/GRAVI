@@ -2315,7 +2315,7 @@ tg_mapped %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
   geom_node_text(
@@ -2331,11 +2331,11 @@ tg_mapped %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2488,7 +2488,7 @@ tg_diff %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
     geom_node_text(
@@ -2504,11 +2504,11 @@ tg_diff %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2660,7 +2660,7 @@ tg_up %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
     geom_node_text(
@@ -2676,11 +2676,11 @@ tg_up %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2789,7 +2789,7 @@ tbl <- goseq_down %>%
         cell = function(value) percent(value, 0.1),
         maxWidth = 80
       ),
-      numDEInCat = colDef(name = "Mapped to Decreased Windows", maxWidth = 80),
+      numDEInCat = colDef(name = "Mapped to Decreased Windows", maxWidth = 90),
       numInCat = colDef(
         name = "Total Mapped",
         maxWidth = 80,
@@ -2833,11 +2833,7 @@ tg_down %>%
   ggraph(layout = "fr", weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
-    shape = 21
-  ) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
+    aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
     geom_node_text(
@@ -2853,7 +2849,7 @@ tg_down %>%
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10), breaks = seq(0, 100, by = 10)) +
+  scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
   guides(edge_width = "none", edge_alpha= "none") +
