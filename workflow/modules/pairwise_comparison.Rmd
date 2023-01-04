@@ -1503,12 +1503,12 @@ group_ids <- all_windows %>%
   ) 
 ```
 
-## Comparison of Genes Mapped To Targets {.tabset}
+## Comparison of Genes Mapped To Targets
 
 The first level of enrichment testing performed was to simply check the genes mapped to a binding site in either comparison, with no consideration being paid to the dynamics of binding in either comparison.
 This will capture and describe the overall biological activity being jointly regulated.
 
-### Venn Diagram
+The genes in each section and intersection in the following Venn Diagram will then be analysed against the complete set of genes mapped to either `r glue_collapse(comps, last = ' or ')` 
 
 ```{r venn-shared-genes, results='hide', fig.show='asis', fig.cap = glue("*Venn Diagram showing __genes__ mapped to a binding region associated with {glue_collapse(comps, sep = ' or ')}. Of the {comma(nrow(all_ids))} genes under consideration, a total of {comma(length(mapped_ids))} genes were mapped to a binding region across both comparisons, leaving {comma(nrow(all_ids) - length(mapped_ids))} genes unmapped to a binding region across either comparison.*")}
 venn_params <- list(
@@ -1523,8 +1523,9 @@ grid.newpage()
 do.call("draw.pairwise.venn", venn_params)
 ```
 
+### Result Tables {.tabset}
 
-### All Mapped Genes
+#### Mapped Genes To Either `r glue_collapse(comps, last = " or ")`
 
 ```{r goseq-mapped-res, fig.show='hide'}
 pwf_mapped  <- structure(
@@ -1561,11 +1562,6 @@ tg_mapped <- make_tbl_graph(goseq_mapped_res, gs = gs_by_gsid)
 plot_network_mapped <- length(tg_mapped) >= min_network_size
 ```
 
-All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
-`r if (has_rnaseq) "Regulatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
-Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
-This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
-`r if (sum(goseq_mapped_res$enriched) == 0) "No enrichment was found."`
 
 ```{r tbl-goseq-mapped-res, eval = any_goseq_mapped, echo =any_goseq_mapped}
 goseq_mapped_res %>%
@@ -1626,39 +1622,13 @@ goseq_mapped_res %>%
   )
 ```
 
-`r if (plot_network_mapped) "### Network Plot: All Mapped Genes"`
+All `r comma(length(mapped_ids))` genes with a mapped binding window from **either** comparison were compared to the 'universe' of `r comma(nrow(all_ids))` genes in order to ascertain which key gene-sets were likely to be targeted in either analysis.
+`r if (has_rnaseq) "Regulatory targets were limited to the set of detected genes from the RNA-Seq dataset provided."`
+Gene-length was included as the source of any potential sampling bias for a gene being mapped to a target-bound range.
+This analysis provides an overall viewpoint as to which pathways are regulated by `r ifelse(n_targets == 1, unique(names(pairs)), collapseGenes(comps, last = " or "))`.
+`r if (sum(goseq_mapped_res$enriched) == 0) "No enrichment was found."`
 
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for either target. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
-tg_mapped %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black",# alpha = 0.9,
-    data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
-  ) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
-  theme_void() 
-```
-
-
-`r if (n_targets == 2) glue("### Genes Mapped to Both ", glue_collapse(comps, last = " and " ))`
+`r if (n_targets == 2) glue("#### Genes Mapped to Both ", glue_collapse(comps, last = " and " ))`
 
 ```{r empty-goseq-t1t2-res, echo = FALSE}
 goseq_t1t2_res <- tibble(
@@ -1780,39 +1750,7 @@ goseq_t1t2_res %>%
   )
 ```
 
-`r if (plot_network_t1t2) "### Network Plot: Genes Mapped to Both"`
-
-```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
-tg_t1t2 %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black",# alpha = 0.9,
-    data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
-  ) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
-  theme_void() 
-```
-
-
-`r if (n_targets == 2) glue("### Genes Mapped to {comps[[1]]} Only")`
+`r if (n_targets == 2) glue("#### Genes Mapped to {comps[[1]]} Only")`
 
 ```{r empty-goseq-t1only}
 goseq_t1only_res <- tibble(
@@ -1933,36 +1871,6 @@ goseq_t1only_res %>%
   )
 ```
 
-`r if (plot_network_t1only) glue("### Network Plot: Genes Mapped to {comps[[1]]} Only")`
-
-```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
-tg_t1only %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = 100 * prop),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black",# alpha = 0.9,
-    data = . %>%
-      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
-    repel = TRUE,
-    size = 3
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno") +
-  scale_size_continuous(
-    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
-  ) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
-  theme_void() 
-```
 
 `r if (n_targets == 2) glue("### Genes Mapped to {comps[[2]]} Only")`
 
@@ -2085,7 +1993,103 @@ goseq_t2only_res %>%
   )
 ```
 
-`r if (plot_network_t2only) glue("### Network Plot: Genes Mapped to {comps[[2]]} Only")`
+
+### Network Plots {.tabset}
+
+`r if (plot_network_mapped) "#### All Mapped Genes"`
+
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for either target. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_mapped %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+`r if (plot_network_t1t2) paste("#### Genes Mapped to Both", glue_collapse(comps, last = ' or '))`
+
+```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_t1t2 %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+`r if (plot_network_t1only) glue("#### Genes Mapped to {comps[[1]]} Only")`
+
+```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
+tg_t1only %>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = 100 * prop),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label),
+    colour = "black",# alpha = 0.9,
+    data = . %>%
+      mutate(label = str_replace_all(label, "_", " ") %>% str_wrap(width = 15)),
+    repel = TRUE,
+    size = 3
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno") +
+  scale_size_continuous(
+    range = c(1, 10), breaks = seq(0, 100, by = 25), limits = c(10, 100)
+  ) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(size = "% Gene-Set") +
+  theme_void() 
+```
+
+`r if (plot_network_t2only) glue("#### Genes Mapped to {comps[[2]]} Only")`
 
 ```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[2]]} only__. Distances were calculated using 1 - the overlap-coefficient with node-pair distances > 0.9 excluded from the final set of edges. Edge width corresponds to the number of shared genes between the two gene-sets.*")}
 tg_t2only %>% 
@@ -2116,91 +2120,6 @@ tg_t2only %>%
   theme_void() 
 ```
 
-
-`r if (sum(goseq_mapped_res$enriched) > 0) "### Visualisation: All Mapped"`
-
-```{r barplot-all-mapped, fig.height=min(15, 5 + 0.15*sum(goseq_mapped_res$enriched)), eval = sum(goseq_mapped_res$enriched) > 0, echo = sum(goseq_mapped_res$enriched) > 0, fig.cap = glue("*Summary of gene sets considered enriched across the set of genes mapped in __either__ comparison. Using {params$enrichment$adj}-adjusted p-values < {enrich_alpha} as indicative of enrichment, all shown gene-sets were considered to be enriched in this analysis, and are presented in order of significance fro top to bottom. The distribution of genes across regions only mapped in one comparison, or mapped in both is also indicated. Asterisk overlays indicate any subsequent analyses where gene-sets were also considered to be enriched.*")}
-goseq_mapped_res %>%
-  dplyr::select(gs_name, mapped = numDEInCat, universe = numInCat, adj_p) %>%
-  dplyr::filter(adj_p < enrich_alpha) %>% 
-  mutate(
-    Both = vapply(
-      gs_name,
-      function(x) {
-        ids <- gs_by_gsid[[x]]
-        sum(ids %in% comp_ids[[1]] & ids %in% comp_ids[[2]])
-      },
-      integer(1)
-    ),
-    t1only = vapply(
-      gs_name,
-      function(x) {
-        ids <- gs_by_gsid[[x]]
-        sum(ids %in% comp_ids[[1]] & !ids %in% comp_ids[[2]])
-      },
-      integer(1)
-    ),
-    t2only = vapply(
-      gs_name,
-      function(x) {
-        ids <- gs_by_gsid[[x]]
-        sum(!ids %in% comp_ids[[1]] & ids %in% comp_ids[[2]])
-      },
-      integer(1)
-    ),
-    Unmapped = universe - mapped
-  ) %>%
-  pivot_longer(
-    cols = all_of(c("Both", "t1only", "t2only", "Unmapped")), 
-    names_to = "group", values_to = "Total"
-  ) %>%
-  mutate(
-    sig = case_when(
-      group == 't1only' & gs_name %in% dplyr::filter(goseq_t1only_res, enriched)$gs_name ~ "*",
-      group == 't2only' & gs_name %in% dplyr::filter(goseq_t2only_res, enriched)$gs_name ~ "*",
-      group == 'Both' & gs_name %in% dplyr::filter(goseq_t1t2_res, enriched)$gs_name ~ "*",
-      TRUE ~ ""
-    ),
-    group = case_when(
-      group == 't1only' ~ paste(comps[[1]], "Only"), 
-      group == 't2only' ~ paste(comps[[2]], "Only"), 
-      TRUE ~ group
-    ),
-    group = factor(
-      group, 
-      levels = c(
-        paste(comps[[1]], "Only"), paste(comps[[2]], "Only"), "Both", "Unmapped"
-      )
-    ),
-    gs_name = gs_name %>% 
-      fct_inorder() %>% 
-      fct_rev() %>% 
-      fct_relabel(str_trunc, width = 45)
-  ) %>%
-  arrange(desc(group)) %>% 
-  group_by(gs_name) %>% 
-  mutate(y = cumsum(Total)) %>% 
-  ungroup() %>% 
-  arrange(gs_name, group) %>% 
-  ggplot(aes(gs_name, Total, fill = group)) +
-  geom_col() +
-  geom_point(
-    aes(gs_name, y - Total/2),
-    data = . %>% 
-      dplyr::filter(sig != ""),
-    inherit.aes = FALSE, 
-    shape = 8, size = 2
-  ) +
-  coord_flip() +
-  scale_fill_manual(
-    values = c(comp_cols, "Unmapped" = "grey") %>% 
-      setNames(str_replace_all(names(.), comps[[1]], paste(comps[[1]], "Only"))) %>% 
-      setNames(str_replace_all(names(.), comps[[2]], paste(comps[[2]], "Only"))) 
-  ) +
-  theme_bw() +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  labs(x = "Gene Set", y = "Set Size", fill = "Group")
-```
 
 ## Comparison of Differentially Bound Windows
 
