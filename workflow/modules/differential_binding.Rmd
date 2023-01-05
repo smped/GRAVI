@@ -278,6 +278,19 @@ all_out <- list(
 )
 ```
 
+```{r set-db-method}
+desc_method <- list(
+  "sq-lt" = glue(
+    "
+    2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
+3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential binding. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in binding, below which we are not interested in any changed signal.
+    "
+  )
+)
+db_method <- match.arg(config$comparisons$method, names(desc_method))
+```
+
+
 # Outline
 
 ## Differential Binding
@@ -286,8 +299,7 @@ This step of the workflow uses a sliding window approach to differential binding
 Several differences are used in the approach here:
 
 1. Consensus Peaks derived from `macs2 callpeak` [@Zhang18798982] results are used to determine inclusion/exclusion values for sliding windows
-2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
-3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential binding. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in binding, below which we are not interested in any changed signal.
+`r desc_method[[db_method]]`
 3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on an independent variable, such as genomic region (`config:comparisons:ihw: "regions"`), external features (`config:comparisons:ihw: "features"`) or the presence of additional ChIP targets (`config:comparisons:ihw: "targets"`).
 
 The workflow also depends heavily on the function implemented in the Bioconductor package [extraChIPs](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html)
@@ -301,8 +313,8 @@ Beyond the simple analysis of differential binding, peaks are mapped to genes an
 3. Genes mapped to windows with *increasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
 4. Genes mapped to windows with *decreasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
 
-Enrichment testing is performed using `goseq` [@YoungGoseq2010] using the number of peaks mapped to each gene as the source of any sampling bias, except when comparing genes mapped to any window.
-For this case, gene width is used to capture any sampling bias.
+Enrichment testing is performed using `goseq` [@YoungGoseq2010] with *no term accounting for sampling bias*, except when comparing genes mapped to any window.
+For this case **only**, gene width is used to capture any sampling bias and the Wallenius Non-Central Hypergeometric Distribution is used.
 If RNA-seq data is provided, only genes contained within this dataset are considered as detected, and all gene-level analysis is restricted to this set of genes.
 
 ## Incorporation with RNA-Seq
