@@ -52,7 +52,7 @@ plotAssayDensities(
 
 ### logCPM Densities
 
-```{r plot-logcpm-densities, fig.height = 6, fig.cap = "*logCPM distributions for all retained windows A) prior to smooth quantile normalisation, and 2) after SQ normalisations*"}
+```{r plot-logcpm-densities, fig.height = 6, fig.cap = "*logCPM distributions for all retained windows A) prior to smooth quantile normalisation, and 2) after SQ normalisation.*"}
 a <- filtered_counts %>% 
   plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
   scale_colour_manual(values = treat_colours) +

@@ -71,7 +71,7 @@ rep_col <- setdiff(
 )
 samples[[rep_col]] <- as.factor(samples[[rep_col]])
 fdr_alpha <- config$comparisons$fdr
-db_method <- match.arg(config$comparisons$method, c("sq-lt"))
+db_method <- match.arg(config$comparisons$method, c("sq-lt", "ls-ql"))
 ihw_opts <- c("regions", "features", "targets")
 ihw_method <- c(
   intersect(str_to_lower(config$comparisons$ihw), ihw_opts), "none"
@@ -288,8 +288,12 @@ all_out <- list(
 desc_method <- list(
   "sq-lt" = glue(
     "2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
-3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential binding. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in binding, below which we are not interested in any changed signal.
+3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential binding. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in binding, below which we are not interested in any changed signal
     "
+  ),
+  "ls-ql" = glue(
+    "2. The Quasi-Likelhood model [@LunSmythGLMQL2017] will be fitted to all sliding windows using library size as the normalisation strategy
+    3. A range-based Null Hypothesis [@McCarthyTreat2009] will be used for testing of differential binding as described in detail below"
   )
 )
 desc_ihw <- list(
@@ -309,7 +313,7 @@ This step of the workflow uses a sliding window approach to differential binding
 
 1. Consensus Peaks derived from `macs2 callpeak` [@Zhang18798982] results are used to determine inclusion/exclusion values for sliding windows
 `r desc_method[[db_method]]`
-`r if (ihw_method != "none") glue("3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on {desc_ihw} which is considered to be an independent variable.")`
+`r if (ihw_method != "none") glue("3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on {desc_ihw}, which is considered here to be a statistically independent variable.")`
 
 The workflow also depends heavily on the function implemented in the Bioconductor package [extraChIPs](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html)
 
@@ -559,7 +563,7 @@ list(
 ```
 
 
-```{r sq-lt, eval = db_method == 'sq-lt', echo=TRUE, child = here::here('workflow/modules/sq-lt.Rmd')}
+```{r db-module, eval = db_method == 'sq-lt', echo=TRUE, child = here::here(glue("workflow/modules/{db_method}.Rmd"))}
 ```
 
 
@@ -622,15 +626,9 @@ merged_results <- merged_results %>%
 
 `r ifelse(ihw_method == "none", "No independent Hypothesis Weighting was specified", "")`
 
-
-```{r ihw-regions, eval = ihw_method == "regions", echo=TRUE, child = here::here('workflow/modules/ihw_regions.Rmd')}
+```{r ihw, eval = ihw_method != "none", echo = TRUE, child = here::here(glue("workflow/modules/ihw_{ihw_method}.Rmd"))}
 ```
 
-```{r ihw-features, eval = ihw_method == "features", echo=TRUE, child = here::here('workflow/modules/ihw_features.Rmd')}
-```
-
-```{r ihw-targets, eval = ihw_method == "targets", echo=TRUE, child = here::here('workflow/modules/ihw_targets.Rmd')}
-```
 
 ## Mapping Windows
 
@@ -996,7 +994,9 @@ scaling_vals <- list(
 )
 cp <- htmltools::em(
   glue(
-    "The {show_n} most highly-ranked windows by FDR. ",
+    "The {show_n} most highly-ranked windows by FDR, with ",
+    sum(merged_results$P.Value_fdr < fdr_alpha), 
+    " showing evidence of changed {target} binding. ",
     "Regions were assigned based on which genomic region showed the largest ",
     "overlap with the final merged window. ",
     ifelse(
@@ -1699,9 +1699,9 @@ makeCaption <- function(.gr) {
 ```
 
 
-### Normalised Sliding Windows
+`r if (db_method == "sq-lt") "### Normalised Sliding Windows"`
 
-```{r plot-qsmooth-top-ranges, fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} binding in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Binding Strength (Signal) and logFC. Windows are shown free of the genomic context.*")}
+```{r plot-qsmooth-top-ranges, eval = db_method == "sq-lt", echo = db_method == "sq-lt", fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} binding in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Binding Strength (Signal) and logFC. Windows are shown free of the genomic context.*")}
 grl_to_plot %>% 
   lapply(
     function(x){

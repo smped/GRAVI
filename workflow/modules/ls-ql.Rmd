@@ -1,0 +1,95 @@
+## Normalisation {.tabset}
+
+No normalisation was performed beyond library size, with library sizes being determined from the entire bam file, not just areas where `r target` was considered detected
+
+### Density Plot: All Sliding Windows
+
+```{r plot-density-windows, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
+plotAssayDensities(
+  window_counts, trans = "log1p", n_max = n_max, colour = "treat",
+  linetype = "target"
+) +
+  scale_colour_manual(values = colours$treat) + 
+  labs(
+    x = "log(counts + 1)", y = "Density", colour = "Treat", linetype = "Target"
+  )
+```
+
+### logCPM Densities
+
+```{r plot-logcpm-densities, fig.height = 6, fig.width=8, fig.cap = "*logCPM distributions for all retained windows.*"}
+filtered_counts %>% 
+  plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
+  scale_colour_manual(values = treat_colours) +
+  labs(colour = "Treat")
+```
+
+### RLE (Post-SQN)
+
+```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+filtered_counts %>% 
+  plotAssayRle(
+  "logCPM", fill = "treat", rle_group = "treat", x_col = "label", n_max = n_max
+) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_fill_manual(values = treat_colours) +
+  labs(x = "Sample", fill = "Treat")
+```
+
+
+### PCA
+
+```{r plot-pca, fig.height = 5, fig.cap = "*PCA plot based on logCPM values*"}
+plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
+  scale_colour_manual(values = treat_colours)
+```
+
+
+# Differential Binding Analysis
+
+## Primary Analysis {.tabset}
+
+```{r fit-model}
+X <- model.matrix(~treat, data = colData(filtered_counts)) %>%
+  set_colnames(str_remove(colnames(.), "treat"))
+colData(filtered_counts)$design <- X
+fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
+dge <- DGEList(
+  counts = assay(filtered_counts, "counts") %>% 
+    set_rownames(as.character(rowRanges(filtered_counts))),
+  lib.size = colData(filtered_counts)$totals,
+  genes = as_tibble(rowRanges(filtered_counts)) %>% 
+    dplyr::select(range, overlaps_ref)
+) %>% 
+  calcNormFactors(method = "none") %>% 
+  estimateDisp(design = X)
+fit <- glmQLFit(dge, design = X) %>% 
+  glmTreat(coef = treat_levels[[2]], lfc = log2(fc))
+fit_mu0 <- dge %>% 
+  glmQLFit() %>% 
+  glmQLFTest(coef = treat_levels[[2]])
+res_cols <- c("logFC", "logCPM", "PValue", "FDR")
+limma_cols <- setNames(
+  c("logFC", "AveExpr", "P.Value", "fdr"),
+  res_cols
+) # This ensures compatibility with the structure of sq-lt results
+rowData(filtered_counts) <- rowData(filtered_counts) %>%
+  .[!colnames(.) %in% res_cols] %>% 
+  as.list() %>% 
+  c(
+    fit %>% 
+      topTags(sort.by = "none", n = Inf) %>% 
+      .[["table"]] %>% 
+      as.list %>%
+      .[res_cols] %>% 
+      setNames(limma_cols[names(.)]) %>% 
+      c(
+        list(
+          p_mu0 = topTags(fit_mu0, sort.by = "none", n = Inf)$table$PValue
+        )
+      ) 
+  ) 
+```
+
+Using simple library-size normalisation, the Quasi-Likelihood model was fitted across the set of sliding windows, taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, with all default settings.
