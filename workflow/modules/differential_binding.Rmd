@@ -71,6 +71,12 @@ rep_col <- setdiff(
 )
 samples[[rep_col]] <- as.factor(samples[[rep_col]])
 fdr_alpha <- config$comparisons$fdr
+db_method <- match.arg(config$comparisons$method, c("sq-lt"))
+ihw_opts <- c("regions", "features", "targets")
+ihw_method <- c(
+  intersect(str_to_lower(config$comparisons$ihw), ihw_opts), "none"
+)
+ihw_method <- ihw_method[[1]]
 ```
 
 ```{r set-paths}
@@ -278,7 +284,7 @@ all_out <- list(
 )
 ```
 
-```{r set-db-method}
+```{r method-descriptions, echo = FALSE}
 desc_method <- list(
   "sq-lt" = glue(
     "2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
@@ -286,7 +292,12 @@ desc_method <- list(
     "
   )
 )
-db_method <- match.arg(config$comparisons$method, names(desc_method))
+desc_ihw <- list(
+  regions = "the previously annotated genomic regions",
+  features = "the provided external features",
+  targets = "the presence/absence of any other ChIP targets under consideration in any condition",
+  none = c()
+)[[ihw_method]]
 ```
 
 
@@ -295,11 +306,10 @@ db_method <- match.arg(config$comparisons$method, names(desc_method))
 ## Differential Binding
 
 This step of the workflow uses a sliding window approach to differential binding, as a logical extension to the methods suggested and implemented in the `csaw` package [@LunSmythF1000].
-Several differences are used in the approach here:
 
 1. Consensus Peaks derived from `macs2 callpeak` [@Zhang18798982] results are used to determine inclusion/exclusion values for sliding windows
 `r desc_method[[db_method]]`
-3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on an independent variable, such as genomic region (`config:comparisons:ihw: "regions"`), external features (`config:comparisons:ihw: "features"`) or the presence of additional ChIP targets (`config:comparisons:ihw: "targets"`).
+`r if (ihw_method != "none") glue("3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on {desc_ihw} which is considered to be an independent variable.")`
 
 The workflow also depends heavily on the function implemented in the Bioconductor package [extraChIPs](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html)
 
@@ -313,15 +323,12 @@ Beyond the simple analysis of differential binding, peaks are mapped to genes an
 4. Genes mapped to windows with *decreasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
 
 Enrichment testing is performed using `goseq` [@YoungGoseq2010] with *no term accounting for sampling bias*, except when comparing genes mapped to any window.
-For this case **only**, gene width is used to capture any sampling bias and the Wallenius Non-Central Hypergeometric Distribution is used.
-If RNA-seq data is provided, only genes contained within this dataset are considered as detected, and all gene-level analysis is restricted to this set of genes.
+For this case **only**, gene width is used to capture any sampling bias and Wallenius' Non-Central Hypergeometric Distribution is used.
+As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes considered for enrichment analysis are the `r comma(length(unique(genes_gr$gene_id)))` `r ifelse(has_rnaseq, "genes considered as detected in the RNA-Seq data", "annotated genes")`.
 
-## Incorporation with RNA-Seq
+`r if (has_rnaseq) "## Incorporation with RNA-Seq"`
 
-If RNA-Seq data is provided, candidate genes for mapping will be restricted to the set of genes within the RNA-seq dataset as the set of genes expressed, or detected within the relevant tissue or samples.
-Any association between differentially expressed genes and differentially bound sites will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the `fgsea` package [@KorotkevichFgsea2019].
-The sets of genes associated with changed binding will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results.
-ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone.
+`r if (has_rnaseq) "Any association between differentially expressed genes and differentially bound sites will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the fgsea package [@KorotkevichFgsea2019]. The sets of genes associated with changed binding will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results. ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone."`
 
 # Data Preparation
 
@@ -600,11 +607,6 @@ FDR-adjustment was performed with `r comma(sum(merged_results$P.Value_fdr < fdr_
 ## Independent Hypothesis Weighting {.tabset}
 
 ```{r set-ihw}
-ihw_opts <- c("regions", "features", "targets")
-ihw_method <- c(
-  intersect(str_to_lower(config$comparisons$ihw), ihw_opts), "none"
-)
-ihw_method <- ihw_method[[1]]
 fdr_column <- str_subset(names(mcols(merged_results)), "fdr|FDR")
 ## Add status (direction) for the ihw = "none" possibility
 merged_results <- merged_results %>% 

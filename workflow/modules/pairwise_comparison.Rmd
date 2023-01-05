@@ -1464,6 +1464,13 @@ The first level of enrichment testing performed was to simply check the genes ma
 This will capture and describe the overall biological activity being jointly regulated.
 
 The genes in each section and intersection in the following Venn Diagram will then be analysed against the complete set of `r comma(length(unique(unlist(comp_ids))))` genes mapped to either `r glue_collapse(comps, last = ' or ')`.
+Firstly, all `r comma(length(mapped_ids))` genes mapped to a binding site were tested for enrichment in comparison to the set of `r comma(length(unique(genes_gr$gene_id)))` `r ifelse(has_rnaseq, "detected", "annotated")` genes.
+For this analysis, gene width was used as a potential source of sampling bias and Wallenius' Non-Central Hypergeomteric was used as implemented in `goseq` [@YoungGoseq2010].
+
+The sets of genes mapped to each section of the Venn Diagram were then tested for enrichment in comparison to the larger set of `r comma(length(mapped_ids))` mapped genes.
+The standard hypergeometric distribution was used for these analyses.
+
+If `r min_network_size` or more gene-sets were considered to be enriched, a network plot was produced using the same methodology as for results from differential binding for individual comparisons.
 
 ```{r venn-shared-genes, results='hide', fig.show='asis', fig.cap = glue("*Venn Diagram showing __genes__ mapped to a binding region associated with {glue_collapse(comps, sep = ' or ')}. Of the {comma(nrow(all_ids))} genes under consideration, a total of {comma(length(mapped_ids))} genes were mapped to a binding region across both comparisons, leaving {comma(nrow(all_ids) - length(mapped_ids))} genes unmapped to a binding region across either comparison.*")}
 venn_params <- list(
@@ -2143,7 +2150,6 @@ tg_group_res <- goseq_group_res %>%
 
 The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
 The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
-For genes mapped to differentially bound windows, the number of windows mapped to each gene was taken as the potential source of any sampling bias.
 No sampling bias was included, with test results using a simple Hypergeometric Distribution.
 `r if(length(goseq_group_res) == 0) "No enrichment was found amongst any group of windows"`
 
