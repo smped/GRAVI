@@ -128,6 +128,7 @@ rule compile_differential_binding_html:
 				)
 			]
 		),
+		module = os.path.join("workflow", "modules", db_method + ".Rmd"),
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
 		),

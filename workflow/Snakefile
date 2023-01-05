@@ -165,6 +165,14 @@ chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 ##################################
 rmd_hash = hashlib.md5(open('workflow/envs/rmarkdown.yml', "rb").read()).hexdigest()
 
+#################################
+## Differential Binding Method ##
+#################################
+
+# Currently LibSize + QuasiLikelihood (ls-ql) or 
+# SmoothQuantile + Limma-Trend (sq-lt)
+db_method = config['comparisons']['method']
+
 #####################
 ## Prepare Outputs ##
 #####################
