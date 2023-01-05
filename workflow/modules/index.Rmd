@@ -39,8 +39,8 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
   add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install)") %>%
-  change_node_colour("(index|macs2|annotations|bedgraph|compile)", "red") %>%
-  change_node_colour("(create|build)", "forestgreen") %>%
+  change_node_colour("(index|macs2|annotations|bedgraph|compile|greylist|coverage)", "red") %>%
+  change_node_colour("(create|build|update)", "forestgreen") %>%
   change_node_colour("(download|write|copy|install)", "blue") %>%
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%

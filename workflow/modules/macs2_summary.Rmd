@@ -1080,8 +1080,11 @@ line_col <- lapply(bwfl, function(x) colours$treat[names(x)])
 y_lim <- bwfl %>%
   lapply(
     function(x) {
-      lapply(x, import.bw, which = unlist(grl_to_plot)) %>%
-        lapply(function(gr) c(0, max(gr$score))) %>%
+      gr <- unlist(grl_to_plot) %>% 
+        resize(width = 30 * width(.), fix = 'center')
+      x %>% 
+        lapply(import.bw, which = gr) %>%
+        lapply(function(rng) c(0, max(rng$score))) %>%
         unlist() %>%
         range()
     }

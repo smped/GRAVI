@@ -2164,7 +2164,7 @@ Testing was only performed if the number of genes mapped to the specific treatme
 `r comma(min_genes, 1)` (`r percent(params$enrichment$min_prop_goseq, 0.1)` of included genes) and `r comma(max_genes, 1)` (`r percent(params$enrichment$max_prop_goseq)`).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
-If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis.
+If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at 100.
 The distances between gene-sets were calculated using the overlap coefficient (OC), such that $d = 1 - OC$.
 Gene-sets with a large overlap will thus be given small distances and in the case of a complete overlap ($OC = 1$) the only most highly ranked gene-set was retained.
 Gene-set (i.e. node) pairs with a distance > 0.9 will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
