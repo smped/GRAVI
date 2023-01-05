@@ -281,8 +281,7 @@ all_out <- list(
 ```{r set-db-method}
 desc_method <- list(
   "sq-lt" = glue(
-    "
-    2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
+    "2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
 3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential binding. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in binding, below which we are not interested in any changed signal.
     "
   )
