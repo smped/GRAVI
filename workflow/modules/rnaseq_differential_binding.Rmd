@@ -1642,7 +1642,7 @@ plotHFGC(
 )
 ```
 
-## Integration With Gene Expression GSEA {.tabset}
+## Integration With Gene Expression GSEA
 
 ```{r rnaseq-gsea}
 rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
@@ -1651,16 +1651,22 @@ rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
 The enrichment testing results from the `r target` differential binding analysis were then
 compared to GSEA results obtained from the RNA-Seq data set.
 
-### Differentially Bound Windows
+### Differentially Bound Windows {.tabset}
 
 ```{r compare-alldiff-gsea}
 cmn_gs <- intersect(
   dplyr::filter(goseq_diff, adj_p < enrich_alpha)$gs_name,
   dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
 )
+txt <- ifelse(
+  length(cmn_gs) == 0,
+  glue("No gene sets were shared between all {target} differentially bound windows and the RNA-Seq data"),
+  "#### Results Table"
+)
+plot_net <- length(cmn_gs) >= min_network_size
 ```
 
-`r if (length(cmn_gs) == 0) glue("No gene sets were shared between all {target} differentially bound windows and the RNA-Seq data")`
+`r txt`
 
 ```{r tbl-cmn-alldiff-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
 cp <- htmltools::tags$em(
@@ -1772,16 +1778,69 @@ div(
 )
 ```
 
-### Windows With Increased `r target`
+`r if (plot_net) "#### Network Plot"`
+
+```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {targets} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
+rnaseq_gsea %>% 
+  dplyr::filter(pathway %in% cmn_gs) %>% 
+  dplyr::select(
+    gs_name = pathway, numInCat = size, leadingEdge, pval, adj_p = padj
+  ) %>% 
+  mutate(
+    numDEInCat = vapply(leadingEdge, length, integer(1)),
+    leadingEdge = lapply(leadingEdge, function(x) id2gene[x])
+  ) %>% 
+  make_tbl_graph(
+    gs = setNames(.$leadingEdge, .$gs_name)
+  )%>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = numDEInCat),
+    shape = 21
+  ) +
+    geom_node_text(
+    aes(label = label),
+    colour = "black", size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(
+    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
+    fill = expr(paste("GSEA ", log[10], p))
+  ) +
+  theme_void() +
+  theme(legend.text = element_text(hjust = 0.5))
+```
+
+
+### Windows With Increased `r target` {.tabset}
 
 ```{r compare-gained-gsea}
 cmn_gs <- intersect(
   dplyr::filter(goseq_up, adj_p < enrich_alpha)$gs_name,
   dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
 )
+txt <- ifelse(
+  length(cmn_gs) == 0,
+  glue("No gene sets were shared between {target} bound windows showing increased binding and the RNA-Seq data"),
+  "#### Results Table"
+)
+plot_net <- length(cmn_gs) >= min_network_size
 ```
 
-`r if (length(cmn_gs) == 0) glue("No gene sets were shared between {target} gained windows and the RNA-Seq data")`
+`r txt`
 
 ```{r tbl-cmn-up-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
 cp <- htmltools::tags$em(
@@ -1891,16 +1950,74 @@ div(class = "table",
 )
 ```
 
-### Windows With Decreased `r target`
+`r if (plot_net) "#### Network Plot"`
+
+```{r network-cmn-up, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with increased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {targets} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
+rnaseq_gsea %>% 
+  dplyr::filter(pathway %in% cmn_gs) %>% 
+  dplyr::select(
+    gs_name = pathway, numInCat = size, leadingEdge, pval, adj_p = padj
+  ) %>% 
+  mutate(
+    leadingEdge = lapply(
+      leadingEdge, 
+      function(x) id2gene[x] %>% intersect(
+        unique(unlist(subset(merged_results, status == "Up")$gene_name))
+      )
+    ),
+    numDEInCat = vapply(leadingEdge, length, integer(1))
+  ) %>% 
+  make_tbl_graph(
+    gs = setNames(.$leadingEdge, .$gs_name)
+  )%>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = numDEInCat),
+    shape = 21
+  ) +
+    geom_node_text(
+    aes(label = label),
+    colour = "black", size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(
+    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
+    fill = expr(paste("GSEA ", log[10], p))
+  ) +
+  theme_void() +
+  theme(legend.text = element_text(hjust = 0.5))
+```
+
+
+### Windows With Decreased `r target` {.tabset}
 
 ```{r compare-decreased-gsea}
 cmn_gs <- intersect(
   dplyr::filter(goseq_down, adj_p < enrich_alpha)$gs_name,
   dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
 )
+txt <- ifelse(
+  length(cmn_gs) == 0,
+  glue("No gene sets were shared between {target} bound windows showing decreased binding and the RNA-Seq data"),
+  "#### Results Table"
+)
+plot_net <- length(cmn_gs) >= min_network_size
 ```
 
-`r if (length(cmn_gs) == 0) glue("No gene sets were shared between {target} decreased windows and the RNA-Seq data")`
+`r txt`
 
 ```{r tbl-cmn-down-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
 cp <- htmltools::tags$em(
@@ -2008,5 +2125,57 @@ div(class = "table",
       tbl
   )
 )
+```
+
+
+`r if (plot_net) "#### Network Plot"`
+
+```{r network-cmn-down, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with decreased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {targets} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
+rnaseq_gsea %>% 
+  dplyr::filter(pathway %in% cmn_gs) %>% 
+  dplyr::select(
+    gs_name = pathway, numInCat = size, leadingEdge, pval, adj_p = padj
+  ) %>% 
+  mutate(
+    leadingEdge = lapply(
+      leadingEdge, 
+      function(x) id2gene[x] %>% intersect(
+        unique(unlist(subset(merged_results, status == "Down")$gene_name))
+      )
+    ),
+    numDEInCat = vapply(leadingEdge, length, integer(1))
+  ) %>% 
+  make_tbl_graph(
+    gs = setNames(.$leadingEdge, .$gs_name)
+  )%>% 
+  ggraph(layout = "fr", weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(pval), size = numDEInCat),
+    shape = 21
+  ) +
+    geom_node_text(
+    aes(label = label),
+    colour = "black", size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(
+    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
+    fill = expr(paste("GSEA ", log[10], p))
+  ) +
+  theme_void() +
+  theme(legend.text = element_text(hjust = 0.5))
 ```
 
