@@ -683,6 +683,7 @@ tbl <- all_windows %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list2(
       !!sym(c1_status) := colDef(
         name = comps[[1]],
@@ -730,7 +731,7 @@ tbl <- all_windows %>%
         footer = htmltools::tags$b(comma(length(all_windows), 1))
       ),
       mapped = colDef(
-        name = "Uniquely Mapped Genes", 
+        name = "Mapped Genes", 
         cell = function(value) comma(value, 1),
         style = function(value) {
           bar_style(width = 0.9*value /length(unique(unlist(all_windows$gene_id))), fill = "#B3B3B3")
@@ -1530,6 +1531,7 @@ tbl <- goseq_mapped_res %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list2(
       gs_name = colDef(
         name = "Gene Set",
@@ -1673,6 +1675,7 @@ tbl <- goseq_t1t2_res %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list2(
       gs_name = colDef(
         name = "Gene Set",
@@ -1796,6 +1799,7 @@ tbl <- goseq_t1only_res %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list2(
       gs_name = colDef(
         name = "Gene Set",
@@ -1919,6 +1923,7 @@ tbl <- goseq_t2only_res %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list2(
       gs_name = colDef(
         name = "Gene Set",
@@ -2181,12 +2186,12 @@ htmltools::tagList(
             htmltools::tags$em(cp),
             goseq_group_res[[x]] %>% 
               separate(group, into = comps, sep = " - ") %>% 
-              nest(gs_name = c("gs_name", "gs_url")) %>% 
               dplyr::select(
                 all_of(comps), gs_name, gs_description, pval, adj_p, everything()
               ) %>% 
               reactable(
                 filterable = TRUE,
+                showPageSizeOptions = TRUE,
                 columns = list2(
                   "{comps[[1]]}" := colDef(
                     cell = function(value) {
@@ -2228,8 +2233,8 @@ htmltools::tagList(
                     name = "Gene Set",
                     cell = function(value) {
                       htmltools::tags$a(
-                        href = value$gs_url, target = "_blank",
-                        str_replace_all(value$gs_name, "_", " ")
+                        href = gs_url[[value]], target = "_blank",
+                        str_replace_all(value, "_", " ")
                       )
                     },
                     html = TRUE,
@@ -2239,6 +2244,7 @@ htmltools::tagList(
                     name = "Description",
                     cell = function(value) str_trunc(value, width = 150)
                   ),
+                  gs_url = colDef(show = FALSE),
                   pval = colDef(
                     name = "P-Value",
                     cell = function(value) ifelse(

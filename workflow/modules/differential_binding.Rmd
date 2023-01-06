@@ -492,6 +492,9 @@ filtered_counts <- dualFilter(
 )
 colData(filtered_counts) <- droplevels(colData(filtered_counts))
 n_max <- min(5e4, nrow(filtered_counts))
+sample_labeller <- as_labeller(
+  setNames(colData(filtered_counts)$label, colnames(filtered_counts))
+)
 ```
 
 ```{r tab-filtered-windows}
@@ -2120,6 +2123,7 @@ tbl <- goseq_mapped %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
@@ -2293,6 +2297,7 @@ tbl <- goseq_diff %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
@@ -2465,6 +2470,7 @@ tbl <- goseq_up %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
@@ -2638,6 +2644,7 @@ tbl <- goseq_down %>%
   ) %>% 
   reactable(
     filterable = TRUE,
+    showPageSizeOptions = TRUE,
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,

@@ -1,4 +1,4 @@
-## Normalisation {.tabset}
+## Normalisation
 
 The `quantro` test was first applied [@HicksQuantro2015] to determine if treatment-specific binding distributions were found in the data.
 Whilst this may not always be the case, the robustness of smooth-quantile normalisation (SQN) [@HicksSQN2017] will be applicable if data is drawn from different or near-identical distributions, and this method was applied grouping data by treatment.
@@ -29,6 +29,7 @@ qs <-qsmooth(
 assay(filtered_counts, "qsmooth") <- qsmoothData(qs)
 ```
 
+## Data Inspection {.tabset}
 
 ### QSmooth Weights
 
@@ -39,7 +40,7 @@ qsmoothPlotWeights(qs, xLab = "Quantiles", yLab = "Weights", mainLab = "QSmooth 
 
 ### Density Plot: All Sliding Windows
 
-```{r plot-density-windows, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
+```{r plot-density-windows, fig.height = 6, fig.width = 8, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
 plotAssayDensities(
   window_counts, trans = "log1p", n_max = n_max, colour = "treat",
   linetype = "target"
@@ -73,15 +74,31 @@ plot_grid(
 )
 ```
 
-### RLE (Post-SQN)
+### RLE (Pre-Normalisation)
 
-```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values after Smooth Quantile normalisation. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
 filtered_counts %>% 
   plotAssayRle(
-  "qsmooth", fill = "treat", rle_group = "treat", x_col = "label", n_max = n_max
+  "logCPM", fill = "treat", rle_group = "treat", n_max = n_max
 ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_x_discrete(labels = sample_labeller) +
+  scale_fill_manual(values = treat_colours) +
+  labs(x = "Sample", fill = "Treat")
+```
+
+
+### RLE (Post-Normalisation)
+
+```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing normalised logCPM. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+filtered_counts %>% 
+  plotAssayRle(
+  "qsmooth", fill = "treat", rle_group = "treat", n_max = n_max
+) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_x_discrete(labels = sample_labeller) +
   scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
 ```
@@ -89,7 +106,7 @@ filtered_counts %>%
 
 ### PCA
 
-```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
+```{r plot-pca, fig.height = 6, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
 a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
   scale_colour_manual(values = treat_colours)
 b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +

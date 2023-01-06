@@ -1,10 +1,10 @@
-## Normalisation {.tabset}
+## Data Inspection {.tabset}
 
-No normalisation was performed beyond library size, with library sizes being determined from the entire bam file, not just areas where `r target` was considered detected
+No normalisation was performed beyond library size, with library sizes being determined from the *entire bam file*, not just areas where `r target` was considered detected
 
 ### Density Plot: All Sliding Windows
 
-```{r plot-density-windows, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
+```{r plot-density-windows, fig.height = 6, fig.width = 8, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
 plotAssayDensities(
   window_counts, trans = "log1p", n_max = n_max, colour = "treat",
   linetype = "target"
@@ -24,15 +24,16 @@ filtered_counts %>%
   labs(colour = "Treat")
 ```
 
-### RLE (Post-SQN)
+### RLE 
 
-```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
 filtered_counts %>% 
   plotAssayRle(
-  "logCPM", fill = "treat", rle_group = "treat", x_col = "label", n_max = n_max
+  "logCPM", fill = "treat", rle_group = "treat", n_max = n_max
 ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_x_discrete(labels = sample_labeller) +
   scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
 ```
@@ -40,7 +41,7 @@ filtered_counts %>%
 
 ### PCA
 
-```{r plot-pca, fig.height = 5, fig.cap = "*PCA plot based on logCPM values*"}
+```{r plot-pca, fig.height = 6, fig.width = 8, fig.cap = "*PCA plot based on logCPM values*"}
 plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
   scale_colour_manual(values = treat_colours)
 ```
