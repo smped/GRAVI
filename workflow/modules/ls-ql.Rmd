@@ -52,7 +52,11 @@ plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
 ## Primary Analysis {.tabset}
 
 ```{r fit-model}
-X <- model.matrix(~treat, data = colData(filtered_counts)) %>%
+fm <- ifelse(
+  config$comparisons$paired, glue("~ {rep_col} + treat"), glue("~ treat")
+) %>% 
+  as.formula()
+X <- model.matrix(fm, data = colData(filtered_counts)) %>%
   set_colnames(str_remove(colnames(.), "treat"))
 colData(filtered_counts)$design <- X
 fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
@@ -76,7 +80,7 @@ limma_cols <- setNames(
   res_cols
 ) # This ensures compatibility with the structure of sq-lt results
 rowData(filtered_counts) <- rowData(filtered_counts) %>%
-  .[!colnames(.) %in% res_cols] %>% 
+  .[!colnames(.) %in% c(res_cols, limma_cols, "p_mu0")] %>% 
   as.list() %>% 
   c(
     fit %>% 

@@ -1,5 +1,11 @@
 ## Normalisation
 
+```{r load-extra-packages}
+library(quantro)
+library(qsmooth)
+```
+
+
 The `quantro` test was first applied [@HicksQuantro2015] to determine if treatment-specific binding distributions were found in the data.
 Whilst this may not always be the case, the robustness of smooth-quantile normalisation (SQN) [@HicksSQN2017] will be applicable if data is drawn from different or near-identical distributions, and this method was applied grouping data by treatment.
 
@@ -108,9 +114,11 @@ filtered_counts %>%
 
 ```{r plot-pca, fig.height = 6, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
 a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
-  scale_colour_manual(values = treat_colours)
+  scale_colour_manual(values = treat_colours) +
+  ggtitle("Pre-Normalisation")
 b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +
-  scale_colour_manual(values = treat_colours) 
+  scale_colour_manual(values = treat_colours) +
+  ggtitle("Post-Normalisation")
 plot_grid(
   a + theme(legend.position = "none"), b + theme(legend.position = "none"), 
   get_legend(b + labs(colour = "Treat")), rel_widths = c(1, 1, 0.2), 
@@ -147,7 +155,7 @@ fit_mu0 <- assay(filtered_counts, "qsmooth") %>%
   treat(fc = 1, trend = TRUE, robust = FALSE)
 res_cols <- c("logFC", "AveExpr", "t", "P.Value", "fdr")
 rowData(filtered_counts) <- rowData(filtered_counts) %>% 
-  .[!colnames(.) %in% res_cols] %>% 
+  .[!colnames(.) %in% c(res_cols, "p_mu0")] %>% 
   cbind(
     fit %>% 
       topTable(sort.by = "none", number = Inf) %>% 
