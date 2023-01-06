@@ -192,22 +192,25 @@ any_diff_sites <- sum(mcols(merged_results)[[fdr_column]] < fdr_alpha) > 0
 any_de <- any(rnaseq$DE)
 para <- ""
 if (any_de & any_diff_sites) {
-  ft_df <- rnaseq %>%
+  ft_data <- rnaseq %>%
     dplyr::filter(gene_id %in% unlist(diff_windows)) %>% 
     mutate(
       window = case_when(
-        gene_id %in% unlist(diff_windows[c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
+        gene_id %in% unlist(diff_windows[c("Up", "Down")]) ~ "Diff",
         TRUE ~ "Unchanged"
       ) %>%
         fct_infreq()
     ) %>% 
     group_by(DE, window) %>% 
     tally() %>% 
-    pivot_wider(names_from = "DE", values_from = "n", names_prefix = "DE_") 
-  ft <- ft_df%>% 
+    pivot_wider(
+      names_from = "DE", values_from = "n", 
+      names_prefix = "DE_", values_fill = 0
+    ) %>% 
     as.data.frame() %>% 
     column_to_rownames("window") %>% 
-    fisher.test()
+    as.matrix()
+  ft <- fisher.test(ft_data)
   para <- glue(
     "
     Using the {comma(length(unique(unlist(diff_windows))))} genes mapped to a 
@@ -215,12 +218,13 @@ if (any_de & any_diff_sites) {
     showing evidence of diferential binding and differential expression.
     {comma(length(unique(unlist(diff_windows[c('Up', 'Down')]))))} genes were 
     mapped to at least one site showing differential {target} binding with 
-    {comma(ft_df$DE_TRUE[2])} (
-    {percent(ft_df$DE_TRUE[2] / sum(unlist(ft_df[2, 2:3])), 0.1)}) of these 
+    {comma(ft_data['Diff', 'DE_TRUE'])} 
+    ({percent(ft_data['Diff', 'DE_TRUE'] / sum(ft_data['Diff',]))}) of these
     being considered differentially expressed. This compares to 
-    {percent(ft_df$DE_TRUE[1] / sum(unlist(ft_df[1, 2:3])), 0.1)} of genes
-    where no differential {target} binding was detected. Fisher's Exact test
-    for any association gave this a p-value of {sprintf('%.2e', ft$p.value)}.
+    {percent(ft_data['Unchanged', 'DE_TRUE'] / sum(ft_data['Unchanged', ]), 0.1)}
+    of genes where no differential {target} binding was detected. Fisher's 
+    Exact test for any association gave this a p-value of 
+    {ifelse(ft$p.value < 0.01, sprintf('%.2e', ft$p.value), round(ft$p.value, 3))}.
     "
   )
 }
@@ -585,15 +589,7 @@ df %>%
 ### P-Values By `r target` Status
 
 ```{r plot-p-target, fig.height = 6, fig.cap = glue("*P-Values for differential expression partitioned by {target} ChIP peak status. Genes were considered as being mapped to a differentially bound peak if one or more peaks was considered as differentially bound. No IHW procedure was undertaken using this data.*")}
-y <- ggplot_build(
-  tibble(p = rnaseq[[rna_p_col]]) %>% 
-    ggplot(aes(p, stat(density))) + 
-    geom_histogram(bins = 100) 
-) %>% .[["data"]] %>% 
-  .[[1]] %>% 
-  .[["y"]] %>% 
-  max()
-rnaseq %>% 
+p <- rnaseq %>% 
   mutate(
     mapped = case_when(
       gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
@@ -607,16 +603,18 @@ rnaseq %>%
   geom_histogram(
     colour = "black", fill = "grey", bins = 100
   ) +
+  facet_wrap(~mapped, nrow = 1) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  labs(y = "Density", x = "P (Differential Expression)")
+y <- 0.95 * max(layer_scales(p)$y$range$range)
+p  +
   geom_text(
     aes(0.8, y, label = lab),
     data = . %>% 
       group_by(mapped) %>% 
       tally() %>% 
       mutate(lab = glue("N = {comma(n, 1)}"))
-  ) +
-  facet_wrap(~mapped, nrow = 1) +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  labs(y = "Density", x = "P (Differential Expression)")
+  ) 
 ```
 
 
