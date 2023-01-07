@@ -1422,8 +1422,6 @@ gs_url <- msigdb %>%
     )
   ) %>% 
   with(setNames(gs_url, gs_name))
-min_genes <- params$enrichment$min_prop_goseq 
-max_genes <- params$enrichment$max_prop_goseq
 enrich_alpha <- params$enrichment$alpha
 min_network_size <- 3
 adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
@@ -1640,7 +1638,7 @@ pwf_t1t2 <- nullp(
   bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
   plot.fit = TRUE
 ) 
-if (mean(pwf_t1t2$DEgenes) > min_genes & mean(pwf_t1t2$DEgenes) < max_genes) {
+if (sum(pwf_t1t2$DEgenes) > 0) {
   goseq_t1t2_res <- pwf_t1t2 %>% 
     goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
@@ -1764,7 +1762,7 @@ pwf_t1only <- nullp(
   bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
   plot.fit = TRUE
 ) 
-if (mean(pwf_t1only$DEgenes) > min_genes & mean(pwf_t1only$DEgenes) < max_genes) {
+if (sum(pwf_t1only$DEgenes) > 0) {
   goseq_t1only_res <- pwf_t1only %>% 
     goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
@@ -1888,7 +1886,7 @@ pwf_t2only <- nullp(
   bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
   plot.fit = TRUE
 ) 
-if (mean(pwf_t2only$DEgenes) > min_genes & mean(pwf_t2only$DEgenes) < max_genes) {
+if (sum(pwf_t2only$DEgenes) > 0) {
   goseq_t2only_res <- pwf_t2only %>% 
     goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
@@ -2119,7 +2117,7 @@ goseq_group_res <- group_ids %>%
       pwf <- nullp(vec, bias.data = n_peaks, plot.fit = FALSE)
       res <- tibble(adj_p = numeric())
       gs_method <- "Hypergeometric"
-      if (mean(pwf$DEgenes) > min_genes & mean(pwf$DEgenes) < max_genes) {
+      if (sum(pwf$DEgenes) > 0) {
         res <- goseq(pwf, gene2cat = gs_by_geneid, method = gs_method) %>% 
           as_tibble() %>% 
           dplyr::filter(numDEInCat > 0) %>% 
