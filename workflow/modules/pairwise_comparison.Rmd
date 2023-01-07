@@ -2129,7 +2129,6 @@ goseq_group_res <- group_ids %>%
             gs_name = category, pval = over_represented_pvalue, adj_p, 
             ends_with("InCat")
           ) %>% 
-          dplyr::filter(adj_p < enrich_alpha) %>%
           left_join(
             dplyr::filter(msigdb, gene_id %in% x)[c("gs_name", "gene_name", "gs_url", "gs_description")],
             by = "gs_name"
@@ -2149,6 +2148,9 @@ goseq_group_res <- group_ids %>%
   pivot_longer(everything(), names_to = "group") %>% 
   unnest(everything()) %>% 
   split(.$group)
+goseq_group_sig <- goseq_group_res %>% 
+  lapply(dplyr::filter, adj_p < enrich_alpha) %>% 
+  .[vapply(., nrow, integer(1)) > 0]
 tg_group_res <- goseq_group_res %>% 
   mclapply(make_tbl_graph, gs = gs_by_gsid, mc.cores = threads) %>% 
   .[vapply(., length, integer(1)) >= min_network_size]
@@ -2157,15 +2159,15 @@ tg_group_res <- goseq_group_res %>%
 The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
 The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
 No sampling bias was included, with test results using a simple Hypergeometric Distribution.
-`r if(length(goseq_group_res) == 0) "No enrichment was found amongst any group of windows"`
+`r if(length(goseq_group_sig) == 0) "No enrichment was found amongst any group of windows"`
 
 
-`r if(length(goseq_group_res) > 0) "### Result Tables {.tabset}"`
+`r if(length(goseq_group_sig) > 0) "### Result Tables {.tabset}"`
 
 
-```{r tbl-goseq-groups, eval = length(goseq_group_res) > 0, echo = length(goseq_group_res) > 0}
+```{r tbl-goseq-groups, eval = length(goseq_group_sig) > 0, echo = length(goseq_group_sig) > 0}
 htmltools::tagList(
-  names(goseq_group_res) %>% 
+  names(goseq_group_sig) %>% 
     mclapply(
       function(x) {
         cp <- glue(
@@ -2185,7 +2187,7 @@ htmltools::tagList(
             class="section level4",
             htmltools::h4(class = "tabset", x),
             htmltools::tags$em(cp),
-            goseq_group_res[[x]] %>% 
+            goseq_group_sig[[x]] %>% 
               separate(group, into = comps, sep = " - ") %>% 
               dplyr::select(
                 all_of(comps), gs_name, gs_description, pval, adj_p, everything()
@@ -2288,7 +2290,7 @@ htmltools::tagList(
 )
 ```
 
-`r if(length(goseq_group_res) > 0) "### Network Plots {.tabset}"`
+`r if(length(tg_group_res) > 0) "### Network Plots {.tabset}"`
 
 
 ```{r network-plots-goseq-groups, eval = length(tg_group_res) > 0, echo = length(tg_group_res) > 0}

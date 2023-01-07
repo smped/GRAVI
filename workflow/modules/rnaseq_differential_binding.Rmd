@@ -2,6 +2,7 @@
 
 ```{r define-objects}
 library(fgsea)
+library(metap)
 rna_status <- rnaseq %>% 
   mutate(
     de_status = case_when(
@@ -1349,6 +1350,7 @@ rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) %>%
 
 The enrichment testing results from the `r target` differential binding analysis were then
 compared to GSEA results obtained from the RNA-Seq data set.
+Given the orthogonal nature of the two dataset, p-values from each analysis were combined using Wilkinson's maximum p-value method and the resulting p-values adjusted as previously.
 
 ### Differentially Bound Windows {.tabset}
 

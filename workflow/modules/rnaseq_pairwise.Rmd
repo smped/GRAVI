@@ -4,6 +4,7 @@
 library(fgsea)
 library(cowplot)
 library(BiocParallel)
+library(metap)
 register(MulticoreParam(workers = threads))
 id2gene <- structure(all_gr$gene$gene_name, names = all_gr$gene$gene_id)
 rna_status <- rnaseq %>% 
@@ -547,52 +548,74 @@ knitr::opts_chunk$set(dev = fig_dev)
 
 ## Integration Of RNA-Seq GSEA With Pairwise Enrichment Results
 
+Directional GSEA was performed on the set of RNA-Seq results and given that enrichment for differentially bound target is an orthogonal measure, enrichment for a set of potential pathways for each pairwise set of regions was performed.
+The p-values from binding enrichment and GSEA were combined using Wilkinson's method for meta-analysis, taking the maximum p-value and adjusting the resulting p-value using the same strategy as earlier.
+Any pathways are annotated as being significant in *both, either or neither* dataset when being analysed individually.
+
 ```{r cmn-sig}
-rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
-cmn_sig <- goseq_group_res %>% 
+rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) 
+cmn_res <- goseq_group_res %>% 
+  lapply(dplyr::select, group, gs_name, pval_goseq = pval, adj_p, starts_with("num")) %>% 
   lapply(
-    function(x) {
-      intersect(
-        dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway,
-        dplyr::filter(x, adj_p < enrich_alpha)$gs_name
-      )
-    }
+    left_join, 
+    dplyr::select(rnaseq_gsea, gs_name = pathway, NES, pval_gsea = pval, padj, leadingEdge), 
+    by = "gs_name"
   ) %>% 
-  .[vapply(., length, integer(1)) > 0]
-txt <- ifelse(
-  length(cmn_sig) > 0,
-  "### Results Tables {.tabset}",
-  "No common gene-sets were found enriched using GSEA on the RNA-Seq data and 
-  sites with change in one or more comparisons."
-)
+  lapply(
+    nest, p = starts_with("pval")
+  ) %>% 
+  lapply(
+    mutate, 
+    pval = vapply(
+      p, function(x) metap::maximump(unlist(x))$p, numeric(1)
+    ),
+    fdr = p.adjust(pval, adj_method)
+  ) %>% 
+  lapply(dplyr::filter, fdr < enrich_alpha) %>% 
+  lapply(
+    mutate,
+    status = case_when(
+      adj_p < enrich_alpha & padj < enrich_alpha ~ "Both",
+      !adj_p < enrich_alpha & padj < enrich_alpha ~ "RNA Only",
+      adj_p < enrich_alpha & !padj < enrich_alpha ~ "ChIP Only",
+      !adj_p < enrich_alpha & !padj < enrich_alpha ~ "Neither"
+    ),
+    leadingEdge = lapply(leadingEdge, intersect, group_ids[[unique(group)]]),
+    numDEInCat = vapply(leadingEdge, length, integer(1)),
+    genes = vapply(
+      leadingEdge, function(x) paste(id2gene[x], collapse = "; "), character(1)
+    )
+  ) %>% 
+  lapply(
+    select,
+    group, gs_name, NES, status, adj_p_chip = adj_p, adj_p_rna = padj, 
+    adj_p = fdr, starts_with("num"), leadingEdge, genes
+  ) %>% 
+  lapply(dplyr::filter, str_detect(genes, ";")) %>% 
+  .[vapply(., nrow, integer(1)) > 0] 
+tg_cmn <- lapply(cmn_res, make_tbl_graph, gs = gs_by_gsid) %>% 
+  .[vapply(., length, integer(1)) >= min_network_size]
+any_sig <- length(cmn_res) > 0
+plot_net <- length(tg_cmn) > 0
+txt <- ifelse(any_sig, "### Results Tables {.tabset}", "No shared enrichment was found")
 ```
 
-`r txt`
+
 
 ```{r common-result-tables, eval = length(cmn_sig) > 0, echo = length(cmn_sig) > 0}
 htmltools::tagList(
-  names(cmn_sig) %>% 
+  names(cmn_res) %>% 
     lapply(
       function(x) {
-        df <- rnaseq_gsea %>% 
-          dplyr::filter(pathway %in% cmn_sig[[x]]) %>% 
-          mutate(
-            edgeSize = vapply(leadingEdge, length, integer(1)),
-            leadingEdge = lapply(leadingEdge, intersect, group_ids[[x]]),
-            in_common = vapply(leadingEdge, length, integer(1)),
-            genes = vapply(
-              leadingEdge, function(y) paste(id2gene[y], collapse = "; "),
-              character(1)
-            )
-          ) %>% 
+        df <- cmn_res[[x]] %>% 
           dplyr::select(
-            pathway, NES, padj, in_common, edgeSize, size, genes
+            gs_name, adj_p, NES, status, starts_with("adj_p_"), numDEInCat, genes
           )
         tbl <- df %>% 
           reactable(
             filterable = TRUE, showPageSizeOptions = TRUE,
             columns = list(
-              pathway = colDef(
+              gs_name = colDef(
                 name = "Gene Set",
                 cell = function(value) htmltools::tags$a(
                   href = gs_url[[value]], 
@@ -609,7 +632,7 @@ htmltools::tagList(
                 },
                 maxWidth = 80
               ),
-              padj = colDef(
+              adj_p = colDef(
                 name = "p<sub>adj</sub>", html = TRUE,
                 cell = function(value) ifelse(
                   value < 0.001,
@@ -618,28 +641,37 @@ htmltools::tagList(
                 ),
                 maxWidth = 80
               ),
-              in_common = colDef(
-                name = "# ChIP Targets In Leading Edge",
+              status = colDef(name = "Individual Status", maxWidth = 100),
+              adj_p_rna = colDef(
+                name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+                cell = function(value) ifelse(
+                  value < 0.001,
+                  sprintf("%.2e", value),
+                  sprintf("%.3f", value)
+                ),
                 maxWidth = 80
               ),
-              edgeSize = colDef(
-                name = "Leading Edge Size", maxWidth = 80
+              adj_p_chip = colDef(
+                name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+                cell = function(value) ifelse(
+                  value < 0.001,
+                  sprintf("%.2e", value),
+                  sprintf("%.3f", value)
+                ),
+                maxWidth = 80
               ),
-              size = colDef(
-                name = "Gene Set Size", maxWidth = 80
-              ),
+              numDEInCat = colDef(name = "# Targets in Leading Edge", maxWidth = 100),
               genes = colDef(
-                name = "ChIP Targets",
-                cell = function(value) with_tooltip(value, width = 80)
+                name = "Targets in Leading Edge",
+                cell = function(value) with_tooltip(value, width = 50)
               )
             )
           )
         cp <- glue(
-          "The {nrow(df)} Gene sets considered significant in RNA-Seq GSEA results 
-        and which are also be enriched amongst the binding sites corresponding 
-        to {x}. The direction of the Normalised Enrichment Score (NES) indicates the 
-        direction of differential expression, with the final column containing 
-        all genes in the leading edge which map to '{x}' ChIP binding sites
+          "The {nrow(df)} Gene sets considered significant when combining GSEA 
+          from RNA-Seq and enrichment anaylsis from binding sites corresponding 
+          to {x}. The direction of the NES indicates the enriched direction in 
+          the RNA-Seq data.
         "
         )
         htmltools::div(
@@ -657,8 +689,101 @@ htmltools::tagList(
         )
       }
     ) %>% 
-    setNames(names(cmn_sig))
+    setNames(names(cmn_res))
 )
 ```
 
+`r if (plot_net) "### Network Plots {.tabset}"`
+
+```{r common-result-networks}
+htmltools::tagList(
+  names(tg_cmn) %>% 
+    mclapply(
+      function(x) {
+        ## Export the image
+        img_out <- file.path(
+          fig_path,
+          x %>% 
+            str_replace_all(" ", "_") %>% 
+            str_replace_all("_-_", "-") %>% 
+            paste0("_rnaseq_network.", fig_type)
+        )
+        fig_fun(
+          filename = img_out,
+          width = knitr::opts_current$get("fig.width"),
+          height = knitr::opts_current$get("fig.height")
+        )
+        p <- tg_cmn[[x]] %>%
+          activate(nodes) %>% 
+          mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
+          ggraph(layout = net_layout, weights = 1/d^2) +
+          geom_edge_link(aes(width = d, alpha = d)) +
+          geom_node_point(
+            aes(fill = -log10(adj_p), size = numDEInCat),
+            shape = 21
+          ) +
+          geom_node_text(
+            aes(label = label, colour = direction),
+            size = 3, 
+            data = . %>%
+              mutate(
+                label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+              ),
+            repel = TRUE,
+            max.overlaps = max(10, round(length(tg_cmn[[x]]) / 4, 0)),
+            bg.color = "white", bg.r = 0.1
+          ) +
+          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+          scale_size_continuous(range = c(1, 10)) +
+          scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+          scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+          scale_colour_manual(
+            values = setNames(
+              unlist(colours$direction), 
+              str_to_title(names( unlist(colours$direction)))
+            )
+          ) +
+          guides(edge_width = "none", edge_alpha= "none") +
+          labs(
+            size = glue("{x} Targets In Leading Edge") %>% str_wrap(15),
+            colour = "GSEA\nDirection",
+            fill = expr(paste(-log[10], fdr))
+          ) +
+          theme_void()
+        print(p)
+        dev.off()
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "
+            Network plot showing enriched pathways mapped to genes 
+            associated with {x} in combination with GSEA results from 
+            the RNA-Seq data. 
+            "
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>%
+              basename() %>%
+              str_remove_all(glue(".{fig_type}$")) %>%
+              str_to_lower() %>%
+              str_replace_all("_", "-"),
+            class="section level4",
+            htmltools::h4(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      },
+      mc.cores = threads
+    )
+)
+```
 
