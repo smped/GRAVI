@@ -736,6 +736,16 @@ knitr::opts_chunk$set(dev = "png")
 .plotScheme(colours$direction, xlab = "Direction")
 ```
 
+## Heatmap Gradient
+
+```{r}
+colorRampPalette(colours$heatmaps)(11) %>% 
+  setNames(percent(seq(0, 1, length.out = 11))) %>% 
+  as.list() %>% 
+  .plotScheme(xlab = "% Of Signal")
+```
+
+
 # Data Export
 
 During the setup of all required annotations, the following files were exported:

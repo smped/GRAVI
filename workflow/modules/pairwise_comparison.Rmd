@@ -2466,9 +2466,7 @@ profile_heatmaps <- profile_heatmaps %>%
           breaks = x_lab * 1e3, labels = x_lab, expand = expansion(0)
         ) +
         scale_xsidey_continuous(limits = sidey_range) +
-        scale_fill_viridis_c(
-          option = "inferno", direction = -1, limits = fill_range
-        ) +
+        scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
         scale_colour_manual(
           values = lapply(
             seq_along(pairs), 

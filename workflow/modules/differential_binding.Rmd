@@ -1163,9 +1163,7 @@ profile_heatmaps <- profile_heatmaps %>%
   lapply(
     function(x) {
       x + 
-        scale_fill_viridis_c(
-          option = "inferno", direction = -1, limits = fill_range
-        ) +
+        scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
         scale_xsidey_continuous(limits = sidey_range) +
         scale_colour_manual(values = treat_colours) +
         labs(

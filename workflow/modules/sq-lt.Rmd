@@ -112,7 +112,7 @@ filtered_counts %>%
 
 ### PCA
 
-```{r plot-pca, fig.height = 6, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
+```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
 a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
   scale_colour_manual(values = treat_colours) +
   ggtitle("Pre-Normalisation")
