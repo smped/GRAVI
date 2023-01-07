@@ -1793,7 +1793,7 @@ rnaseq_gsea %>%
   make_tbl_graph(
     gs = setNames(.$leadingEdge, .$gs_name)
   )%>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -1970,7 +1970,7 @@ rnaseq_gsea %>%
   make_tbl_graph(
     gs = setNames(.$leadingEdge, .$gs_name)
   )%>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2148,7 +2148,7 @@ rnaseq_gsea %>%
   make_tbl_graph(
     gs = setNames(.$leadingEdge, .$gs_name)
   )%>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),

@@ -55,7 +55,10 @@ str_sep_to_title <- function(
 #' @param alpha Threshold for filtering goseq results
 #' @param max_gs The maximum number of genesets to draw
 #'
-make_tbl_graph <- function(res, gs, min_dist = 0.9, alpha = enrich_alpha, max_gs = 100) {
+make_tbl_graph <- function(
+    res, gs, min_dist = max_network_dist, alpha = enrich_alpha,
+    max_gs = max_network_size
+) {
   res <- dplyr::filter(res, adj_p < alpha)
   res <- dplyr::slice(res, seq_len(max_gs))
   if (nrow(res) < 2) return(tbl_graph())

@@ -545,3 +545,120 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 knitr::opts_chunk$set(dev = fig_dev)
 ```
 
+## Integration Of RNA-Seq GSEA With Pairwise Enrichment Results
+
+```{r cmn-sig}
+rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
+cmn_sig <- goseq_group_res %>% 
+  lapply(
+    function(x) {
+      intersect(
+        dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway,
+        dplyr::filter(x, adj_p < enrich_alpha)$gs_name
+      )
+    }
+  ) %>% 
+  .[vapply(., length, integer(1)) > 0]
+txt <- ifelse(
+  length(cmn_sig) > 0,
+  "### Results Tables {.tabset}",
+  "No common gene-sets were found enriched using GSEA on the RNA-Seq data and 
+  sites with change in one or more comparisons."
+)
+```
+
+`r txt`
+
+```{r common-result-tables, eval = length(cmn_sig) > 0, echo = length(cmn_sig) > 0}
+htmltools::tagList(
+  names(cmn_sig) %>% 
+    lapply(
+      function(x) {
+        df <- rnaseq_gsea %>% 
+          dplyr::filter(pathway %in% cmn_sig[[x]]) %>% 
+          mutate(
+            edgeSize = vapply(leadingEdge, length, integer(1)),
+            leadingEdge = lapply(leadingEdge, intersect, group_ids[[x]]),
+            in_common = vapply(leadingEdge, length, integer(1)),
+            genes = vapply(
+              leadingEdge, function(y) paste(id2gene[y], collapse = "; "),
+              character(1)
+            )
+          ) %>% 
+          dplyr::select(
+            pathway, NES, padj, in_common, edgeSize, size, genes
+          )
+        tbl <- df %>% 
+          reactable(
+            filterable = TRUE, showPageSizeOptions = TRUE,
+            columns = list(
+              pathway = colDef(
+                name = "Gene Set",
+                cell = function(value) htmltools::tags$a(
+                  href = gs_url[[value]], 
+                  target = "_blank", 
+                  str_replace_all(value, "_", " ")
+                ),
+                minWidth = 120
+              ),
+              NES = colDef(
+                format = colFormat(digits = 2),
+                style = function(value) {
+                  col <- ifelse(value > 0, colours$direction$up, colours$direction$down)
+                  list(color = col)
+                },
+                maxWidth = 80
+              ),
+              padj = colDef(
+                name = "p<sub>adj</sub>", html = TRUE,
+                cell = function(value) ifelse(
+                  value < 0.001,
+                  sprintf("%.2e", value),
+                  sprintf("%.3f", value)
+                ),
+                maxWidth = 80
+              ),
+              in_common = colDef(
+                name = "# ChIP Targets In Leading Edge",
+                maxWidth = 80
+              ),
+              edgeSize = colDef(
+                name = "Leading Edge Size", maxWidth = 80
+              ),
+              size = colDef(
+                name = "Gene Set Size", maxWidth = 80
+              ),
+              genes = colDef(
+                name = "ChIP Targets",
+                cell = function(value) with_tooltip(value, width = 80)
+              )
+            )
+          )
+        cp <- glue(
+          "The {nrow(df)} Gene sets considered significant in RNA-Seq GSEA results 
+        and which are also be enriched amongst the binding sites corresponding 
+        to {x}. The direction of the Normalised Enrichment Score (NES) indicates the 
+        direction of differential expression, with the final column containing 
+        all genes in the leading edge which map to '{x}' ChIP binding sites
+        "
+        )
+        htmltools::div(
+          htmltools::div(
+            id = x %>% 
+              str_to_lower %>% 
+              str_replace_all(" ", "-") %>% 
+              str_replace_all("-+", "-") %>% 
+              paste("gsea", sep = "-"),
+            class="section level4",
+            htmltools::h4(class = "tabset", x),
+            htmltools::tags$em(cp),
+            tbl
+          )
+        )
+      }
+    ) %>% 
+    setNames(names(cmn_sig))
+)
+```
+
+

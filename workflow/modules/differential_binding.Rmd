@@ -1955,7 +1955,10 @@ gs_url <- msigdb %>%
     )
   ) %>% 
   with(setNames(gs_url, gs_name))
-min_network_size <- 3
+min_network_size <- params$networks$min_size
+max_network_size <- params$networks$max_size
+max_network_dist <- params$networks$max_distance
+net_layout <- params$networks$layout
 enrich_alpha <- params$enrichment$alpha
 adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
 adj_desc <- case_when(
@@ -2027,11 +2030,11 @@ In the first case, mapped genes were tested for enrichment against all annotated
 In the second case, i.e. Differentially Bound Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 
-If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at 100.
+If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at `r max_network_size`.
 The distances between gene-sets were calculated using the overlap coefficient (OC), such that $d = 1 - OC$.
 Gene-sets with a large overlap will thus be given small distances and in the case of a complete overlap ($OC = 1$) the only most highly ranked gene-set was retained.
-Gene-set (i.e. node) pairs with a distance > 0.9 will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
-All network plots were generated using the Fruchterman-Reingold (`fr`) layout algorithm.
+Gene-set (i.e. node) pairs with a distance > `r max_network_dist` will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
+All network plots were generated using the `r net_layout` layout algorithm.
 
 ## Windows With Detected `r target` {.tabset}
 
@@ -2176,7 +2179,7 @@ div(class = "table",
 
 ```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site for {target}.*")}
 tg_mapped %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2350,7 +2353,7 @@ div(class = "table",
 
 ```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing gene-sets enriched amongst those differential signal for {target}.*")}
 tg_diff %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2523,7 +2526,7 @@ div(class = "table",
 
 ```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing  gene-sets enriched amongst those showing increased signal for {target}.*")}
 tg_up %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2697,7 +2700,7 @@ div(class = "table",
 
 ```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing gene-sets enriched amongst those showing decreased signal for {target}.*")}
 tg_down %>% 
-  ggraph(layout = "fr", weights = 1/d^2) +
+  ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
