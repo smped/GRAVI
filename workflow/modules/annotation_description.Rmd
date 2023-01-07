@@ -738,7 +738,7 @@ knitr::opts_chunk$set(dev = "png")
 
 ## Heatmap Gradient
 
-```{r}
+```{r plot-gradient, fig.height=3, fig.width=8}
 colorRampPalette(colours$heatmaps)(11) %>% 
   setNames(percent(seq(0, 1, length.out = 11))) %>% 
   as.list() %>% 

@@ -1270,14 +1270,14 @@ merged_results %>%
 
 `r ifelse("Up" %in% names(profile_heatmaps), "### Heatmap: Increased Binding\n", "")`
 
-```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of increased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Up']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Up)/1.5e3 + 6)}
+```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of increased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Up']]))} regions were in this group.*"), fig.height = min(12, length(sig_ranges$Up)/1.5e3 + 6)}
 profile_heatmaps$Up
 ```
 
 
 `r ifelse("Down" %in% names(profile_heatmaps), "### Heatmap: Decreased Binding\n", "")`
 
-```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of decreased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Down']]))} regions were in this group.*"), fig.height = min(16, length(sig_ranges$Down)/1.5e3 + 6)}
+```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of decreased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Down']]))} regions were in this group.*"), fig.height = min(12, length(sig_ranges$Down)/1.5e3 + 6)}
 profile_heatmaps$Down
 ```
 
@@ -1480,32 +1480,35 @@ df %>%
 grl_to_plot <- GRangesList(
   top_up_by_fdr = merged_results %>% 
     filter(logFC > 0) %>% 
-    filter(!!sym(fdr_column) == min(!!sym(fdr_column))),
+    filter(P.Value == min(P.Value)) %>% 
+    filter(!!sym(fdr_column) < fdr_alpha),
   top_up_by_lfc = merged_results %>% 
-    filter(logFC == max(logFC)),
+    filter(logFC == max(logFC), logFC > 0),
   top_up_by_expr = merged_results %>% 
     filter(logFC > 0, !!sym(fdr_column) < fdr_alpha) %>% 
     filter(AveExpr == max(AveExpr)),
   top_up_no_macs2 = merged_results %>% 
     filter(logFC > 0, !!sym(fdr_column) < fdr_alpha, !overlaps_ref) %>% 
-    arrange(!!sym(fdr_column)),
+    arrange(!!sym(fdr_column)) %>% 
+    arrange(P.Value),
   top_down_by_fdr = merged_results %>% 
     filter(logFC < 0) %>% 
-    filter(!!sym(fdr_column) == min(!!sym(fdr_column))),
+    filter(P.Value == min(P.Value)) %>% 
+    filter(!!sym(fdr_column) < fdr_alpha),
   top_down_by_lfc = merged_results %>% 
-    filter(logFC == min(logFC)),
+    filter(logFC == min(logFC), logFC < 0),
   top_down_by_expr = merged_results %>% 
     filter(logFC < 0, !!sym(fdr_column) < fdr_alpha) %>% 
     filter(AveExpr == max(AveExpr)),
   top_up_no_macs2 = merged_results %>% 
     filter(logFC < 0, !!sym(fdr_column) < fdr_alpha, !overlaps_ref) %>% 
-    arrange(!!sym(fdr_column)) 
+    arrange(P.Value)
 ) %>% 
   unlist() %>% 
-  .[!duplicated(.)] %>% 
+  .[!duplicated(.)] %>%
   splitAsList(names(.)) %>% 
   lapply(setNames, c()) %>% 
-  lapply(function(x) x[1]) %>% 
+  lapply(function(x) x[1]) %>%
   GRangesList()
 ```
 

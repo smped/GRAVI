@@ -1340,6 +1340,547 @@ knitr::opts_chunk$set(dev = fig_dev)
 
 <!-- Could be done regardless of changes in expression -->
 
+## Integration With Gene Expression GSEA
+
+```{r rnaseq-gsea}
+rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) %>% 
+  dplyr::filter(!is.na(pval))
+```
+
+The enrichment testing results from the `r target` differential binding analysis were then
+compared to GSEA results obtained from the RNA-Seq data set.
+
+### Differentially Bound Windows {.tabset}
+
+```{r compare-alldiff-gsea}
+cmn_diff <- rnaseq_gsea %>%
+  dplyr::select(-log2err, -ES, -size) %>% 
+  left_join(
+    goseq_diff, by = c("pathway" = "gs_name"), suffix = c(".rna", ".chip")
+  ) %>%
+  dplyr::filter(!is.na(pval.rna), !is.na(pval.chip)) %>% 
+  nest(p = starts_with("pval")) %>% 
+  mutate(
+    pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
+    ) %>%
+  unnest(p) %>% 
+  mutate(fdr = p.adjust(pval, params$enrichment$adj)) %>% 
+  arrange(pval) %>% 
+  dplyr::filter(fdr < 0.05) %>% 
+  mutate(
+    leadingEdge = lapply(
+      leadingEdge, intersect, dplyr::filter(mapped_ids, up | down)$gene_id
+    ),
+    numDEInCat = vapply(leadingEdge, length, integer(1)),
+    Status = case_when(
+      padj < enrich_alpha & adj_p < enrich_alpha ~ "Both",
+      padj < enrich_alpha & !adj_p < enrich_alpha ~ "RNA Only",
+      !padj < enrich_alpha & adj_p < enrich_alpha ~ "ChIP Only",
+      !padj < enrich_alpha & !adj_p < enrich_alpha ~ "Neither"
+    )
+  ) %>% 
+  dplyr::select(
+    gs_name = pathway, fdr, Status, NES, padj, adj_p,
+    starts_with("num"), leadingEdge
+  ) 
+tg_diff <- cmn_diff %>% 
+  make_tbl_graph(gs_by_gsid)
+plot_net <- length(tg_diff) >= min_network_size
+txt <- ifelse(
+  nrow(cmn_diff) == 0,
+  glue("No gene sets were jointly enriched between all {target} differentially bound windows and the RNA-Seq data"),
+  "#### Results Table"
+)
+```
+
+`r txt`
+
+```{r tbl-cmn-alldiff-gs, eval = nrow(cmn_diff) > 0, echo = nrow(cmn_diff) > 0}
+cp <- htmltools::tags$em(
+  glue(
+    "
+    Genes mapped to all windows showing evidence of differential binding were 
+    tested for enrichment using goseq, and results were compared to GSEA results
+    for the RNA-Seq dataset. Wilkinson's method was used to integrate the two
+    p-values with a combined FDR-adjusted p-value < {enrich_alpha} being taken
+    as evidence of potential regulatory targets from differentially bound 
+    {target} binding sites. Of the {nrow(cmn_diff)} gene-sets of interest, 
+    {sum(cmn_diff$Status == 'Both')} were individually enriched in both datasets,
+    as indicated in the 'Status' column
+    "
+  )
+)
+tbl <- cmn_diff %>%
+  mutate(
+    leadingEdge = vapply(
+      leadingEdge,
+      function(x) paste(id2gene[x], collapse = "; "),
+      character(1)
+    )
+  ) %>% 
+  reactable(
+    filterable = TRUE, showPageSizeOptions = TRUE,
+    columns = list(
+      gs_name = colDef(
+        name = "Gene Set",
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
+        minWidth = 120
+      ),
+      fdr = colDef(
+        name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      Status = colDef(name = "Individual Status", maxWidth = 100),
+      NES = colDef(
+        format = colFormat(digits = 2),
+        style = function(value) {
+          col <- ifelse(value > 0, colours$direction["up"], colours$direction["down"])
+          list(color = col)
+        },
+        maxWidth = 80
+      ),
+      padj = colDef(
+        name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      adj_p = colDef(
+        name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      numDEInCat = colDef(name = "ChIP Targets in Leading Edge", maxWidth = 100),
+      numInCat = colDef(name = "Mapped Genes", maxWidth = 100),
+      leadingEdge = colDef(
+        name = "Leading Edge ChIP Targets",
+        cell = function(value) with_tooltip(value, width = 50),
+        minWidth = 120
+      )
+    )
+  )
+div(
+  class = "table", 
+  div(
+    class = "table-header",
+    div(class = "caption", cp)
+  ),
+  tbl
+)
+```
+
+`r if (plot_net) "#### Network Plot"`
+
+```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
+tg_diff %>% 
+  activate(nodes) %>% 
+  mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
+  ggraph(layout = net_layout, weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(fdr), size = numDEInCat),
+    shape = 21
+  ) +
+    geom_node_text(
+    aes(label = label, colour = direction),
+    size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  scale_colour_manual(
+    values = setNames(direction_colours, str_to_title(names(direction_colours)))
+  ) +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(
+    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
+    colour = "GSEA\nDirection",
+    fill = expr(paste(-log[10], fdr))
+  ) +
+  theme_void() +
+  theme(legend.text = element_text(hjust = 0.5))
+```
+
+
+### Windows With Increased `r target` {.tabset}
+
+```{r compare-allup-gsea}
+cmn_up <- rnaseq_gsea %>%
+  dplyr::select(-log2err, -ES, -size) %>% 
+  left_join(
+    goseq_up, by = c("pathway" = "gs_name"), suffix = c(".rna", ".chip")
+  ) %>%
+  dplyr::filter(!is.na(pval.rna), !is.na(pval.chip)) %>% 
+  nest(p = starts_with("pval")) %>% 
+  mutate(
+    pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
+    ) %>%
+  unnest(p) %>% 
+  mutate(fdr = p.adjust(pval, params$enrichment$adj)) %>% 
+  arrange(pval) %>% 
+  dplyr::filter(fdr < 0.05) %>% 
+  mutate(
+    leadingEdge = lapply(
+      leadingEdge, intersect, dplyr::filter(mapped_ids, up)$gene_id
+    ),
+    numDEInCat = vapply(leadingEdge, length, integer(1)),
+    Status = case_when(
+      padj < enrich_alpha & adj_p < enrich_alpha ~ "Both",
+      padj < enrich_alpha & !adj_p < enrich_alpha ~ "RNA Only",
+      !padj < enrich_alpha & adj_p < enrich_alpha ~ "ChIP Only",
+      !padj < enrich_alpha & !adj_p < enrich_alpha ~ "Neither"
+    )
+  ) %>% 
+  dplyr::select(
+    gs_name = pathway, fdr, Status, NES, padj, adj_p,
+    starts_with("num"), leadingEdge
+  ) 
+tg_up <- cmn_up %>% 
+  make_tbl_graph(gs_by_gsid)
+plot_net <- length(tg_up) >= min_network_size
+txt <- ifelse(
+  nrow(cmn_up) == 0,
+  glue("No gene sets were jointly enriched between all increasing {target} bound windows and the RNA-Seq data"),
+  "#### Results Table"
+)
+```
+
+`r txt`
+
+```{r tbl-cmn-allup-gs, eval = nrow(cmn_up) > 0, echo = nrow(cmn_up) > 0}
+cp <- htmltools::tags$em(
+  glue(
+    "
+    Genes mapped to all windows showing evidence of increased {target} binding were 
+    tested for enrichment using goseq, and results were compared to GSEA results
+    for the RNA-Seq dataset. Wilkinson's method was used to integrate the two
+    p-values with a combined FDR-adjusted p-value < {enrich_alpha} being taken
+    as evidence of potential regulatory targets from increasingly bound 
+    {target} binding sites. Of the {nrow(cmn_up)} gene-sets of interest, 
+    {sum(cmn_up$Status == 'Both')} were individually enriched in both datasets,
+    as indicated in the 'Status' column
+    "
+  )
+)
+tbl <- cmn_up %>%
+  mutate(
+    leadingEdge = vapply(
+      leadingEdge,
+      function(x) paste(id2gene[x], collapse = "; "),
+      character(1)
+    )
+  ) %>% 
+  reactable(
+    filterable = TRUE, showPageSizeOptions = TRUE,
+    columns = list(
+      gs_name = colDef(
+        name = "Gene Set",
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
+        minWidth = 120
+      ),
+      fdr = colDef(
+        name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      Status = colDef(name = "Individual Status", maxWidth = 100),
+      NES = colDef(
+        format = colFormat(digits = 2),
+        style = function(value) {
+          col <- ifelse(value > 0, colours$direction["up"], colours$direction["down"])
+          list(color = col)
+        },
+        maxWidth = 80
+      ),
+      padj = colDef(
+        name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      adj_p = colDef(
+        name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      numDEInCat = colDef(name = "ChIP Targets in Leading Edge", maxWidth = 100),
+      numInCat = colDef(name = "Mapped Genes", maxWidth = 100),
+      leadingEdge = colDef(
+        name = "Leading Edge ChIP Targets",
+        cell = function(value) with_tooltip(value, width = 50),
+        minWidth = 120
+      )
+    )
+  )
+div(
+  class = "table", 
+  div(
+    class = "table-header",
+    div(class = "caption", cp)
+  ),
+  tbl
+)
+```
+
+`r if (plot_net) "#### Network Plot"`
+
+```{r network-cmn-allup, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all increasingly bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
+tg_up %>% 
+  activate(nodes) %>% 
+  mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
+  ggraph(layout = net_layout, weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(fdr), size = numDEInCat),
+    shape = 21
+  ) +
+    geom_node_text(
+    aes(label = label, colour = direction),
+    size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_up) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  scale_colour_manual(
+    values = setNames(direction_colours, str_to_title(names(direction_colours)))
+  ) +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(
+    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
+    colour = "GSEA\nDirection",
+    fill = expr(paste(-log[10], fdr))
+  ) +
+  theme_void() +
+  theme(legend.text = element_text(hjust = 0.5))
+```
+
+
+### Windows With Decreased `r target` {.tabset}
+
+```{r compare-alldown-gsea}
+cmn_down <- rnaseq_gsea %>%
+  dplyr::select(-log2err, -ES, -size) %>% 
+  left_join(
+    goseq_down, by = c("pathway" = "gs_name"), suffix = c(".rna", ".chip")
+  ) %>%
+  dplyr::filter(!is.na(pval.rna), !is.na(pval.chip)) %>% 
+  nest(p = starts_with("pval")) %>% 
+  mutate(
+    pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
+    ) %>%
+  unnest(p) %>% 
+  mutate(fdr = p.adjust(pval, params$enrichment$adj)) %>% 
+  arrange(pval) %>% 
+  dplyr::filter(fdr < 0.05) %>% 
+  mutate(
+    leadingEdge = lapply(
+      leadingEdge, intersect, dplyr::filter(mapped_ids, down)$gene_id
+    ),
+    numDEInCat = vapply(leadingEdge, length, integer(1)),
+    Status = case_when(
+      padj < enrich_alpha & adj_p < enrich_alpha ~ "Both",
+      padj < enrich_alpha & !adj_p < enrich_alpha ~ "RNA Only",
+      !padj < enrich_alpha & adj_p < enrich_alpha ~ "ChIP Only",
+      !padj < enrich_alpha & !adj_p < enrich_alpha ~ "Neither"
+    )
+  ) %>% 
+  dplyr::select(
+    gs_name = pathway, fdr, Status, NES, padj, adj_p,
+    starts_with("num"), leadingEdge
+  ) 
+tg_down <- cmn_down %>% 
+  make_tbl_graph(gs_by_gsid)
+plot_net <- length(tg_down) >= min_network_size
+txt <- ifelse(
+  nrow(cmn_down) == 0,
+  glue("No gene sets were jointly enriched between all decreasing {target} bound windows and the RNA-Seq data"),
+  "#### Results Table"
+)
+```
+
+`r txt`
+
+```{r tbl-cmn-alldown-gs, eval = nrow(cmn_down) > 0, echo = nrow(cmn_down) > 0}
+cp <- htmltools::tags$em(
+  glue(
+    "
+    Genes mapped to all windows showing evidence of decreased {target} binding were 
+    tested for enrichment using goseq, and results were compared to GSEA results
+    for the RNA-Seq dataset. Wilkinson's method was used to integrate the two
+    p-values with a combined FDR-adjusted p-value < {enrich_alpha} being taken
+    as evidence of potential regulatory targets from decreasingly bound 
+    {target} binding sites. Of the {nrow(cmn_down)} gene-sets of interest, 
+    {sum(cmn_down$Status == 'Both')} were individually enriched in both datasets,
+    as indicated in the 'Status' column
+    "
+  )
+)
+tbl <- cmn_down %>%
+  mutate(
+    leadingEdge = vapply(
+      leadingEdge,
+      function(x) paste(id2gene[x], collapse = "; "),
+      character(1)
+    )
+  ) %>% 
+  reactable(
+    filterable = TRUE, showPageSizeOptions = TRUE,
+    columns = list(
+      gs_name = colDef(
+        name = "Gene Set",
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
+        minWidth = 120
+      ),
+      fdr = colDef(
+        name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      Status = colDef(name = "Individual Status", maxWidth = 100),
+      NES = colDef(
+        format = colFormat(digits = 2),
+        style = function(value) {
+          col <- ifelse(value > 0, colours$direction["down"], colours$direction["down"])
+          list(color = col)
+        },
+        maxWidth = 80
+      ),
+      padj = colDef(
+        name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      adj_p = colDef(
+        name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+        cell = function(value) ifelse(
+          value < 0.001,
+          sprintf("%.2e", value),
+          sprintf("%.3f", value)
+        ),
+        maxWidth = 80
+      ),
+      numDEInCat = colDef(name = "ChIP Targets in Leading Edge", maxWidth = 100),
+      numInCat = colDef(name = "Mapped Genes", maxWidth = 100),
+      leadingEdge = colDef(
+        name = "Leading Edge ChIP Targets",
+        cell = function(value) with_tooltip(value, width = 50),
+        minWidth = 120
+      )
+    )
+  )
+div(
+  class = "table", 
+  div(
+    class = "table-header",
+    div(class = "caption", cp)
+  ),
+  tbl
+)
+```
+
+`r if (plot_net) "#### Network Plot"`
+
+```{r network-cmn-alldown, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all decreasingly bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
+tg_down %>% 
+  activate(nodes) %>% 
+  mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
+  ggraph(layout = net_layout, weights = 1/d^2) +
+  geom_edge_link(aes(width = d, alpha = d)) +
+  geom_node_point(
+    aes(fill = -log10(fdr), size = numDEInCat),
+    shape = 21
+  ) +
+    geom_node_text(
+    aes(label = label, colour = direction),
+    size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
+      ),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_down) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
+  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  scale_colour_manual(
+    values = setNames(direction_colours, str_to_title(names(direction_colours)))
+  ) +
+  guides(edge_width = "none", edge_alpha= "none") +
+  labs(
+    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
+    colour = "GSEA\nDirection",
+    fill = expr(paste(-log[10], fdr))
+  ) +
+  theme_void() +
+  theme(legend.text = element_text(hjust = 0.5))
+```
+
+
 ## Highly Ranked Genes {.tabset}
 
 ```{r setup-genes-to-plot}
@@ -1640,542 +2181,5 @@ plotHFGC(
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
 )
-```
-
-## Integration With Gene Expression GSEA
-
-```{r rnaseq-gsea}
-rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks)
-```
-
-The enrichment testing results from the `r target` differential binding analysis were then
-compared to GSEA results obtained from the RNA-Seq data set.
-
-### Differentially Bound Windows {.tabset}
-
-```{r compare-alldiff-gsea}
-cmn_gs <- intersect(
-  dplyr::filter(goseq_diff, adj_p < enrich_alpha)$gs_name,
-  dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
-)
-txt <- ifelse(
-  length(cmn_gs) == 0,
-  glue("No gene sets were shared between all {target} differentially bound windows and the RNA-Seq data"),
-  "#### Results Table"
-)
-plot_net <- length(cmn_gs) >= min_network_size
-```
-
-`r txt`
-
-```{r tbl-cmn-alldiff-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
-cp <- htmltools::tags$em(
-  glue(
-    "
-    Genes mapped to all windows showing evidence of differential binding were 
-    tested for enrichment using goseq, and results were compared to GSEA results
-    for the RNA-Seq dataset. The {comma(length(cmn_gs), 1)} Gene Sets found in
-    both analyses are detailed below. Leading Edge genes represent the genes
-    as ranked in the provided RNA-Seq dataset, subset to only include those 
-    with a mapped site showing change in {target} signal.
-    "
-  )
-)
-tbl <- goseq_diff %>% 
-  dplyr::filter(gs_name %in% cmn_gs) %>% 
-  dplyr::select(
-    gs_name, genes_mapped = numDEInCat, 
-    goseq_pval = pval, goseq_adj_p = adj_p
-  ) %>% 
-  left_join(
-    rnaseq_gsea %>% 
-      dplyr::select(
-        pathway, gsea_pval = pval, gsea_fdr = padj, 
-        expressed = size, leadingEdge
-      ),
-    by = c("gs_name" = "pathway") 
-  ) %>% 
-  mutate(
-    edge_size = vapply(leadingEdge, length, integer(1)),
-    leadingEdge = lapply(leadingEdge, intersect, unlist(diff_windows[c("Up", "Down")])),
-    leadingEdge = vapply(
-      leadingEdge,
-      function(x) paste(id2gene[x], collapse = "; "),
-      character(1)
-    )
-  ) %>% 
-  left_join(
-    distinct(msigdb, gs_name, gs_description), by = "gs_name"
-  ) %>% 
-  dplyr::select(
-    gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"), 
-    goseq_adj_p, edge_size, leadingEdge
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    columns = list(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        minWidth = 120
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) with_tooltip(value, 100),
-        minWidth = 120
-      ),
-      genes_mapped = colDef(
-        name = "Mapped To Binding Window",
-        cell = function(value) comma(value, 1),
-        maxWidth = 100
-      ),
-      expressed = colDef(
-        name = "Expressed Genes",
-        cell = function(value) comma(value, 1),
-        maxWidth = 100
-      ),
-      goseq_adj_p = colDef(
-        name = "p<sub>adj</sub> (ChIP)", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      gsea_fdr = colDef(
-        name = "FDR (RNA)",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      edge_size = colDef(
-        name = "Leading Edge Size",
-        cell = function(value) comma(value, 1),
-        maxWidth = 120
-      ),
-      leadingEdge = colDef(
-        name = "Leading Edge Genes",
-        cell = function(value) with_tooltip(value, width = 50),
-        minWidth = 120
-      )
-    )
-  )
-div(
-  class = "table", 
-  div(
-    class = "table-header",
-    div(class = "caption", cp)
-  ),
-  tbl
-)
-```
-
-`r if (plot_net) "#### Network Plot"`
-
-```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {target} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
-rnaseq_gsea %>% 
-  dplyr::filter(pathway %in% cmn_gs) %>% 
-  dplyr::select(
-    gs_name = pathway, numInCat = size, leadingEdge, pval, adj_p = padj
-  ) %>% 
-  mutate(
-    numDEInCat = vapply(leadingEdge, length, integer(1)),
-    leadingEdge = lapply(leadingEdge, function(x) id2gene[x])
-  ) %>% 
-  make_tbl_graph(
-    gs = setNames(.$leadingEdge, .$gs_name)
-  )%>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-    geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(
-    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
-    fill = expr(paste("GSEA ", log[10], p))
-  ) +
-  theme_void() +
-  theme(legend.text = element_text(hjust = 0.5))
-```
-
-
-### Windows With Increased `r target` {.tabset}
-
-```{r compare-gained-gsea}
-cmn_gs <- intersect(
-  dplyr::filter(goseq_up, adj_p < enrich_alpha)$gs_name,
-  dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
-)
-txt <- ifelse(
-  length(cmn_gs) == 0,
-  glue("No gene sets were shared between {target} bound windows showing increased binding and the RNA-Seq data"),
-  "#### Results Table"
-)
-plot_net <- length(cmn_gs) >= min_network_size
-```
-
-`r txt`
-
-```{r tbl-cmn-up-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
-cp <- htmltools::tags$em(
-  glue(
-    "
-    Genes mapped to all windows showing evidence of increased {target} binding 
-    were tested for enrichment using goseq, and results were compared to GSEA 
-    results for the RNA-Seq dataset. The {comma(length(cmn_gs), 1)} Gene Sets 
-    found in both analyses are detailed below. Leading Edge genes represent 
-    the genes as ranked in the provided RNA-Seq dataset, subset by those with 
-    a mapped site showing {target} increase.
-    "
-  )
-)
-tbl <- goseq_diff %>% 
-  dplyr::filter(gs_name %in% cmn_gs) %>% 
-  dplyr::select(
-    gs_name, genes_mapped = numDEInCat, 
-    goseq_pval = pval, goseq_adj_p = adj_p
-  ) %>% 
-  left_join(
-    rnaseq_gsea %>% 
-      dplyr::select(
-        pathway, gsea_pval = pval, gsea_fdr = padj, 
-        expressed = size, leadingEdge
-      ),
-    by = c("gs_name" = "pathway") 
-  ) %>% 
-  mutate(
-    edge_size = vapply(leadingEdge, length, integer(1)),
-    leadingEdge = lapply(leadingEdge, intersect, diff_windows$Up),
-    leadingEdge = vapply(
-      leadingEdge,
-      function(x) paste(id2gene[x], collapse = "; "),
-      character(1)
-    )
-  ) %>% 
-  left_join(
-    distinct(msigdb, gs_name, gs_description)
-  ) %>% 
-  dplyr::select(
-    gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
-    goseq_adj_p, edge_size, leadingEdge
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    columns = list(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        minWidth = 120
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) with_tooltip(value, 100),
-        minWidth = 120
-      ),
-      genes_mapped = colDef(
-        name = "Mapped To Binding Window",
-        cell = function(value) comma(value, 1),
-        maxWidth = 100
-      ),
-      expressed = colDef(
-        name = "Expressed Genes",
-        cell = function(value) comma(value, 1),
-        maxWidth = 100
-      ),
-      goseq_adj_p = colDef(
-        name = "p<sub>adj</sub> (ChIP)", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      gsea_fdr = colDef(
-        name = "FDR (RNA)",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      edge_size = colDef(
-        name = "Leading Edge Size",
-        cell = function(value) comma(value, 1),
-        maxWidth = 120
-      ),
-      leadingEdge = colDef(
-        name = "Leading Edge Genes",
-        cell = function(value) with_tooltip(value, width = 50),
-        minWidth = 120
-      )
-    )
-  )
-div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
-)
-```
-
-`r if (plot_net) "#### Network Plot"`
-
-```{r network-cmn-up, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with increased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {target} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
-rnaseq_gsea %>% 
-  dplyr::filter(pathway %in% cmn_gs) %>% 
-  dplyr::select(
-    gs_name = pathway, numInCat = size, leadingEdge, pval, adj_p = padj
-  ) %>% 
-  mutate(
-    leadingEdge = lapply(
-      leadingEdge, 
-      function(x) id2gene[x] %>% intersect(
-        unique(unlist(subset(merged_results, status == "Up")$gene_name))
-      )
-    ),
-    numDEInCat = vapply(leadingEdge, length, integer(1))
-  ) %>% 
-  make_tbl_graph(
-    gs = setNames(.$leadingEdge, .$gs_name)
-  )%>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-    geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(
-    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
-    fill = expr(paste("GSEA ", log[10], p))
-  ) +
-  theme_void() +
-  theme(legend.text = element_text(hjust = 0.5))
-```
-
-
-### Windows With Decreased `r target` {.tabset}
-
-```{r compare-decreased-gsea}
-cmn_gs <- intersect(
-  dplyr::filter(goseq_down, adj_p < enrich_alpha)$gs_name,
-  dplyr::filter(rnaseq_gsea, padj < enrich_alpha)$pathway
-)
-txt <- ifelse(
-  length(cmn_gs) == 0,
-  glue("No gene sets were shared between {target} bound windows showing decreased binding and the RNA-Seq data"),
-  "#### Results Table"
-)
-plot_net <- length(cmn_gs) >= min_network_size
-```
-
-`r txt`
-
-```{r tbl-cmn-down-gs, eval = length(cmn_gs) > 0, echo = length(cmn_gs) > 0}
-cp <- htmltools::tags$em(
-  glue(
-    "
-    Genes mapped to all windows showing evidence of decreased {target} binding 
-    were tested for enrichment using goseq, and results were compared to GSEA 
-    results for the RNA-Seq dataset. The {comma(length(cmn_gs), 1)} Gene Sets 
-    found in both analyses are detailed below. Leading Edge genes represent 
-    the genes as ranked in the provided RNA-Seq dataset, subset by those with 
-    mapped {target} site showing a decrease in signal.
-    "
-  )
-)
-tbl <- goseq_diff %>% 
-  dplyr::filter(gs_name %in% cmn_gs) %>% 
-  dplyr::select(
-    gs_name, genes_mapped = numDEInCat, 
-    goseq_pval = pval, goseq_adj_p = adj_p
-  ) %>% 
-  left_join(
-    rnaseq_gsea %>% 
-      dplyr::select(
-        pathway, gsea_pval = pval, gsea_fdr = padj, 
-        expressed = size, leadingEdge
-      ),
-    by = c("gs_name" = "pathway") 
-  ) %>% 
-  mutate(
-    edge_size = vapply(leadingEdge, length, integer(1)),
-    leadingEdge = lapply(leadingEdge, intersect, unlist(diff_windows[c("Down")])),
-    leadingEdge = vapply(
-      leadingEdge,
-      function(x) paste(id2gene[x], collapse = "; "),
-      character(1)
-    )
-  ) %>% 
-  left_join(
-    distinct(msigdb, gs_name, gs_description), by = "gs_name"
-  ) %>% 
-  dplyr::select(
-    gs_name, gs_description, genes_mapped, expressed, ends_with("fdr"),
-    goseq_adj_p, edge_size, leadingEdge
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    columns = list(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        minWidth = 120
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) with_tooltip(value, 100),
-        minWidth = 120
-      ),
-      genes_mapped = colDef(
-        name = "Mapped To Binding Window",
-        cell = function(value) comma(value, 1),
-        maxWidth = 100
-      ),
-      expressed = colDef(
-        name = "Expressed Genes",
-        cell = function(value) comma(value, 1),
-        maxWidth = 100
-      ),
-      goseq_adj_p = colDef(
-        name = "p<sub>adj</sub> (ChIP)", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      gsea_fdr = colDef(
-        name = "FDR (RNA)",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      edge_size = colDef(
-        name = "Leading Edge Size",
-        cell = function(value) comma(value, 1),
-        maxWidth = 120
-      ),
-      leadingEdge = colDef(
-        name = "Leading Edge Genes",
-        cell = function(value) with_tooltip(value, width = 50),
-        minWidth = 120
-      )
-    )
-  )
-div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
-)
-```
-
-
-`r if (plot_net) "#### Network Plot"`
-
-```{r network-cmn-down, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with decreased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {target} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
-rnaseq_gsea %>% 
-  dplyr::filter(pathway %in% cmn_gs) %>% 
-  dplyr::select(
-    gs_name = pathway, numInCat = size, leadingEdge, pval, adj_p = padj
-  ) %>% 
-  mutate(
-    leadingEdge = lapply(
-      leadingEdge, 
-      function(x) id2gene[x] %>% intersect(
-        unique(unlist(subset(merged_results, status == "Down")$gene_name))
-      )
-    ),
-    numDEInCat = vapply(leadingEdge, length, integer(1))
-  ) %>% 
-  make_tbl_graph(
-    gs = setNames(.$leadingEdge, .$gs_name)
-  )%>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-    geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(80) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(
-    size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
-    fill = expr(paste("GSEA ", log[10], p))
-  ) +
-  theme_void() +
-  theme(legend.text = element_text(hjust = 0.5))
 ```
 
