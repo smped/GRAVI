@@ -1780,7 +1780,7 @@ div(
 
 `r if (plot_net) "#### Network Plot"`
 
-```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {targets} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
+```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {target} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
 rnaseq_gsea %>% 
   dplyr::filter(pathway %in% cmn_gs) %>% 
   dplyr::select(
@@ -1952,7 +1952,7 @@ div(class = "table",
 
 `r if (plot_net) "#### Network Plot"`
 
-```{r network-cmn-up, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with increased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {targets} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
+```{r network-cmn-up, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with increased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {target} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
 rnaseq_gsea %>% 
   dplyr::filter(pathway %in% cmn_gs) %>% 
   dplyr::select(
@@ -2130,7 +2130,7 @@ div(class = "table",
 
 `r if (plot_net) "#### Network Plot"`
 
-```{r network-cmn-down, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with decreased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {targets} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
+```{r network-cmn-down, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing {target} sites with decreased binding and which were also considered significant when performing GSEA on the provided RNA-Seq data. Distances are derived from genes within the leading edge for each pathway and which are also {target} targets with a differentially bound site, as per the results table. Only pathways with a distance < 0.9 will be connected as nodes, width edge widths also indicating the degree of overlap (or distance) between pathways.*")}
 rnaseq_gsea %>% 
   dplyr::filter(pathway %in% cmn_gs) %>% 
   dplyr::select(
