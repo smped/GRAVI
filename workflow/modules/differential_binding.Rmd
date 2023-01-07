@@ -2777,7 +2777,9 @@ if (sum(merged_results$status == "Down") > 0) {
     granges() %>% 
     export.bed(all_out$up_regions)
 }
-
+## Save key memory on the HDD
+rm(window_counts)
+gc()
 save.image(all_out$renv)
 ```
 
