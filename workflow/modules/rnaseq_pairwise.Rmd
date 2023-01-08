@@ -600,9 +600,9 @@ plot_net <- length(tg_cmn) > 0
 txt <- ifelse(any_sig, "### Results Tables {.tabset}", "No shared enrichment was found")
 ```
 
+`r txt`
 
-
-```{r common-result-tables, eval = length(cmn_sig) > 0, echo = length(cmn_sig) > 0}
+```{r common-result-tables, eval = length(cmn_res) > 0, echo = length(cmn_res) > 0}
 htmltools::tagList(
   names(cmn_res) %>% 
     lapply(
@@ -695,7 +695,7 @@ htmltools::tagList(
 
 `r if (plot_net) "### Network Plots {.tabset}"`
 
-```{r common-result-networks}
+```{r common-result-networks, eval = plot_net, echo = plot_net}
 htmltools::tagList(
   names(tg_cmn) %>% 
     mclapply(
