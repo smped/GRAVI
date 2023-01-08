@@ -565,21 +565,25 @@ cmn_res <- goseq_group_res %>%
     nest, p = starts_with("pval")
   ) %>% 
   lapply(
+    dplyr::rename, padj_chip = adj_p, padj_rna = padj
+  ) %>% 
+  lapply(
     mutate, 
     pval = vapply(
       p, function(x) metap::maximump(unlist(x))$p, numeric(1)
     ),
-    fdr = p.adjust(pval, adj_method)
+    adj_p = p.adjust(pval, adj_method)
   ) %>% 
-  lapply(dplyr::filter, fdr < enrich_alpha) %>% 
+  lapply(dplyr::filter, adj_p < enrich_alpha) %>% 
   lapply(
     mutate,
     status = case_when(
-      adj_p < enrich_alpha & padj < enrich_alpha ~ "Both",
-      !adj_p < enrich_alpha & padj < enrich_alpha ~ "RNA Only",
-      adj_p < enrich_alpha & !padj < enrich_alpha ~ "ChIP Only",
-      !adj_p < enrich_alpha & !padj < enrich_alpha ~ "Neither"
-    ),
+      padj_chip < enrich_alpha & padj_rna < enrich_alpha ~ "Both",
+      !padj_chip < enrich_alpha & padj_rna < enrich_alpha ~ "RNA Only",
+      padj_chip < enrich_alpha & !padj_rna < enrich_alpha ~ "ChIP Only",
+      !padj_chip < enrich_alpha & !padj_rna < enrich_alpha ~ "Neither"
+    ) %>% 
+      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither")),
     leadingEdge = lapply(leadingEdge, intersect, group_ids[[unique(group)]]),
     numDEInCat = vapply(leadingEdge, length, integer(1)),
     genes = vapply(
@@ -588,8 +592,8 @@ cmn_res <- goseq_group_res %>%
   ) %>% 
   lapply(
     select,
-    group, gs_name, NES, status, adj_p_chip = adj_p, adj_p_rna = padj, 
-    adj_p = fdr, starts_with("num"), leadingEdge, genes
+    group, gs_name, adj_p, NES, status, starts_with("padj"),
+    starts_with("num"), leadingEdge, genes
   ) %>% 
   lapply(dplyr::filter, str_detect(genes, ";")) %>% 
   .[vapply(., nrow, integer(1)) > 0] 
@@ -609,7 +613,7 @@ htmltools::tagList(
       function(x) {
         df <- cmn_res[[x]] %>% 
           dplyr::select(
-            gs_name, adj_p, NES, status, starts_with("adj_p_"), numDEInCat, genes
+            gs_name, adj_p, NES, status, starts_with("padj"), numDEInCat, genes
           )
         tbl <- df %>% 
           reactable(
@@ -642,7 +646,7 @@ htmltools::tagList(
                 maxWidth = 80
               ),
               status = colDef(name = "Individual Status", maxWidth = 100),
-              adj_p_rna = colDef(
+              padj_rna = colDef(
                 name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
                 cell = function(value) ifelse(
                   value < 0.001,
@@ -651,7 +655,7 @@ htmltools::tagList(
                 ),
                 maxWidth = 80
               ),
-              adj_p_chip = colDef(
+              padj_chip = colDef(
                 name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
                 cell = function(value) ifelse(
                   value < 0.001,
@@ -719,7 +723,7 @@ htmltools::tagList(
           ggraph(layout = net_layout, weights = 1/d^2) +
           geom_edge_link(aes(width = d, alpha = d)) +
           geom_node_point(
-            aes(fill = -log10(adj_p), size = numDEInCat),
+            aes(fill = status, size = numDEInCat),
             shape = 21
           ) +
           geom_node_text(
@@ -735,7 +739,7 @@ htmltools::tagList(
           ) +
           scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+          scale_fill_viridis_d(direction = -1) +
           scale_size_continuous(range = c(1, 10)) +
           scale_edge_width(range = c(1, 6), trans = "reciprocal") +
           scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -749,7 +753,7 @@ htmltools::tagList(
           labs(
             size = glue("{x} Targets In Leading Edge") %>% str_wrap(15),
             colour = "GSEA\nDirection",
-            fill = expr(paste(-log[10], fdr))
+            fill = "Prior\nStatus"
           ) +
           theme_void()
         print(p)

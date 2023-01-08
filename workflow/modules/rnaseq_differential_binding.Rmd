@@ -1364,25 +1364,27 @@ cmn_diff <- rnaseq_gsea %>%
   nest(p = starts_with("pval")) %>% 
   mutate(
     pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
-    ) %>%
+  ) %>%
   unnest(p) %>% 
-  mutate(fdr = p.adjust(pval, params$enrichment$adj)) %>% 
+  dplyr::rename(padj_chip = adj_p, padj_rna = padj) %>% 
+  mutate(adj_p = p.adjust(pval, params$enrichment$adj)) %>% 
   arrange(pval) %>% 
-  dplyr::filter(fdr < 0.05) %>% 
+  dplyr::filter(adj_p < 0.05) %>% 
   mutate(
     leadingEdge = lapply(
       leadingEdge, intersect, dplyr::filter(mapped_ids, up | down)$gene_id
     ),
     numDEInCat = vapply(leadingEdge, length, integer(1)),
     Status = case_when(
-      padj < enrich_alpha & adj_p < enrich_alpha ~ "Both",
-      padj < enrich_alpha & !adj_p < enrich_alpha ~ "RNA Only",
-      !padj < enrich_alpha & adj_p < enrich_alpha ~ "ChIP Only",
-      !padj < enrich_alpha & !adj_p < enrich_alpha ~ "Neither"
-    )
+      padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "Both",
+      padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "RNA Only",
+      !padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "ChIP Only",
+      !padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "Neither"
+    ) %>% 
+      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
   ) %>% 
   dplyr::select(
-    gs_name = pathway, fdr, Status, NES, padj, adj_p,
+    gs_name = pathway, adj_p, Status, NES, starts_with("padj"),
     starts_with("num"), leadingEdge
   ) 
 tg_diff <- cmn_diff %>% 
@@ -1432,7 +1434,7 @@ tbl <- cmn_diff %>%
         ),
         minWidth = 120
       ),
-      fdr = colDef(
+      adj_p = colDef(
         name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1441,7 +1443,7 @@ tbl <- cmn_diff %>%
         ),
         maxWidth = 80
       ),
-      Status = colDef(name = "Individual Status", maxWidth = 100),
+      Status = colDef(name = "Prior Status", maxWidth = 100),
       NES = colDef(
         format = colFormat(digits = 2),
         style = function(value) {
@@ -1450,7 +1452,7 @@ tbl <- cmn_diff %>%
         },
         maxWidth = 80
       ),
-      padj = colDef(
+      padj_rna = colDef(
         name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1459,7 +1461,7 @@ tbl <- cmn_diff %>%
         ),
         maxWidth = 80
       ),
-      adj_p = colDef(
+      padj_chip = colDef(
         name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1492,11 +1494,11 @@ div(
 ```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
 tg_diff %>% 
   activate(nodes) %>% 
-  mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
+  mutate(direction = ifelse(NES > 0, "Up", "Down"))%>% 
   ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(fdr), size = numDEInCat),
+    aes(fill = Status, size = numDEInCat),
     shape = 21
   ) +
     geom_node_text(
@@ -1511,7 +1513,7 @@ tg_diff %>%
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_fill_viridis_d(direction = -1) +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -1522,7 +1524,7 @@ tg_diff %>%
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
-    fill = expr(paste(-log[10], fdr))
+    fill = "Prior\nSignificance"
   ) +
   theme_void() +
   theme(legend.text = element_text(hjust = 0.5))
@@ -1543,23 +1545,25 @@ cmn_up <- rnaseq_gsea %>%
     pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
     ) %>%
   unnest(p) %>% 
-  mutate(fdr = p.adjust(pval, params$enrichment$adj)) %>% 
+  dplyr::rename(padj_chip = adj_p, padj_rna = padj) %>% 
+  mutate(adj_p = p.adjust(pval, params$enrichment$adj)) %>% 
   arrange(pval) %>% 
-  dplyr::filter(fdr < 0.05) %>% 
+  dplyr::filter(adj_p < 0.05) %>% 
   mutate(
     leadingEdge = lapply(
       leadingEdge, intersect, dplyr::filter(mapped_ids, up)$gene_id
     ),
     numDEInCat = vapply(leadingEdge, length, integer(1)),
     Status = case_when(
-      padj < enrich_alpha & adj_p < enrich_alpha ~ "Both",
-      padj < enrich_alpha & !adj_p < enrich_alpha ~ "RNA Only",
-      !padj < enrich_alpha & adj_p < enrich_alpha ~ "ChIP Only",
-      !padj < enrich_alpha & !adj_p < enrich_alpha ~ "Neither"
-    )
+      padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "Both",
+      padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "RNA Only",
+      !padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "ChIP Only",
+      !padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "Neither"
+    ) %>% 
+      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
   ) %>% 
   dplyr::select(
-    gs_name = pathway, fdr, Status, NES, padj, adj_p,
+    gs_name = pathway, adj_p, Status, NES, starts_with("padj"),
     starts_with("num"), leadingEdge
   ) 
 tg_up <- cmn_up %>% 
@@ -1609,7 +1613,7 @@ tbl <- cmn_up %>%
         ),
         minWidth = 120
       ),
-      fdr = colDef(
+      adj_p = colDef(
         name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1618,7 +1622,7 @@ tbl <- cmn_up %>%
         ),
         maxWidth = 80
       ),
-      Status = colDef(name = "Individual Status", maxWidth = 100),
+      Status = colDef(name = "Prior Status", maxWidth = 100),
       NES = colDef(
         format = colFormat(digits = 2),
         style = function(value) {
@@ -1627,7 +1631,7 @@ tbl <- cmn_up %>%
         },
         maxWidth = 80
       ),
-      padj = colDef(
+      padj_rna = colDef(
         name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1636,7 +1640,7 @@ tbl <- cmn_up %>%
         ),
         maxWidth = 80
       ),
-      adj_p = colDef(
+      padj_chip = colDef(
         name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1673,10 +1677,10 @@ tg_up %>%
   ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(fdr), size = numDEInCat),
+    aes(fill = Status, size = numDEInCat),
     shape = 21
   ) +
-    geom_node_text(
+  geom_node_text(
     aes(label = label, colour = direction),
     size = 3, 
     data = . %>%
@@ -1688,7 +1692,7 @@ tg_up %>%
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_fill_viridis_d(direction = -1) +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -1699,7 +1703,7 @@ tg_up %>%
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
-    fill = expr(paste(-log[10], fdr))
+    fill = "Prior\nSignificance"
   ) +
   theme_void() +
   theme(legend.text = element_text(hjust = 0.5))
@@ -1719,24 +1723,25 @@ cmn_down <- rnaseq_gsea %>%
   mutate(
     pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
     ) %>%
-  unnest(p) %>% 
-  mutate(fdr = p.adjust(pval, params$enrichment$adj)) %>% 
+  dplyr::rename(padj_chip = adj_p, padj_rna = padj) %>% 
+  mutate(adj_p = p.adjust(pval, params$enrichment$adj)) %>% 
   arrange(pval) %>% 
-  dplyr::filter(fdr < 0.05) %>% 
+  dplyr::filter(adj_p < 0.05) %>% 
   mutate(
     leadingEdge = lapply(
       leadingEdge, intersect, dplyr::filter(mapped_ids, down)$gene_id
     ),
     numDEInCat = vapply(leadingEdge, length, integer(1)),
     Status = case_when(
-      padj < enrich_alpha & adj_p < enrich_alpha ~ "Both",
-      padj < enrich_alpha & !adj_p < enrich_alpha ~ "RNA Only",
-      !padj < enrich_alpha & adj_p < enrich_alpha ~ "ChIP Only",
-      !padj < enrich_alpha & !adj_p < enrich_alpha ~ "Neither"
-    )
+      padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "Both",
+      padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "RNA Only",
+      !padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "ChIP Only",
+      !padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "Neither"
+    ) %>% 
+      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
   ) %>% 
   dplyr::select(
-    gs_name = pathway, fdr, Status, NES, padj, adj_p,
+    gs_name = pathway, adj_p, Status, NES, starts_with("padj"),
     starts_with("num"), leadingEdge
   ) 
 tg_down <- cmn_down %>% 
@@ -1786,7 +1791,7 @@ tbl <- cmn_down %>%
         ),
         minWidth = 120
       ),
-      fdr = colDef(
+      adj_p = colDef(
         name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1795,16 +1800,16 @@ tbl <- cmn_down %>%
         ),
         maxWidth = 80
       ),
-      Status = colDef(name = "Individual Status", maxWidth = 100),
+      Status = colDef(name = "Prior Status", maxWidth = 100),
       NES = colDef(
         format = colFormat(digits = 2),
         style = function(value) {
-          col <- ifelse(value > 0, colours$direction["down"], colours$direction["down"])
+          col <- ifelse(value > 0, colours$direction["up"], colours$direction["down"])
           list(color = col)
         },
         maxWidth = 80
       ),
-      padj = colDef(
+      padj_rna = colDef(
         name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1813,7 +1818,7 @@ tbl <- cmn_down %>%
         ),
         maxWidth = 80
       ),
-      adj_p = colDef(
+      padj_chip = colDef(
         name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
@@ -1850,10 +1855,10 @@ tg_down %>%
   ggraph(layout = net_layout, weights = 1/d^2) +
   geom_edge_link(aes(width = d, alpha = d)) +
   geom_node_point(
-    aes(fill = -log10(fdr), size = numDEInCat),
+    aes(fill = Status, size = numDEInCat),
     shape = 21
   ) +
-    geom_node_text(
+  geom_node_text(
     aes(label = label, colour = direction),
     size = 3, 
     data = . %>%
@@ -1865,7 +1870,7 @@ tg_down %>%
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_fill_viridis_d(direction = -1) +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), trans = "reciprocal") +
   scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
@@ -1876,7 +1881,7 @@ tg_down %>%
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
-    fill = expr(paste(-log[10], fdr))
+    fill = "Prior\nSignificance"
   ) +
   theme_void() +
   theme(legend.text = element_text(hjust = 0.5))
