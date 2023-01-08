@@ -134,6 +134,8 @@ if (length(rna_path) > 0) {
   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
   genes_gr <- subset(genes_gr, gene_id %in% rnaseq$gene_id)
+  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
+  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
 }
 has_rnaseq <- as.logical(nrow(rnaseq))
 tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
@@ -1563,8 +1565,6 @@ if (has_features) {
 hfgc_genes <- trans_models
 gene_col <- "grey"
 if (has_rnaseq){
-  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
-  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
   if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
     hfgc_genes <- trans_models %>% 
       mutate(
@@ -2231,7 +2231,7 @@ pwf_diff <- genes_gr %>%
       plot.fit = FALSE
     )
   )
-goseq_diff <- tibble(gs_name = character(), adj_p = numeric())
+goseq_diff <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
 if (sum(pwf_diff$DEgenes) > 0) {
   goseq_diff <- goseq(
     pwf_diff, config$genome$build, gene2cat = gs_by_geneid, method = "Hypergeometric"
@@ -2404,7 +2404,7 @@ pwf_up <- genes_gr %>%
       plot.fit = FALSE
     )
   )
-goseq_up <- tibble(gs_name = character(), adj_p = numeric())
+goseq_up <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
 if (sum(pwf_up$DEgenes) > 0) {
   goseq_up <- goseq(
     pwf_up, config$genome$build, gene2cat = gs_by_geneid, method = "Hypergeometric"
@@ -2578,7 +2578,7 @@ pwf_down <- genes_gr %>%
       plot.fit = TRUE
     )
   )
-goseq_down <- tibble(gs_name = character(), adj_p = numeric())
+goseq_down <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
 if (sum(pwf_down$DEgenes) > 0) {
   goseq_down <- goseq(
     pwf_down, config$genome$build, gene2cat = gs_by_geneid, method = "Hypergeometric"
