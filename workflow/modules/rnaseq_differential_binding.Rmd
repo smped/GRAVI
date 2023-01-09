@@ -1351,6 +1351,7 @@ rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) %>%
 The enrichment testing results from the `r target` differential binding analysis were then
 compared to GSEA results obtained from the RNA-Seq data set.
 Given the orthogonal nature of the two dataset, p-values from each analysis were combined using Wilkinson's maximum p-value method and the resulting p-values adjusted as previously.
+Distances between nodes (gene-sets) for all network plots were determined by using ChIP target genes within the leading edge only.
 
 ### Differentially Bound Windows {.tabset}
 
@@ -1383,12 +1384,13 @@ cmn_diff <- rnaseq_gsea %>%
     ) %>% 
       factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
   ) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
   dplyr::select(
     gs_name = pathway, adj_p, Status, NES, starts_with("padj"),
     starts_with("num"), leadingEdge
   ) 
 tg_diff <- cmn_diff %>% 
-  make_tbl_graph(gs_by_gsid)
+  make_tbl_graph(setNames(.$leadingEdge, .$gs_name))
 plot_net <- length(tg_diff) >= min_network_size
 txt <- ifelse(
   nrow(cmn_diff) == 0,
@@ -1495,8 +1497,8 @@ div(
 tg_diff %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down"))%>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = Status, size = numDEInCat),
     shape = 21
@@ -1515,16 +1517,17 @@ tg_diff %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_d(direction = -1) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
   scale_colour_manual(
     values = setNames(direction_colours, str_to_title(names(direction_colours)))
   ) +
-  guides(edge_width = "none", edge_alpha= "none") +
+  guides(edge_alpha= "none") +
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
-    fill = "Prior\nSignificance"
+    fill = "Prior\nSignificance",
+    edge_width = expr(paste(OC^2))
   ) +
   theme_void() +
   theme(legend.text = element_text(hjust = 0.5))
@@ -1562,12 +1565,15 @@ cmn_up <- rnaseq_gsea %>%
     ) %>% 
       factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
   ) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
   dplyr::select(
     gs_name = pathway, adj_p, Status, NES, starts_with("padj"),
     starts_with("num"), leadingEdge
   ) 
 tg_up <- cmn_up %>% 
-  make_tbl_graph(gs_by_gsid)
+  make_tbl_graph(
+    setNames(.$leadingEdge, .$gs_name)
+  )
 plot_net <- length(tg_up) >= min_network_size
 txt <- ifelse(
   nrow(cmn_up) == 0,
@@ -1674,8 +1680,8 @@ div(
 tg_up %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = Status, size = numDEInCat),
     shape = 21
@@ -1694,16 +1700,17 @@ tg_up %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_d(direction = -1) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
   scale_colour_manual(
     values = setNames(direction_colours, str_to_title(names(direction_colours)))
   ) +
-  guides(edge_width = "none", edge_alpha= "none") +
+  guides(edge_alpha= "none") +
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
-    fill = "Prior\nSignificance"
+    fill = "Prior\nSignificance",
+    edge_width = expr(paste(OC^2))
   ) +
   theme_void() +
   theme(legend.text = element_text(hjust = 0.5))
@@ -1740,12 +1747,15 @@ cmn_down <- rnaseq_gsea %>%
     ) %>% 
       factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
   ) %>% 
+  dplyr::filter(numDEInCat > 0) %>% 
   dplyr::select(
     gs_name = pathway, adj_p, Status, NES, starts_with("padj"),
     starts_with("num"), leadingEdge
   ) 
 tg_down <- cmn_down %>% 
-  make_tbl_graph(gs_by_gsid)
+  make_tbl_graph(
+    setNames(.$leadingEdge, .$gs_name)
+  )
 plot_net <- length(tg_down) >= min_network_size
 txt <- ifelse(
   nrow(cmn_down) == 0,
@@ -1852,8 +1862,8 @@ div(
 tg_down %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = Status, size = numDEInCat),
     shape = 21
@@ -1872,16 +1882,17 @@ tg_down %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_d(direction = -1) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
   scale_colour_manual(
     values = setNames(direction_colours, str_to_title(names(direction_colours)))
   ) +
-  guides(edge_width = "none", edge_alpha= "none") +
+  guides(edge_alpha= "none") +
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
-    fill = "Prior\nSignificance"
+    fill = "Prior\nSignificance",
+    edge_width = expr(paste(OC^2))
   ) +
   theme_void() +
   theme(legend.text = element_text(hjust = 0.5))

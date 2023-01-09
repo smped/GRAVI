@@ -60,9 +60,15 @@ make_tbl_graph <- function(
     max_gs = max_network_size
 ) {
   res <- dplyr::filter(res, adj_p < alpha)
-  res <- dplyr::slice(res, seq_len(max_gs))
+  res <- arrange(res, adj_p)
   if (nrow(res) < 2) return(tbl_graph())
-  nm <- res$gs_name
+  ## If the gene sets are identical, retain the first (most-significant) only
+  gs <- gs[res$gs_name]
+  nm <- gs %>%
+    vapply(paste, character(1), collapse = "; ") %>%
+    .[!duplicated(.)] %>%
+    names() %>%
+    .[seq_len(min(c(length(.), max_gs)))]
   combs <- combn(nm, 2)
   d <- lapply(
     seq_len(ncol(combs)),
@@ -79,16 +85,16 @@ make_tbl_graph <- function(
     t() %>%
     set_colnames(c("from", "to")) %>%
     as_tibble() %>%
-    mutate(d = unlist(d)) %>%
-    dplyr::filter(d < min_dist)
-  ## If there is a distance of zero, take the most highly ranked
-  omit <- dplyr::filter(edges, d == 0)$to
-  nodes <- tibble(id = seq_along(nm), label = nm) %>%
-    dplyr::filter(!id %in% omit) %>%
+    mutate(d = unlist(d), oc = 1 -d) %>%
+    dplyr::filter(d <= max_network_dist)
+  ## Subsume any with d == 0 into the more highly ranked
+  omit <- c()
+  omit <- unique(dplyr::filter(edges, d == 0)$to)
+  edges <- dplyr::filter(edges, d > 0, !from %in% omit, !to %in% omit)
+  nodes <- tibble(label = setdiff(nm, omit)) %>%
     left_join(res, by = c("label" = "gs_name")) %>%
     mutate(prop = numDEInCat / numInCat)
-  edges <- dplyr::filter(edges, d > 0)
-  node_ids <- setNames(nodes$id, nodes$label)
+  node_ids <- setNames(seq_along(nodes$label), nodes$label)
   edges$from <- node_ids[edges$from]
   edges$to <- node_ids[edges$to]
   tbl_graph(nodes = nodes, edges = edges, directed = FALSE)

@@ -2081,7 +2081,12 @@ if (sum(pwf_mapped$DEgenes) > 0) {
     mutate(adj_p = p.adjust(pval, adj_method))
 }
 any_goseq_mapped <- sum(goseq_mapped$adj_p < enrich_alpha) > 0
-tg_mapped <- make_tbl_graph(goseq_mapped, gs = gs_by_gsid)
+tg_mapped <- make_tbl_graph(
+  goseq_mapped, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_mapped, DEgenes))) %>% 
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_mapped <- length(tg_mapped) >= min_network_size
 ```
 
@@ -2192,8 +2197,8 @@ div(class = "table",
 
 ```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site for {target}.*")}
 tg_mapped %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2212,10 +2217,10 @@ tg_mapped %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2253,7 +2258,12 @@ if (sum(pwf_diff$DEgenes) > 0) {
     mutate(adj_p = p.adjust(pval, adj_method))
 }
 any_goseq_diff <- sum(goseq_diff$adj_p < enrich_alpha) > 0
-tg_diff <- make_tbl_graph(goseq_diff, gs = gs_by_gsid)
+tg_diff <- make_tbl_graph(
+  goseq_diff, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_diff, DEgenes))) %>%
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_diff <- length(tg_diff) >= min_network_size
 ```
 
@@ -2366,8 +2376,8 @@ div(class = "table",
 
 ```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing gene-sets enriched amongst those differential signal for {target}.*")}
 tg_diff %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2386,10 +2396,10 @@ tg_diff %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2426,7 +2436,12 @@ if (sum(pwf_up$DEgenes) > 0) {
     mutate(adj_p = p.adjust(pval, adj_method))
 }
 any_goseq_up <- sum(goseq_up$adj_p < enrich_alpha) > 0
-tg_up <- make_tbl_graph(goseq_up, gs = gs_by_gsid)
+tg_up <- make_tbl_graph(
+  goseq_up, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_up, DEgenes))) %>%
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_up <- length(tg_up) >= min_network_size
 ```
 
@@ -2539,8 +2554,8 @@ div(class = "table",
 
 ```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing  gene-sets enriched amongst those showing increased signal for {target}.*")}
 tg_up %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2559,10 +2574,10 @@ tg_up %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2600,7 +2615,12 @@ if (sum(pwf_down$DEgenes) > 0) {
     mutate(adj_p = p.adjust(pval, adj_method))
 }
 any_goseq_down <- sum(goseq_down$adj_p < enrich_alpha) > 0
-tg_down <- make_tbl_graph(goseq_down, gs = gs_by_gsid)
+tg_down <- make_tbl_graph(
+  goseq_down, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_down, DEgenes))) %>%
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_down <- length(tg_down) >= min_network_size
 ```
 
@@ -2713,8 +2733,8 @@ div(class = "table",
 
 ```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing gene-sets enriched amongst those showing decreased signal for {target}.*")}
 tg_down %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2733,10 +2753,10 @@ tg_down %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "% Gene-Set") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 

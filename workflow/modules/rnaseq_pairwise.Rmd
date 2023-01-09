@@ -546,11 +546,14 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 knitr::opts_chunk$set(dev = fig_dev)
 ```
 
-## Integration Of RNA-Seq GSEA With Pairwise Enrichment Results
+## Integration With RNA-Seq GSEA
 
 Directional GSEA was performed on the set of RNA-Seq results and given that enrichment for differentially bound target is an orthogonal measure, enrichment for a set of potential pathways for each pairwise set of regions was performed.
 The p-values from binding enrichment and GSEA were combined using Wilkinson's method for meta-analysis, taking the maximum p-value and adjusting the resulting p-value using the same strategy as earlier.
 Any pathways are annotated as being significant in *both, either or neither* dataset when being analysed individually.
+
+Distances between nodes (gene-sets) for any network plots were estimated by using the similarity of genes within the leading edge which were also mapped to bding regions showing the respective pattern.
+If the genes of interest from any two pathways were identical, only the most highly-ranked pathway was included in the network, and similarly if one gene-set was a subset of another, the most highly-ranked was retained for visualisation.
 
 ```{r cmn-sig}
 rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) 
@@ -595,9 +598,18 @@ cmn_res <- goseq_group_res %>%
     group, gs_name, adj_p, NES, status, starts_with("padj"),
     starts_with("num"), leadingEdge, genes
   ) %>% 
-  lapply(dplyr::filter, str_detect(genes, ";")) %>% 
+  lapply(dplyr::filter, numDEInCat > 0) %>% 
   .[vapply(., nrow, integer(1)) > 0] 
-tg_cmn <- lapply(cmn_res, make_tbl_graph, gs = gs_by_gsid) %>% 
+tg_cmn <- names(cmn_res) %>% 
+  lapply(
+    function(x) {
+      make_tbl_graph(
+        cmn_res[[x]],
+        setNames(cmn_res[[x]]$leadingEdge, cmn_res[[x]]$gs_name)
+      )
+    }
+  ) %>% 
+  setNames(names(cmn_res)) %>% 
   .[vapply(., length, integer(1)) >= min_network_size]
 any_sig <- length(cmn_res) > 0
 plot_net <- length(tg_cmn) > 0
@@ -720,8 +732,8 @@ htmltools::tagList(
         p <- tg_cmn[[x]] %>%
           activate(nodes) %>% 
           mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
-          ggraph(layout = net_layout, weights = 1/d^2) +
-          geom_edge_link(aes(width = d, alpha = d)) +
+          ggraph(layout = net_layout, weights = oc^3) +
+          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
           geom_node_point(
             aes(fill = status, size = numDEInCat),
             shape = 21
@@ -741,19 +753,20 @@ htmltools::tagList(
           scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_fill_viridis_d(direction = -1) +
           scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-          scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
+          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
           scale_colour_manual(
             values = setNames(
               unlist(colours$direction), 
               str_to_title(names( unlist(colours$direction)))
             )
           ) +
-          guides(edge_width = "none", edge_alpha= "none") +
+          guides(edge_alpha= "none") +
           labs(
             size = glue("{x} Targets In Leading Edge") %>% str_wrap(15),
             colour = "GSEA\nDirection",
-            fill = "Prior\nStatus"
+            fill = "Prior\nStatus",
+            edge_width = expr(paste(OC^2))
           ) +
           theme_void()
         print(p)

@@ -1529,7 +1529,12 @@ goseq_mapped_res <- pwf_mapped %>%
     gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
   )
 any_goseq_mapped <- sum(goseq_mapped_res$adj_p < enrich_alpha) > 0
-tg_mapped <- make_tbl_graph(goseq_mapped_res, gs = gs_by_gsid)
+tg_mapped <- make_tbl_graph(
+  goseq_mapped_res, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_mapped, DEgenes))) %>% 
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_mapped <- length(tg_mapped) >= min_network_size
 ```
 
@@ -1671,7 +1676,12 @@ if (sum(pwf_t1t2$DEgenes) > 0) {
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
 any_goseq_t1t2 <- sum(goseq_t1t2_res$adj_p < enrich_alpha) > 0
-tg_t1t2 <- make_tbl_graph(goseq_t1t2_res, gs = gs_by_gsid)
+tg_t1t2 <- make_tbl_graph(
+  goseq_t1t2_res, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_t1t2, DEgenes))) %>% 
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_t1t2 <- length(tg_t1t2) >= min_network_size
 if (!any_goseq_t1t2) para <- glue(para, " No enrichment was found.")
 ```
@@ -1795,7 +1805,12 @@ if (sum(pwf_t1only$DEgenes) > 0) {
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
 any_goseq_t1only <- sum(goseq_t1only_res$adj_p < enrich_alpha) > 0
-tg_t1only <- make_tbl_graph(goseq_t1only_res, gs = gs_by_gsid)
+tg_t1only <- make_tbl_graph(
+  goseq_t1only_res, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_t1only, DEgenes))) %>% 
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_t1only <- length(tg_t1only) >= min_network_size
 if (!any_goseq_t1only) para <- glue(para, " No enrichment was found.")
 ```
@@ -1919,7 +1934,12 @@ if (sum(pwf_t2only$DEgenes) > 0) {
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
 any_goseq_t2only <- sum(goseq_t2only_res$adj_p < enrich_alpha) > 0
-tg_t2only <- make_tbl_graph(goseq_t2only_res, gs = gs_by_gsid)
+tg_t2only <- make_tbl_graph(
+  goseq_t2only_res, 
+  gs = gs_by_gsid %>% 
+    lapply(intersect, rownames(subset(pwf_t2only, DEgenes))) %>% 
+    .[vapply(., length, integer(1)) > 0]
+)
 plot_network_t2only <- length(tg_t2only) >= min_network_size
 if (!any_goseq_t2only) para <- glue(para, " No enrichment was found.")
 ```
@@ -1997,8 +2017,8 @@ div(class = "table",
 
 ```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site from __either__ comparison.*")}
 tg_mapped %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2017,10 +2037,10 @@ tg_mapped %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2028,8 +2048,8 @@ tg_mapped %>%
 
 ```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}.*")}
 tg_t1t2 %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2048,10 +2068,10 @@ tg_t1t2 %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2059,8 +2079,8 @@ tg_t1t2 %>%
 
 ```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[1]]} only__.*")}
 tg_t1only %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2079,10 +2099,10 @@ tg_t1only %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2090,8 +2110,8 @@ tg_t1only %>%
 
 ```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[2]]} only__.*")}
 tg_t2only %>% 
-  ggraph(layout = net_layout, weights = 1/d^2) +
-  geom_edge_link(aes(width = d, alpha = d)) +
+  ggraph(layout = net_layout, weights = oc^3) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
@@ -2110,10 +2130,10 @@ tg_t2only %>%
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_fill_viridis_c(option = "inferno", begin = 0.25) +
   scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-  scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-  guides(edge_width = "none", edge_alpha= "none") +
-  labs(size = "Mapped Genes") +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
+  guides(edge_alpha= "none") +
+  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
@@ -2161,8 +2181,17 @@ goseq_group_res <- group_ids %>%
 goseq_group_sig <- goseq_group_res %>% 
   lapply(dplyr::filter, adj_p < enrich_alpha) %>% 
   .[vapply(., nrow, integer(1)) > 0]
-tg_group_res <- goseq_group_res %>% 
-  mclapply(make_tbl_graph, gs = gs_by_gsid, mc.cores = threads) %>% 
+tg_group_res <- names(goseq_group_sig) %>% 
+  lapply(
+    function(x) {
+      make_tbl_graph(
+        goseq_group_sig[[x]],
+        gs_by_gsid[goseq_group_sig[[x]]$gs_name] %>%
+          lapply(intersect, group_ids[[x]])
+      )
+    }
+  ) %>% 
+  setNames(names(goseq_group_sig)) %>% 
   .[vapply(., length, integer(1)) >= min_network_size]
 ```
 
@@ -2185,7 +2214,8 @@ htmltools::tagList(
           All {comma(length(group_ids[[x]]), 1)} genes mapped to binding windows
            with the pattern {x} were compared to the complete set of 
           {comma(length(mapped_ids), 1)} genes mapped to at least one binding
-          window.
+          window. {nrow(goseq_group_sig[[x]])} gene-sets were considered as 
+          enriched using a threshold of {enrich_alpha} for adjusted-p-values.
           "
         )
         htmltools::div(
@@ -2322,8 +2352,8 @@ htmltools::tagList(
           height = knitr::opts_current$get("fig.height")
         )
         p <- tg_group_res[[x]] %>%
-          ggraph(layout = net_layout, weights = 1/d^2) +
-          geom_edge_link(aes(width = d, alpha = d)) +
+          ggraph(layout = net_layout, weights =oc^3) +
+          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
           geom_node_point(
             aes(fill = -log10(pval), size = numDEInCat),
             shape = 21
@@ -2343,10 +2373,10 @@ htmltools::tagList(
           scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
           scale_fill_viridis_c(option = "inferno", begin = 0.25) +
           scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), trans = "reciprocal") +
-          scale_edge_alpha(range = c(0.1, 0.4), trans= "reciprocal") +
-          guides(edge_width = "none", edge_alpha= "none") +
-          labs(size = "Mapped Genes") +
+          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
+          guides(edge_alpha= "none") +
+          labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
           theme_void()
         print(p)
         dev.off()
