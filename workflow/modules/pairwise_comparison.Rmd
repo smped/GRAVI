@@ -345,7 +345,6 @@ out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
 )
 if (!dir.exists(out_path)) dir.create(out_path)
-de_genes_both_comps <- tibble()
 all_out <- list(
   csv = file.path(
     out_path, glue(comp_name, "-pairwise_comparison.csv.gz"
@@ -355,14 +354,25 @@ all_out <- list(
     out_path, 
     glue("{comp_name}-de_genes.csv")
   ),
+  goseq = file.path(
+    out_path,
+    glue("{comp_name}-enrichment.csv")
+  ),
   results = file.path(
     out_path, glue(comp_name, "-all_windows.rds")
+  ),
+  rna_enrichment = file.path(
+    out_path,
+    glue("{comp_name}-rnaseq-enrichment.csv")
   ),
   renv = here::here(
     "output", "envs",
     glue(comp_name, "-pairwise_comparison.RData")
   )
 )
+## Empty objects for when RNA-Seq is absent
+de_genes_both_comps <- tibble()
+cmn_res <- list(tibble(gs_name = character(), leadingEdge = list()))
 ```
 
 
@@ -2972,6 +2982,16 @@ all_windows %>%
     gzfile(all_out$csv)
   )
 write_csv(de_genes_both_comps, all_out$de_genes)
+goseq_group_sig %>% 
+  bind_rows() %>% 
+  write_csv(all_out$goseq)
+cmn_res %>% 
+  bind_rows() %>% 
+  mutate(
+    leadingEdge = vapply(leadingEdge, paste, character(1), collapse = "; "),
+    gs_url = gs_url[gs_name]
+  ) %>% 
+  write_csv(all_out$rna_enrichment)
 ```
 
 

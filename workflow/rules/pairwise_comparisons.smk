@@ -73,9 +73,15 @@ rule compile_pairwise_comparisons_html:
 				"{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_files"
 			)
 		),
-		csv = os.path.join(
-			"output", "pairwise_comparisons", "{t1}_{t2}",
-			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.csv.gz"
+		csv = expand(
+			os.path.join(
+				"output", "pairwise_comparisons", "{{t1}}_{{t2}}",
+			"{{t1}}_{{ref1}}_{{treat1}}-{{t2}}_{{ref2}}_{{treat2]}-{f}"
+			),
+			f = [
+				'pairwise_comparison.csv.gz', 'enrichment.csv', 
+				'rnaseq-enrichment.csv'
+				]
 		),
 		rds = os.path.join(
 			"output", "pairwise_comparisons", "{t1}_{t2}",
