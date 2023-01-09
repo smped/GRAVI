@@ -80,7 +80,7 @@ rule compile_pairwise_comparisons_html:
 			),
 			f = [
 				'pairwise_comparison.csv.gz', 'enrichment.csv', 
-				'rnaseq-enrichment.csv'
+				'rnaseq_enrichment.csv'
 				]
 		),
 		rds = os.path.join(
