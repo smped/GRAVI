@@ -159,10 +159,11 @@ rule compile_differential_binding_html:
 		),
 		outs = expand(
 			os.path.join(
-				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{file}"
+				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}"
 			),
-			file = [
-				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv'
+			f = [
+				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv', 'enrichment.csv',
+				'rnaseq_enrichment.csv'
 			]
 		),
 		win = os.path.join(

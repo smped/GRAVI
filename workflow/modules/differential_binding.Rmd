@@ -276,6 +276,13 @@ all_out <- list(
   de_genes = file.path(
     out_path, glue("{target}_{treat_levels[1]}_{treat_levels[2]}-DE_genes.csv")
   ),
+  enrichment = file.path(
+    out_path, glue("{target}_{treat_levels[1]}_{treat_levels[2]}-enrichment.csv")
+  ),
+  rna_enrichment = file.path(
+    out_path, 
+    glue("{target}_{treat_levels[1]}_{treat_levels[2]}-rnaseq_enrichment.csv")
+  ),
   renv = here::here(
     "output/envs",
     glue(
@@ -283,6 +290,8 @@ all_out <- list(
     )
   )
 )
+## Initialise outputs from RNA-Seq
+cmn_diff <- cmn_up <- cmn_down <- tibble(leadingEdge = list())
 ```
 
 ```{r method-descriptions, echo = FALSE}
@@ -2781,6 +2790,45 @@ if (sum(merged_results$status == "Down") > 0) {
     granges() %>% 
     export.bed(all_out$up_regions)
 }
+## Enrichment results need a bit of tweaking to match the tables
+list2(
+  `All Differentially Bound` = goseq_diff,
+  "All Increased {target}" := goseq_up,
+  "All Decreased {target}" := goseq_down
+) %>% 
+  bind_rows(.id = 'group') %>% 
+  dplyr::filter(adj_p < enrich_alpha) %>% 
+  left_join(
+    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    by = "gs_name"
+  ) %>% 
+  dplyr::filter(
+    gene_id %in% unlist(subset(merged_results, status != "Unchanged")$gene_id)
+  ) %>% 
+  dplyr::select(-gene_id) %>% 
+  chop(gene_name) %>% 
+  mutate(
+    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    `%` = numDEInCat / numInCat,
+  ) %>% 
+  dplyr::select(
+    group,
+    `Gene Set` = gs_name, Description = gs_description, URL = gs_url,
+    `%`, numDEInCat, numInCat, p = pval, adj_p, 
+    `Genes Mapped to DB Windows` = gene_name
+  ) %>% 
+  write_csv(all_out$enrichment)
+list2(
+  `All Differentially Bound` = cmn_diff,
+  "All Increased {target}" := cmn_up,
+  "All Decreased {target}" := cmn_down
+) %>% 
+  bind_rows(.id = "group") %>% 
+  mutate(
+    genes = vapply(leadingEdge, paste, character(1), collapse = "; "),
+    leadingEdge = vapply(leadingEdge, paste, character(1), collapse = "; "),
+  ) %>% 
+  write_csv(all_out$rna_enrichment)
 ## Save key memory on the HDD
 rm(window_counts)
 gc()
