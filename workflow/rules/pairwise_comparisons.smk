@@ -76,7 +76,7 @@ rule compile_pairwise_comparisons_html:
 		csv = expand(
 			os.path.join(
 				"output", "pairwise_comparisons", "{{t1}}_{{t2}}",
-			"{{t1}}_{{ref1}}_{{treat1}}-{{t2}}_{{ref2}}_{{treat2]}-{f}"
+			"{{t1}}_{{ref1}}_{{treat1}}-{{t2}}_{{ref2}}_{{treat2}}-{f}"
 			),
 			f = [
 				'pairwise_comparison.csv.gz', 'enrichment.csv', 
