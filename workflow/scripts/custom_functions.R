@@ -88,9 +88,15 @@ make_tbl_graph <- function(
     mutate(d = unlist(d), oc = 1 -d) %>%
     dplyr::filter(d <= max_network_dist)
   ## Subsume any with d == 0 into the more highly ranked
+  ##
+  ## This needs to happen sequentially
   omit <- c()
-  omit <- unique(dplyr::filter(edges, d == 0)$to)
-  edges <- dplyr::filter(edges, d > 0, !from %in% omit, !to %in% omit)
+  continue <- any(edges$d == 0)
+  while (continue) {
+    omit <- c(omit, edges$to[which(edges$d == 0)[1]])
+    edges <- dplyr::filter(edges, !from %in% omit, !to %in% omit)
+    continue <- any(edges$d == 0)
+  }
   nodes <- tibble(label = setdiff(nm, omit)) %>%
     left_join(res, by = c("label" = "gs_name")) %>%
     mutate(prop = numDEInCat / numInCat)

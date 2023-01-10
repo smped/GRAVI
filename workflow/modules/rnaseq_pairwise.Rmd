@@ -628,6 +628,7 @@ htmltools::tagList(
             gs_name, adj_p, NES, status, starts_with("padj"), numDEInCat, genes
           )
         tbl <- df %>% 
+          arrange(adj_p) %>% 
           reactable(
             filterable = TRUE, showPageSizeOptions = TRUE,
             columns = list(
