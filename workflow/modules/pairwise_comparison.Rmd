@@ -2069,7 +2069,7 @@ tg_mapped %>%
   theme_void() 
 ```
 
-`r if (plot_network_t1t2) paste("#### Genes Mapped to Both", glue_collapse(comps, last = ' or '))`
+`r if (plot_network_t1t2) paste("#### Genes Mapped to Both", glue_collapse(comps, last = ' and '))`
 
 ```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}.*")}
 tg_t1t2 %>% 

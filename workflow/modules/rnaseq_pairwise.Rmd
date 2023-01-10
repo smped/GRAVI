@@ -551,7 +551,13 @@ Distances between nodes (gene-sets) for any network plots were estimated by usin
 If the genes of interest from any two pathways were identical, only the most highly-ranked pathway was included in the network, and similarly if one gene-set was a subset of another, the most highly-ranked was retained for visualisation.
 
 ```{r cmn-sig}
-rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) 
+rnaseq_gsea <- fgsea(
+  pathways = gs_by_gsid,
+  stats = rna_dir_ranks, 
+  minSize = min_gs_size, 
+  maxSize = max_gs_size
+) %>% 
+  dplyr::filter(!is.na(pval))
 cmn_res <- goseq_group_res %>% 
   lapply(dplyr::select, group, gs_name, pval_goseq = pval, adj_p, starts_with("num")) %>% 
   lapply(

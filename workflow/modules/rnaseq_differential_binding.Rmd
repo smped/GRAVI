@@ -1344,7 +1344,12 @@ knitr::opts_chunk$set(dev = fig_dev)
 ## Integration With Gene Expression GSEA
 
 ```{r rnaseq-gsea}
-rnaseq_gsea <- fgsea(gs_by_gsid, rna_dir_ranks) %>% 
+rnaseq_gsea <- fgsea(
+  pathways = gs_by_gsid,
+  stats = rna_dir_ranks, 
+  minSize = min_gs_size, 
+  maxSize = max_gs_size
+) %>% 
   dplyr::filter(!is.na(pval))
 ```
 

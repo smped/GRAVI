@@ -26,6 +26,7 @@ enrichment:
   ## Only gene-sets between these two values will be retained before testing
   min_size: 5
   max_size: 1000
+  ## Only gene-sets above this size will be shown in the results
   min_sig: 3
   ## The categories to use from MSigDB. These are passed to msigdbr in the
   ## columns of the same name in an 'OR' approach
@@ -39,7 +40,7 @@ enrichment:
 
 ## Used for network plots
 networks:
-  min_size: 3
-  max_size: 60
+  min_size: 4
+  max_size: 80
   max_distance: 0.9
   layout: 'fr'

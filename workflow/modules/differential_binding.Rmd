@@ -2018,7 +2018,7 @@ mapped_ids <- merged_results %>%
 ```
 
 As an initial exploration, the retained windows were compared to pre-defined gene-sets.
-These were taken from the `MSigDB` database and the gene-sets used for enrichment testing were:
+These were taken from the `MSigDB` database and the gene-sets used for enrichment testing were restricted to only include those with $\geq$ `r min_gs_size` and $\leq$ `r max_gs_size`.
 
 ```{r tbl-msigdb}
 msigdb %>% 
@@ -2062,9 +2062,10 @@ Retained windows were tested for enrichment of these gene-sets using:
 In the first case, mapped genes were tested for enrichment against all annotated genes, or all detected genes if RNA-Seq data was provided.
 In the second case, i.e. Differentially Bound Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
+After adjustment, any enriched gene-sets with fewer than `r min_sig` mapped genes were excluded as being uninformative.
 
 If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at `r max_network_size`.
-The distances between gene-sets were calculated using the overlap coefficient (OC), such that $d = 1 - OC$.
+The distances between gene-sets were calculated using the overlap coefficient (OC).
 Gene-sets with a large overlap will thus be given small distances and in the case of a complete overlap ($OC = 1$) the only most highly ranked gene-set was retained.
 Gene-set (i.e. node) pairs with a distance > `r max_network_dist` will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
 All network plots were generated using the `r net_layout` layout algorithm.
