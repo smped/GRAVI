@@ -1502,7 +1502,7 @@ div(
 tg_diff %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down"))%>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = Status, size = numDEInCat),
@@ -1685,7 +1685,7 @@ div(
 tg_up %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = Status, size = numDEInCat),
@@ -1867,7 +1867,7 @@ div(
 tg_down %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = Status, size = numDEInCat),

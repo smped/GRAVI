@@ -2219,7 +2219,7 @@ div(class = "table",
 
 ```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site for {target}.*")}
 tg_mapped %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2399,7 +2399,7 @@ div(class = "table",
 
 ```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing gene-sets enriched amongst those differential signal for {target}.*")}
 tg_diff %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2578,7 +2578,7 @@ div(class = "table",
 
 ```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing  gene-sets enriched amongst those showing increased signal for {target}.*")}
 tg_up %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2758,7 +2758,7 @@ div(class = "table",
 
 ```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing gene-sets enriched amongst those showing decreased signal for {target}.*")}
 tg_down %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),

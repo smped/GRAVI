@@ -1383,6 +1383,580 @@ all_windows %>%
 ```
 
 
+# Combined Binding
+
+## Heatmaps {.tabset}
+
+A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where binding was detected as changed in at least one of the comparisons.
+If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
+If only one target is detected within a range, peaks are centred at the range with maximal signal.
+Scales for fill and average signal (both logCPM) are held constant across all plots for easier comparison between groups.
+
+```{r form-profile-heatmaps}
+## Set the BWFL as a single object incorporating target & treatment names
+fl <- seq_along(pairs) %>% 
+  lapply(
+    function(x) {
+      file.path(
+        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
+      ) %>% 
+        setNames(paste(names(pairs)[[x]], pairs[[x]]))
+    } 
+  )%>% 
+  unlist() %>% 
+  .[!duplicated(.)]
+bwfl <- setNames(BigWigFileList(fl), names(fl))
+grl_to_plot <- all_windows %>% 
+  split(.$status) %>% 
+  .[str_detect(names(.),"Up|Down")] %>% 
+  .[vapply(., length, integer(1)) > 25] %>% # Only show groups with > 10 ranges
+  lapply(
+    mutate, 
+    centre = rowMeans(cbind(!!sym(c1_centre), !!sym(c2_centre)), na.rm = TRUE),
+    rng = paste0(seqnames, ":", as.integer(centre))
+  ) %>% 
+  lapply(function(x) GRanges(x$rng, seqinfo = sq)) %>% 
+  GRangesList()
+profile_width <- 5e3
+x_lab <- c(
+  seq(0, floor(0.5 * profile_width / 1e3), length.out = 3),
+  seq(-floor(0.5 * profile_width / 1e3), 0, length.out = 3)
+) %>% 
+  sort() %>% 
+  unique()
+n_bins <- 100
+sig_profiles <- mclapply(
+  grl_to_plot, 
+  function(x) getProfileData(
+    bwfl, x, upstream = profile_width / 2, bins = n_bins
+  ),
+  mc.cores = min(length(grl_to_plot), threads)
+)
+## Currently, this is set to CPM as the only possible output of 
+## extraChIPs::getProfileData. Until this is rectified, manually log-transform
+sig_profiles <- sig_profiles %>% 
+  mclapply(
+    function(x) {
+      temp_gr <- unlist(x)
+      temp_gr$profile_data <- lapply(
+        temp_gr$profile_data,
+        function(pd) {
+          pd$score <- log2(pd$score + 1)
+          pd
+        }
+      )
+      temp_gr$profile_data <- as(temp_gr$profile_data, "SplitDataFrameList")
+      out <- split(temp_gr, names(temp_gr))
+      out <- lapply(out, setNames, NULL)[names(x)]
+      GRangesList(out)
+    },
+    mc.cores = min(length(grl_to_plot), threads)
+  ) 
+profile_heatmaps <- sig_profiles %>% 
+  mclapply(
+    plotProfileHeatmap,
+    profileCol = "profile_data", 
+    xLab = "Distance from Centre (bp)",
+    fillLab = "logCPM",
+    colour = "name",
+    mc.cores = min(length(grl_to_plot), threads)
+  ) 
+fill_range <- profile_heatmaps %>% 
+  lapply(function(x) x$data[,"score"]) %>% 
+  unlist() %>%
+  c(0) %>% 
+  range()
+sidey_range <- profile_heatmaps %>% 
+  lapply(function(x) x$layers[[3]]$data$y) %>% 
+  unlist() %>% 
+  range()
+profile_heatmaps <- profile_heatmaps %>% 
+  lapply(
+    function(x) {
+      x + 
+        scale_x_continuous(
+          breaks = x_lab * 1e3, labels = x_lab, expand = expansion(0)
+        ) +
+        scale_xsidey_continuous(limits = sidey_range) +
+        scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
+        scale_colour_manual(
+          values = lapply(
+            seq_along(pairs), 
+            function(i) setNames(
+              treat_colours[pairs[[i]]], 
+              paste(names(pairs)[[i]], pairs[[i]])
+            )
+          ) %>%
+            unlist() %>% 
+            .[!duplicated(names(.))]
+        ) +
+        labs(
+          x = "Distance from Centre (kb)",
+          fill = "logCPM", linetype = "Consensus\nPeak\nOverlap",
+          colour = "Sample"
+        ) 
+    }
+  )
+```
+
+```{r plot-all-profile-heatmaps}
+htmltools::tagList(
+  mclapply(
+    seq_along(profile_heatmaps),
+    function(x) {
+      ## Export the image
+      pw <- names(profile_heatmaps)[[x]] 
+      img_out <- file.path(
+        fig_path,
+        pw %>% 
+          str_remove_all("(:|Vs. |- )") %>% 
+          str_replace_all(" ", "_") %>% 
+          str_replace_all("_-_", "-") %>% 
+          paste0("_profile_heatmap.", fig_type)
+      )
+      n_ranges <- length(unique(profile_heatmaps[[x]]$data$range))
+      n_samples<- length(unique(profile_heatmaps[[x]]$data$name))
+      fig_fun(
+        filename = img_out,
+        width = knitr::opts_current$get("fig.width") * n_samples / 4, 
+        height = min(
+          3 + knitr::opts_current$get("fig.height") * n_ranges / 1e3, 
+          10
+        )
+      )
+      print(profile_heatmaps[[x]])
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "
+        All {n_ranges} ranges showing the pattern of {pw}. Ranges are centered 
+        at the midpoint between ranges identified as the maximal signal range.
+        "
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class="section level3",
+          htmltools::h3(pw),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+)
+```
+
+
+## Windows With The Strongest Signal {.tabset}
+
+For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
+Groups were restricted to those where differential binding was seen in at least comparison.
+
+```{r grl-to-plot-avexpr}
+grl_to_plot <- all_windows %>% 
+  filter(
+    !str_detect(status, "Un.+Un"),
+    vapply(detected, length, integer(1)) > 0
+  ) %>% 
+  as_tibble() %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
+  ) %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.\\.", replacement = ": "
+  ) %>% 
+  nest(
+    AveExpr = ends_with("AveExpr")
+  ) %>% 
+  mutate(
+    max_signal = vapply(AveExpr, function(x) max(unlist(x)), numeric(1))
+  ) %>% 
+  group_by(status) %>% 
+  filter(max_signal == max(max_signal)) %>% 
+  dplyr::select(
+    range, status, ends_with("logFC")
+  ) %>% 
+  droplevels() %>% 
+  split(.$status) %>% 
+  lapply(pull, "range") %>% 
+  lapply(function(x) x[1]) %>% 
+  lapply(GRanges, seqinfo = sq) %>% 
+  GRangesList()
+```
+
+```{r prepare-plot-objects}
+## The coverage
+bwfl <- seq_along(pairs) %>% 
+  lapply(
+    function(x) {
+      file.path(
+        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
+      ) %>% 
+        BigWigFileList() %>% 
+        setNames(pairs[[x]])
+    } 
+  ) %>% 
+  setNames(comps)
+line_col <- lapply(bwfl, function(x) treat_colours[names(x)])
+
+## Coverage annotations
+annot <- comps %>% 
+  lapply(
+    function(x) {
+      col <- glue("{x}_status")
+      select(all_windows, all_of(col)) %>% 
+        mutate(
+          status = str_extract(!!sym(col), "Down|Up|Unchanged|Undetected")
+        ) %>% 
+        splitAsList(.$status) %>% 
+        lapply(granges) %>% 
+        lapply(unique) %>% 
+        GRangesList()
+    }
+  ) %>% 
+  setNames(comps)
+annot_col <- unlist(colours$direction) %>% 
+  setNames(str_to_title(names(.)))
+
+
+
+## Coverage y-limits
+gr <- unlist(grl_to_plot)
+y_lim <- lapply(
+  bwfl,
+  function(x) {
+    cov <- lapply(x, import.bw, which = gr)
+    unlist(lapply(cov, function(y) max(y$score))) %>% 
+      c(0) %>% 
+      range()
+  }
+)
+
+## The features track
+feat_gr <- gene_regions %>% 
+  lapply(granges) %>% 
+  GRangesList()
+feature_colours <- colours$regions
+if (has_features) {
+  feat_gr <- list(Regions = feat_gr)
+  feat_gr$Features <- splitAsList(external_features, external_features$feature)
+  feature_colours <- list(
+    Regions = unlist(colours$regions),
+    Features = unlist(colours$features)
+  )
+}
+
+## The genes track
+hfgc_genes <- trans_models
+gene_col <- "grey"
+if (has_rnaseq) {
+  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
+  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
+  if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
+    hfgc_genes <- trans_models %>% 
+      mutate(
+        status = case_when(
+          !gene %in% rnaseq$gene_id ~ "Undetected",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
+          )$gene_id ~ "Up",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
+          )$gene_id ~ "Down",
+          gene %in% dplyr::filter(
+            rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
+          )$gene_id ~ "Unchanged",
+        )
+      ) %>% 
+      splitAsList(.$status) %>% 
+      lapply(select, -status) %>% 
+      GRangesList()
+    gene_col <- colours$direction %>% 
+      setNames(str_to_title(names(.)))
+  }
+}
+
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+  ext_cov_path <- config$external$coverage %>% 
+    lapply(unlist) %>% 
+    lapply(function(x) setNames(here::here(x), names(x)))
+  bwfl <- c(
+    bwfl[comps],
+    lapply(ext_cov_path, function(x) BigWigFileList(x) %>% setNames(names(x)))
+  )
+  line_col <- c(
+    line_col[comps],
+    ext_cov_path %>% 
+      lapply(
+        function(x) {
+          missing <- setdiff(names(x), names(treat_colours))
+          cmn <- intersect(names(x), names(treat_colours))
+          col <- setNames(character(length(names(x))), names(x))
+          if (length(cmn) > 0) col[cmn] <- treat_colours[cmn]
+          if (length(missing) > 0) 
+            col[missing] <- hcl.colors(
+              max(5, length(missing)), "Zissou 1")[seq_along(missing)]
+          col
+        }
+      )
+  )
+  
+  y_ranges <- grl_to_plot %>% 
+    unlist() %>% 
+    granges() %>% 
+    resize(w = 10 * width(.), fix = 'center')
+  
+  y_lim <- c(
+    y_lim[comps],
+    bwfl[names(config$external$coverage)] %>% 
+      lapply(
+        function(x) {
+          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
+            unlist() %>% 
+            filter(score == max(score)) %>% 
+            mcols() %>% 
+            .[["score"]] %>% 
+            c(0) %>% 
+            range()
+        }
+      )
+  )
+  
+}
+```
+
+
+
+```{r plot-top-ranges-aveexpr}
+htmltools::tagList(
+  mclapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      ## Export the image
+      img_out <- file.path(
+        fig_path,
+        names(grl_to_plot)[[x]] %>% 
+          str_remove_all("(:|Vs. |- )") %>% 
+          str_replace_all(" ", "_") %>% 
+          paste0("_AveExpr.", fig_type)
+      )
+      fig_fun(
+        filename = img_out, width = 10, height = 8
+      )
+      ct <- FALSE
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
+        ct <- "meta"
+      plotHFGC(
+        grl_to_plot[[x]],
+        features = feat_gr, featcol = feature_colours, 
+        featsize = 1 + has_features,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        annotation = annot, annotcol = annot_col,
+        cytobands = bands_df,
+        rotation.title = 90,
+        zoom = 10,
+        ylim = y_lim,
+        collapseTranscripts = ct,
+        col.title = "black", background.title = "white", showAxis = FALSE
+      )
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
+      cp <- htmltools::tags$em(
+        glue(
+          "
+        Highlighted region corresponds to the highest signal within the group 
+        {names(grl_to_plot)[[x]]}. The most likely target 
+        {ifelse(length(gn) == 1, 'gene is ', 'genes are ')}
+        {collapseGenes(gn, format = '')}
+        "
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = names(grl_to_plot)[[x]] %>% 
+            str_remove_all("(:|Vs. |- )") %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-aveexpr"),
+          class="section level3",
+          htmltools::h3(names(grl_to_plot)[[x]]),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = "caption", htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+)  
+```
+
+## Windows With The Largest Change {.tabset}
+
+For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
+Groups were restricted to those where differential binding was seen in at least comparison.
+
+```{r grl-to-plot-logfc}
+grl_to_plot <- all_windows %>% 
+  filter(
+    !str_detect(status, "Un.+Un"),
+    vapply(detected, length, integer(1)) > 0
+  ) %>% 
+  as_tibble() %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
+  ) %>% 
+  rename_all(
+    str_replace_all, pattern = "\\.\\.", replacement = ": "
+  ) %>% 
+  nest(
+    logFC = ends_with("logFC")
+  ) %>% 
+  mutate(
+    max_logFC = vapply(logFC, function(x) max(abs(unlist(x))), numeric(1))
+  ) %>% 
+  group_by(status) %>% 
+  filter(max_logFC == max(max_logFC)) %>% 
+  dplyr::select(
+    range, status, ends_with("logFC")
+  ) %>% 
+  droplevels() %>% 
+  split(.$status) %>% 
+  lapply(pull, "range") %>% 
+  lapply(GRanges, seqinfo = sq) %>% 
+  GRangesList()
+```
+
+```{r update-plot-objects}
+## Coverage y-limits
+gr <- unlist(grl_to_plot)
+y_lim <- lapply(
+  bwfl,
+  function(x) {
+    cov <- lapply(x, import.bw, which = gr)
+    unlist(lapply(cov, function(y) max(y$score))) %>% 
+      c(0) %>% 
+      range()
+  }
+)
+
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+  y_ranges <- grl_to_plot %>% 
+    unlist() %>% 
+    granges() %>% 
+    resize(w = 10 * width(.), fix = 'center')
+  
+  y_lim <- c(
+    y_lim[comps],
+    bwfl[names(config$external$coverage)] %>% 
+      lapply(
+        function(x) {
+          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
+            unlist() %>% 
+            filter(score == max(score)) %>% 
+            mcols() %>% 
+            .[["score"]] %>% 
+            c(0) %>% 
+            range()
+        }
+      )
+  )
+  
+}
+```
+
+```{r plot-top-ranges-logfc}
+htmltools::tagList(
+  mclapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      ## Export the image
+      img_out <- file.path(
+        fig_path,
+        names(grl_to_plot)[[x]] %>% 
+          str_remove_all("(:|Vs. |- )") %>% 
+          str_replace_all(" ", "_") %>% 
+          paste0("_logFC.", fig_type)
+      )
+      fig_fun(
+        filename = img_out, width = 10, height = 8
+      )
+      ct <- FALSE
+      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
+        ct <- "meta"
+      plotHFGC(
+        grl_to_plot[[x]],
+        features = feat_gr, featcol = feature_colours,
+        featsize = 1 + has_features,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        annotation = annot, annotcol = annot_col,
+        cytobands = bands_df,
+        rotation.title = 90,
+        zoom = 10,
+        ylim = y_lim,
+        collapseTranscripts = ct,
+        col.title = "black", background.title = "white", showAxis = FALSE
+      )
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
+      cp <- htmltools::tags$em(
+        glue(
+          "
+        Highlighted region corresponds to the largest change within the group 
+        {names(grl_to_plot)[[x]]}. The most likely target 
+        {ifelse(length(gn) == 1, 'gene is ', 'genes are ')}
+        {collapseGenes(gn, format = '')}
+        "
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = names(grl_to_plot)[[x]] %>% 
+            str_remove_all("(:|Vs. |- )") %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-logfc"),
+          class="section level3",
+          htmltools::h3(names(grl_to_plot)[[x]]),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = "caption", htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+)  
+```
+
 # Enrichment Analysis 
 
 
@@ -1424,7 +1998,7 @@ msigdb <- msigdbr(species = "Homo sapiens") %>%
   group_by(gs_name) %>% 
   mutate(n = dplyr::n()) %>% 
   ungroup() %>% 
-  dplyr::filter(n >= min_gs_size, n < max_gs_size) 
+  dplyr::filter(n >= min_gs_size, n <= max_gs_size) 
 gs_by_gsid <- msigdb %>% 
   split(.$gs_name) %>% 
   mclapply(pull, "gene_id", mc.cores = threads) %>% 
@@ -2042,7 +2616,7 @@ div(class = "table",
 
 ```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site from __either__ comparison.*")}
 tg_mapped %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2073,7 +2647,7 @@ tg_mapped %>%
 
 ```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap=glue("*Network plot showing gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}.*")}
 tg_t1t2 %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2104,7 +2678,7 @@ tg_t1t2 %>%
 
 ```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[1]]} only__.*")}
 tg_t1only %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2135,7 +2709,7 @@ tg_t1only %>%
 
 ```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[2]]} only__.*")}
 tg_t2only %>% 
-  ggraph(layout = net_layout, weights = oc^3) +
+  ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
     aes(fill = -log10(pval), size = numDEInCat),
@@ -2378,7 +2952,7 @@ htmltools::tagList(
           height = knitr::opts_current$get("fig.height")
         )
         p <- tg_group_res[[x]] %>%
-          ggraph(layout = net_layout, weights =oc^3) +
+          ggraph(layout = net_layout, weights =oc^2) +
           geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
           geom_node_point(
             aes(fill = -log10(pval), size = numDEInCat),
@@ -2439,580 +3013,6 @@ htmltools::tagList(
 ```
 
 
-
-# Combined Binding Visualisation
-
-## Heatmaps {.tabset}
-
-A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where binding was detected as changed in at least one of the comparisons.
-If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
-If only one target is detected within a range, peaks are centred at the range with maximal signal.
-Scales for fill and average signal (both logCPM) are held constant across all plots for easier comparison between groups.
-
-```{r form-profile-heatmaps}
-## Set the BWFL as a single object incorporating target & treatment names
-fl <- seq_along(pairs) %>% 
-  lapply(
-    function(x) {
-      file.path(
-        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
-      ) %>% 
-        setNames(paste(names(pairs)[[x]], pairs[[x]]))
-    } 
-  )%>% 
-  unlist() %>% 
-  .[!duplicated(.)]
-bwfl <- setNames(BigWigFileList(fl), names(fl))
-grl_to_plot <- all_windows %>% 
-  split(.$status) %>% 
-  .[str_detect(names(.),"Up|Down")] %>% 
-  .[vapply(., length, integer(1)) > 25] %>% # Only show groups with > 10 ranges
-  lapply(
-    mutate, 
-    centre = rowMeans(cbind(!!sym(c1_centre), !!sym(c2_centre)), na.rm = TRUE),
-    rng = paste0(seqnames, ":", as.integer(centre))
-  ) %>% 
-  lapply(function(x) GRanges(x$rng, seqinfo = sq)) %>% 
-  GRangesList()
-profile_width <- 5e3
-x_lab <- c(
-  seq(0, floor(0.5 * profile_width / 1e3), length.out = 3),
-  seq(-floor(0.5 * profile_width / 1e3), 0, length.out = 3)
-) %>% 
-  sort() %>% 
-  unique()
-n_bins <- 100
-sig_profiles <- mclapply(
-  grl_to_plot, 
-  function(x) getProfileData(
-    bwfl, x, upstream = profile_width / 2, bins = n_bins
-  ),
-  mc.cores = min(length(grl_to_plot), threads)
-)
-## Currently, this is set to CPM as the only possible output of 
-## extraChIPs::getProfileData. Until this is rectified, manually log-transform
-sig_profiles <- sig_profiles %>% 
-  mclapply(
-    function(x) {
-      temp_gr <- unlist(x)
-      temp_gr$profile_data <- lapply(
-        temp_gr$profile_data,
-        function(pd) {
-          pd$score <- log2(pd$score + 1)
-          pd
-        }
-      )
-      temp_gr$profile_data <- as(temp_gr$profile_data, "SplitDataFrameList")
-      out <- split(temp_gr, names(temp_gr))
-      out <- lapply(out, setNames, NULL)[names(x)]
-      GRangesList(out)
-    },
-    mc.cores = min(length(grl_to_plot), threads)
-  ) 
-profile_heatmaps <- sig_profiles %>% 
-  mclapply(
-    plotProfileHeatmap,
-    profileCol = "profile_data", 
-    xLab = "Distance from Centre (bp)",
-    fillLab = "logCPM",
-    colour = "name",
-    mc.cores = min(length(grl_to_plot), threads)
-  ) 
-fill_range <- profile_heatmaps %>% 
-  lapply(function(x) x$data[,"score"]) %>% 
-  unlist() %>%
-  c(0) %>% 
-  range()
-sidey_range <- profile_heatmaps %>% 
-  lapply(function(x) x$layers[[3]]$data$y) %>% 
-  unlist() %>% 
-  range()
-profile_heatmaps <- profile_heatmaps %>% 
-  lapply(
-    function(x) {
-      x + 
-        scale_x_continuous(
-          breaks = x_lab * 1e3, labels = x_lab, expand = expansion(0)
-        ) +
-        scale_xsidey_continuous(limits = sidey_range) +
-        scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
-        scale_colour_manual(
-          values = lapply(
-            seq_along(pairs), 
-            function(i) setNames(
-              treat_colours[pairs[[i]]], 
-              paste(names(pairs)[[i]], pairs[[i]])
-            )
-          ) %>%
-            unlist() %>% 
-            .[!duplicated(names(.))]
-        ) +
-        labs(
-          x = "Distance from Centre (kb)",
-          fill = "logCPM", linetype = "Consensus\nPeak\nOverlap",
-          colour = "Sample"
-        ) 
-    }
-  )
-```
-
-```{r plot-all-profile-heatmaps}
-htmltools::tagList(
-  mclapply(
-    seq_along(profile_heatmaps),
-    function(x) {
-      ## Export the image
-      pw <- names(profile_heatmaps)[[x]] 
-      img_out <- file.path(
-        fig_path,
-        pw %>% 
-          str_remove_all("(:|Vs. |- )") %>% 
-          str_replace_all(" ", "_") %>% 
-          str_replace_all("_-_", "-") %>% 
-          paste0("_profile_heatmap.", fig_type)
-      )
-      n_ranges <- length(unique(profile_heatmaps[[x]]$data$range))
-      n_samples<- length(unique(profile_heatmaps[[x]]$data$name))
-      fig_fun(
-        filename = img_out,
-        width = knitr::opts_current$get("fig.width") * n_samples / 4, 
-        height = min(
-          3 + knitr::opts_current$get("fig.height") * n_ranges / 1e3, 
-          10
-        )
-      )
-      print(profile_heatmaps[[x]])
-      dev.off()
-      ## Create html tags
-      fig_link <- str_extract(img_out, "assets.+")
-      cp <- htmltools::tags$em(
-        glue(
-          "
-        All {n_ranges} ranges showing the pattern of {pw}. Ranges are centered 
-        at the midpoint between ranges identified as the maximal signal range.
-        "
-        )
-      )
-      htmltools::div(
-        htmltools::div(
-          id = img_out %>% 
-            basename() %>% 
-            str_remove_all(glue(".{fig_type}$")) %>% 
-            str_to_lower() %>% 
-            str_replace_all("_", "-"),
-          class="section level3",
-          htmltools::h3(pw),
-          htmltools::div(
-            class = "figure", style = "text-align: center",
-            htmltools::img(src = fig_link, width = "100%"),
-            htmltools::tags$caption(cp)
-          )
-        )
-      )
-    },
-    mc.cores = threads
-  )
-)
-```
-
-
-## Windows With The Strongest Signal {.tabset}
-
-For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
-Groups were restricted to those where differential binding was seen in at least comparison.
-
-```{r grl-to-plot-avexpr}
-grl_to_plot <- all_windows %>% 
-  filter(
-    !str_detect(status, "Un.+Un"),
-    vapply(detected, length, integer(1)) > 0
-  ) %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  nest(
-    AveExpr = ends_with("AveExpr")
-  ) %>% 
-  mutate(
-    max_signal = vapply(AveExpr, function(x) max(unlist(x)), numeric(1))
-  ) %>% 
-  group_by(status) %>% 
-  filter(max_signal == max(max_signal)) %>% 
-  dplyr::select(
-    range, status, ends_with("logFC")
-  ) %>% 
-  droplevels() %>% 
-  split(.$status) %>% 
-  lapply(pull, "range") %>% 
-  lapply(function(x) x[1]) %>% 
-  lapply(GRanges, seqinfo = sq) %>% 
-  GRangesList()
-```
-
-```{r prepare-plot-objects}
-## The coverage
-bwfl <- seq_along(pairs) %>% 
-  lapply(
-    function(x) {
-      file.path(
-        macs2_path[[x]], glue("{pairs[[x]]}_merged_treat_pileup.bw")
-      ) %>% 
-        BigWigFileList() %>% 
-        setNames(pairs[[x]])
-    } 
-  ) %>% 
-  setNames(comps)
-line_col <- lapply(bwfl, function(x) treat_colours[names(x)])
-
-## Coverage annotations
-annot <- comps %>% 
-  lapply(
-    function(x) {
-      col <- glue("{x}_status")
-      select(all_windows, all_of(col)) %>% 
-        mutate(
-          status = str_extract(!!sym(col), "Down|Up|Unchanged|Undetected")
-        ) %>% 
-        splitAsList(.$status) %>% 
-        lapply(granges) %>% 
-        lapply(unique) %>% 
-        GRangesList()
-    }
-  ) %>% 
-  setNames(comps)
-annot_col <- unlist(colours$direction) %>% 
-  setNames(str_to_title(names(.)))
-
-
-
-## Coverage y-limits
-gr <- unlist(grl_to_plot)
-y_lim <- lapply(
-  bwfl,
-  function(x) {
-    cov <- lapply(x, import.bw, which = gr)
-    unlist(lapply(cov, function(y) max(y$score))) %>% 
-      c(0) %>% 
-      range()
-  }
-)
-
-## The features track
-feat_gr <- gene_regions %>% 
-  lapply(granges) %>% 
-  GRangesList()
-feature_colours <- colours$regions
-if (has_features) {
-  feat_gr <- list(Regions = feat_gr)
-  feat_gr$Features <- splitAsList(external_features, external_features$feature)
-  feature_colours <- list(
-    Regions = unlist(colours$regions),
-    Features = unlist(colours$features)
-  )
-}
-
-## The genes track
-hfgc_genes <- trans_models
-gene_col <- "grey"
-if (has_rnaseq) {
-  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
-  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
-  if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
-    hfgc_genes <- trans_models %>% 
-      mutate(
-        status = case_when(
-          !gene %in% rnaseq$gene_id ~ "Undetected",
-          gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
-          )$gene_id ~ "Up",
-          gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
-          )$gene_id ~ "Down",
-          gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
-          )$gene_id ~ "Unchanged",
-        )
-      ) %>% 
-      splitAsList(.$status) %>% 
-      lapply(select, -status) %>% 
-      GRangesList()
-    gene_col <- colours$direction %>% 
-      setNames(str_to_title(names(.)))
-  }
-}
-
-## External Coverage (Optional)
-if (!is.null(config$external$coverage)) {
-  ext_cov_path <- config$external$coverage %>% 
-    lapply(unlist) %>% 
-    lapply(function(x) setNames(here::here(x), names(x)))
-  bwfl <- c(
-    bwfl[comps],
-    lapply(ext_cov_path, function(x) BigWigFileList(x) %>% setNames(names(x)))
-  )
-  line_col <- c(
-    line_col[comps],
-    ext_cov_path %>% 
-      lapply(
-        function(x) {
-          missing <- setdiff(names(x), names(treat_colours))
-          cmn <- intersect(names(x), names(treat_colours))
-          col <- setNames(character(length(names(x))), names(x))
-          if (length(cmn) > 0) col[cmn] <- treat_colours[cmn]
-          if (length(missing) > 0) 
-            col[missing] <- hcl.colors(
-              max(5, length(missing)), "Zissou 1")[seq_along(missing)]
-          col
-        }
-      )
-  )
-  
-  y_ranges <- grl_to_plot %>% 
-    unlist() %>% 
-    granges() %>% 
-    resize(w = 10 * width(.), fix = 'center')
-  
-  y_lim <- c(
-    y_lim[comps],
-    bwfl[names(config$external$coverage)] %>% 
-      lapply(
-        function(x) {
-          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
-            unlist() %>% 
-            filter(score == max(score)) %>% 
-            mcols() %>% 
-            .[["score"]] %>% 
-            c(0) %>% 
-            range()
-        }
-      )
-  )
-  
-}
-```
-
-
-
-```{r plot-top-ranges-aveexpr}
-htmltools::tagList(
-  mclapply(
-    seq_along(grl_to_plot),
-    function(x) {
-      ## Export the image
-      img_out <- file.path(
-        fig_path,
-        names(grl_to_plot)[[x]] %>% 
-          str_remove_all("(:|Vs. |- )") %>% 
-          str_replace_all(" ", "_") %>% 
-          paste0("_AveExpr.", fig_type)
-      )
-      fig_fun(
-        filename = img_out, width = 10, height = 8
-      )
-      ct <- FALSE
-      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
-        ct <- "meta"
-      plotHFGC(
-        grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours, 
-        featsize = 1 + has_features,
-        genes = hfgc_genes, genecol = gene_col,
-        coverage = bwfl, linecol = line_col,
-        annotation = annot, annotcol = annot_col,
-        cytobands = bands_df,
-        rotation.title = 90,
-        zoom = 10,
-        ylim = y_lim,
-        collapseTranscripts = ct,
-        col.title = "black", background.title = "white", showAxis = FALSE
-      )
-      dev.off()
-      ## Create html tags
-      fig_link <- str_extract(img_out, "assets.+")
-      gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
-      cp <- htmltools::tags$em(
-        glue(
-          "
-        Highlighted region corresponds to the highest signal within the group 
-        {names(grl_to_plot)[[x]]}. The most likely target 
-        {ifelse(length(gn) == 1, 'gene is ', 'genes are ')}
-        {collapseGenes(gn, format = '')}
-        "
-        )
-      )
-      htmltools::div(
-        htmltools::div(
-          id = names(grl_to_plot)[[x]] %>% 
-            str_remove_all("(:|Vs. |- )") %>% 
-            str_replace_all(" ", "-") %>% 
-            str_to_lower() %>% 
-            paste0("-aveexpr"),
-          class="section level3",
-          htmltools::h3(names(grl_to_plot)[[x]]),
-          htmltools::div(
-            class = "figure", style = "text-align: center",
-            htmltools::img(src = fig_link, width = 960),
-            htmltools::p(
-              class = "caption", htmltools::tags$em(cp)
-            )
-          )
-        )
-      )
-    },
-    mc.cores = threads
-  )
-)  
-```
-
-## Windows With The Largest Change {.tabset}
-
-For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
-Groups were restricted to those where differential binding was seen in at least comparison.
-
-```{r grl-to-plot-logfc}
-grl_to_plot <- all_windows %>% 
-  filter(
-    !str_detect(status, "Un.+Un"),
-    vapply(detected, length, integer(1)) > 0
-  ) %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  nest(
-    logFC = ends_with("logFC")
-  ) %>% 
-  mutate(
-    max_logFC = vapply(logFC, function(x) max(abs(unlist(x))), numeric(1))
-  ) %>% 
-  group_by(status) %>% 
-  filter(max_logFC == max(max_logFC)) %>% 
-  dplyr::select(
-    range, status, ends_with("logFC")
-  ) %>% 
-  droplevels() %>% 
-  split(.$status) %>% 
-  lapply(pull, "range") %>% 
-  lapply(GRanges, seqinfo = sq) %>% 
-  GRangesList()
-```
-
-```{r update-plot-objects}
-## Coverage y-limits
-gr <- unlist(grl_to_plot)
-y_lim <- lapply(
-  bwfl,
-  function(x) {
-    cov <- lapply(x, import.bw, which = gr)
-    unlist(lapply(cov, function(y) max(y$score))) %>% 
-      c(0) %>% 
-      range()
-  }
-)
-
-## External Coverage (Optional)
-if (!is.null(config$external$coverage)) {
-  y_ranges <- grl_to_plot %>% 
-    unlist() %>% 
-    granges() %>% 
-    resize(w = 10 * width(.), fix = 'center')
-  
-  y_lim <- c(
-    y_lim[comps],
-    bwfl[names(config$external$coverage)] %>% 
-      lapply(
-        function(x) {
-          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
-            unlist() %>% 
-            filter(score == max(score)) %>% 
-            mcols() %>% 
-            .[["score"]] %>% 
-            c(0) %>% 
-            range()
-        }
-      )
-  )
-  
-}
-```
-
-```{r plot-top-ranges-logfc}
-htmltools::tagList(
-  mclapply(
-    seq_along(grl_to_plot),
-    function(x) {
-      ## Export the image
-      img_out <- file.path(
-        fig_path,
-        names(grl_to_plot)[[x]] %>% 
-          str_remove_all("(:|Vs. |- )") %>% 
-          str_replace_all(" ", "_") %>% 
-          paste0("_logFC.", fig_type)
-      )
-      fig_fun(
-        filename = img_out, width = 10, height = 8
-      )
-      ct <- FALSE
-      if (length(subsetByOverlaps(all_gr$transcript, grl_to_plot[[x]])) > 10)
-        ct <- "meta"
-      plotHFGC(
-        grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours,
-        featsize = 1 + has_features,
-        genes = hfgc_genes, genecol = gene_col,
-        coverage = bwfl, linecol = line_col,
-        annotation = annot, annotcol = annot_col,
-        cytobands = bands_df,
-        rotation.title = 90,
-        zoom = 10,
-        ylim = y_lim,
-        collapseTranscripts = ct,
-        col.title = "black", background.title = "white", showAxis = FALSE
-      )
-      dev.off()
-      ## Create html tags
-      fig_link <- str_extract(img_out, "assets.+")
-      gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
-      cp <- htmltools::tags$em(
-        glue(
-          "
-        Highlighted region corresponds to the largest change within the group 
-        {names(grl_to_plot)[[x]]}. The most likely target 
-        {ifelse(length(gn) == 1, 'gene is ', 'genes are ')}
-        {collapseGenes(gn, format = '')}
-        "
-        )
-      )
-      htmltools::div(
-        htmltools::div(
-          id = names(grl_to_plot)[[x]] %>% 
-            str_remove_all("(:|Vs. |- )") %>% 
-            str_replace_all(" ", "-") %>% 
-            str_to_lower() %>% 
-            paste0("-logfc"),
-          class="section level3",
-          htmltools::h3(names(grl_to_plot)[[x]]),
-          htmltools::div(
-            class = "figure", style = "text-align: center",
-            htmltools::img(src = fig_link, width = 960),
-            htmltools::p(
-              class = "caption", htmltools::tags$em(cp)
-            )
-          )
-        )
-      )
-    },
-    mc.cores = threads
-  )
-)  
-```
 
 
 ```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_pairwise.Rmd')}
