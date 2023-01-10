@@ -38,11 +38,6 @@ diff_windows <- all_windows %>%
   as_tibble() 
 diff_windows[["r1"]] <- rank(mcols(all_windows)[[c1_fdr]], ties.method = "min")
 diff_windows[["r2"]] <- rank(mcols(all_windows)[[c2_fdr]], ties.method = "min")
-# %>% 
-#   mutate(
-#     r1 = rank(!!sym(c1_fdr), ties.method = "min"),
-#     r2 = rank(!!sym(c2_fdr), ties.method = "min")
-#   ) %>% 
 diff_windows <- diff_windows %>% 
   dplyr::arrange(r1 + r2) %>% 
   dplyr::select(gene_id, status, r1, r2) %>% 
@@ -289,7 +284,7 @@ status_gs <- all_windows %>%
   lapply(pull, "gene_id") %>% 
   lapply(unlist) %>% 
   lapply(unique) %>% 
-  .[vapply(., length, integer(1)) > 20]
+  .[vapply(., length, integer(1)) > min_gs_size]
 ```
 
 
@@ -299,7 +294,7 @@ status_gs <- all_windows %>%
 gsea_dir <- fgsea(status_gs, rna_dir_ranks)
 gsea_dir_sig <- gsea_dir %>%
   arrange(pval) %>%
-  dplyr::filter(padj < enrich_alpha) %>%
+  dplyr::filter(padj < enrich_alpha, size >= min_sig) %>%
   as_tibble()
 p <- gsea_dir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -433,7 +428,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_nondir <- fgsea(status_gs, rna_sig_ranks)
 gsea_nondir_sig <- gsea_nondir %>% 
   arrange(pval) %>% 
-  dplyr::filter(padj < enrich_alpha) %>% 
+  dplyr::filter(padj < enrich_alpha, size >= min_sig) %>% 
   as_tibble() 
 p <- gsea_nondir_sig %>% 
   dplyr::slice(1:9) %>% 
@@ -593,6 +588,7 @@ cmn_res <- goseq_group_res %>%
       leadingEdge, function(x) paste(id2gene[x], collapse = "; "), character(1)
     )
   ) %>% 
+  lapply(dplyr::filter, numDEInCat >= min_sig) %>% 
   lapply(
     select,
     group, gs_name, adj_p, NES, status, starts_with("padj"),

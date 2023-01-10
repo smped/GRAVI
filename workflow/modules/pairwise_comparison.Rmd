@@ -1387,6 +1387,13 @@ all_windows %>%
 
 
 ```{r msigdb}
+min_gs_size <- params$enrichment$min_size
+if (is.null(min_gs_size) | is.na(min_gs_size)) min_gs_size <- 0
+max_gs_size <- params$enrichment$max_size
+if (is.null(max_gs_size) | is.na(max_gs_size)) max_gs_size <- Inf
+min_sig <- params$enrichment$min_sig
+if (is.null(min_sig) | is.na(min_sig)) min_sig <- 1
+
 all_ids <- genes_gr %>%
   mutate(w = width) %>% 
   as_tibble() %>% 
@@ -1413,7 +1420,11 @@ msigdb <- msigdbr(species = "Homo sapiens") %>%
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
   dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
-  dplyr::filter(gene_id %in% all_ids$gene_id)
+  dplyr::filter(gene_id %in% all_ids$gene_id) %>% 
+  group_by(gs_name) %>% 
+  mutate(n = dplyr::n()) %>% 
+  ungroup() %>% 
+  dplyr::filter(n >= min_gs_size, n < max_gs_size) 
 gs_by_gsid <- msigdb %>% 
   split(.$gs_name) %>% 
   mclapply(pull, "gene_id", mc.cores = threads) %>% 
@@ -1432,9 +1443,19 @@ gs_url <- msigdb %>%
     )
   ) %>% 
   with(setNames(gs_url, gs_name))
+
 min_network_size <- params$networks$min_size
+if (is.null(min_network_size) | is.na(min_network_size))
+  min_network_size <- 2
+
 max_network_size <- params$networks$max_size
+if (is.null(max_network_size) | is.na(max_network_size))
+  max_network_size <- Inf
+
 max_network_dist <- params$networks$max_distance
+if (is.null(max_network_dist) | is.na(max_network_dist))
+  max_network_dist <- 1
+
 net_layout <- params$networks$layout
 enrich_alpha <- params$enrichment$alpha
 adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
@@ -1520,6 +1541,7 @@ goseq_mapped_res <- pwf_mapped %>%
     adj_p = p.adjust(pval, adj_method),
     enriched = adj_p < enrich_alpha
   ) %>% 
+  dplyr::filter(numDEInCat >= min_sig) %>% 
   left_join(
     dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
     by = "gs_name"
@@ -1668,6 +1690,7 @@ if (sum(pwf_t1t2$DEgenes) > 0) {
       adj_p = p.adjust(pval, adj_method),
       enriched = adj_p < enrich_alpha
     ) %>% 
+    dplyr::filter(numDEInCat >= min_sig) %>% 
     left_join(
       dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
       by = "gs_name"
@@ -1797,6 +1820,7 @@ if (sum(pwf_t1only$DEgenes) > 0) {
       adj_p = p.adjust(pval, adj_method),
       enriched = adj_p < enrich_alpha
     ) %>% 
+    dplyr::filter(numDEInCat >= min_sig) %>% 
     left_join(
       dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
       by = "gs_name"
@@ -1926,6 +1950,7 @@ if (sum(pwf_t2only$DEgenes) > 0) {
       adj_p = p.adjust(pval, adj_method),
       enriched = adj_p < enrich_alpha
     ) %>% 
+    dplyr::filter(numDEInCat >= min_sig) %>% 
     left_join(
       dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
       by = "gs_name"
@@ -2155,6 +2180,7 @@ goseq_group_res <- group_ids %>%
           as_tibble() %>% 
           dplyr::filter(numDEInCat > 0) %>% 
           mutate(adj_p = p.adjust(over_represented_pvalue, adj_method)) %>% 
+          dplyr::filter(numDEInCat >= min_sig) %>% 
           dplyr::select(
             gs_name = category, pval = over_represented_pvalue, adj_p, 
             ends_with("InCat")

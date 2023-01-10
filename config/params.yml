@@ -23,6 +23,10 @@ mapping:
 enrichment:
   adj: "fdr"
   alpha: 0.05
+  ## Only gene-sets between these two values will be retained before testing
+  min_size: 5
+  max_size: 1000
+  min_sig: 3
   ## The categories to use from MSigDB. These are passed to msigdbr in the
   ## columns of the same name in an 'OR' approach
   msigdb:
