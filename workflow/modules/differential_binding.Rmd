@@ -2599,7 +2599,7 @@ pwf_down <- genes_gr %>%
       structure(diff, names = gene_id),
       genome = config$genome$build,
       bias.data = log1p(n_peaks),
-      plot.fit = TRUE
+      plot.fit = FALSE
     )
   )
 goseq_down <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())

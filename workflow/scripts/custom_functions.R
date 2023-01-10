@@ -61,7 +61,6 @@ make_tbl_graph <- function(
 ) {
   res <- dplyr::filter(res, adj_p < alpha)
   res <- arrange(res, adj_p)
-  if (nrow(res) < 2) return(tbl_graph())
   ## If the gene sets are identical, retain the first (most-significant) only
   gs <- gs[res$gs_name]
   nm <- gs %>%
@@ -69,6 +68,7 @@ make_tbl_graph <- function(
     .[!duplicated(.)] %>%
     names() %>%
     .[seq_len(min(c(length(.), max_gs)))]
+  if (length(nm) < 2) return(tbl_graph())
   combs <- combn(nm, 2)
   d <- lapply(
     seq_len(ncol(combs)),
