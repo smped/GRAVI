@@ -204,7 +204,7 @@ rule compile_differential_binding_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html}
+			git add {output.html} {output.outs}
 			git add {output.fig_path}
 		fi
 		"""
