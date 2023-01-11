@@ -138,7 +138,7 @@ merged_results %>%
 ## Relationship With Differentially Expressed Genes {.tabset}
 
 
-```{r define_genesets}
+```{r define-genesets}
 rna_dir_ranks <- rnaseq %>% 
   mutate(
     ranking_stat = -sign(!!sym(rna_lfc_col))*log10(!!sym(rna_p_col)) %>% 
@@ -595,7 +595,7 @@ rnaseq %>%
 
 ### P-Values By `r target` Status
 
-```{r plot-p-target, fig.height = 6, fig.cap = glue("*P-Values for differential expression partitioned by {target} ChIP peak status. Genes were considered as being mapped to a differentially bound peak if one or more peaks was considered as differentially bound. No IHW procedure was undertaken using this data.*")}
+```{r plot-p-target, fig.height = 5, fig.cap = glue("*P-Values for differential expression partitioned by {target} ChIP peak status. Genes were considered as being mapped to a differentially bound peak if one or more peaks was considered as differentially bound. No IHW procedure was undertaken using this data.*")}
 p <- rnaseq %>% 
   mutate(
     mapped = case_when(
@@ -693,6 +693,8 @@ knitr::opts_chunk$set(dev = 'png')
 ```
 
 ### GSEA By Direction of Regulation {.tabset}
+
+GSEA analysis was first performed by taking the genes mapped to various sets of peaks, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, by significance of the logFC estimates.
 
 #### All Windows
 
@@ -1036,6 +1038,8 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 
 
 ### GSEA By Significance Only {.tabset}
+
+GSEA analysis was then performed by taking the genes mapped to various sets of peaks, and checking for enrichment amongst the RNA-Seq results, ranking genes only from least to most significant, which effectively treats up- and down-regulation as indistinguishable.
 
 #### All Windows
 

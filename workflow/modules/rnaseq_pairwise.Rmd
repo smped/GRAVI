@@ -51,7 +51,7 @@ any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
 
 ## Volcano Plots
 
-```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Many genes will have multiple target binding regions mapped to them, and may appear in multiple panels. The two ost highly ranked genes for differential expression are labelled in eachpanel. All DE genes are listed with full binding patterns in the table below.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Some genes will have multiple target binding regions mapped to them, and may appear in multiple panels. The two most highly ranked genes for differential expression are labelled in each panel. All DE genes are listed with full binding patterns in the table below.*")}
 diff_windows %>% 
   lapply(function(x) tibble(gene_id = x)) %>% 
   bind_rows(.id = "binding_status") %>% 
@@ -286,6 +286,10 @@ status_gs <- all_windows %>%
   .[vapply(., length, integer(1)) > min_gs_size]
 ```
 
+GSEA analysis was performed taking the set of genes mapped to each binding pattern.
+This was initially performed ranking the RNA-Seq results in order of significance, with most significantly up-regulated and one end and the most significantly down-regulated at the other, i.e. Directional GSEA
+A secondary analysis was performed taking only statistical significance into account, without including the direction of any change in expression, i.e. Non_Directional GSEA.
+This second analysis allows for detecting regulatory changes due to altered binding, but which are spread between both up- and down-regulation, as may be induced by the presence of other co-factors not under direct investigation here.
 
 ### Directional GSEA
 
