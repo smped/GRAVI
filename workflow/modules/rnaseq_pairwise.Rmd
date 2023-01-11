@@ -297,6 +297,7 @@ This second analysis allows for detecting regulatory changes due to altered bind
 gsea_dir <- fgsea(status_gs, rna_dir_ranks)
 gsea_dir_sig <- gsea_dir %>%
   arrange(pval) %>%
+  mutate(padj = p.adjust(pval, adj_method)) %>% 
   dplyr::filter(padj < enrich_alpha, size >= min_sig) %>%
   as_tibble()
 p <- gsea_dir_sig %>% 
@@ -335,7 +336,7 @@ tbl <- gsea_dir_sig %>%
   separate(pathway, comps, sep = " - ") %>% 
   dplyr::select(
     all_of(comps), Windows = size, Direction, 
-    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+    p = pval, padj, `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -395,13 +396,13 @@ tbl <- gsea_dir_sig %>%
         ), 
         maxWidth = 80
       ),
-      FDR = colDef(
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ), 
-        maxWidth = 80
+      padj = colDef(
+        name = glue("p<sub>{adj_method}</sub>"), html = TRUE,
+        cell = function(value) {
+          ifelse(
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+          )
+        }
       ),
       "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(
@@ -431,6 +432,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_nondir <- fgsea(status_gs, rna_sig_ranks)
 gsea_nondir_sig <- gsea_nondir %>% 
   arrange(pval) %>% 
+  mutate(padj = p.adjust(pval, adj_method)) %>% 
   dplyr::filter(padj < enrich_alpha, size >= min_sig) %>% 
   as_tibble() 
 p <- gsea_nondir_sig %>% 
@@ -465,7 +467,7 @@ tbl <- gsea_nondir_sig %>%
   separate(pathway, comps, sep = " - ") %>% 
   dplyr::select(
     all_of(comps), Windows = size, 
-    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+    p = pval, padj, `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -513,13 +515,13 @@ tbl <- gsea_nondir_sig %>%
         ), 
         maxWidth = 80
       ),
-      FDR = colDef(
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ), 
-        maxWidth = 80
+      padj = colDef(
+        name = glue("p<sub>{adj_method}</sub>"), html = TRUE,
+        cell = function(value) {
+          ifelse(
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+          )
+        }
       ),
       "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(

@@ -702,6 +702,7 @@ GSEA analysis was first performed by taking the genes mapped to various sets of 
 gsea_dir <- fgsea(dir_gs, rna_dir_ranks)
 gsea_dir_sig <- gsea_dir %>% 
   arrange(pval) %>% 
+  mutate(padj = p.adjust(pval, adj_method)) %>% 
   dplyr::filter(padj < enrich_alpha, size >= min_sig) %>% 
   as_tibble() 
 p <- gsea_dir_sig %>% 
@@ -743,7 +744,7 @@ tbl <- gsea_dir_sig %>%
   ) %>% 
   dplyr::select(
     !!sym(target), Windows = size, Direction, 
-    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+    p = pval, padj, `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -781,8 +782,13 @@ tbl <- gsea_dir_sig %>%
       p = colDef(
         cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
-      FDR = colDef(
-        cell = function(value) sprintf("%.2e", value), maxWidth = 80
+      padj = colDef(
+        name = glue("p<sub>{adj_method}</sub>"), html = TRUE,
+        cell = function(value) {
+          ifelse(
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+          )
+        }
       ),
       "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(
@@ -811,6 +817,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 gsea_reg_dir <- fgsea(reg_dir_gs, rna_dir_ranks)
 gsea_reg_dir_sig <- gsea_reg_dir %>% 
   arrange(pval) %>% 
+  mutate(padj = p.adjust(pval, adj_method)) %>% 
   dplyr::filter(padj < enrich_alpha, size >= min_sig) %>% 
   as_tibble() 
 p <- gsea_reg_dir_sig %>% 
@@ -852,7 +859,7 @@ tbl <- gsea_reg_dir_sig %>%
   ) %>% 
   dplyr::select(
     pathway, !!sym(target), Windows = size, Direction, 
-    p = pval, FDR = padj, `Edge Size`, `Leading Edge` = leadingEdge
+    p = pval, padj, `Edge Size`, `Leading Edge` = leadingEdge
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -893,8 +900,13 @@ tbl <- gsea_reg_dir_sig %>%
       p = colDef(
         cell = function(value) sprintf("%.2e", value), maxWidth = 80
       ),
-      FDR = colDef(
-        cell = function(value) sprintf("%.2e", value), maxWidth = 80
+      padj = colDef(
+        name = glue("p<sub>{adj_method}</sub>"), html = TRUE,
+        cell = function(value) {
+          ifelse(
+            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+          )
+        }
       ),
       "Edge Size" = colDef(maxWidth = 80),
      "Leading Edge" = colDef(
