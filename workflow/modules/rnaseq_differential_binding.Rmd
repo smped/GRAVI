@@ -544,8 +544,8 @@ rnaseq %>%
   left_join(diff_tbl) %>% 
   mutate(
     status = str_replace_na(status, "Undetected"),
-    status = glue("{target} {status}") %>% 
-      factor(levels = paste(target, c("Up", "Down", "Unchanged", "Undetected")))
+    status = glue("{target} {status}") %>%
+      factor(levels = paste(target, c("Up", "Down", "Ambiguous", "Unchanged", "Undetected")))
   ) %>% 
   left_join(rna_status) %>% 
   droplevels() %>% 
@@ -557,7 +557,7 @@ rnaseq %>%
     aes(label = gene_name),
     data = . %>% 
       dplyr::arrange(!!sym(rna_p_col)) %>% 
-      dplyr::filter(!!sym(rna_lfc_col) > 0) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) > 0, DE) %>% 
       split(.$status) %>% 
       lapply(dplyr::slice, 1:2) %>% 
       bind_rows(),
@@ -567,10 +567,22 @@ rnaseq %>%
     aes(label = gene_name),
     data = . %>% 
       dplyr::arrange(!!sym(rna_p_col)) %>% 
-      dplyr::filter(!!sym(rna_lfc_col) < 0) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) < 0, DE) %>% 
       split(.$status) %>% 
       lapply(dplyr::slice, 1:2) %>% 
       bind_rows(),
+    show.legend = FALSE
+  ) +
+  geom_text(
+    aes(label = lab),
+    data = . %>% 
+      group_by(status) %>% 
+      summarise(n = dplyr::n()) %>% 
+      mutate(lab = glue("n = {comma(n)}")),
+    x = min(rnaseq[[rna_lfc_col]]) + 0.9 * diff(range(rnaseq[[rna_lfc_col]])),
+    y = 1,
+    colour = "black",
+    inherit.aes = FALSE,
     show.legend = FALSE
   ) +
   facet_wrap(~status, ncol = 2) +
