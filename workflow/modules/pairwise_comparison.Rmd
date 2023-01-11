@@ -2676,7 +2676,7 @@ tg_t1t2 %>%
 
 `r if (plot_network_t1only) glue("#### Genes Mapped to {comps[[1]]} Only")`
 
-```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[1]]} only__.*")}
+```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__.*")}
 tg_t1only %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -2707,7 +2707,7 @@ tg_t1only %>%
 
 `r if (plot_network_t2only) glue("#### Genes Mapped to {comps[[2]]} Only")`
 
-```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site from __{comps[[2]]} only__.*")}
+```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap=glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[2]]} only__.*")}
 tg_t2only %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +

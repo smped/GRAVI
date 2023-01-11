@@ -51,7 +51,7 @@ any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
 
 ## Volcano Plots
 
-```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Many genes will have multiple target binding regions mapped to them, and may appear inmultiple panels. All DE genes are listed with full bding patterns in the table below.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Many genes will have multiple target binding regions mapped to them, and may appear in multiple panels. The two ost highly ranked genes for differential expression are labelled in eachpanel. All DE genes are listed with full binding patterns in the table below.*")}
 diff_windows %>% 
   lapply(function(x) tibble(gene_id = x)) %>% 
   bind_rows(.id = "binding_status") %>% 
@@ -67,7 +67,8 @@ diff_windows %>%
       DE & !!sym(rna_lfc_col) > 0 ~ "Up",
       DE & !!sym(rna_lfc_col) < 0 ~ "Down",
       TRUE ~ "Unchanged"
-    )
+    ) %>% 
+      factor(levels = c("Up", "Down", "Unchanged"))
   ) %>% 
   ggplot(
     aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
@@ -77,6 +78,7 @@ diff_windows %>%
     aes(label = gene_name),
     data = . %>% 
       arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(DE) %>% 
       split(.$binding_status) %>% 
       lapply(dplyr::slice, 1:2) %>% 
       bind_rows(),
@@ -100,8 +102,8 @@ diff_windows %>%
       unlist() %>% 
       setNames(str_to_title(names(.))) 
   ) +
-  labs(colour = "Status") +
-  theme(legend.position = "bottom")
+  labs(colour = "DE Status") +
+  theme(legend.position = "right")
 ```
 
 

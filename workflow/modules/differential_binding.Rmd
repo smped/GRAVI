@@ -1495,7 +1495,7 @@ grl_to_plot <- GRangesList(
     filter(P.Value == min(P.Value)) %>% 
     filter(!!sym(fdr_column) < fdr_alpha),
   top_up_by_lfc = merged_results %>% 
-    filter(logFC == max(logFC), logFC > 0),
+    filter(logFC == max(logFC), logFC > 0, !!sym(fdr_column) < fdr_alpha),
   top_up_by_expr = merged_results %>% 
     filter(logFC > 0, !!sym(fdr_column) < fdr_alpha) %>% 
     filter(AveExpr == max(AveExpr)),
@@ -1508,7 +1508,7 @@ grl_to_plot <- GRangesList(
     filter(P.Value == min(P.Value)) %>% 
     filter(!!sym(fdr_column) < fdr_alpha),
   top_down_by_lfc = merged_results %>% 
-    filter(logFC == min(logFC), logFC < 0),
+    filter(logFC == min(logFC), logFC < 0, !!sym(fdr_column) < fdr_alpha),
   top_down_by_expr = merged_results %>% 
     filter(logFC < 0, !!sym(fdr_column) < fdr_alpha) %>% 
     filter(AveExpr == max(AveExpr)),
