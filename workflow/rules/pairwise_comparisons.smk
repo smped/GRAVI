@@ -118,7 +118,7 @@ rule compile_pairwise_comparisons_html:
                 sleep {params.interval}
                 ((TRIES--))
             done
-            git add {output.html} {output.fig_path}
+            git add {output.html} {output.fig_path} {output.csv}
 			git add {params.asset_path}
         fi
 		"""
