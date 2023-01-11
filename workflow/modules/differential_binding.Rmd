@@ -2018,7 +2018,7 @@ mapped_ids <- merged_results %>%
 ```
 
 As an initial exploration, the retained windows were compared to pre-defined gene-sets.
-These were taken from the `MSigDB` database and the gene-sets used for enrichment testing were restricted to only include those with $\geq$ `r min_gs_size` and $\leq$ `r max_gs_size`.
+These were taken from the `MSigDB` database and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
 
 ```{r tbl-msigdb}
 msigdb %>% 
@@ -2250,15 +2250,10 @@ tg_mapped %>%
 ## Windows With Differentially Bound `r target` {.tabset}
 
 ```{r goseq-diff, fig.show='hide'}
-pwf_diff <- genes_gr %>% 
-  as_tibble() %>% 
-  distinct(gene_id) %>% 
+pwf_diff <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
-  mutate(
-    diff = ifelse(n_peaks > 0, up|down, FALSE),
-    diff = ifelse(is.na(diff), FALSE, diff)
-  ) %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
+  mutate(diff = up|down) %>% 
   with(
     nullp(
       structure(diff, names = gene_id),
@@ -2270,7 +2265,7 @@ pwf_diff <- genes_gr %>%
 goseq_diff <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
 if (sum(pwf_diff$DEgenes) > 0) {
   goseq_diff <- goseq(
-    pwf_diff, config$genome$build, gene2cat = gs_by_geneid, method = "Hypergeometric"
+    pwf_diff, gene2cat = gs_by_geneid, method = "Hypergeometric"
   ) %>% 
     dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
     dplyr::select(-starts_with("under")) %>% 
@@ -2429,15 +2424,10 @@ tg_diff %>%
 ## Windows With Increased `r target` Binding {.tabset}
 
 ```{r goseq-up, fig.show='hide'}
-pwf_up <- genes_gr %>% 
-  as_tibble() %>% 
-  distinct(gene_id) %>% 
+pwf_up <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
-  mutate(
-    diff = ifelse(n_peaks > 0, up, FALSE),
-    diff = ifelse(is.na(diff), FALSE, diff)
-  ) %>%
   dplyr::filter(!is.na(n_peaks)) %>% 
+  mutate(diff = up) %>% 
   with(
     nullp(
       structure(diff, names = gene_id),
@@ -2449,7 +2439,7 @@ pwf_up <- genes_gr %>%
 goseq_up <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
 if (sum(pwf_up$DEgenes) > 0) {
   goseq_up <- goseq(
-    pwf_up, config$genome$build, gene2cat = gs_by_geneid, method = "Hypergeometric"
+    pwf_up, gene2cat = gs_by_geneid, method = "Hypergeometric"
   ) %>% 
     dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
     dplyr::select(-starts_with("under")) %>% 
@@ -2609,15 +2599,10 @@ tg_up %>%
 ## Windows With Decreased `r target` Binding {.tabset}
 
 ```{r goseq-down, fig.show='hide'}
-pwf_down <- genes_gr %>% 
-  as_tibble() %>% 
-  distinct(gene_id) %>% 
+pwf_down <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
-  mutate(
-    diff = ifelse(n_peaks > 0, down, FALSE),
-    diff = ifelse(is.na(diff), FALSE, diff)
-  ) %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
+  mutate(diff = down) %>% 
   with(
     nullp(
       structure(diff, names = gene_id),

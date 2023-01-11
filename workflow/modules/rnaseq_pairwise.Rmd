@@ -51,26 +51,23 @@ any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
 
 ## Volcano Plots
 
-```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Many genes will have multiple target binding regions mapped to them, and as such only the mapping with the most highly-ranked region for binding across both comparisons was retained. In subsequent enrichment analyses, these genes will appear in multiple groups given that multiple binding patterns may be associated with them.*")}
-names(diff_windows) %>% 
-  lapply(
-    function(x) {
-      rnaseq %>% 
-        dplyr::filter(gene_id %in% diff_windows[[x]]) %>% 
-        mutate(binding_status = x)
-    }
-  ) %>% 
-  bind_rows() %>% 
-  bind_rows(
-    rnaseq %>% 
-      dplyr::filter(!gene_id %in% unlist(diff_windows)) %>% 
-      mutate(binding_status = combs[16])
-  ) %>% 
-  left_join(rna_status) %>% 
+```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Many genes will have multiple target binding regions mapped to them, and may appear inmultiple panels. All DE genes are listed with full bding patterns in the table below.*")}
+diff_windows %>% 
+  lapply(function(x) tibble(gene_id = x)) %>% 
+  bind_rows(.id = "binding_status") %>% 
   mutate(
-    binding_status = binding_status %>% 
-      factor(levels = combs) %>% 
+    binding_status = factor(binding_status, levels = combs) %>% 
       fct_lump_prop(0.01)
+  ) %>% 
+  full_join(rnaseq) %>% 
+  dplyr::filter(!is.na(gene_name)) %>% 
+  mutate(
+    binding_status = fct_explicit_na(binding_status, na_level = "No Targets"),
+    de_status = case_when(
+      DE & !!sym(rna_lfc_col) > 0 ~ "Up",
+      DE & !!sym(rna_lfc_col) < 0 ~ "Down",
+      TRUE ~ "Unchanged"
+    )
   ) %>% 
   ggplot(
     aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
@@ -257,7 +254,7 @@ de_genes_both_comps %>%
 
 
 
-## Enrichment Analysis {.tabset}
+## Binding Pattern GSEA {.tabset}
 
 ```{r dev-to-png, echo = FALSE}
 knitr::opts_chunk$set(dev = 'png')
@@ -541,13 +538,13 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 knitr::opts_chunk$set(dev = fig_dev)
 ```
 
-## Integration With RNA-Seq GSEA
+## Integration of RNA and ChIP Enrichment Analyses
 
 Directional GSEA was performed on the set of RNA-Seq results and given that enrichment for differentially bound target is an orthogonal measure, enrichment for a set of potential pathways for each pairwise set of regions was performed.
 The p-values from binding enrichment and GSEA were combined using Wilkinson's method for meta-analysis, taking the maximum p-value and adjusting the resulting p-value using the same strategy as earlier.
 Any pathways are annotated as being significant in *both, either or neither* dataset when being analysed individually.
 
-Distances between nodes (gene-sets) for any network plots were estimated by using the similarity of genes within the leading edge which were also mapped to bding regions showing the respective pattern.
+Distances between nodes (gene-sets) for any network plots were estimated by using the similarity of genes within the leading edge which were also mapped to binding regions showing the respective pattern.
 If the genes of interest from any two pathways were identical, only the most highly-ranked pathway was included in the network, and similarly if one gene-set was a subset of another, the most highly-ranked was retained for visualisation.
 
 ```{r cmn-sig}

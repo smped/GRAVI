@@ -40,7 +40,7 @@ diff_windows <- merged_results %>%
   lapply(unique)
 ```
 
-## Relationship To Detected Genes {.tabset}
+## Distribution Of Detected Genes {.tabset}
 
 ### Detected Genes By `r target` Binding Region
 
@@ -135,7 +135,7 @@ merged_results %>%
 ```
 
 
-## Relationship To Differentially Expressed Genes {.tabset}
+## Relationship With Differentially Expressed Genes {.tabset}
 
 
 ```{r define_genesets}
@@ -536,7 +536,48 @@ div(class = "table",
 
 ### Volcano Plots By `r target` Binding
 
-```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes may be mapped to {target} binding events which include both an increase and decrease in binding, genes are simply grouped by whether any differential binding was mapped to an associated regulatory region.*")}
+```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes may be mapped to multiple {target} binding events which include different binding patterns, genes may appear in multiple panels.*")}
+diff_tbl <- diff_windows %>% 
+  lapply(function(x) tibble(gene_id = x)) %>% 
+  bind_rows(.id = "status")
+rnaseq %>% 
+  left_join(diff_tbl) %>% 
+  mutate(
+    status = str_replace_na(status, "Undetected"),
+    status = glue("{target} {status}") %>% 
+      factor(levels = paste(target, c("Up", "Down", "Unchanged", "Undetected")))
+  ) %>% 
+  left_join(rna_status) %>% 
+  droplevels() %>% 
+  ggplot(
+    aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
+  ) +
+  geom_point() +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      dplyr::arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) > 0) %>% 
+      split(.$status) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  geom_text_repel(
+    aes(label = gene_name),
+    data = . %>% 
+      dplyr::arrange(!!sym(rna_p_col)) %>% 
+      dplyr::filter(!!sym(rna_lfc_col) < 0) %>% 
+      split(.$status) %>% 
+      lapply(dplyr::slice, 1:2) %>% 
+      bind_rows(),
+    show.legend = FALSE
+  ) +
+  facet_wrap(~status, ncol = 2) +
+  scale_colour_manual(
+    values = direction_colours
+  ) +
+  labs(colour = "Status") 
 df <- rnaseq %>% 
   mutate(
     mapped = case_when(
@@ -680,14 +721,15 @@ de_genes_db_regions %>%
 ```
 
 
-## Directional GSEA {.tabset}
+## Binding Pattern GSEA {.tabset}
 
 ```{r dev-to-png, echo = FALSE}
 knitr::opts_chunk$set(dev = 'png')
 ```
 
+### GSEA By Direction of Regulation
 
-### All Windows
+#### All Windows
 
 ```{r gsea-dir-sig}
 gsea_dir <- fgsea(dir_gs, rna_dir_ranks)
@@ -796,7 +838,7 @@ div(class = "table",
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
-### Windows By Region
+#### Windows By Region
 
 ```{r gsea-reg-dir-sig}
 gsea_reg_dir <- fgsea(reg_dir_gs, rna_dir_ranks)
@@ -909,7 +951,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
 
-`r if (has_features) "### Windows By Feature"`
+`r if (has_features) "#### Windows By Feature"`
 
 
 
@@ -1028,9 +1070,9 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
 
-## Non-Directional GSEA {.tabset}
+### GSEA By Significance Only {.tabset}
 
-### All Windows
+#### All Windows
 
 ```{r gsea-nondir-sig}
 gsea_nondir <- fgsea(dir_gs, rna_sig_ranks, scoreType = "pos")
@@ -1122,7 +1164,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
 
-### Windows By Region
+#### Windows By Region
 
 ```{r gsea-reg-nondir-sig}
 gsea_reg_nondir <- fgsea(reg_dir_gs, rna_sig_ranks, scoreType = "pos")
@@ -1217,7 +1259,7 @@ plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
 
-`r if (has_features) "### Windows By Feature"`
+`r if (has_features) "#### Windows By Feature"`
 
 
 ```{r gsea_feat_nondir_sig_empty, eval = TRUE, echo = FALSE}
@@ -1341,7 +1383,7 @@ knitr::opts_chunk$set(dev = fig_dev)
 
 <!-- Could be done regardless of changes in expression -->
 
-## Integration With Gene Expression GSEA
+## Integration of RNA and ChIP Enrichment Analyses
 
 ```{r rnaseq-gsea}
 rnaseq_gsea <- fgsea(
