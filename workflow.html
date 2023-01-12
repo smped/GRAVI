@@ -4,18 +4,18 @@
 
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Chapter 2 Workflow Description | GRAVI User Guide (v0.1.3)</title>
+  <title>Chapter 2 Workflow Description | GRAVI User Guide (v0.1.5)</title>
   <meta name="description" content="This is the main documentation for the GRAVI workflow" />
-  <meta name="generator" content="bookdown 0.27 and GitBook 2.6.7" />
+  <meta name="generator" content="bookdown 0.30 and GitBook 2.6.7" />
 
-  <meta property="og:title" content="Chapter 2 Workflow Description | GRAVI User Guide (v0.1.3)" />
+  <meta property="og:title" content="Chapter 2 Workflow Description | GRAVI User Guide (v0.1.5)" />
   <meta property="og:type" content="book" />
   
   <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
   <meta name="github-repo" content="steveped/GRAVI" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Chapter 2 Workflow Description | GRAVI User Guide (v0.1.3)" />
+  <meta name="twitter:title" content="Chapter 2 Workflow Description | GRAVI User Guide (v0.1.5)" />
   
   <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
   
@@ -23,7 +23,7 @@
 <meta name="author" content="Stephen Pederson" />
 
 
-<meta name="date" content="2022-08-01" />
+<meta name="date" content="2023-01-13" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -162,7 +162,7 @@ div.csl-indent {
       <div class="body-inner">
         <div class="book-header" role="navigation">
           <h1>
-            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.3)</a>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.5)</a>
           </h1>
         </div>
 
@@ -176,8 +176,8 @@ div.csl-indent {
 The workflow management software <code>snakemake</code><span class="citation">(<a href="#ref-snakemake" role="doc-biblioref">Mölder et al. 2021</a>)</span> is used to run the complete workflow, giving the capacity to be run on local servers or HPC systems.</p>
 <p>The <code>snakemake</code> DAG (directed acyclic graph) of the workflow is always included in the compiled document, however a simplified version is presented below.</p>
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-3"></span>
-<div id="htmlwidget-7d228e0d45bde02b9a10" style="width:672px;height:480px;" class="grViz html-widget"></div>
-<script type="application/json" data-for="htmlwidget-7d228e0d45bde02b9a10">{"x":{"diagram":"\ndigraph {\n\ngraph [compound = true rankdir = LR fontsize = 14]\n\nnode [shape = rectangle]\n\na [label = \"Alignments\" shape = ellipse fontcolor = RoyalBlue color = RoyalBlue]\nb [label = \"1. Annotations\"]\nc [label = \"2. Peak Calling\"]\nd [label = \"Sample QC\" shape = plaintext fontcolor = LightCoral]\ne [label = \"Oracle/Consensus\nPeaks\" shape = plaintext fontcolor = LightCoral]\nf [label = \"3. Differential Binding\"]\ng [label = \"Individual Changed\nBinding Sites\" shape = plaintext fontcolor = LightCoral]\nh [label = \"Individual Enrichment\nAnalysis\" shape = plaintext fontcolor = LightCoral]\ni [label = \"4. Pairwise Comparisons\"]\nj [label = \"Pairwise Enrichment\nAnaysis\" shape = plaintext fontcolor = LightCoral]\nk [label = \"Pairwise Changed\nBinding Sites\" shape = plaintext fontcolor = LightCoral]\n\nsubgraph annot {\n  ba [label = \"Defined Genomic\nRegions\" shape = plaintext fontcolor = LightCoral]\n  b -> ba [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\nsubgraph macs2 {\n    c -> {d e} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\nsubgraph diffbinding {\n  f -> {g h} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\nsubgraph pairwise {\n  i -> {j k} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\n\na -> {c f} [color = RoyalBlue]\nb -> {c}\nc -> {f} [lhead = macs2]\nf -> i [lhead = diffbinding]\n\n}\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-d2483785a4eb0ce2cfd5" style="width:672px;height:480px;" class="grViz html-widget"></div>
+<script type="application/json" data-for="htmlwidget-d2483785a4eb0ce2cfd5">{"x":{"diagram":"\ndigraph {\n\ngraph [compound = true rankdir = LR fontsize = 14]\n\nnode [shape = rectangle]\n\na [label = \"Alignments\" shape = ellipse fontcolor = RoyalBlue color = RoyalBlue]\nb [label = \"1. Annotations\"]\nc [label = \"2. Peak Calling\"]\nd [label = \"Sample QC\" shape = plaintext fontcolor = LightCoral]\ne [label = \"Oracle/Consensus\nPeaks\" shape = plaintext fontcolor = LightCoral]\nf [label = \"3. Differential Binding\"]\ng [label = \"Individual Changed\nBinding Sites\" shape = plaintext fontcolor = LightCoral]\nh [label = \"Individual Enrichment\nAnalysis\" shape = plaintext fontcolor = LightCoral]\ni [label = \"4. Pairwise Comparisons\"]\nj [label = \"Pairwise Enrichment\nAnaysis\" shape = plaintext fontcolor = LightCoral]\nk [label = \"Pairwise Changed\nBinding Sites\" shape = plaintext fontcolor = LightCoral]\n\nsubgraph annot {\n  ba [label = \"Defined Genomic\nRegions\" shape = plaintext fontcolor = LightCoral]\n  b -> ba [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\nsubgraph macs2 {\n    c -> {d e} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\nsubgraph diffbinding {\n  f -> {g h} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\nsubgraph pairwise {\n  i -> {j k} [color = LightCoral penwidth = 0.5 arrowsize = 0.8]\n}\n\n\na -> {c f} [color = RoyalBlue]\nb -> {c}\nc -> {f} [lhead = macs2]\nf -> i [lhead = diffbinding]\n\n}\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
 <p class="caption">
 Figure 2.1: Simplified DAG of the GRAVI workflow. Key steps are numbered and shown in black. Inputs are shown in blue, whilst key outputs are shown in coral.
 </p>
@@ -194,7 +194,7 @@ The complete R environment from every compiled HTML page is also saved in <code>
 <p>Defining genomic regions is a key part of the setup for analysis.
 Under the GRAVI workflow, a series of <em>non-overlapping genomic regions</em> are defined which characterise the most likely role/aspect for each specific region.
 As these will be unique to each Gencode build, and also include any optional RNA-Seq data, this step is performed for every experiment.
-However, it is a very time-consuming step and speeding up the process is an area of active development.</p>
+However, it is a moderately time-consuming step and speeding up the process is an area of active development.</p>
 <ol style="list-style-type: decimal">
 <li><em>Promoters</em>: By default these are defined as -1500/+500bp from every distinct TSS.
 If promoters from two or more transcripts overlap, they are merged into a single promoter.
@@ -208,8 +208,7 @@ These ranges can be easily changed to increase or decrease the size using the YA
 <li>Beyond 10kb of a gene.</li>
 </ul></li>
 </ol>
-<p>During the characterisation of all the above regions, mappings to associated genes and transcripts is retained and included in the subsequent <code>GenomicRanges</code> object.
-An additional <code>mcols</code> field (<code>detected</code>) is included in this object which indicates if any of the mapped genes are detected within any provided RNA-Seq data.</p>
+<p>During the characterisation of all the above regions, mappings to associated genes and transcripts is retained and included in the subsequent <code>GenomicRanges</code> object.</p>
 </div>
 <div id="other-steps" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Other Steps<a href="workflow.html#other-steps" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -238,7 +237,7 @@ Given that some ChIP targets may be cytoplasmic and yield zero peaks in some tre
 Venn Diagrams are then produced for all replicates with each treatment groups (if <span class="math inline">\(n \leq3\)</span>), or UpSet plots are produced for <span class="math inline">\(n \geq4\)</span> replicates to show consistency between replicates.</p>
 <p><strong>Oracle Peaks</strong>: During this step of the workflow a set of treatment-specific <em>oracle peaks</em> will be produced for each ChIP target.
 The set of peaks obtained by merging samples will be compared to all individual samples, and only those peaks identified in at least <span class="math inline">\(100*p_\text{reps}\%\)</span> of the samples which passed QC will be included in the set of oracle peaks.
-This parameter can be set in <code>config.yml</code> as the parameter <code>min_prop_reps</code> (Section <a href="editing-yaml.html#config-yml">5.1</a>) with the default of 0.3 indicating that peaks must be detected in 1 or more samples (if N = 2,3), two or more samples (if N = 4, 5) etc.</p>
+This parameter can be set in <code>config.yml</code> as the parameter <code>min_prop_reps</code> (Section <a href="editing-yaml.html#config-yml">5.1</a>) with the default of 0.5 indicating that peaks must be detected in 1 or more samples (if N = 2), two or more samples (if N = 3, 4) etc.</p>
 <p><strong>Consensus Peaks</strong>: After defining the treatment-specific oracle peaks, these are combined to define the set of <em>consensus peaks</em>.
 Oracle peaks are merged across conditions in an inclusive manner, such the the range of each consensus peak encompasses the entire region covered by all overlapping oracle peaks.
 Consensus peaks are then used as the ‘universe’ of peaks against which treatment-specific behaviours are compared.</p>
@@ -259,23 +258,24 @@ Consensus peaks are then used as the ‘universe’ of peaks against which treat
 <div id="key-outputs" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Key Outputs<a href="workflow.html#key-outputs" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <ul>
-<li>Consensus peaks will be exported as <code>output/&lt;ChIP_target&gt;/consensus_peaks.bed</code></li>
-<li>Oracle peaks will be exported as individual bed files for each treatment group, as well as combined in a single <code>RDS</code> object for faster parsing into an <code>R</code> environment as <code>output/&lt;ChIP_target&gt;/oracle_peaks.rds</code></li>
+<li>Consensus peaks will be exported as <code>output/macs2/&lt;ChIP_target&gt;/consensus_peaks.bed</code></li>
+<li>Oracle peaks will be exported as individual bed files for each treatment group (<code>output/macs2/&lt;ChIP_target&gt;/&lt;treat&gt;_oracle_peaks.bed</code>), as well as combined in a single <code>RDS</code> object for faster parsing into an <code>R</code> environment as <code>output/macs2/&lt;ChIP_target&gt;/oracle_peaks.rds</code></li>
 </ul>
 </div>
 </div>
 <div id="differential-binding" class="section level2 hasAnchor" number="2.3">
 <h2><span class="header-section-number">2.3</span> Differential Binding<a href="workflow.html#differential-binding" class="anchor-section" aria-label="Anchor link to header"></a></h2>
-<p>This step provides much of the uniqueness to the GRAVI workflow combining approaches from <code>macs2</code><span class="citation">(<a href="#ref-macs2" role="doc-biblioref">Zhang et al. 2008</a>)</span>, <code>qsmooth</code><span class="citation">(<a href="#ref-qsmooth" role="doc-biblioref">Hicks et al. 2018</a>)</span>, <code>csaw</code><span class="citation">(<a href="#ref-csaw" role="doc-biblioref">Lun and Smyth 2014</a>)</span>, <code>limma</code><span class="citation">(<a href="#ref-limma" role="doc-biblioref">Ritchie et al. 2015</a>)</span> and <code>ihw</code><span class="citation">(<a href="#ref-ihw" role="doc-biblioref">Ignatiadis et al. 2016</a>)</span> whilst relying heavily on the infrastructure provided by <a href="https://bioconductor.org/packages/release/bioc/html/extraChIPs.html"><code>extraChIPs</code></a>.
+<p>This step provides much of the uniqueness to the GRAVI workflow combining approaches from <code>macs2</code><span class="citation">(<a href="#ref-macs2" role="doc-biblioref">Zhang et al. 2008</a>)</span>, <code>qsmooth</code><span class="citation">(<a href="#ref-qsmooth" role="doc-biblioref">Hicks et al. 2018</a>)</span>, <code>csaw</code><span class="citation">(<a href="#ref-csaw" role="doc-biblioref">Aaron T. L. Lun and Smyth 2014</a>)</span>, <code>limma</code><span class="citation">(<a href="#ref-limma" role="doc-biblioref">Ritchie et al. 2015</a>)</span>, <code>edgeR</code><span class="citation">(<a href="#ref-edger" role="doc-biblioref">Robinson, McCarthy, and Smyth 2010</a>)</span> and <code>ihw</code><span class="citation">(<a href="#ref-ihw" role="doc-biblioref">Ignatiadis et al. 2016</a>)</span> whilst relying heavily on the infrastructure provided by <a href="https://bioconductor.org/packages/release/bioc/html/extraChIPs.html"><code>extraChIPs</code></a>.
 A sliding window approach as advocated by Lun &amp; Smyth (2014) is the strategy used here.</p>
 <p>All two-factor comparisons of interest can specified via the YAML file (Section <a href="editing-yaml.html#config-yml">5.1</a>) with more complicated layouts specified as below</p>
 <pre><code>contrasts:
   - [&quot;control&quot;, &quot;treat1&quot;]
   - [&quot;control&quot;, &quot;treat2&quot;]</code></pre>
-<p>Differential binding analysis will be performed for every ChIP target where both treatment groups are found from each specified contrast.</p>
+<p>Differential binding analysis will be performed for every ChIP target where both treatment groups are found from each specified contrast.
+Two possible approaches are available, with these being 1) <code>sq-lt</code> (Smooth-Quantile limma-trend) or 2) <code>ls-ql</code> (Library-Size Quasi-Likelihood).</p>
 <div class="figure"><span style="display:block;" id="fig:unnamed-chunk-4"></span>
-<div id="htmlwidget-5cfc5ad19681c9df05a4" style="width:672px;height:480px;" class="grViz html-widget"></div>
-<script type="application/json" data-for="htmlwidget-5cfc5ad19681c9df05a4">{"x":{"diagram":"\ndigraph {\n\ngraph [compound = true fontsize = 14]\n\nnode [shape = rectangle]\n\na [label = \"Count Alignments: Sliding Windows\n(csaw)\"]\nb [label = \"Filter Windows\n(extraChIPs)\"]\nc [label = \"Normalisation\n(qsmooth)\"]\nd [label = \"Hypothesis Testing\n(limma)\"]\ne [label = \"Merge Neighbouring Regions\n(extraChIPs)\"]\nf [label = \"Independent Hypothesis Weighting\n(ihw)\"]\ng [label = \"Assign Genes To Windows\n(extraChIPs)\"]\nh [label = \"Enrichment Testing\n(msigdbr; goseq)\"]\ni [label = \"Comparison With RNA-Seq\n(fgsea)\" color = RoyalBlue fontcolor = RoyalBlue]\n\na -> b -> c -> d -> e -> f -> g -> h\nh -> i [color = RoyalBlue]\n\n}\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-85b9da3b9c96c8cfacd5" style="width:672px;height:480px;" class="grViz html-widget"></div>
+<script type="application/json" data-for="htmlwidget-85b9da3b9c96c8cfacd5">{"x":{"diagram":"\ndigraph {\n\ngraph [compound = true, fontsize = 16, color = crimson]\n\nnode [shape = rectangle fontsize = 16]\n\na [label = \"Count Alignments: Sliding Windows\n(csaw)\"]\nb [label = \"Filter Windows\n(extraChIPs)\"]\ne [label = \"Merge Neighbouring Windows\n(extraChIPs)\"]\nf [label = \"Independent Hypothesis Weighting\n(ihw)\" color = DarkGreen fontcolor = DarkGreen]\ng [label = \"Assign Genes To Windows\n(extraChIPs)\"]\nh [label = \"Enrichment Testing\n(msigdbr; goseq)\"]\ni [label = \"Comparison With RNA-Seq\n(fgsea)\" color = RoyalBlue fontcolor = RoyalBlue]\n\nsubgraph cluster_0 {\n    label = \"method = sq-lt\"\n    colour = \"red\"\n    penwidth = 2\n    c1 [label = \"Normalisation\n(qsmooth)\" shape = diamond]\n    d1 [label = \"Hypothesis Testing\n(limma)\" shape = diamond]\n    c1 -> d1\n}\n\nsubgraph cluster_1 {\n    label = \"method = ls-ql\"\n    colour = \"red\"\n    penwidth = 2\n    d2 [label = \"Hypothesis Testing\n(edgeR)\" shape = diamond]\n}\n\na -> b \nb -> c1\nd1 -> e \ne -> g [label = \"No IHW \\r\"];\ne -> f [label = \"IHW \\l\" color = DarkGreen]\nf -> g [color = DarkGreen]\ng -> h\nb -> d2\nd2 -> e\nh -> i [color = RoyalBlue]\n\n}\n","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
 <p class="caption">
 Figure 2.2: Overview of steps in the differential binding workflow. Primary R packages used for each step are indicated in brackets. Integration with differential expression results (RNA-Seq) is an option step only performed if RNA-Seq data is provided.
 </p>
@@ -283,8 +283,9 @@ Figure 2.2: Overview of steps in the differential binding workflow. Primary R pa
 <div id="sliding-windows" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Sliding Windows<a href="workflow.html#sliding-windows" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>By default, sliding windows will be defined based on the estimated fragment length so that the window size is slightly wider than the fragment length (<span class="math inline">\(w_\text{size}\)</span>), and the step size is <span class="math inline">\(w_\text{step} = w_\text{size} / 3\)</span>.
-This usually leads to window sizes which are multiples of 30nt, e.g. 150, 180, 210, 240 etc.</p>
-<p>Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, and discarding windows where the total number of alignments are <span class="math inline">\(&gt;n-1\)</span>, where <span class="math inline">\(n\)</span> represents the total number of samples in the current analysis.
+This usually leads to window sizes which are multiples of 30nt, e.g. 90, 120, 150, 180, 210, 240 etc.</p>
+<p>Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, as well as regions contained in black/greylists.
+Windows are discarded if the total number of alignments across all samples are <span class="math inline">\(&lt;n\)</span>, where <span class="math inline">\(n\)</span> represents the total number of samples in the current analysis.
 Windows which are more likely to contain noise than true binding signal are then discarded using <code>extraChIPs::dualFilter()</code> in combination with the <em>consensus peaks</em> from Section <a href="workflow.html#peak-calling">2.2</a>.
 The set of consensus peaks is used as a guide for setting the inclusion/exclusion thresholds which are based on 1) Overall signal intensity and 2) Enrichment over input.
 Thresholds for each measure are defined such that the proportion <span class="math inline">\(q\)</span> of windows which overlap a consensus peak are returned, with windows which pass <em>both</em> inclusion thresholds are returned.
@@ -294,16 +295,19 @@ Higher values will lead to large numbers of windows being retained which overlap
 </div>
 <div id="normalisation" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Normalisation<a href="workflow.html#normalisation" class="anchor-section" aria-label="Anchor link to header"></a></h3>
-<p>In order to accommodate ChIP targets which may vary considerably across treatments, such as in the case where the target is mainly cytoplasmic in one treatment group, logCPM values are used for differential binding analysis, after Smooth Quantile Normalisation<span class="citation">(<a href="#ref-qsmooth" role="doc-biblioref">Hicks et al. 2018</a>)</span>.
-Importantly, library sizes <em>across the entire set of alignments</em> are used for calculation of logCPM values as using only retained windows would introduce significant bias in low-signal samples.
-This strategy allows for normalisation both <em>within</em> and <em>across</em> treatment groups.
+<p>Under the <code>sq-lt</code> method, logCPM values are first calculated using the <em>total library size</em> for each sample.
+These values are then normalised using Smooth Quantile Normalisation<span class="citation">(<a href="#ref-qsmooth" role="doc-biblioref">Hicks et al. 2018</a>)</span> specifiying treatment groups as the factor of interest and allowing for normalisation within and between groups.
+This can be particularly useful in the scenario where a transcription factor (TF) is primarily cytoplasmic in one treatment group, before shifting to the nucleus in response to treatment.
 Plots showing qsmooth weights, pre/post logCPM, pre/post RLE <span class="citation">(<a href="#ref-rle" role="doc-biblioref">Gandolfo and Speed 2018</a>)</span> and pre/post PCA are produced in this section of the workflow.</p>
+<p>Alternatively, under the <code>ls-ql</code> methodology, only the <em>total library size</em> is provided to the GLM fitting stage with no further normalisation strategies being employed.
+This is analogous to the default <code>edgeR</code> option provided using DiffBind <span class="citation">(<a href="#ref-diffbind" role="doc-biblioref">Stark and Brown 2011</a>)</span>.</p>
 </div>
 <div id="hypothesis-testing" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Hypothesis Testing<a href="workflow.html#hypothesis-testing" class="anchor-section" aria-label="Anchor link to header"></a></h3>
-<p>The <em>limma-trend</em><span class="citation">(<a href="#ref-voom" role="doc-biblioref">Law et al. 2014</a>)</span> method is used for differential binding analysis, including all retained windows.
-Instead of a point-based Null Hypothesis (i.e. <span class="math inline">\(\mu = 0\)</span>) a range-based Null Hypothesis is the preferred approach<span class="citation">(<a href="#ref-treat" role="doc-biblioref">McCarthy and Smyth 2009</a>)</span>.
-Under this approach, the Null Hypothesis would be</p>
+<p>Given the normalised logCPM values being analysed under the <code>sq-lt</code> approach, an appropriate strategy for detection of differential signal is the <code>limma-trend</code> method <span class="citation">(<a href="#ref-voom" role="doc-biblioref">Law et al. 2014</a>)</span> as established for RNA-Seq analysis.
+Under the <code>ls-ql</code> approach, raw counts are analysed using the Quasi-Likelihood approach for Negative Binomial data <span class="citation">(<a href="#ref-qlf" role="doc-biblioref">Aaron T. L. Lun, Chen, and Smyth 2016</a>)</span>, again as developed for RNA-Seq data, and as offered when using DiffBind <span class="citation">(<a href="#ref-diffbind" role="doc-biblioref">Stark and Brown 2011</a>)</span></p>
+<p>Both strategies are performed on <em>all retained windows</em> using a <strong>range-based Null Hypothesis</strong> <span class="citation">(<a href="#ref-treat" role="doc-biblioref">McCarthy and Smyth 2009</a>)</span>, such that a minimum change can be specified, below which changes in binding signal are not considered to be of interest.
+Under this statistical approach, the Null Hypothesis would be</p>
 <p><span class="math display">\[
 H_0: -\lambda \leq \mu \leq \lambda
 \]</span>
@@ -312,9 +316,9 @@ with the alternate hypothesis being</p>
 H_A: |\mu| &gt; \lambda
 \]</span>
 By default, the value <span class="math inline">\(\lambda = \log_2(1.2)\)</span> is used, which denotes a 20% change in binding signal as the point where sites become of interest.
-This values is set in <code>config.yml</code> as the parameter <code>fc</code> (Default: <code>fc = 1.2</code>), and setting <code>fc = 1</code> would return the statistical approach to be a point-based Null Hypothesis <span class="math inline">\(H_0: \mu = 0\)</span>.</p>
+This value is set in <code>config.yml</code> as the parameter <code>fc</code> (Default: <code>fc = 1.2</code>), and setting <code>fc = 1</code> would return the statistical approach to be a point-based Null Hypothesis <span class="math inline">\(H_0: \mu = 0\)</span>.</p>
 <p>After performing this statistical test, overlapping windows are <em>merged</em> taking the individual window with the <strong>highest signal</strong> as the representative window for the merged region.
-As this value is independent of the statistical test<span class="citation">(<a href="#ref-csaw" role="doc-biblioref">Lun and Smyth 2014</a>)</span>, the resultant set of p-values is FDR-adjusted using the Benajmini-Hochberg approach<span class="citation">(<a href="#ref-fdr" role="doc-biblioref">Benjamini and Hochberg 1995</a>)</span>, giving a set of FDR-adjusted p-values for all merged regions.</p>
+As this value is independent of the statistical test<span class="citation">(<a href="#ref-csaw" role="doc-biblioref">Aaron T. L. Lun and Smyth 2014</a>)</span>, the resultant set of p-values are FDR-adjusted using the Benajmini-Hochberg approach<span class="citation">(<a href="#ref-fdr" role="doc-biblioref">Benjamini and Hochberg 1995</a>)</span>, giving a set of FDR-adjusted p-values for all merged regions.</p>
 </div>
 <div id="independent-hypothesis-weighting" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Independent Hypothesis Weighting<a href="workflow.html#independent-hypothesis-weighting" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -362,7 +366,6 @@ Genomic plots for unique regions based on signal strength (logCPM), changed bind
 <div id="enrichment-testing" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Enrichment Testing<a href="workflow.html#enrichment-testing" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>Using the gene-sets and pathways specified in <code>params.yml</code> four enrichment analyses are performed using <code>goseq</code><span class="citation">(<a href="#ref-goseq" role="doc-biblioref">Young et al. 2010</a>)</span>.
-Gene-width is used as an offset for biased sampling, as longer genes are more likely to have a peak mapped to them.
 These are</p>
 <ol style="list-style-type: decimal">
 <li>Comparison of genes mapped to a site with <strong>bound target</strong> and genes which are not mapped to a target-bound site</li>
@@ -370,7 +373,10 @@ These are</p>
 <li>Comparison of genes mapped to a site with <strong>increased binding</strong> against genes mapped to a binding site, but with no differentially bound sites</li>
 <li>Comparison of genes mapped to a site with <strong>decreased binding</strong> against genes mapped to a binding site, but with no differentially bound sites</li>
 </ol>
-<p>All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions</p>
+<p>Gene-width is used as an offset for biased sampling in the analysis of bound target only, as longer genes are more likely to have a peak mapped to them.
+For all other analyses, no offset term is included and the standard Hypergeometric test is performed.</p>
+<p>All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions.
+Where enough pathways are detected as significantly enriched, network plots are also produced deriving distances between nodes based on shared, differentially-bound genes using the <em>overlap coefficient.</em></p>
 </div>
 <div id="rna-seq-data" class="section level3 unlisted unnumbered hasAnchor">
 <h3>RNA-Seq Data<a href="workflow.html#rna-seq-data" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -378,12 +384,13 @@ These are</p>
 Firstly, the relationship between detected genes and the genomic regions bound by the target are characterised.
 If external features are also provided, this is repeated for external features.</p>
 <p>P-values from DE analysis are partitioned by differential binding status.
-No further IHW is performed, but this can still provide a clear visual clue as to the relationship between differential target binding and differential gene expression.</p>
+No further IHW is performed, but this can still provide a clear visual clue as to the relationship between target binding and differential gene expression.</p>
+<p>Genomic regions for the 5 genes most highly ranked for differential expression, and with <span class="math inline">\(&gt;1\)</span> target-bound window assigned to them are plotted.</p>
 <p>Given the unpredictability of an RNA-Seq dataset and the number of genes considered to be differentially expressed, bound and differentially bound windows are used as gene sets to perform GSEA<span class="citation">(<a href="#ref-fgsea" role="doc-biblioref">Korotkevich, Sukhov, and Sergushichev 2019</a>)</span> using sites directly, and sites partitioned by genomic region and external feature (if provided).
 GSEA is performed 1) taking direction of differential expression into account, 2) ranking genes purely by significance (i.e. without direction).</p>
-<p>Genomic regions for the 5 genes most highly ranked for differential expression, and with <span class="math inline">\(&gt;1\)</span> target-bound window assigned to them are plotted.</p>
 <p>Finally, standalone GSEA results from the RNA-seq dataset (incorporating direction of change and all requested <code>MSigDB</code> pathways) are compared to enrichment (i.e. <code>goseq</code>) results for differentially bound regions.
-Any common pathways are given in an interactive HTML table</p>
+As these are essentially orthogonal viewpoints on gene regulation, P-values from each analysis are combined using Wilkinson’s <code>maximump()</code> method and the resultant set of p-values adjusted using the specified method and requested threshold for <span class="math inline">\(\alpha\)</span>
+Any common pathways are given in an interactive HTML table along with network plots based on shared regulatory targets also found in the leading edge fro GSEA.</p>
 </div>
 <div id="key-outputs-1" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Key Outputs<a href="workflow.html#key-outputs-1" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -420,11 +427,18 @@ Using both targets, the universal windows are then classified based on both targ
 This is particularly important given the hypothesised role of ChIP targets which can act as pioneer factors<span class="citation">(<a href="#ref-pioneerfactors" role="doc-biblioref">Zaret and Carroll 2011</a>)</span>, or those which bind in complex and sequester other factors<span class="citation">(<a href="#ref-hickeynatmed" role="doc-biblioref">Hickey et al. 2021</a>)</span>.</p>
 <p>The classification of each window is based on significant FDR-adjusted p-value using the range-based H<sub>0</sub> in at least one comparison.
 In order to ensure more accurate assignment of windows in the secondary comparison, the FDR-adjusted p-values using a <em>point-based</em> H<sub>0</sub> are used, in conjunction with an estimated logFC beyond the range <span class="math inline">\(\pm\lambda\)</span>, i.e. <span class="math inline">\(|\widehat{\text{logFC}}| &gt; \lambda\)</span>.
-This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H<sub>0</sub>.</p>
+This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H<sub>0</sub>, as is common for all situations where threshold are applied.</p>
 <p>The combined behaviours of both ChIP targets is then compared directly, described by genomic region and external features (if provided).
 Distances between the windows with representative statistics (i.e. maximal signal) are determined where both targets are present.
 The combined changes in signal are then compared as a complete set for all windows where both targets are detected, as well as broken down by genomic region and external features.
 Distances between the windows where the maximal signal was observed are also presented</p>
+</div>
+<div id="combined-visualisations" class="section level3 unlisted unnumbered hasAnchor">
+<h3>Combined Visualisations<a href="workflow.html#combined-visualisations" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Profile heatmaps for all behavioural groups which are detected (e.g. TF1 Up - TF2 Up, TF1 Up - TF2 - Unchanged etc) are all presented.</p>
+<p>The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
+Using only combinations of Up/Down/Unchanged, six windows for each are presented.
+As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.</p>
 </div>
 <div id="enrichment-analysis" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Enrichment Analysis<a href="workflow.html#enrichment-analysis" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -444,19 +458,14 @@ Enrichment is performed at multiple levels:</p>
 <li>All pair-wise combinations of Up/Down/Unchanged/Undetected are tested across both factors. If no enrichment is found, results are not presented.</li>
 </ul></li>
 </ol>
-</div>
-<div id="combined-visualisations" class="section level3 unlisted unnumbered hasAnchor">
-<h3>Combined Visualisations<a href="workflow.html#combined-visualisations" class="anchor-section" aria-label="Anchor link to header"></a></h3>
-<p>Profile heatmaps for all behavioural groups which are detected (e.g. TF1 Up - TF2 Up, TF1 Up - TF2 - Unchanged etc) are all presented.</p>
-<p>The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
-Using only combinations of Up/Down/Unchanged, six windows for each are presented.
-As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.</p>
+<p>Where enrichment for pathways are found, network plots are again generated</p>
 </div>
 <div id="integration-with-rna-seq-results" class="section level3 unlisted unnumbered hasAnchor">
 <h3>Integration With RNA-Seq Results<a href="workflow.html#integration-with-rna-seq-results" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>The set of genes mapped to each pair-wise combination of Up/Down/Unchanged/Undetected are then compared to the external DE results using GSEA incorporating direction of change, and overall significance.
 Differential expression is displayed as a multi-panel volcano plot, separating genes by combined binding patterns.
-Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for <em>all</em> significant combined-binding groups are also provided in the results table.</p>
+Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for <em>all</em> significant combined-binding groups are also provided in the results table, along with network plots.
+Significantly enriched pathways are again determined by combining p-values from GSEA performed on RNA-Seq and enrichment testing performed on binding sites, using Wilkinson’s method.</p>
 </div>
 <div id="key-outputs-2" class="section level3 hasAnchor" number="2.4.1">
 <h3><span class="header-section-number">2.4.1</span> Key Outputs<a href="workflow.html#key-outputs-2" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -465,7 +474,8 @@ Along with barcode plots for the 9 most highly-ranked combined binding groups, g
 <li>Pairwise binding patterns across both comparisons (<code>output/pairwise_comparisons/&lt;ChIP_target1&gt;_&lt;ChIP_target2&gt;/&lt;comparison1&gt;-&lt;comparison2&gt;-pairwise_comparison.csv.gz</code>)</li>
 <li>The above file as an RDS object for easier parsing into an <code>R</code> environment.</li>
 </ul>
-<p>If RNA-Seq data is provided, the file <code>output/pairwise_comparisons/&lt;ChIP_target1&gt;_&lt;ChIP_target2&gt;/&lt;comparison1&gt;-&lt;comparison2&gt;-de_genes.csv</code> will contain mappings between DE genes and combined ChIP target binding patterns.</p>
+<p>If RNA-Seq data is provided, the file <code>output/pairwise_comparisons/&lt;ChIP_target1&gt;_&lt;ChIP_target2&gt;/&lt;comparison1&gt;-&lt;comparison2&gt;-de_genes.csv</code> will contain mappings between DE genes and combined ChIP target binding patterns.
+All lists of enriched pathways will also be exported as csv files.</p>
 
 </div>
 </div>
@@ -508,6 +518,9 @@ Liberzon, A., C. Birger, H. Thorvaldsdóttir, M. Ghandi, J. P. Mesirov, and P. T
 <div id="ref-csaw" class="csl-entry">
 Lun, Aaron T L, and Gordon K Smyth. 2014. <span>“<span>D</span>e Novo Detection of Differentially Bound Regions for <span>C</span>h<span>I</span><span>P</span>-Seq Data Using Peaks and Windows: Controlling Error Rates Correctly.”</span> <em>Nucleic Acids Res.</em> 42 (11): e95.
 </div>
+<div id="ref-qlf" class="csl-entry">
+Lun, Aaron T. L., Yunshun Chen, and Gordon K. Smyth. 2016. <span>“It’s DE-Licious: A Recipe for Differential Expression Analyses of RNA-Seq Experiments Using Quasi-Likelihood Methods in edgeR.”</span> In <em>Statistical Genomics: Methods and Protocols</em>, edited by Ewy Mathé and Sean Davis, 391–416. New York, NY: Springer New York. <a href="https://doi.org/10.1007/978-1-4939-3578-9_19">https://doi.org/10.1007/978-1-4939-3578-9_19</a>.
+</div>
 <div id="ref-treat" class="csl-entry">
 McCarthy, Davis J., and Gordon K. Smyth. 2009. <span>“<span class="nocase">Testing significance relative to a fold-change threshold is a TREAT</span>.”</span> <em>Bioinformatics</em> 25 (6): 765–71. <a href="https://doi.org/10.1093/bioinformatics/btp053">https://doi.org/10.1093/bioinformatics/btp053</a>.
 </div>
@@ -516,6 +529,12 @@ Mölder, F., K. P. Jablonski, B. Letcher, M. B. Hall, C. H. Tomkins-Tinch, V. So
 </div>
 <div id="ref-limma" class="csl-entry">
 Ritchie, Matthew E, Belinda Phipson, Di Wu, Yifang Hu, Charity W Law, Wei Shi, and Gordon K Smyth. 2015. <span>“<span class="nocase">limma</span> Powers Differential Expression Analyses for <span>RNA</span>-Sequencing and Microarray Studies.”</span> <em>Nucleic Acids Research</em> 43 (7): e47. <a href="https://doi.org/10.1093/nar/gkv007">https://doi.org/10.1093/nar/gkv007</a>.
+</div>
+<div id="ref-edger" class="csl-entry">
+Robinson, Mark D, Davis J McCarthy, and Gordon K Smyth. 2010. <span>“edgeR: A Bioconductor Package for Differential Expression Analysis of Digital Gene Expression Data.”</span> <em>Bioinformatics</em> 26 (1): 139–40. <a href="https://doi.org/10.1093/bioinformatics/btp616">https://doi.org/10.1093/bioinformatics/btp616</a>.
+</div>
+<div id="ref-diffbind" class="csl-entry">
+Stark, Rory, and Gordon Brown. 2011. <em>DiffBind: Differential Binding Analysis of ChIP-Seq Peak Data</em>. <a href="http://bioconductor.org/packages/release/bioc/vignettes/DiffBind/inst/doc/DiffBind.pdf">http://bioconductor.org/packages/release/bioc/vignettes/DiffBind/inst/doc/DiffBind.pdf</a>.
 </div>
 <div id="ref-goseq" class="csl-entry">
 Young, Matthew D, Matthew J Wakefield, Gordon K Smyth, and Alicia Oshlack. 2010. <span>“Gene Ontology Analysis for RNA-Seq: Accounting for Selection Bias.”</span> <em>Genome Biology</em> 11: R14.
@@ -593,7 +612,7 @@ gitbook.start({
     var script = document.createElement("script");
     script.type = "text/javascript";
     var src = "true";
-    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (src === "" || src === "true") src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/latest.js?config=TeX-MML-AM_CHTML";
     if (location.protocol !== "file:")
       if (/^https?:/.test(src))
         src = src.replace(/^https?:/, '');

@@ -4,18 +4,18 @@
 
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Chapter 5 YAML Configuration Files | GRAVI User Guide (v0.1.3)</title>
+  <title>Chapter 5 YAML Configuration Files | GRAVI User Guide (v0.1.5)</title>
   <meta name="description" content="This is the main documentation for the GRAVI workflow" />
-  <meta name="generator" content="bookdown 0.27 and GitBook 2.6.7" />
+  <meta name="generator" content="bookdown 0.30 and GitBook 2.6.7" />
 
-  <meta property="og:title" content="Chapter 5 YAML Configuration Files | GRAVI User Guide (v0.1.3)" />
+  <meta property="og:title" content="Chapter 5 YAML Configuration Files | GRAVI User Guide (v0.1.5)" />
   <meta property="og:type" content="book" />
   
   <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
   <meta name="github-repo" content="steveped/GRAVI" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Chapter 5 YAML Configuration Files | GRAVI User Guide (v0.1.3)" />
+  <meta name="twitter:title" content="Chapter 5 YAML Configuration Files | GRAVI User Guide (v0.1.5)" />
   
   <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
   
@@ -23,7 +23,7 @@
 <meta name="author" content="Stephen Pederson" />
 
 
-<meta name="date" content="2022-08-01" />
+<meta name="date" content="2023-01-13" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -162,7 +162,7 @@ div.csl-indent {
       <div class="body-inner">
         <div class="book-header" role="navigation">
           <h1>
-            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.3)</a>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.5)</a>
           </h1>
         </div>
 
@@ -201,6 +201,7 @@ external:
       treat: &quot;data/external/H3K27Ac_treat.bw&quot;
 
 comparisons:
+  method: &#39;sq-lt&#39;
   fc: 1.2
   fdr: 0.05
   paired: false
@@ -248,6 +249,7 @@ Only files provided will be included in the workflow.</p>
 <p><code>comparisons:</code></p>
 <p>These settings determine how the differential binding analysis is performed.</p>
 <ul>
+<li><code>method</code> (Default: “sq-lt”) Defines the strategy used for differential binding. The currently implemented options are “sq-lt” and “ls-ql” as described previously</li>
 <li><code>fc</code> (Default: 1.2) The setting of 1.2 indicates a 20% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to <code>limma::treat()</code> <span class="citation">(<a href="#ref-treat" role="doc-biblioref">McCarthy and Smyth 2009</a>)</span> in all differential binding analyses.</li>
 <li><code>fdr</code> (Default: 0.05) Windows with significance below this threshold are considered to provide supporting evidence of differential binding.</li>
 <li><code>paired</code> (Default: <code>false</code>) If set to <code>true</code> the values in the optional column (e.g. replicate, passage etc.) are used to perform a paired analysis as described in the <code>limma</code> manual</li>
@@ -277,6 +279,7 @@ Please see the <a href="https://macs3-project.github.io/MACS/"><code>macs2</code
 <p>Defines all plotting colour schemes for consistency throughout the entire workflow.
 Colours can be any standard colours able to be interpreted by <code>R</code>, such as <code>'blue'</code> or <code>'#0000FF'</code>.
 Recommended YAML list elements are <code>qc</code>, <code>regions</code>, <code>direction</code> and <code>treat</code>.
+A gradient through al colours provided in the <code>heatmaps</code> element will be generated dring generation of heatmaps.
 Any unspecified colours will be automatically assigned and will propagate through the workflow.
 As is standard across most programming languages, names are case-sensitive.
 An example file is given below:</p>
@@ -303,19 +306,21 @@ features:
   promoter: &quot;#FF4500&quot;
   enhancer: &quot;#FFFF00&quot;
   super_enhancer: &quot;#FFC34D&quot;
-  no_feature: &quot;#E5E5E5&quot;</code></pre>
+  no_feature: &quot;#E5E5E5&quot;
+heatmaps: [&#39;white&#39;, &#39;red&#39;]</code></pre>
 </div>
 <div id="params-yml" class="section level2 hasAnchor" number="5.3">
 <h2><span class="header-section-number">5.3</span> Additional Parameters: <code>params.yml</code><a href="editing-yaml.html#params-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Default settings for defining initial annotations, mapping of peaks to genes and enrichment testing.
 In general, these will not need to be changed, but can be if required.
 In particular, the value <strong>enh2gene</strong> can be set to zero if using data such as H3K27ac HiChIP to determine long-range interactions.</p>
-<p>For enrichment testing, the preferred p-value adjustment method can be specified using any value that match <code>p.adjust.methods</code> with an appropraite threshold also set in this section.
-Default settings are relatively inclusive and more stringent setting may be preferred by some users.
-Given intermittent issues with edge-cases in the <code>BiasedUrn</code> package, threshold for enrichment testing can also be specified here, such that genes in a group considered for testing must represent <span class="math inline">\(&gt;\)</span> <code>100*min_prop_goseq</code>% of genes, and must also be <span class="math inline">\(&lt;\)</span> <code>100*max_propr_goseq</code>% of all genes.</p>
+<p>For enrichment testing, the preferred p-value adjustment method can be specified using any value that match <code>p.adjust.methods</code> with an appropriate threshold also set in this section.
+Default settings are relatively inclusive and more stringent setting may be preferred by some users.</p>
 <p>Parameters for <code>msigdb</code><span class="citation">(<a href="#ref-msigdb" role="doc-biblioref">Liberzon et al. 2015</a>)</span> are passed to <code>msigdbr</code><span class="citation">(<a href="#ref-msigdbr" role="doc-biblioref">Dolgalev 2022</a>)</span> and fields should match this layout.
 Any categories passed to <code>gs_cat</code> will lead to all subcategories being used from that category.
 Specific sub-categories of larger databases can be passed using <code>gs_subcat</code> element.</p>
+<p>Values which determine the minimum and maximum size of any network plots are also defined here.
+Node-pair distances above the given distance will be removed from the plot and these edges excluded.</p>
 <pre><code>gene_regions:
   promoters:
     upstream: 1500
@@ -332,15 +337,27 @@ mapping:
 enrichment:
   adj: &quot;fdr&quot;
   alpha: 0.05
-  min_prop_goseq: 0.001
-  max_prop_goseq: 0.95
+  ## Only gene-sets between these two values will be retained before testing  
+  min_size: 5
+  max_size: 1000
+  ## Only gene-sets above this size will be shown in the results
+  min_sig: 3
+  ## The categories to use from MSigDB. These are passed to msigdbr in the
+  ## columns of the same name in an &#39;OR&#39; approach
   msigdb:
     gs_cat: &quot;H&quot;
     gs_subcat:
       - &quot;CP:KEGG&quot;
       - &quot;CP:REACTOME&quot;
       - &quot;CP:WIKIPATHWAYS&quot;
-      - &quot;TFT:GTRD&quot;</code></pre>
+      - &quot;TFT:GTRD&quot;
+      
+## Used for network plots
+networks:
+  min_size: 4
+  max_size: 80
+  max_distance: 0.9
+  layout: &#39;fr&#39;</code></pre>
 </div>
 <div id="rmarkdown-yml" class="section level2 hasAnchor" number="5.4">
 <h2><span class="header-section-number">5.4</span> HTML Settings: <code>rmarkdown.yml</code><a href="editing-yaml.html#rmarkdown-yml" class="anchor-section" aria-label="Anchor link to header"></a></h2>
@@ -471,7 +488,7 @@ gitbook.start({
     var script = document.createElement("script");
     script.type = "text/javascript";
     var src = "true";
-    if (src === "" || src === "true") src = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML";
+    if (src === "" || src === "true") src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/latest.js?config=TeX-MML-AM_CHTML";
     if (location.protocol !== "file:")
       if (/^https?:/.test(src))
         src = src.replace(/^https?:/, '');

@@ -77,7 +77,7 @@ The complete R environment from every compiled HTML page is also saved in `outpu
 Defining genomic regions is a key part of the setup for analysis.
 Under the GRAVI workflow, a series of *non-overlapping genomic regions* are defined which characterise the most likely role/aspect for each specific region.
 As these will be unique to each Gencode build, and also include any optional RNA-Seq data, this step is performed for every experiment.
-However, it is a very time-consuming step and speeding up the process is an area of active development.
+However, it is a moderately time-consuming step and speeding up the process is an area of active development.
 
 1. *Promoters*: By default these are defined as -1500/+500bp from every distinct TSS. 
 If promoters from two or more transcripts overlap, they are merged into a single promoter.
@@ -90,7 +90,6 @@ These ranges can be easily changed to increase or decrease the size using the YA
     + Beyond 10kb of a gene.
     
 During the characterisation of all the above regions, mappings to associated genes and transcripts is retained and included in the subsequent `GenomicRanges` object.
-An additional `mcols` field (`detected`) is included in this object which indicates if any of the mapped genes are detected within any provided RNA-Seq data.
 
 ### Other Steps {.unlisted .unnumbered}
 
@@ -123,7 +122,7 @@ Venn Diagrams are then produced for all replicates with each treatment groups (i
 
 **Oracle Peaks**: During this step of the workflow a set of treatment-specific *oracle peaks* will be produced for each ChIP target. 
 The set of peaks obtained by merging samples will be compared to all individual samples, and only those peaks identified in at least $100*p_\text{reps}\%$ of the samples which passed QC will be included in the set of oracle peaks.
-This parameter can be set  in `config.yml` as the parameter `min_prop_reps` (Section \@ref(config-yml)) with the default of 0.3 indicating that peaks must be detected in 1 or more samples (if N = 2,3), two or more samples (if N = 4, 5) etc.
+This parameter can be set  in `config.yml` as the parameter `min_prop_reps` (Section \@ref(config-yml)) with the default of 0.5 indicating that peaks must be detected in 1 or more samples (if N = 2), two or more samples (if N = 3, 4) etc.
 
 **Consensus Peaks**: After defining the treatment-specific oracle peaks, these are combined to define the set of *consensus peaks*. 
 Oracle peaks are merged across conditions in an inclusive manner, such the the range of each consensus peak encompasses the entire region covered by all overlapping oracle peaks.
@@ -146,13 +145,13 @@ Highly ranked consensus and treatment-specific oracle peaks are also shown in th
 
 ### Key Outputs {.unlisted .unnumbered}
 
-- Consensus peaks will be exported as `output/<ChIP_target>/consensus_peaks.bed`
-- Oracle peaks will be exported as individual bed files for each treatment group, as well as combined in a single `RDS` object for faster parsing into an `R` environment as `output/<ChIP_target>/oracle_peaks.rds`
+- Consensus peaks will be exported as `output/macs2/<ChIP_target>/consensus_peaks.bed`
+- Oracle peaks will be exported as individual bed files for each treatment group (`output/macs2/<ChIP_target>/<treat>_oracle_peaks.bed`), as well as combined in a single `RDS` object for faster parsing into an `R` environment as `output/macs2/<ChIP_target>/oracle_peaks.rds`
 
 
 ## Differential Binding {#differential-binding}
 
-This step provides much of the uniqueness to the GRAVI workflow combining approaches from `macs2`[@macs2], `qsmooth`[@qsmooth], `csaw`[@csaw], `limma`[@limma] and `ihw`[@ihw] whilst relying heavily on the infrastructure provided by [`extraChIPs`](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html).
+This step provides much of the uniqueness to the GRAVI workflow combining approaches from `macs2`[@macs2], `qsmooth`[@qsmooth], `csaw`[@csaw], `limma`[@limma], `edgeR`[@edger] and `ihw`[@ihw] whilst relying heavily on the infrastructure provided by [`extraChIPs`](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html).
 A sliding window approach as advocated by Lun & Smyth (2014) is the strategy used here.
 
 All two-factor comparisons of interest can specified via the YAML file (Section \@ref(config-yml)) with more complicated layouts specified as below
@@ -164,26 +163,50 @@ contrasts:
 ```
 
 Differential binding analysis will be performed for every ChIP target where both treatment groups are found from each specified contrast.
+Two possible approaches are available, with these being 1) `sq-lt` (Smooth-Quantile limma-trend) or 2) `ls-ql` (Library-Size Quasi-Likelihood).
+
 
 ```{r, fig.cap = "Overview of steps in the differential binding workflow. Primary R packages used for each step are indicated in brackets. Integration with differential expression results (RNA-Seq) is an option step only performed if RNA-Seq data is provided."}
 grViz("
 digraph {
 
-graph [compound = true fontsize = 14]
+graph [compound = true, fontsize = 16, color = crimson]
 
-node [shape = rectangle]
+node [shape = rectangle fontsize = 16]
 
 a [label = 'Count Alignments: Sliding Windows\n(csaw)']
 b [label = 'Filter Windows\n(extraChIPs)']
-c [label = 'Normalisation\n(qsmooth)']
-d [label = 'Hypothesis Testing\n(limma)']
-e [label = 'Merge Neighbouring Regions\n(extraChIPs)']
-f [label = 'Independent Hypothesis Weighting\n(ihw)']
+e [label = 'Merge Neighbouring Windows\n(extraChIPs)']
+f [label = 'Independent Hypothesis Weighting\n(ihw)' color = DarkGreen fontcolor = DarkGreen]
 g [label = 'Assign Genes To Windows\n(extraChIPs)']
 h [label = 'Enrichment Testing\n(msigdbr; goseq)']
 i [label = 'Comparison With RNA-Seq\n(fgsea)' color = RoyalBlue fontcolor = RoyalBlue]
 
-a -> b -> c -> d -> e -> f -> g -> h
+subgraph cluster_0 {
+    label = 'method = sq-lt'
+    colour = 'red'
+    penwidth = 2
+    c1 [label = 'Normalisation\n(qsmooth)' shape = diamond]
+    d1 [label = 'Hypothesis Testing\n(limma)' shape = diamond]
+    c1 -> d1
+}
+
+subgraph cluster_1 {
+    label = 'method = ls-ql'
+    colour = 'red'
+    penwidth = 2
+    d2 [label = 'Hypothesis Testing\n(edgeR)' shape = diamond]
+}
+
+a -> b 
+b -> c1
+d1 -> e 
+e -> g [label = 'No IHW \\r'];
+e -> f [label = 'IHW \\l' color = DarkGreen]
+f -> g [color = DarkGreen]
+g -> h
+b -> d2
+d2 -> e
 h -> i [color = RoyalBlue]
 
 }
@@ -194,9 +217,10 @@ h -> i [color = RoyalBlue]
 ### Sliding Windows {.unlisted .unnumbered}
 
 By default, sliding windows will be defined based on the estimated fragment length so that the window size is slightly wider than the fragment length ($w_\text{size}$), and the step size is $w_\text{step} = w_\text{size} / 3$.
-This usually leads to window sizes which are multiples of 30nt, e.g. 150, 180, 210, 240 etc.
+This usually leads to window sizes which are multiples of 30nt, e.g. 90, 120, 150, 180, 210, 240 etc.
 
-Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, and discarding windows where the total number of alignments are $>n-1$, where $n$ represents the total number of samples in the current analysis.
+Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, as well as regions contained in black/greylists.
+Windows are discarded if the total number of alignments across all samples are $<n$, where $n$ represents the total number of samples in the current analysis.
 Windows which are more likely to contain noise than true binding signal are then discarded using `extraChIPs::dualFilter()` in combination with the *consensus peaks* from Section \@ref(peak-calling).
 The set of consensus peaks is used as a guide for setting the inclusion/exclusion thresholds which are based on 1) Overall signal intensity and 2) Enrichment over input.
 Thresholds for each measure are defined such that the proportion $q$ of windows which overlap a consensus peak are returned, with windows which pass *both* inclusion thresholds are returned.
@@ -206,16 +230,21 @@ Higher values will lead to large numbers of windows being retained which overlap
 
 ### Normalisation {.unlisted .unnumbered}
 
-In order to accommodate ChIP targets which may vary considerably across treatments, such as in the case where the target is mainly cytoplasmic in one treatment group, logCPM values are used for differential binding analysis, after Smooth Quantile Normalisation[@qsmooth].
-Importantly, library sizes *across the entire set of alignments* are used for calculation of logCPM values as using only retained windows would introduce significant bias in low-signal samples.
-This strategy allows for normalisation both *within* and *across* treatment groups.
+Under the `sq-lt` method, logCPM values are first calculated using the *total library size* for each sample.
+These values are then normalised using Smooth Quantile Normalisation[@qsmooth] specifiying treatment groups as the factor of interest and allowing for normalisation within and between groups.
+This can be particularly useful in the scenario where a transcription factor (TF) is primarily cytoplasmic in one treatment group, before shifting to the nucleus in response to treatment.
 Plots showing qsmooth weights, pre/post logCPM, pre/post RLE [@rle] and pre/post PCA are produced in this section of the workflow.
+
+Alternatively, under the `ls-ql` methodology, only the *total library size* is provided to the GLM fitting stage with no further normalisation strategies being employed.
+This is analogous to the default `edgeR` option provided using DiffBind [@diffbind].
 
 ### Hypothesis Testing {.unlisted .unnumbered}
 
-The *limma-trend*[@voom] method is used for differential binding analysis, including all retained windows.
-Instead of a point-based Null Hypothesis (i.e. $\mu = 0$) a range-based Null Hypothesis is the preferred approach[@treat].
-Under this approach, the Null Hypothesis would be
+Given the normalised logCPM values being analysed under the `sq-lt` approach, an appropriate strategy for detection of differential signal is the `limma-trend` method [@voom] as established for RNA-Seq analysis.
+Under the `ls-ql` approach, raw counts are analysed using the Quasi-Likelihood approach for Negative Binomial data [@qlf], again as developed for RNA-Seq data, and as offered when using DiffBind [@diffbind]
+
+Both strategies are performed on *all retained windows* using a **range-based Null Hypothesis** [@treat], such that a minimum change can be specified, below which changes in binding signal are not considered to be of interest.
+Under this statistical approach, the Null Hypothesis would be
 
 $$
 H_0: -\lambda \leq \mu \leq \lambda
@@ -226,10 +255,10 @@ $$
 H_A: |\mu| > \lambda
 $$
 By default, the value $\lambda = \log_2(1.2)$ is used, which denotes a 20% change in binding signal as the point where sites become of interest.
-This values is set in `config.yml` as the parameter `fc` (Default: `fc = 1.2`), and setting `fc = 1` would return the statistical approach to be a point-based Null Hypothesis $H_0: \mu = 0$.
+This value is set in `config.yml` as the parameter `fc` (Default: `fc = 1.2`), and setting `fc = 1` would return the statistical approach to be a point-based Null Hypothesis $H_0: \mu = 0$.
 
 After performing this statistical test, overlapping windows are *merged* taking the individual window with the **highest signal** as the representative window for the merged region.
-As this value is independent of the statistical test[@csaw], the resultant set of p-values is FDR-adjusted using the Benajmini-Hochberg approach[@fdr], giving a set of FDR-adjusted p-values for all merged regions.
+As this value is independent of the statistical test[@csaw], the resultant set of p-values are FDR-adjusted using the Benajmini-Hochberg approach[@fdr], giving a set of FDR-adjusted p-values for all merged regions.
 
 ### Independent Hypothesis Weighting {.unlisted .unnumbered}
 
@@ -279,7 +308,6 @@ Genomic plots for unique regions based on signal strength (logCPM), changed bind
 ### Enrichment Testing {.unlisted .unnumbered}
 
 Using the gene-sets and pathways specified in `params.yml` four enrichment analyses are performed using `goseq`[@goseq].
-Gene-width is used as an offset for biased sampling, as longer genes are more likely to have a peak mapped to them.
 These are
 
 1. Comparison of genes mapped to a site with **bound target** and genes which are not mapped to a target-bound site
@@ -287,7 +315,11 @@ These are
 3. Comparison of genes mapped to a site with **increased binding** against genes mapped to a binding site, but with no differentially bound sites
 4. Comparison of genes mapped to a site with **decreased binding** against genes mapped to a binding site, but with no differentially bound sites
 
-All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions
+Gene-width is used as an offset for biased sampling in the analysis of bound target only, as longer genes are more likely to have a peak mapped to them.
+For all other analyses, no offset term is included and the standard Hypergeometric test is performed.
+
+All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions.
+Where enough pathways are detected as significantly enriched, network plots are also produced deriving distances between nodes based on shared, differentially-bound genes using the *overlap coefficient.*
 
 ### RNA-Seq Data {.unlisted .unnumbered}
 
@@ -296,15 +328,16 @@ Firstly, the relationship between detected genes and the genomic regions bound b
 If external features are also provided, this is repeated for external features.
 
 P-values from DE analysis are partitioned by differential binding status.
-No further IHW is performed, but this can still provide a clear visual clue as to the relationship between differential target binding and differential gene expression.
+No further IHW is performed, but this can still provide a clear visual clue as to the relationship between target binding and differential gene expression.
+
+Genomic regions for the 5 genes most highly ranked for differential expression, and with $>1$ target-bound window assigned to them are plotted.
 
 Given the unpredictability of an RNA-Seq dataset and the number of genes considered to be differentially expressed, bound and differentially bound windows are used as gene sets to perform GSEA[@fgsea] using sites directly, and sites partitioned by genomic region and external feature (if provided).
 GSEA is performed 1) taking direction of differential expression into account, 2) ranking genes purely by significance (i.e. without direction).
 
-Genomic regions for the 5 genes most highly ranked for differential expression, and with $>1$ target-bound window assigned to them are plotted.
-
 Finally, standalone GSEA results from the RNA-seq dataset (incorporating direction of change and all requested `MSigDB` pathways) are compared to enrichment (i.e. `goseq`) results for differentially bound regions.
-Any common pathways are given in an interactive HTML table
+As these are essentially orthogonal viewpoints on gene regulation, P-values from each analysis are combined using Wilkinson's `maximump()` method and the resultant set of p-values adjusted using the specified method and requested threshold for $\alpha$
+Any common pathways are given in an interactive HTML table along with network plots based on shared regulatory targets also found in the leading edge fro GSEA.
 
 ### Key Outputs {.unlisted .unnumbered}
 
@@ -341,12 +374,20 @@ This is particularly important given the hypothesised role of ChIP targets which
 
 The classification of each window is based on significant FDR-adjusted p-value using the range-based H~0~ in at least one comparison.
 In order to ensure more accurate assignment of windows in the secondary comparison, the FDR-adjusted p-values using a *point-based* H~0~ are used, in conjunction with an estimated logFC beyond the range $\pm\lambda$, i.e. $|\widehat{\text{logFC}}| > \lambda$.
-This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H~0~.
+This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H~0~, as is common for all situations where threshold are applied.
 
 The combined behaviours of both ChIP targets is then compared directly, described by genomic region and external features (if provided).
 Distances between the windows with representative statistics (i.e. maximal signal) are determined where both targets are present.
 The combined changes in signal are then compared as a complete set for all windows where both targets are detected, as well as broken down by genomic region and external features.
 Distances between the windows where the maximal signal was observed are also presented
+
+### Combined Visualisations {.unlisted .unnumbered}
+
+Profile heatmaps for all behavioural groups which are detected (e.g. TF1 Up - TF2 Up, TF1 Up - TF2 - Unchanged etc) are all presented.
+
+The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
+Using only combinations of Up/Down/Unchanged, six windows for each are presented.
+As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.
 
 ### Enrichment Analysis {.unlisted .unnumbered}
 
@@ -362,19 +403,15 @@ Enrichment is performed at multiple levels:
 2. Genes Mapped to Differentially Bound Windows
     + All pair-wise combinations of Up/Down/Unchanged/Undetected are tested across both factors. If no enrichment is found, results are not presented.
     
-### Combined Visualisations {.unlisted .unnumbered}
-
-Profile heatmaps for all behavioural groups which are detected (e.g. TF1 Up - TF2 Up, TF1 Up - TF2 - Unchanged etc) are all presented.
-
-The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
-Using only combinations of Up/Down/Unchanged, six windows for each are presented.
-As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.
+Where enrichment for pathways are found, network plots are again generated
+    
 
 ### Integration With RNA-Seq Results {.unlisted .unnumbered}
 
 The set of genes mapped to each pair-wise combination of Up/Down/Unchanged/Undetected are then compared to the external DE results using GSEA incorporating direction of change, and overall significance.
 Differential expression is displayed as a multi-panel volcano plot, separating genes by combined binding patterns. 
-Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for *all* significant combined-binding groups are also provided in the results table.
+Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for *all* significant combined-binding groups are also provided in the results table, along with network plots.
+Significantly enriched pathways are again determined by combining p-values from GSEA performed on RNA-Seq and enrichment testing performed on binding sites, using Wilkinson's method.
 
 ### Key Outputs
 
@@ -384,4 +421,4 @@ Key output files produced by this step of the workflow include
 - The above file as an RDS object for easier parsing into an `R` environment.
 
 If RNA-Seq data is provided, the file `output/pairwise_comparisons/<ChIP_target1>_<ChIP_target2>/<comparison1>-<comparison2>-de_genes.csv` will contain mappings between DE genes and combined ChIP target binding patterns.
-
+All lists of enriched pathways will also be exported as csv files.

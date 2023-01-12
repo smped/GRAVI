@@ -33,6 +33,7 @@ external:
       treat: "data/external/H3K27Ac_treat.bw"
 
 comparisons:
+  method: 'sq-lt'
   fc: 1.2
   fdr: 0.05
   paired: false
@@ -89,6 +90,7 @@ Only files provided will be included in the workflow.
 
 These settings determine how the differential binding analysis is performed.
 
+- `method` (Default: "sq-lt") Defines the strategy used for differential binding. The currently implemented options are "sq-lt" and "ls-ql" as described previously
 - `fc` (Default: 1.2) The setting of 1.2 indicates a 20% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to `limma::treat()` [@treat] in all differential binding analyses.
 - `fdr` (Default: 0.05) Windows with significance below this threshold are considered to provide supporting evidence of differential binding.
 - `paired` (Default: `false`) If set to `true` the values in the optional column (e.g. replicate, passage etc.) are used to perform a paired analysis as described in the `limma` manual
@@ -116,6 +118,7 @@ Please see the [`macs2` manual](https://macs3-project.github.io/MACS/) for more 
 Defines all plotting colour schemes for consistency throughout the entire workflow.
 Colours can be any standard colours able to be interpreted by `R`, such as `'blue'` or `'#0000FF'`.
 Recommended YAML list elements are `qc`, `regions`, `direction` and `treat`. 
+A gradient through al colours provided in the `heatmaps` element will be generated dring generation of heatmaps.
 Any unspecified colours will be automatically assigned and will propagate through the workflow.
 As is standard across most programming languages, names are case-sensitive.
 An example file is given below:
@@ -145,6 +148,7 @@ features:
   enhancer: "#FFFF00"
   super_enhancer: "#FFC34D"
   no_feature: "#E5E5E5"
+heatmaps: ['white', 'red']
 ```
 
 ## Additional Parameters: `params.yml` {#params-yml}
@@ -153,13 +157,15 @@ Default settings for defining initial annotations, mapping of peaks to genes and
 In general, these will not need to be changed, but can be if required.
 In particular, the value **enh2gene** can be set to zero if using data such as H3K27ac HiChIP to determine long-range interactions.
 
-For enrichment testing, the preferred p-value adjustment method can be specified using any value that match `p.adjust.methods` with an appropraite threshold also set in this section.
+For enrichment testing, the preferred p-value adjustment method can be specified using any value that match `p.adjust.methods` with an appropriate threshold also set in this section.
 Default settings are relatively inclusive and more stringent setting may be preferred by some users.
-Given intermittent issues with edge-cases in the `BiasedUrn` package, threshold for enrichment testing can also be specified here, such that genes in a group considered for testing must represent $>$ `100*min_prop_goseq`% of genes, and must also be $<$ `100*max_propr_goseq`% of all genes.
 
 Parameters for `msigdb`[@msigdb] are passed to `msigdbr`[@msigdbr] and fields should match this layout.
 Any categories passed to `gs_cat` will lead to all subcategories being used from that category.
 Specific sub-categories of larger databases can be passed using `gs_subcat` element.
+
+Values which determine the minimum and maximum size of any network plots are also defined here.
+Node-pair distances above the given distance will be removed from the plot and these edges excluded.
 
 ```
 gene_regions:
@@ -178,8 +184,13 @@ mapping:
 enrichment:
   adj: "fdr"
   alpha: 0.05
-  min_prop_goseq: 0.001
-  max_prop_goseq: 0.95
+  ## Only gene-sets between these two values will be retained before testing  
+  min_size: 5
+  max_size: 1000
+  ## Only gene-sets above this size will be shown in the results
+  min_sig: 3
+  ## The categories to use from MSigDB. These are passed to msigdbr in the
+  ## columns of the same name in an 'OR' approach
   msigdb:
     gs_cat: "H"
     gs_subcat:
@@ -187,6 +198,13 @@ enrichment:
       - "CP:REACTOME"
       - "CP:WIKIPATHWAYS"
       - "TFT:GTRD"
+      
+## Used for network plots
+networks:
+  min_size: 4
+  max_size: 80
+  max_distance: 0.9
+  layout: 'fr'
 ```
 
 
