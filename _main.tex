@@ -33,14 +33,6 @@
   \KOMAoptions{parskip=half}}
 \makeatother
 \usepackage{xcolor}
-\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
-\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
-\hypersetup{
-  pdftitle={GRAVI User Guide (Under Development)},
-  pdfauthor={Stephen Pederson},
-  hidelinks,
-  pdfcreator={LaTeX via pandoc}}
-\urlstyle{same} % disable monospaced font for URLs
 \usepackage{longtable,booktabs,array}
 \usepackage{calc} % for calculating minipage widths
 % Correct order of tables after \paragraph or \subparagraph
@@ -74,10 +66,18 @@
 \fi
 \usepackage[]{natbib}
 \bibliographystyle{plainnat}
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={GRAVI User Guide (v0.1.5)},
+  pdfauthor={Stephen Pederson},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
 
-\title{GRAVI User Guide (Under Development)}
+\title{GRAVI User Guide (v0.1.5)}
 \author{Stephen Pederson}
-\date{2022-06-02}
+\date{2023-01-13}
 
 \begin{document}
 \maketitle
@@ -98,7 +98,7 @@ In addition to \(\geq 1\) ChIP targets, \textbf{optional} input includes:
 \begin{itemize}
 \tightlist
 \item
-  Results from a single RNA-Seq experiment
+  Differential Expression results from a single RNA-Seq experiment as a \texttt{tsv/csv}
 \item
   Any type of genomic feature derived or obtained externally (\texttt{*gtf})
 \item
@@ -122,9 +122,7 @@ The GRAVI workflow itself will
 \item
   Perform enrichment analyses at all steps of the workflow
 \item
-  \emph{TO BE COMPLETED}: Perform motif analysis based on key binding patterns within and across ChIP targets
-\item
-  Add key output files to any local \texttt{git} repository
+  Add Rmd and html files to any local \texttt{git} repository
 \end{itemize}
 
 The primary output is a series of \texttt{html} pages generated from \texttt{rmarkdown} files, along with key figures and tables able to be shared amongst collaborators and incorporated directly into publications.
@@ -137,11 +135,7 @@ The workflow management software \texttt{snakemake}\citep{snakemake} is used to 
 
 The \texttt{snakemake} DAG (directed acyclic graph) of the workflow is always included in the compiled document, however a simplified version is presented below.
 
-\begin{figure}
-\centering
-\includegraphics{_main_files/figure-latex/unnamed-chunk-3-1.pdf}
-\caption{\label{fig:unnamed-chunk-3}Simplified DAG of the GRAVI workflow. Key steps are numbered and shown in black. Inputs are shown in blue, whilst key outputs are shown in coral.}
-\end{figure}
+\label{fig:unnamed-chunk-3}Simplified DAG of the GRAVI workflow. Key steps are numbered and shown in black. Inputs are shown in blue, whilst key outputs are shown in coral.
 
 The workflow produces a series of HTML reports as a larger webpage, inspired by the excellent \texttt{workflowr}\citep{workflowr} package but instead relying directly on \texttt{rmarkdown::render\_site()}\citep{R-rmarkdown}.
 The compiled html pages will be placed in the \texttt{docs} directory, with all source \texttt{rmarkdown} files being placed in the \texttt{analysis} directory.
@@ -158,7 +152,7 @@ The complete R environment from every compiled HTML page is also saved in \textt
 Defining genomic regions is a key part of the setup for analysis.
 Under the GRAVI workflow, a series of \emph{non-overlapping genomic regions} are defined which characterise the most likely role/aspect for each specific region.
 As these will be unique to each Gencode build, and also include any optional RNA-Seq data, this step is performed for every experiment.
-However, it is a very time-consuming step and speeding up the process is an area of active development.
+However, it is a moderately time-consuming step and speeding up the process is an area of active development.
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -186,7 +180,6 @@ However, it is a very time-consuming step and speeding up the process is an area
 \end{enumerate}
 
 During the characterisation of all the above regions, mappings to associated genes and transcripts is retained and included in the subsequent \texttt{GenomicRanges} object.
-An additional \texttt{mcols} field (\texttt{detected}) is included in this object which indicates if any of the mapped genes are detected within any provided RNA-Seq data.
 
 \hypertarget{other-steps}{%
 \subsection*{Other Steps}\label{other-steps}}
@@ -209,16 +202,20 @@ One summary report will be produced each ChIP target specified in the \texttt{ta
 Basic QC statistics such as Library Size, Read Lengths, Total Detected Peaks and Fraction Of Reads In Peaks (FRIP) are provided in tabular and visual form.
 Plots showing sample-specific GC content and Cross Correlations are also provided to enable visual identification of any outlier samples which can be excluded manually, or handled in any other suitable manner.
 
-Taking the best sample from each treatment group (i.e.~the one with the largest number of peaks, \(n_\text{max}\)), low quality samples can be \emph{automatically excluded} if failing to capture \(> p_\text{peaks} * n_\text{max}\) peaks, where \(p_\text{peaks}\) represents the minimum acceptable proportion of peaks obtained in the best sample (\(n_\text{max}\)).
-The value \(p_\text{peaks}\) can be defined in \texttt{config.yml} as the parameter \texttt{min\_prop\_peaks} (Section \ref{config-yml}) and setting this to zero will ensure all samples are included.
-This can be particularly useful when dealing with difficult biological source material such as tissue samples or organoids, as opposed to cell lines where consistent results are more common.
+One feature of the GRAVI workflow is to compare between replicates within a treatment group to determine any low-quality samples.
+Taking the median number of peaks within a sample group (\(np_i\)), and sample with \(>N\)-fold or \(<N\)-fold \(np_i\) peaks will be marked as an outlier.
+By default, this is set to 10-fold using the parameter \texttt{outlier\_threshold} (Section \ref{config-yml}) and can be disabled by setting this parameter to \texttt{.inf}, which will be passed to \texttt{R} as the value \(\infty\).
+Given that some ChIP targets may be cytoplasmic and yield zero peaks in some treatment groups, samples with zero peaks can also be allowed by setting \texttt{allow\_zero} to be \texttt{true}.
 
 \hypertarget{results}{%
 \subsection*{Results}\label{results}}
 
+\textbf{Individual Replicates}: UpSet plots\citep{upsetr} of all samples are first produced to enable identification of any possible mislabelling.
+Venn Diagrams are then produced for all replicates with each treatment groups (if \(n \leq3\)), or UpSet plots are produced for \(n \geq4\) replicates to show consistency between replicates.
+
 \textbf{Oracle Peaks}: During this step of the workflow a set of treatment-specific \emph{oracle peaks} will be produced for each ChIP target.
 The set of peaks obtained by merging samples will be compared to all individual samples, and only those peaks identified in at least \(100*p_\text{reps}\%\) of the samples which passed QC will be included in the set of oracle peaks.
-This parameter can be set in \texttt{config.yml} as the parameter \texttt{min\_prop\_reps} (Section \ref{config-yml}) with the default of 0.3 indicating that peaks must be detected in 1 or more samples (if N = 2,3), two or more samples (if N = 4, 5) etc.
+This parameter can be set in \texttt{config.yml} as the parameter \texttt{min\_prop\_reps} (Section \ref{config-yml}) with the default of 0.5 indicating that peaks must be detected in 1 or more samples (if N = 2), two or more samples (if N = 3, 4) etc.
 
 \textbf{Consensus Peaks}: After defining the treatment-specific oracle peaks, these are combined to define the set of \emph{consensus peaks}.
 Oracle peaks are merged across conditions in an inclusive manner, such the the range of each consensus peak encompasses the entire region covered by all overlapping oracle peaks.
@@ -232,7 +229,7 @@ The final HTML report produced for each target will contain:
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  A Venn Diagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot\citep{upsetr} will be produced instead
+  A Venn Diagram showing the overlap in consensus peaks and whether one or more oracle peaks overlaps the consensus peak. In the case of 4 or more treatments, an UpSet plot will be produced instead
 \item
   Distance to TSS plots as actual and cumulative distributions using consensus peaks.
 \item
@@ -245,14 +242,12 @@ Additional plots will be produced in the presence of external data
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  The distribution of consensus peaks which directly overlap a detected gene will be shown separated by genomic region, \emph{if RNA-Seq data is provided}
-\item
   The distribution of consensus peaks within external features will be shown \emph{if external features are provided}
 \item
   The distribution of consensus peaks within external features and genomic regions will be shown \emph{if external features are provided}
-\item
-  The distribution of consensus peaks which directly overlap a detected gene will be shown separated by external feature and genomic region
 \end{enumerate}
+
+Highly ranked consensus and treatment-specific oracle peaks are also shown in their genomic context alongside regulatory/external features and nearby gene models.
 
 \hypertarget{key-outputs}{%
 \subsection*{Key Outputs}\label{key-outputs}}
@@ -262,13 +257,13 @@ Additional plots will be produced in the presence of external data
 \item
   Consensus peaks will be exported as \texttt{output/macs2/\textless{}ChIP\_target\textgreater{}/consensus\_peaks.bed}
 \item
-  Oracle peaks will be exported as \texttt{output/macs2/\textless{}ChIP\_target\textgreater{}/oracle\_peaks.rds}
+  Oracle peaks will be exported as individual bed files for each treatment group (\texttt{output/macs2/\textless{}ChIP\_target\textgreater{}/\textless{}treat\textgreater{}\_oracle\_peaks.bed}), as well as combined in a single \texttt{RDS} object for faster parsing into an \texttt{R} environment as \texttt{output/macs2/\textless{}ChIP\_target\textgreater{}/oracle\_peaks.rds}
 \end{itemize}
 
 \hypertarget{differential-binding}{%
 \section{Differential Binding}\label{differential-binding}}
 
-This step provides much of the uniqueness to the GRAVI workflow combining approaches from \texttt{macs2}\citep{macs2}, \texttt{qsmooth}\citep{qsmooth}, \texttt{csaw}\citep{csaw}, \texttt{limma}\citep{limma} and \texttt{ihw}\citep{ihw} whilst relying heavily on the infrastructure provided by \href{https://bioconductor.org/packages/release/bioc/html/extraChIPs.html}{\texttt{extraChIPs}}.
+This step provides much of the uniqueness to the GRAVI workflow combining approaches from \texttt{macs2}\citep{macs2}, \texttt{qsmooth}\citep{qsmooth}, \texttt{csaw}\citep{csaw}, \texttt{limma}\citep{limma}, \texttt{edgeR}\citep{edger} and \texttt{ihw}\citep{ihw} whilst relying heavily on the infrastructure provided by \href{https://bioconductor.org/packages/release/bioc/html/extraChIPs.html}{\texttt{extraChIPs}}.
 A sliding window approach as advocated by Lun \& Smyth (2014) is the strategy used here.
 
 All two-factor comparisons of interest can specified via the YAML file (Section \ref{config-yml}) with more complicated layouts specified as below
@@ -280,20 +275,18 @@ contrasts:
 \end{verbatim}
 
 Differential binding analysis will be performed for every ChIP target where both treatment groups are found from each specified contrast.
+Two possible approaches are available, with these being 1) \texttt{sq-lt} (Smooth-Quantile limma-trend) or 2) \texttt{ls-ql} (Library-Size Quasi-Likelihood).
 
-\begin{figure}
-\centering
-\includegraphics{_main_files/figure-latex/unnamed-chunk-4-1.pdf}
-\caption{\label{fig:unnamed-chunk-4}Overview of steps in the differential binding workflow. Primary R packages used for each step are indicated in brackets. Integration with differential expression results (RNA-Seq) is an option step only performed if RNA-Seq data is provided.}
-\end{figure}
+\label{fig:unnamed-chunk-4}Overview of steps in the differential binding workflow. Primary R packages used for each step are indicated in brackets. Integration with differential expression results (RNA-Seq) is an option step only performed if RNA-Seq data is provided.
 
 \hypertarget{sliding-windows}{%
 \subsection*{Sliding Windows}\label{sliding-windows}}
 
 By default, sliding windows will be defined based on the estimated fragment length so that the window size is slightly wider than the fragment length (\(w_\text{size}\)), and the step size is \(w_\text{step} = w_\text{size} / 3\).
-This usually leads to window sizes which are multiples of 30nt, e.g.~150, 180, 210, 240 etc.
+This usually leads to window sizes which are multiples of 30nt, e.g.~90, 120, 150, 180, 210, 240 etc.
 
-Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, and discarding windows where the total number of alignments are \(>n-1\), where \(n\) represents the total number of samples in the current analysis.
+Alignments are initially counted across autosomes and sex chromosomes, explicitly excluding scaffolds and mitochondrial alignments, as well as regions contained in black/greylists.
+Windows are discarded if the total number of alignments across all samples are \(<n\), where \(n\) represents the total number of samples in the current analysis.
 Windows which are more likely to contain noise than true binding signal are then discarded using \texttt{extraChIPs::dualFilter()} in combination with the \emph{consensus peaks} from Section \ref{peak-calling}.
 The set of consensus peaks is used as a guide for setting the inclusion/exclusion thresholds which are based on 1) Overall signal intensity and 2) Enrichment over input.
 Thresholds for each measure are defined such that the proportion \(q\) of windows which overlap a consensus peak are returned, with windows which pass \emph{both} inclusion thresholds are returned.
@@ -304,17 +297,22 @@ Higher values will lead to large numbers of windows being retained which overlap
 \hypertarget{normalisation}{%
 \subsection*{Normalisation}\label{normalisation}}
 
-In order to accommodate ChIP targets which may vary considerably across treatments, such as in the case where the target is mainly cytoplasmic in one treatment group, logCPM values are used for differential binding analysis, after Smooth Quantile Normalisation\citep{qsmooth}.
-Importantly, library sizes \emph{across the entire set of alignments} are used for calculation of logCPM values as using only retained windows would introduce significant bias in low-signal samples.
-This strategy allows for normalisation both \emph{within} and \emph{across} treatment groups.
+Under the \texttt{sq-lt} method, logCPM values are first calculated using the \emph{total library size} for each sample.
+These values are then normalised using Smooth Quantile Normalisation\citep{qsmooth} specifiying treatment groups as the factor of interest and allowing for normalisation within and between groups.
+This can be particularly useful in the scenario where a transcription factor (TF) is primarily cytoplasmic in one treatment group, before shifting to the nucleus in response to treatment.
 Plots showing qsmooth weights, pre/post logCPM, pre/post RLE \citep{rle} and pre/post PCA are produced in this section of the workflow.
+
+Alternatively, under the \texttt{ls-ql} methodology, only the \emph{total library size} is provided to the GLM fitting stage with no further normalisation strategies being employed.
+This is analogous to the default \texttt{edgeR} option provided using DiffBind \citep{diffbind}.
 
 \hypertarget{hypothesis-testing}{%
 \subsection*{Hypothesis Testing}\label{hypothesis-testing}}
 
-The \emph{limma-trend}\citep{voom} method is used for differential binding analysis, including all retained windows.
-Instead of a point-based Null Hypothesis (i.e.~\(\mu = 0\)) a range-based Null Hypothesis is the preferred approach\citep{treat}.
-Under this approach, the Null Hypothesis would be
+Given the normalised logCPM values being analysed under the \texttt{sq-lt} approach, an appropriate strategy for detection of differential signal is the \texttt{limma-trend} method \citep{voom} as established for RNA-Seq analysis.
+Under the \texttt{ls-ql} approach, raw counts are analysed using the Quasi-Likelihood approach for Negative Binomial data \citep{qlf}, again as developed for RNA-Seq data, and as offered when using DiffBind \citep{diffbind}
+
+Both strategies are performed on \emph{all retained windows} using a \textbf{range-based Null Hypothesis} \citep{treat}, such that a minimum change can be specified, below which changes in binding signal are not considered to be of interest.
+Under this statistical approach, the Null Hypothesis would be
 
 \[
 H_0: -\lambda \leq \mu \leq \lambda
@@ -325,10 +323,10 @@ with the alternate hypothesis being
 H_A: |\mu| > \lambda
 \]
 By default, the value \(\lambda = \log_2(1.2)\) is used, which denotes a 20\% change in binding signal as the point where sites become of interest.
-This values is set in \texttt{config.yml} as the parameter \texttt{fc} (Default: \texttt{fc\ =\ 1.2}), and setting \texttt{fc\ =\ 1} would return the statistical approach to be a point-based Null Hypothesis \(H_0: \mu = 0\).
+This value is set in \texttt{config.yml} as the parameter \texttt{fc} (Default: \texttt{fc\ =\ 1.2}), and setting \texttt{fc\ =\ 1} would return the statistical approach to be a point-based Null Hypothesis \(H_0: \mu = 0\).
 
 After performing this statistical test, overlapping windows are \emph{merged} taking the individual window with the \textbf{highest signal} as the representative window for the merged region.
-As this value is independent of the statistical test\citep{csaw}, the resultant set of p-values is FDR-adjusted using the Benajmini-Hochberg approach\citep{fdr}, giving a set of FDR-adjusted p-values for all merged regions.
+As this value is independent of the statistical test\citep{csaw}, the resultant set of p-values are FDR-adjusted using the Benajmini-Hochberg approach\citep{fdr}, giving a set of FDR-adjusted p-values for all merged regions.
 
 \hypertarget{independent-hypothesis-weighting}{%
 \subsection*{Independent Hypothesis Weighting}\label{independent-hypothesis-weighting}}
@@ -406,23 +404,26 @@ Genomic plots for unique regions based on signal strength (logCPM), changed bind
 \subsection*{Enrichment Testing}\label{enrichment-testing}}
 
 Using the gene-sets and pathways specified in \texttt{params.yml} four enrichment analyses are performed using \texttt{goseq}\citep{goseq}.
-Gene-width is used as an offset for biased sampling, as longer genes are more likely to have a peak mapped to them.
 These are
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  Comparison of genes mapped to a site with bound target and genes which are not mapped to a target-bound site
+  Comparison of genes mapped to a site with \textbf{bound target} and genes which are not mapped to a target-bound site
 \item
-  Comparison of genes mapped to a differentially bound site against genes mapped to a binding site, but with no differentially bound sites
+  Comparison of genes mapped to a \textbf{differentially bound site} against genes mapped to a binding site, but with no differentially bound sites
 \item
-  Comparison of genes mapped to a site with increased binding against genes mapped to a binding site, but with no differentially bound sites
+  Comparison of genes mapped to a site with \textbf{increased binding} against genes mapped to a binding site, but with no differentially bound sites
 \item
-  Comparison of genes mapped to a site with decreased binding against genes mapped to a binding site, but with no differentially bound sites
+  Comparison of genes mapped to a site with \textbf{decreased binding} against genes mapped to a binding site, but with no differentially bound sites
 \end{enumerate}
 
-All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions
+Gene-width is used as an offset for biased sampling in the analysis of bound target only, as longer genes are more likely to have a peak mapped to them.
+For all other analyses, no offset term is included and the standard Hypergeometric test is performed.
+
+All results are presented as searchable, interactive HTML tables including which genes from each pathway are mapped to the relevant set of bound regions.
+Where enough pathways are detected as significantly enriched, network plots are also produced deriving distances between nodes based on shared, differentially-bound genes using the \emph{overlap coefficient.}
 
 \hypertarget{rna-seq-data}{%
 \subsection*{RNA-Seq Data}\label{rna-seq-data}}
@@ -432,15 +433,16 @@ Firstly, the relationship between detected genes and the genomic regions bound b
 If external features are also provided, this is repeated for external features.
 
 P-values from DE analysis are partitioned by differential binding status.
-No further IHW is performed, but this can still provide a clear visual clue as to the relationship between differential target binding and differential gene expression.
+No further IHW is performed, but this can still provide a clear visual clue as to the relationship between target binding and differential gene expression.
+
+Genomic regions for the 5 genes most highly ranked for differential expression, and with \(>1\) target-bound window assigned to them are plotted.
 
 Given the unpredictability of an RNA-Seq dataset and the number of genes considered to be differentially expressed, bound and differentially bound windows are used as gene sets to perform GSEA\citep{fgsea} using sites directly, and sites partitioned by genomic region and external feature (if provided).
 GSEA is performed 1) taking direction of differential expression into account, 2) ranking genes purely by significance (i.e.~without direction).
 
-Genomic regions for the 5 genes most highly ranked for differential expression, and with \(>1\) target-bound window assigned to them are plotted.
-
 Finally, standalone GSEA results from the RNA-seq dataset (incorporating direction of change and all requested \texttt{MSigDB} pathways) are compared to enrichment (i.e.~\texttt{goseq}) results for differentially bound regions.
-Any common pathways are given in an interactive HTML table
+As these are essentially orthogonal viewpoints on gene regulation, P-values from each analysis are combined using Wilkinson's \texttt{maximump()} method and the resultant set of p-values adjusted using the specified method and requested threshold for \(\alpha\)
+Any common pathways are given in an interactive HTML table along with network plots based on shared regulatory targets also found in the leading edge fro GSEA.
 
 \hypertarget{key-outputs-1}{%
 \subsection*{Key Outputs}\label{key-outputs-1}}
@@ -496,11 +498,21 @@ This is particularly important given the hypothesised role of ChIP targets which
 
 The classification of each window is based on significant FDR-adjusted p-value using the range-based H\textsubscript{0} in at least one comparison.
 In order to ensure more accurate assignment of windows in the secondary comparison, the FDR-adjusted p-values using a \emph{point-based} H\textsubscript{0} are used, in conjunction with an estimated logFC beyond the range \(\pm\lambda\), i.e.~\(|\widehat{\text{logFC}}| > \lambda\).
-This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H\textsubscript{0}.
+This reduces the number of regions incorrectly classified as unchanged in one comparison due to the use of the range-based H\textsubscript{0}, as is common for all situations where threshold are applied.
 
 The combined behaviours of both ChIP targets is then compared directly, described by genomic region and external features (if provided).
 Distances between the windows with representative statistics (i.e.~maximal signal) are determined where both targets are present.
 The combined changes in signal are then compared as a complete set for all windows where both targets are detected, as well as broken down by genomic region and external features.
+Distances between the windows where the maximal signal was observed are also presented
+
+\hypertarget{combined-visualisations}{%
+\subsection*{Combined Visualisations}\label{combined-visualisations}}
+
+Profile heatmaps for all behavioural groups which are detected (e.g.~TF1 Up - TF2 Up, TF1 Up - TF2 - Unchanged etc) are all presented.
+
+The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
+Using only combinations of Up/Down/Unchanged, six windows for each are presented.
+As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.
 
 \hypertarget{enrichment-analysis}{%
 \subsection*{Enrichment Analysis}\label{enrichment-analysis}}
@@ -537,18 +549,31 @@ Enrichment is performed at multiple levels:
   \end{itemize}
 \end{enumerate}
 
-\hypertarget{combined-visualisations}{%
-\subsection*{Combined Visualisations}\label{combined-visualisations}}
-
-The genomic windows for which the two factors are present are visualised based on the combined strongest signal, and the combined largest change.
-Using only combinations of Up/Down/Unchanged, six windows for each are presented.
-As with all genomic visualisations, any coverage provided as an external track (e.g H3K27ac or ATAC-seq signal) will be added to all plots.
+Where enrichment for pathways are found, network plots are again generated
 
 \hypertarget{integration-with-rna-seq-results}{%
 \subsection*{Integration With RNA-Seq Results}\label{integration-with-rna-seq-results}}
 
 The set of genes mapped to each pair-wise combination of Up/Down/Unchanged/Undetected are then compared to the external DE results using GSEA incorporating direction of change, and overall significance.
-Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for \emph{all} significant combined-binding groups are also provided in the results table.
+Differential expression is displayed as a multi-panel volcano plot, separating genes by combined binding patterns.
+Along with barcode plots for the 9 most highly-ranked combined binding groups, genes in the Leading Edge for \emph{all} significant combined-binding groups are also provided in the results table, along with network plots.
+Significantly enriched pathways are again determined by combining p-values from GSEA performed on RNA-Seq and enrichment testing performed on binding sites, using Wilkinson's method.
+
+\hypertarget{key-outputs-2}{%
+\subsection{Key Outputs}\label{key-outputs-2}}
+
+Key output files produced by this step of the workflow include
+
+\begin{itemize}
+\tightlist
+\item
+  Pairwise binding patterns across both comparisons (\texttt{output/pairwise\_comparisons/\textless{}ChIP\_target1\textgreater{}\_\textless{}ChIP\_target2\textgreater{}/\textless{}comparison1\textgreater{}-\textless{}comparison2\textgreater{}-pairwise\_comparison.csv.gz})
+\item
+  The above file as an RDS object for easier parsing into an \texttt{R} environment.
+\end{itemize}
+
+If RNA-Seq data is provided, the file \texttt{output/pairwise\_comparisons/\textless{}ChIP\_target1\textgreater{}\_\textless{}ChIP\_target2\textgreater{}/\textless{}comparison1\textgreater{}-\textless{}comparison2\textgreater{}-de\_genes.csv} will contain mappings between DE genes and combined ChIP target binding patterns.
+All lists of enriched pathways will also be exported as csv files.
 
 \hypertarget{quick-start}{%
 \chapter{Quick Start Guide}\label{quick-start}}
@@ -594,7 +619,7 @@ If you are running the pipeline on an HPC and are unsure, please consult with yo
 To run using 16 cores without any queuing system (e.g.~on a local machine), enter the following
 
 \begin{verbatim}
-snakemake -p --use-conda --notemp --keep-going --cores 16
+snakemake -p --use-conda --notemp --keep-going --rerun-triggers mtime --cores 16
 \end{verbatim}
 
 \hypertarget{run-on-an-hpc}{%
@@ -602,9 +627,43 @@ snakemake -p --use-conda --notemp --keep-going --cores 16
 
 Please consult with your local support team for their advice running a \texttt{snakemake} workflow.
 In essence, the above command will need to be provided to your queuing system through the preferred strategy.
+The \texttt{snakemake} profile required will generally be stable across all workflows but may require expertise from the technical support team.
+
+\hypertarget{tips-and-tricks}{%
+\section{Tips And Tricks}\label{tips-and-tricks}}
+
+\hypertarget{removing-large-files}{%
+\subsection{Removing Large files}\label{removing-large-files}}
+
+Some large files, such as R Environments and BedGraph files are marked as \texttt{temp} files internally and these can be removed after completion of the workflow using
+
+\begin{verbatim}
+snakemake --delete-temp-output --cores 1
+\end{verbatim}
+
+\hypertarget{shared-conda-environments}{%
+\subsection{Shared Conda Environments}\label{shared-conda-environments}}
+
+\texttt{conda} environments can easily become bloated and if running multiple GRAVI analyses it may be simpler to host a common set of \texttt{conda} environments to avoid their constant recreation.
+This can be performed by adding the argument \texttt{-\/-conda-prefix\ \textquotesingle{}/path/to/my/envs/\textquotesingle{}} in the call to \texttt{snakemake}
+
+Conda environments can also be built prior to running the workflow using the standalone command
+
+\begin{verbatim}
+snakemake \
+    --use-conda \
+    --conda-prefix '/path/to/my/envs/' \
+    --conda-create-envs-only \
+    --cores 1
+\end{verbatim}
+
+\hypertarget{running-restricted-sections-of-the-worklow}{%
+\subsection{Running Restricted Sections of the Worklow}\label{running-restricted-sections-of-the-worklow}}
+
+Snakemake has the capacity to run a workflow up until a certain point and this can be easily done using the argument \texttt{-\/-until} and specifying the stage you wish to terminate the workflow at. For example, the argument \texttt{-\/-until\ compile\_macs2\_summary\_html} would only run the workflow until the macs2 summaries are compiled, which may be preferable for checking QC before proceeding to differential expression and pairwise comparisons.
 
 \hypertarget{input-files}{%
-\chapter{Input Files and Directories}\label{input-files}}
+\chapter{Files and Directories}\label{input-files}}
 
 \hypertarget{directories}{%
 \section{Directory Structure}\label{directories}}
@@ -634,9 +693,11 @@ project_home/
 \item
   The \texttt{html} output summarising all results will be produced in the \texttt{docs} directory
 \item
-  Additional output files will be placed in \texttt{output}
+  Additional output files will be placed in \texttt{output} with all figures written within the respective folder for each html page, or with \texttt{docs/assets}.
 \item
   The workflow itself is run by all code supplied in the \texttt{workflow} directory
+\item
+  The complete \texttt{R\ Environment} for each compiled RMarkdown document is also saved in \texttt{output/envs}, and given their larger sizes, these can be deleted using \texttt{snakemake\ -\/-delete-temp-output\ -\/-cores\ 1} to conserve storage space.
 \end{itemize}
 
 \hypertarget{alignments}{%
@@ -645,14 +706,14 @@ project_home/
 The GRAVI workflow currently takes \texttt{bam} files as the primary input.
 Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.
 
-Files should be placed in the \texttt{data/aligned} directory as set in \texttt{config.yml}, although this can be changed if desired.
+Files should be placed in the \texttt{data/bam} directory as set in \texttt{config.yml}, although this can be changed if desired.
 Each ChIP target should be placed in a separate directory using the example layout as given below.
 As IgG input may be shared between ChIP targets, these can all be placed in the directory \texttt{data/Input} and this is hard-wired into the workflow.
 
 \begin{verbatim}
 project_home/
  └── data
-      └── aligned 
+      └── bam 
            ├── TF1 
            │    ├── control_rep1.bam
            │    ├── control_rep2.bam
@@ -686,7 +747,7 @@ A brief example would follow the layout
   >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.1667}}
   >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.1667}}
   >{\centering\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2083}}@{}}
-\toprule
+\toprule()
 \begin{minipage}[b]{\linewidth}\centering
 sample
 \end{minipage} & \begin{minipage}[b]{\linewidth}\centering
@@ -698,7 +759,7 @@ replicate
 \end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 input
 \end{minipage} \\
-\midrule
+\midrule()
 \endhead
 control\_rep1 & TF1 & Control & 1 & pooled\_input \\
 control\_rep2 & TF1 & Control & 2 & pooled\_input \\
@@ -706,7 +767,7 @@ control\_rep3 & TF1 & Control & 3 & pooled\_input \\
 treat\_rep1 & TF1 & Treatment & 1 & pooled\_input \\
 treat\_rep2 & TF1 & Treatment & 2 & pooled\_input \\
 treat\_rep3 & TF1 & Treatment & 3 & pooled\_input \\
-\bottomrule
+\bottomrule()
 \end{longtable}
 
 \hypertarget{required-columns}{%
@@ -739,6 +800,7 @@ Common column names may be \texttt{replicate} or \texttt{passage} (for cell line
 \section{Additional Files}\label{additional-files}}
 
 Additional, optional files can also be supplied and is it customary to place these in \texttt{data/external} with paths (relative to \texttt{project\_home}) added to \texttt{config.yml}.
+Full details are demonstrated in Section \ref{config-yml}
 Names can be any informative name chosen by the user.
 
 \begin{verbatim}
@@ -802,7 +864,7 @@ samples:
   file: "config/samples.tsv"
 
 paths:
-  bam: "data/aligned"
+  bam: "data/bam"
 
 genome:
   build: "GRCh37"
@@ -818,6 +880,7 @@ external:
       treat: "data/external/H3K27Ac_treat.bw"
 
 comparisons:
+  method: 'sq-lt'
   fc: 1.2
   fdr: 0.05
   paired: false
@@ -832,8 +895,9 @@ peaks:
     fdr: 0.05
     keep_duplicates: "all"
   qc:
-    min_prop_peaks: 0.1
-    min_prop_reps: 0.3
+    outlier_threshold: 10
+    allow_zero: true
+    min_prop_reps: 0.5
 \end{verbatim}
 
 \hypertarget{settings-which-dont-need-to-be-modified}{%
@@ -845,14 +909,14 @@ Whilst varying these has been intermittently attempted successfully, unexpected 
 \texttt{samples:} (Default: ``config/samples.tsv'')
 
 By default, the file which contains all sample-level information is defined as \texttt{config/samples.tsv}.
-In theory, this can be changed but this may adversely impact the pipeline.
+This can be changed to reflect any requirements after inspecting QC reports.
 
 \texttt{paths:}
 
 \begin{itemize}
 \tightlist
 \item
-  \texttt{bam:} (Default: ``data/aligned'') Alignments should be placed in \texttt{data/aligned} as advised in section \ref{alignments}, although this can be changed to \texttt{data/bam} or any other relative path as desired. Again, changes to the default layout may adversely affect the pipeline stability
+  \texttt{bam:} (Default: ``data/bam'') Alignments should be placed in \texttt{data/bam} as advised in section \ref{alignments}, although this can be changed to any other relative path as desired.
 \end{itemize}
 
 \hypertarget{settings-which-should-be-modified}{%
@@ -872,7 +936,7 @@ Only files provided will be included in the workflow.
 \begin{itemize}
 \tightlist
 \item
-  \texttt{rnaseq} should be the results as output by \texttt{limma::topTable()} or similar. Gene IDs should match those provided in the Gencode GTF (e.g.~Ensembl IDs) and these should be in a column names \texttt{gene\_id}. Columns such as \texttt{logFC} and \texttt{FDR} will be searched for during the workflow using regular expressions to find the best match. Can be in \texttt{csv} or \texttt{tsv} format. Excel-specific (\texttt{xls}, \texttt{xlsx}) formats are not supported.
+  \texttt{rnaseq} should be the results as output by \texttt{limma::topTable()} or similar. Gene IDs should match those provided in the Gencode GTF (e.g.~Ensembl IDs) and these should be in a column names \texttt{gene\_id}. Columns such as \texttt{logFC} and \texttt{FDR} will be searched for during the workflow using regular expressions to find the best match. Can \textbf{only} be in \texttt{csv} or \texttt{tsv} format. Excel-specific (\texttt{xls}, \texttt{xlsx}) formats are not supported.
 \item
   \texttt{features} can be determined by any method, with common choices being relevant histone marks, or promoters, enhancers and super-enhancers determined by H3K27ac marks. Features should be non-overlapping with the field \texttt{feature} defining the different feature types. Must be provided in GTF format.
 \item
@@ -887,6 +951,8 @@ These settings determine how the differential binding analysis is performed.
 
 \begin{itemize}
 \tightlist
+\item
+  \texttt{method} (Default: ``sq-lt'') Defines the strategy used for differential binding. The currently implemented options are ``sq-lt'' and ``ls-ql'' as described previously
 \item
   \texttt{fc} (Default: 1.2) The setting of 1.2 indicates a 20\% change in binding as the threshold below which we are not interested, or below which we consider binding changes to be inconsequential. This parameters is passed to \texttt{limma::treat()} \citep{treat} in all differential binding analyses.
 \item
@@ -923,9 +989,11 @@ Please see the \href{https://macs3-project.github.io/MACS/}{\texttt{macs2} manua
 \begin{itemize}
 \tightlist
 \item
-  \texttt{min\_prop\_peaks:} (Default: 0.1) Samples within a treatment group must contain more than this proportion of peaks which overlap peaks from the ``best'' sample within the relevant treatment group, i.e.~the sample with the most number of peaks identified by \texttt{macs2\ callpeak}. This is an inclusive threshold which will only discard clearly poor samples, which themselves are more likely to occur in tissue/organoid than in cell-line derived data.
+  \texttt{outlier\_threshold} (Default: 10) As previously described, samples with peak numbers beyond this value relative to the median peak numbers in each treatment group are marked for removal. To ignore this parameter, set this to \texttt{.inf} which effectively sets the threshold to \(\infty\)
 \item
-  \texttt{min\_prop\_reps} (Default: 0.3) When forming \textbf{oracle} peaks within each \emph{target and treatment group}, peaks must be represented in at least this proportion of samples. This defaults to 0.3 which would equate to 1 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.
+  \texttt{allow\_zero} (Default: \texttt{true}) Allow samples with no identified peaks. If a ChIP target is expected to be cytoplasmic in one condition, this can allow samples with no peaks to be retained.
+\item
+  \texttt{min\_prop\_reps} (Default: 0.5) When forming \textbf{oracle} peaks within each \emph{target and treatment group}, peaks must be represented in at least this proportion of samples. This defaults to 0.5 which would equate to 2 of 3 samples, 2 of 4 samples etc. This value may need to be altered pending the results of a complete run after Quality Assessment has performed.
 \end{itemize}
 
 \hypertarget{colour-schemes-colours.yml-colours-yml}{%
@@ -934,6 +1002,7 @@ Please see the \href{https://macs3-project.github.io/MACS/}{\texttt{macs2} manua
 Defines all plotting colour schemes for consistency throughout the entire workflow.
 Colours can be any standard colours able to be interpreted by \texttt{R}, such as \texttt{\textquotesingle{}blue\textquotesingle{}} or \texttt{\textquotesingle{}\#0000FF\textquotesingle{}}.
 Recommended YAML list elements are \texttt{qc}, \texttt{regions}, \texttt{direction} and \texttt{treat}.
+A gradient through al colours provided in the \texttt{heatmaps} element will be generated dring generation of heatmaps.
 Any unspecified colours will be automatically assigned and will propagate through the workflow.
 As is standard across most programming languages, names are case-sensitive.
 An example file is given below:
@@ -963,17 +1032,25 @@ features:
   enhancer: "#FFFF00"
   super_enhancer: "#FFC34D"
   no_feature: "#E5E5E5"
+heatmaps: ['white', 'red']
 \end{verbatim}
 
 \hypertarget{params-yml}{%
 \section{\texorpdfstring{Additional Parameters: \texttt{params.yml}}{Additional Parameters: params.yml}}\label{params-yml}}
 
-Default settings for defining initial annotations and enrichment testing.
+Default settings for defining initial annotations, mapping of peaks to genes and enrichment testing.
 In general, these will not need to be changed, but can be if required.
+In particular, the value \textbf{enh2gene} can be set to zero if using data such as H3K27ac HiChIP to determine long-range interactions.
+
+For enrichment testing, the preferred p-value adjustment method can be specified using any value that match \texttt{p.adjust.methods} with an appropriate threshold also set in this section.
+Default settings are relatively inclusive and more stringent setting may be preferred by some users.
 
 Parameters for \texttt{msigdb}\citep{msigdb} are passed to \texttt{msigdbr}\citep{msigdbr} and fields should match this layout.
 Any categories passed to \texttt{gs\_cat} will lead to all subcategories being used from that category.
 Specific sub-categories of larger databases can be passed using \texttt{gs\_subcat} element.
+
+Values which determine the minimum and maximum size of any network plots are also defined here.
+Node-pair distances above the given distance will be removed from the plot and these edges excluded.
 
 \begin{verbatim}
 gene_regions:
@@ -982,14 +1059,37 @@ gene_regions:
     downstream: 500
   upstream: 5000
   intergenic: 10000
+  
+mapping:
+  gr2gene: 100000
+  prom2gene: 0
+  enh2gene: 100000
+  gi2gene: 0  
 
-msigdb:
-  gs_cat: "H"
-  gs_subcat:
-    - "CP:KEGG"
-    - "CP:REACTOME"
-    - "CP:WIKIPATHWAYS"
-    - "TFT:GTRD"
+enrichment:
+  adj: "fdr"
+  alpha: 0.05
+  ## Only gene-sets between these two values will be retained before testing  
+  min_size: 5
+  max_size: 1000
+  ## Only gene-sets above this size will be shown in the results
+  min_sig: 3
+  ## The categories to use from MSigDB. These are passed to msigdbr in the
+  ## columns of the same name in an 'OR' approach
+  msigdb:
+    gs_cat: "H"
+    gs_subcat:
+      - "CP:KEGG"
+      - "CP:REACTOME"
+      - "CP:WIKIPATHWAYS"
+      - "TFT:GTRD"
+      
+## Used for network plots
+networks:
+  min_size: 4
+  max_size: 80
+  max_distance: 0.9
+  layout: 'fr'
 \end{verbatim}
 
 \hypertarget{rmarkdown-yml}{%
@@ -1008,12 +1108,16 @@ The two available fields to supply here are:
   All \emph{left} elements of the \texttt{navbar} are determined automatically during the workflow and will be ignored if supplied here, whilst all other parameters are passed via the file \texttt{\_site.yaml} which will be generated during the workflow.
 \end{enumerate}
 
+Figure height and width parameters must be passed to \texttt{knitr::opts\_set()} in inches, and the workflow defaults to \texttt{svg} output for most figures.
+Some figures which can become excessively large under this setting, such as those with many thousands of overlapping points, are set to always produce \texttt{png} output.
+Multiple output formats can also be set using values such as \texttt{{[}\textquotesingle{}png\textquotesingle{},\ \textquotesingle{}pdf\textquotesingle{}{]}} if preferred.
+
 \begin{verbatim}
 knitr_opts:
   echo: TRUE
   message: FALSE
   warning: FALSE
-  dev: ["png", "pdf"]
+  dev: "svg"
   fig.align: "center"
   fig.width: 10
   fig.height: 8
