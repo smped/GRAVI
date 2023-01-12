@@ -13,6 +13,7 @@ library(DiagrammeR)
 library(pander)
 library(yaml)
 library(scales)
+library(glye)
 source(
   here::here("workflow/scripts/plot_dag_functions.R")
 )
@@ -24,6 +25,14 @@ config <- here::here("config/config.yml") %>%
 samples <- config$samples$file %>%
   here::here() %>%
   read_tsv()
+```
+
+```{r methods, echo=FALSE}
+db_method = list(
+  "ls-ql" = "using library-size normalisation followed by fitting of quasi-likelihood models",
+  "sq-lt" = "using smooth-quantile normalisation followed by limma-trend"
+)[[config$comparisons$method]]
+fc <- config$comparisons$fc
 ```
 
 
@@ -39,8 +48,8 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
   add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install)") %>%
-  change_node_colour("(index|macs2|annotations|bedgraph|compile)", "red") %>%
-  change_node_colour("(create|build)", "forestgreen") %>%
+  change_node_colour("(index|macs2|annotations|bedgraph|compile|greylist|coverage)", "red") %>%
+  change_node_colour("(create|build|update)", "forestgreen") %>%
   change_node_colour("(download|write|copy|install)", "blue") %>%
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
@@ -70,6 +79,10 @@ Differential binding analysis will be performed for every ChIP target where both
 
 `r pander(lapply(config$comparisons$contrasts, function(x) paste(rev(x), collapse = " Vs. ")))`
 
+Differential binding will be performed using `r db_method`.
+`r if (fc > 1) glue("Changes in signal below {percent(fc - 1)} will be considered as 'not of interest' when performing this analysis.")`
+
+
 ## Pairwise Comparisons
 
 All combinations of the comparisons defined above will will be used to perform pairwise comparisons.
@@ -81,15 +94,22 @@ All combinations of the comparisons defined above will will be used to perform p
 - The genome build (`r config$genome$build`) was sourced from Gencode release `r config$genome$gencode`
 - Blacklisted sites were sourced from [https://github.com/boyle-lab/Blacklist/](ENCODE) for this specific genome build
 
-### External Data
 
-```{r, echo = FALSE}
+```{r extdata, echo = FALSE}
 ext_data <- config$external[map_int(config$external, length) > 0] %>% 
   lapply(unlist) %>% 
   lapply(basename)
+txt <- ifelse(
+  length(ext_data) > 0, 
+  "### External Data
+  
+  The external data provided was:
+  ", 
+  "No external data was included"
+)
 ```
 
-`r ifelse(length(ext_data) > 0, "The external data provided was:", "No external data was included")`
+`r txt`
 
 `r if (length(ext_data) > 0) pander(ext_data)`
 

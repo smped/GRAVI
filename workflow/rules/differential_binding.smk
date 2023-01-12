@@ -1,3 +1,30 @@
+rule make_greylist:
+	input: 
+		bam = os.path.join(bam_path, "Input", "{ip_sample}.bam"),
+		bim = os.path.join(bam_path, "Input", "{ip_sample}.bam.bai"),
+		r = os.path.join("workflow", "scripts", "make_greylist.R"),
+		seqinfo = os.path.join(annotation_path, "seqinfo.rds")
+	output:
+		bed = os.path.join(annotation_path, "{ip_sample}_greylist.bed")
+	params:
+		git = git_add,
+	conda: "../envs/rmarkdown.yml"
+	log: log_path + "/scripts/{ip_sample}_make_greylist.log"
+	threads: 1
+	retries: git_tries
+	shell:
+		"""
+		Rscript --vanilla \
+			{input.r} \
+			{input.bam} \
+			{input.seqinfo} \
+			{output.bed} &>> {log}
+		
+		if [[ {params.git} == "True" ]]; then
+			git add {output.bed}
+		fi
+		"""
+
 rule create_differential_binding_rmd:
 	input:
 		db_mod = os.path.join(
@@ -59,6 +86,19 @@ rule compile_differential_binding_html:
 			],
 			suffix = ['bam', 'bam.bai']
 		),
+		extrachips = rules.update_extrachips.output,
+		greylist = lambda wildcards: expand(
+			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
+			ip_sample = set(
+				df['input'][
+					(df['target'] == wildcards.target) &
+					(
+						(df['treat'] == wildcards.ref) |
+						(df['treat'] == wildcards.treat)
+					)
+				]
+			),
+		),
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}", "{pre}_merged_callpeak.log"
@@ -88,11 +128,12 @@ rule compile_differential_binding_html:
 				)
 			]
 		),
-		pkgs = rules.install_packages.output,
+		module = os.path.join("workflow", "modules", db_method + ".Rmd"),
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
 		),
 		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
+		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
 		yml = expand(
@@ -118,10 +159,11 @@ rule compile_differential_binding_html:
 		),
 		outs = expand(
 			os.path.join(
-				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{file}"
+				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}"
 			),
-			file = [
-				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv'
+			f = [
+				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv', 'enrichment.csv',
+				'rnaseq_enrichment.csv'
 			]
 		),
 		win = os.path.join(
@@ -162,7 +204,7 @@ rule compile_differential_binding_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html}
+			git add {output.html} {output.outs}
 			git add {output.fig_path}
 		fi
 		"""

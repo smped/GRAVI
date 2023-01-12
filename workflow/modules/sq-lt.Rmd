@@ -1,0 +1,174 @@
+## Normalisation
+
+```{r load-extra-packages}
+library(quantro)
+library(qsmooth)
+```
+
+
+The `quantro` test was first applied [@HicksQuantro2015] to determine if treatment-specific binding distributions were found in the data.
+Whilst this may not always be the case, the robustness of smooth-quantile normalisation (SQN) [@HicksSQN2017] will be applicable if data is drawn from different or near-identical distributions, and this method was applied grouping data by treatment.
+
+```{r qtest, results='asis'}
+qtest <- quantro(
+  assay(filtered_counts, "logCPM"),
+  groupFactor = filtered_counts$treat
+)
+pander(
+  anova(qtest), 
+  caption = paste(
+    "*Results from qtest suggesting that the two treatment groups are drawn from",
+    ifelse(
+      qtest@anova$`Pr(>F)`[[1]] < 0.05,
+      "different distributions.*",
+      "the same distribution.*"
+    )
+  )
+)
+```
+
+
+```{r add-qsmooth}
+qs <-qsmooth(
+  assay(filtered_counts, "logCPM"), group_factor = filtered_counts$treat
+)
+assay(filtered_counts, "qsmooth") <- qsmoothData(qs)
+```
+
+## Data Inspection {.tabset}
+
+### QSmooth Weights
+
+```{r plot-qs-weights, fig.height = 6, fig.cap = "*Quantile-specific weights used by the Smooth-Quantile normalisation. Low weights indicate signal quantiles which appear to be more specific within a group, whilst higher weights indicate similarity between groups.*"}
+qsmoothPlotWeights(qs, xLab = "Quantiles", yLab = "Weights", mainLab = "QSmooth Weights")
+```
+
+
+### Density Plot: All Sliding Windows
+
+```{r plot-density-windows, fig.height = 6, fig.width = 8, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
+plotAssayDensities(
+  window_counts, trans = "log1p", n_max = n_max, colour = "treat",
+  linetype = "target"
+) +
+  scale_colour_manual(values = colours$treat) + 
+  labs(
+    x = "log(counts + 1)", y = "Density", colour = "Treat", linetype = "Target"
+  )
+```
+
+### logCPM Densities
+
+```{r plot-logcpm-densities, fig.height = 6, fig.cap = "*logCPM distributions for all retained windows A) prior to smooth quantile normalisation, and 2) after SQ normalisation.*"}
+a <- filtered_counts %>% 
+  plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
+  scale_colour_manual(values = treat_colours) +
+  labs(colour = "Treat")
+b <- filtered_counts %>% 
+  plotAssayDensities("qsmooth", colour = "treat", n_max = n_max) +
+  scale_colour_manual(values = treat_colours) +
+  labs(
+    x = "Normalised logCPM", colour = "Treat"
+  )
+plot_grid(
+  a + theme(legend.position = "none"), 
+  b + theme(legend.position = "none"),
+  get_legend(b),
+  nrow = 1,
+  rel_widths = c(5, 5, 1),
+  labels = c("A", "B")
+)
+```
+
+### RLE (Pre-Normalisation)
+
+```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+filtered_counts %>% 
+  plotAssayRle(
+  "logCPM", fill = "treat", rle_group = "treat", n_max = n_max
+) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_x_discrete(labels = sample_labeller) +
+  scale_fill_manual(values = treat_colours) +
+  labs(x = "Sample", fill = "Treat")
+```
+
+
+### RLE (Post-Normalisation)
+
+```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing normalised logCPM. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+filtered_counts %>% 
+  plotAssayRle(
+  "qsmooth", fill = "treat", rle_group = "treat", n_max = n_max
+) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_x_discrete(labels = sample_labeller) +
+  scale_fill_manual(values = treat_colours) +
+  labs(x = "Sample", fill = "Treat")
+```
+
+
+### PCA
+
+```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
+a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
+  scale_colour_manual(values = treat_colours) +
+  ggtitle("Pre-Normalisation")
+b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +
+  scale_colour_manual(values = treat_colours) +
+  ggtitle("Post-Normalisation")
+plot_grid(
+  a + theme(legend.position = "none"), b + theme(legend.position = "none"), 
+  get_legend(b + labs(colour = "Treat")), rel_widths = c(1, 1, 0.2), 
+  nrow = 1, labels = c("A", "B")
+  )
+```
+
+
+# Differential Binding Analysis
+
+## Primary Analysis {.tabset}
+
+```{r fit-model}
+X <- model.matrix(~treat, data = colData(filtered_counts)) %>%
+  set_colnames(str_remove(colnames(.), "treat"))
+colData(filtered_counts)$design <- X
+paired_cors <- block <- NULL
+if (config$comparisons$paired) {
+  block <- colData(filtered_counts)[[rep_col]]
+  set.seed(1e6)
+  ind <- sample.int(nrow(filtered_counts), n_max, replace = FALSE)
+  paired_cors <- duplicateCorrelation(
+    object = assay(filtered_counts, "qsmooth")[ind, ],
+    design = X,
+    block = block
+  )$consensus.correlation
+}
+fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
+fit <- assay(filtered_counts, "qsmooth") %>%
+  lmFit(design = X, block = block, correlation = paired_cors) %>% 
+  treat(fc = fc, trend = TRUE, robust = FALSE)
+fit_mu0 <- assay(filtered_counts, "qsmooth") %>%
+  lmFit(design = X, block = block, correlation = paired_cors) %>% 
+  treat(fc = 1, trend = TRUE, robust = FALSE)
+res_cols <- c("logFC", "AveExpr", "t", "P.Value", "fdr")
+rowData(filtered_counts) <- rowData(filtered_counts) %>% 
+  .[!colnames(.) %in% c(res_cols, "p_mu0")] %>% 
+  cbind(
+    fit %>% 
+      topTable(sort.by = "none", number = Inf) %>% 
+      as.list %>% 
+      setNames(res_cols) %>% 
+      c(
+        list(
+          p_mu0 = topTable(fit_mu0, sort.by = "none", number = Inf)$P.Value
+        )
+      )
+  ) 
+```
+
+
+After SQ-normalisation of logCPM values, the `limma-trend` method [@LawVoom2014] was applied to all retained windows.
+A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, incorporating a trended prior-variance.

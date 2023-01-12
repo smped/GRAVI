@@ -43,9 +43,9 @@ rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		config = "config/config.yml",
+		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
-		pkgs = rules.install_packages.output,
 		results_t1 = "docs/{t1}_{ref1}_{treat1}_differential_binding.html",
 		results_t2 = "docs/{t2}_{ref2}_{treat2}_differential_binding.html",
 		rmd = expand(
@@ -56,6 +56,7 @@ rule compile_pairwise_comparisons_html:
 			f = "pairwise_comparison.Rmd"
 		),
 		rmd_config = "config/rmarkdown.yml",
+		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output
 	output:
@@ -72,9 +73,15 @@ rule compile_pairwise_comparisons_html:
 				"{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_files"
 			)
 		),
-		csv = os.path.join(
-			"output", "pairwise_comparisons", "{t1}_{t2}",
-			"{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}-pairwise_comparison.csv.gz"
+		csv = expand(
+			os.path.join(
+				"output", "pairwise_comparisons", "{{t1}}_{{t2}}",
+			"{{t1}}_{{ref1}}_{{treat1}}-{{t2}}_{{ref2}}_{{treat2}}-{f}"
+			),
+			f = [
+				'pairwise_comparison.csv.gz', 'enrichment.csv', 
+				'rnaseq_enrichment.csv'
+				]
 		),
 		rds = os.path.join(
 			"output", "pairwise_comparisons", "{t1}_{t2}",
@@ -111,7 +118,7 @@ rule compile_pairwise_comparisons_html:
                 sleep {params.interval}
                 ((TRIES--))
             done
-            git add {output.html} {output.fig_path}
+            git add {output.html} {output.fig_path} {output.csv}
 			git add {params.asset_path}
         fi
 		"""

@@ -95,12 +95,12 @@ rule macs2_qc:
 		),
 		blacklist = blacklist,
 		config = "config/config.yml",
+		extrachips = rules.update_extrachips.output,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		pkgs = rules.install_packages.output,
 		samples = config['samples']['file'],
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
 		r = "workflow/scripts/macs2_qc.R"
@@ -275,6 +275,7 @@ rule compile_macs2_summary_html:
 		),
 		config = "config/config.yml",
 		cors = os.path.join(macs2_path, "{target}", "cross_correlations.tsv"),
+		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{{target}}", "{sample}_{suffix}"),
@@ -286,9 +287,9 @@ rule compile_macs2_summary_html:
 			treat = set(df[df.target == wildcards.target]['treat']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
-		pkgs = rules.install_packages.output,
 		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
+		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		venn_script = os.path.join("workflow", "scripts", "plot_venn.py"),
 		yaml = rules.create_site_yaml.output

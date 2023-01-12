@@ -21,18 +21,15 @@ mapping:
   gi2gene: 0
 
 enrichment:
-  ## P-value adjustment methods & cutoff (alpha)
   adj: "fdr"
   alpha: 0.05
-  ## Only perform goseq enrichment if the number of genes mapped is between
-  ## these two proportions of either the total genes (no RNA-Seq) or detected
-  ## genes (with RNA-Seq). Setting these avoids intermittent crashes of the
-  ## underlying sampling algorithms using in the Wallenius Non-Central
-  ## Hypergeometric distribution at extreme values
-  min_prop_goseq: 0.001
-  max_prop_goseq: 0.95
+  ## Only gene-sets between these two values will be retained before testing
+  min_size: 5
+  max_size: 1000
+  ## Only gene-sets above this size will be shown in the results
+  min_sig: 3
   ## The categories to use from MSigDB. These are passed to msigdbr in the
-  ## columns of the same name
+  ## columns of the same name in an 'OR' approach
   msigdb:
     gs_cat: "H"
     gs_subcat:
@@ -40,3 +37,10 @@ enrichment:
       - "CP:REACTOME"
       - "CP:WIKIPATHWAYS"
       - "TFT:GTRD"
+
+## Used for network plots
+networks:
+  min_size: 4
+  max_size: 80
+  max_distance: 0.9
+  layout: 'fr'

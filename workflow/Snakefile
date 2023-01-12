@@ -7,6 +7,7 @@ import sys
 import random
 import itertools
 import yaml
+import hashlib
 
 configfile: "config/config.yml"
 
@@ -114,7 +115,14 @@ df = pd.read_table(config['samples']['file'])
 samples = list(set(df['sample']))
 targets = list(set(df['target']))
 treats = list(set(df['treat']))
+inputs = list(set(df['input']))
 pairs=make_pairwise(config['comparisons']['contrasts'])
+
+wildcard_constraints:
+	target = "(" + '|'.join(targets) + ")",
+	samples = "(" + '|'.join(samples) + ")",
+	treat = "(" + '|'.join(treats) + ")",
+	ref = "(" + '|'.join(treats) + ")"
 
 ###############
 ## Key Paths ##
@@ -151,6 +159,19 @@ gtf = os.path.join(
 )
 blacklist = os.path.join(annotation_path, "blacklist.bed.gz")
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
+
+##################################
+## Hash for updating extraChIPs ##
+##################################
+rmd_hash = hashlib.md5(open('workflow/envs/rmarkdown.yml', "rb").read()).hexdigest()
+
+#################################
+## Differential Binding Method ##
+#################################
+
+# Currently LibSize + QuasiLikelihood (ls-ql) or 
+# SmoothQuantile + Limma-Trend (sq-lt)
+db_method = config['comparisons']['method']
 
 #####################
 ## Prepare Outputs ##
