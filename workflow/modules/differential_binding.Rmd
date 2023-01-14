@@ -1134,26 +1134,6 @@ sig_profiles <- bplapply(
   ),
   BPPARAM = MulticoreParam(length(sig_ranges))
 )
-## Currently, this is set to CPM as the only possible output of 
-## extraChIP::getProfileData. Until this is rectified, manually log-transform
-sig_profiles <- sig_profiles %>% 
-  bplapply(
-    function(x) {
-      temp_gr <- unlist(x)
-      temp_gr$profile_data <- lapply(
-        temp_gr$profile_data,
-        function(pd) {
-          pd$score <- log2(pd$score + 1)
-          pd
-        }
-      )
-      temp_gr$profile_data <- as(temp_gr$profile_data, "SplitDataFrameList")
-      out <- split(temp_gr, names(temp_gr))
-      out <- lapply(out, setNames, NULL)[names(x)]
-      GRangesList(out)
-    },
-    BPPARAM = MulticoreParam(length(sig_ranges))
-  ) 
 profile_heatmaps <- sig_profiles %>% 
   bplapply(
     plotProfileHeatmap,
