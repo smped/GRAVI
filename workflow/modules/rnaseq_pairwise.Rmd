@@ -258,11 +258,6 @@ de_genes_both_comps %>%
 
 ## Binding Pattern GSEA {.tabset}
 
-```{r dev-to-png, echo = FALSE}
-knitr::opts_chunk$set(dev = 'png')
-```
-
-
 
 ```{r define_genesets}
 rna_dir_ranks <- rnaseq %>% 
@@ -422,7 +417,7 @@ div(class = "table",
 
 
 ```{r barcode-gsea-dir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+plot_grid(plotlist = p, ncol = min(3, length(p)))
 ```
 
 
@@ -447,11 +442,16 @@ p <- gsea_nondir_sig %>%
         theme(plot.title = element_text(hjust = 0.5, size = 10))
     }
   )
+txt <- ifelse(
+  length(p) > 0,
+  glue(""),
+  glue("No association was found between changed binding across {comps[[1]]} and {comps[[2]]} when combined with *overall* significance in differentially expressed genes.")
+)
 ```
 
-`r if (nrow(gsea_nondir_sig) == 0) glue("No association was found between changed binding across {comps[[1]]} and {comps[[2]]} when combined with *overall* significance in differentially expressed genes.")`
+`r txt`
 
-```{r tbl-gsea_nondir_sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0}
+```{r tbl-gsea_nondir_sig, eval = length(p) > 0, echo = length(p) > 0}
 cp <-  htmltools::em(
   glue(
     "Combined windows were mapped to genes, and their position amongst the ",
@@ -541,7 +541,7 @@ div(class = "table",
 ```
 
 ```{r barcode-gsea-nondir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+plot_grid(plotlist = p, ncol = min(3, length(p)))
 ```
 
 
@@ -555,11 +555,13 @@ Distances between nodes (gene-sets) for any network plots were estimated by usin
 If the genes of interest from any two pathways were identical, only the most highly-ranked pathway was included in the network, and similarly if one gene-set was a subset of another, the most highly-ranked was retained for visualisation.
 
 ```{r cmn-sig}
-rnaseq_gsea <- fgsea(
-  pathways = gs_by_gsid,
-  stats = rna_dir_ranks, 
-  minSize = min_gs_size, 
-  maxSize = max_gs_size
+rnaseq_gsea <- suppressWarnings(
+  fgsea(
+    pathways = gs_by_gsid,
+    stats = rna_dir_ranks, 
+    minSize = min_gs_size, 
+    maxSize = max_gs_size
+  )
 ) %>% 
   dplyr::filter(!is.na(pval))
 cmn_res <- goseq_group_res %>% 
@@ -624,7 +626,7 @@ txt <- ifelse(any_sig, "### Results Tables {.tabset}", "No shared enrichment was
 
 `r txt`
 
-```{r common-result-tables, eval = length(cmn_res) > 0, echo = length(cmn_res) > 0}
+```{r common-result-tables, eval = any_sig, echo = any_sig}
 htmltools::tagList(
   names(cmn_res) %>% 
     lapply(
