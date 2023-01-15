@@ -420,14 +420,8 @@ div(class = "table",
 ```
 
 
-```{r, echo=FALSE}
-## Set the default device to be png for barcode plots as they can become
-## very large for some datasets
-knitr::opts_chunk$set(dev = 'png')
-```
 
-
-```{r barcode-gsea-dir-sig, eval = length(p) > 0, echo = length(p) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-dir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -546,13 +540,10 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-nondir-sig, eval = length(p) > 0, echo = length(p) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-nondir-sig, dev = 'png' eval = length(p) > 0, echo = length(p) > 0, fig.height= 3 * ceiling(length(p) / 3), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
-```{r dev-to-figure-dev}
-knitr::opts_chunk$set(dev = fig_dev)
-```
 
 ## Integration of RNA and ChIP Enrichment Analyses
 
