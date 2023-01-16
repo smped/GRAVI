@@ -609,7 +609,7 @@ htmltools::tagList(
             height = knitr::opts_chunk$get("fig.height")
           )
           grid.newpage()
-          
+          ## Prep the data for ComplexUpset
           df <- individual_peaks[dplyr::filter(samples, treat == i)$sample] %>% 
             makeConsensus(var = "qValue") %>% 
             mutate(qValue = vapply(qValue, median, numeric(1))) %>% 
@@ -618,6 +618,17 @@ htmltools::tagList(
               function(x) setNames(samples$label, samples$sample)[x],
               any_of(samples$sample)
             )
+          ## Highlight samples by QC
+          ql <- samples %>% 
+            dplyr::filter(treat == i) %>% 
+            pull('label') %>% 
+            lapply(
+              function(x) upset_query(
+                set = x, 
+                fill = colours$qc[as.character(dplyr::filter(samples, treat == i, label == x)$qc)]
+              )
+            )
+          ## And plot
           p <- df %>% 
             upset(
               intersect = rev(dplyr::filter(samples, treat == i)$label),
@@ -660,6 +671,7 @@ htmltools::tagList(
                     panel.border = element_rect(colour = "grey20", fill=  NA)
                   )
               ),
+              queries = ql,
               min_size = 10,
               sort_sets = FALSE
             ) +
