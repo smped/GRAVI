@@ -1138,7 +1138,7 @@ fc_heat <- names(sig_ranges) %>%
         {comma(length(sig_ranges[[x]]))} regions were in this group.
         ",
         ifelse(
-          n_sig[[x]] > 2e4, 
+          length(sig_ranges[[x]]) > 2e4, 
           " Due to the large number of regions, these were randomly down-sampled to 20,000 for viable plotting.",
           ""
         ),
