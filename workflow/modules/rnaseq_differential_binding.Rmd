@@ -1379,6 +1379,10 @@ rnaseq_gsea <- fgsea(
   maxSize = max_gs_size
 ) %>% 
   dplyr::filter(!is.na(pval))
+status_cols <- setNames(
+  hcl.colors(4, "Viridis", rev = TRUE),
+  c("Both", "ChIP Only", "RNA Only", "Neither")
+)
 ```
 
 The enrichment testing results from the `r target` differential binding analysis were then
@@ -1415,7 +1419,7 @@ cmn_diff <- rnaseq_gsea %>%
       !padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "ChIP Only",
       !padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "Neither"
     ) %>% 
-      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
+      factor(levels = names(status_cols))
   ) %>% 
   dplyr::filter(numDEInCat >= min_sig) %>% 
   dplyr::select(
@@ -1536,7 +1540,7 @@ tg_diff %>%
     aes(fill = Status, size = numDEInCat),
     shape = 21
   ) +
-    geom_node_text(
+  geom_node_text(
     aes(label = label, colour = direction),
     size = 3, 
     data = . %>%
@@ -1548,7 +1552,7 @@ tg_diff %>%
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_d(direction = -1) +
+  scale_fill_manual(values = status_cols) +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
@@ -1596,7 +1600,7 @@ cmn_up <- rnaseq_gsea %>%
       !padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "ChIP Only",
       !padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "Neither"
     ) %>% 
-      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
+      factor(levels = names(status_cols))
   ) %>% 
   dplyr::filter(numDEInCat >= min_sig) %>% 
   dplyr::select(
@@ -1731,7 +1735,7 @@ tg_up %>%
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_d(direction = -1) +
+  scale_fill_manual(values = status_cols) +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
@@ -1778,7 +1782,7 @@ cmn_down <- rnaseq_gsea %>%
       !padj_rna < enrich_alpha & padj_chip < enrich_alpha ~ "ChIP Only",
       !padj_rna < enrich_alpha & !padj_chip < enrich_alpha ~ "Neither"
     ) %>% 
-      factor(levels = c("Both", "ChIP Only", "RNA Only", "Neither"))
+      factor(levels = names(status_cols))
   ) %>% 
   dplyr::filter(numDEInCat >= min_sig) %>% 
   dplyr::select(
@@ -1913,7 +1917,7 @@ tg_down %>%
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_d(direction = -1) +
+  scale_fill_manual(values = status_cols) +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +

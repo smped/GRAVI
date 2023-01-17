@@ -434,7 +434,7 @@ Replicates within treatment groups are only shown where at least one peak was de
 For two or three replicates, Euler (Venn) Diagrams were generated using the `python` package `matplotlib-venn`.
 Peak numbers may differ from above as those shown below are overlapping peaks which have been merged across replicates
 
-In the case of four or more replicates, the package `UpSetR` was used to create UpSet plots [@Upset2014].
+In the case of four or more replicates, the package `ComplexUpset` was used to create UpSet plots [@Upset2014], with colours indicating QC status.
 
 ```{r load-replicates}
 replicates_by_treat <- individual_peaks %>%
@@ -685,7 +685,8 @@ htmltools::tagList(
           glue(
             "
             Number of {target} peaks detected by macs2 callpeak in each {i} 
-            replicate and the number of peaks shared between replicates.
+            replicate and the number of peaks shared between replicates. 
+            Replicates which passed/failed QC are show in the specified colours.
             "
           )
         )

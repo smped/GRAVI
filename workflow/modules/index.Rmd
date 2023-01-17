@@ -25,6 +25,10 @@ config <- here::here("config/config.yml") %>%
 samples <- config$samples$file %>%
   here::here() %>%
   read_tsv()
+rep_col <- setdiff(
+  colnames(samples),
+  c("sample", "target", "treat", "input")
+)
 ```
 
 ```{r methods, echo=FALSE}
@@ -76,6 +80,7 @@ samples %>%
 The specified comparisons are given below, where 'Vs.' can be interpreted as a '-' sign.
 This effectively makes the first listed group as the treatment and the second listed as the reference or control.
 Differential binding analysis will be performed for every ChIP target where both treatment groups are present.
+`r ifelse(config$comparisons$paired, glue("Samples will be nested __within {rep_col}__ as a potential source of correlation."), "")`
 
 `r pander(lapply(config$comparisons$contrasts, function(x) paste(rev(x), collapse = " Vs. ")))`
 
@@ -85,7 +90,7 @@ Differential binding will be performed using `r db_method`.
 
 ## Pairwise Comparisons
 
-All combinations of the comparisons defined above will will be used to perform pairwise comparisons.
+All combinations of the comparisons defined above will will be used to perform pairwise comparisons across ChIP targets and contrasts.
 
 ## Settings
 

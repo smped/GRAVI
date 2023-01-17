@@ -692,6 +692,13 @@ if (length(missing_dir_cols) > 0){
   )
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
+
+## Heatmap gradients
+if (length(colours$heatmaps) < 2) {
+  colours$heatmaps <- unique(c(colours$heatmaps,  c("white", "red")))
+}
+
+
 write_rds(colours, all_out$colours, compress = "gz")
 ```
 
