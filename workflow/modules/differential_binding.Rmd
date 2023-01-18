@@ -1531,6 +1531,8 @@ grl_to_plot <- GRangesList(
   lapply(setNames, c()) %>% 
   lapply(function(x) x[1]) %>%
   GRangesList()
+fh <- max(4, 1 + 3 * ceiling(length(grl_to_plot) / 3)) %>% 
+  min(knitr::opts_chunk$get("fig.height"))
 ```
 
 
@@ -1722,7 +1724,7 @@ makeCaption <- function(.gr) {
 
 `r if (db_method == "sq-lt") "### Normalised Sliding Windows"`
 
-```{r plot-qsmooth-top-ranges, eval = db_method == "sq-lt", echo = db_method == "sq-lt", fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} binding in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Binding Strength (Signal) and logFC. Windows are shown free of the genomic context.*")}
+```{r plot-qsmooth-top-ranges, eval = db_method == "sq-lt", fig.height = fh, echo = db_method == "sq-lt", fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} binding in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Binding Strength (Signal) and logFC. Windows are shown free of the genomic context.*")}
 grl_to_plot %>% 
   lapply(
     function(x){

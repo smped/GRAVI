@@ -942,8 +942,7 @@ a <- consensus_peaks %>%
     mutate(tss, tss = start)
   ) %>% 
   mutate(d = start + width/2 - tss) %>% 
-  mcols() %>% 
-  as.data.frame() %>%
+  as_tibble() %>% 
   ggplot(aes(d / 1e3)) +
   geom_density() +
   coord_cartesian(xlim = c(-100, 100)) +
@@ -956,7 +955,7 @@ b <- consensus_peaks %>%
     mutate(tss, tss = start)
   ) %>% 
   mutate(d = start + width/2 - tss) %>%
-  as.data.frame() %>% 
+  as_tibble() %>% 
   select(d) %>% 
   arrange(abs(d)) %>% 
   mutate(

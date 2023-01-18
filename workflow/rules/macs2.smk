@@ -312,7 +312,7 @@ rule compile_macs2_summary_html:
 		tries = git_tries,
 		asset_path = os.path.join("docs", "assets", "{target}")
 	conda: "../envs/rmarkdown.yml"
-	threads: 
+	threads:
 		lambda wildcards: min(
 			len(df[df['target'] == wildcards.target]),
 			max_threads
@@ -333,7 +333,7 @@ rule compile_macs2_summary_html:
 				sleep {params.interval}
 				((TRIES--))
 			done
-			git add {output.html} {output.fig_path}
+			git add {output.html} {output.fig_path} {output.peaks}
 			git add {params.asset_path}
 		fi
 		"""

@@ -105,8 +105,13 @@ combs <- paste(
   dplyr::filter(C1 != C2) %>%
   unite(combn, S1, S2, sep = " - ") %>%
   pull("combn")
-direction_colours <- RColorBrewer::brewer.pal(9, "Set1") %>% 
-  setNames(str_subset(combs, "Undetected", negate = TRUE))
+direction_colours <- c(
+  '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#42d4f4', '#f032e6', 
+  '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', '#aaffc3', 
+  '#000075', '#a9a9a9'
+) %>% # https://sashamaps.net/docs/resources/20-colors/
+  setNames(combs) %>% 
+  c("Other" = "#4d4d4d")
 comp_cols <- setNames(hcl.colors(3, "Zissou1", rev = TRUE), c(comps, "Both"))
 ```
 
@@ -125,6 +130,8 @@ id2gene <- setNames(all_gr$gene$gene_name, all_gr$gene$gene_id)
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
 genes_gr <- all_gr$gene
+tss <- file.path(annotation_path, "tss.rds") %>% 
+  read_rds()
 
 blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
@@ -799,7 +806,7 @@ df %>%
     xintercept = c(1, -1)* lambda,
     linetype = 2, colour = "grey"
   ) +
-  geom_label_repel(
+  geom_text_repel(
     aes(label = lab),
     data = . %>% 
       dplyr::filter(
@@ -815,7 +822,8 @@ df %>%
         detected = vapply(detected, paste, character(1), collapse = "; "),
         lab = paste(status, detected, sep = ": ") %>% str_wrap(25)
       ),
-    size = 3, alpha = 0.6,
+    size = 4, 
+    bg.r = 0.001, bg.color = "grey70",
     show.legend = FALSE
   ) +
   geom_text(
@@ -834,9 +842,7 @@ df %>%
       ),
     inherit.aes = FALSE
   ) +
-  scale_colour_manual(
-    values = direction_colours[levels(df$status)]
-  ) +
+  scale_colour_manual(values = direction_colours) +
   labs(
     x = paste(comps[[1]], "logFC"),
     y = paste(comps[[2]], "logFC"),
@@ -877,7 +883,7 @@ df %>%
     xintercept = c(1, -1) * lambda, 
     linetype = 2, colour = "grey"
   ) +
-  geom_label_repel(
+  geom_text_repel(
     aes(label = detected),
     data = . %>% 
       dplyr::filter(
@@ -893,7 +899,7 @@ df %>%
         detected = vapply(detected, paste, character(1), collapse = "; ") %>% 
           str_wrap(25)
       ),
-    size = 3, alpha = 0.6,
+    size = 3, bg.color = "grey70", bg.r = 0.001,
     show.legend = FALSE
   ) +
   geom_text(
@@ -914,7 +920,7 @@ df %>%
     inherit.aes = FALSE
   ) +
   facet_wrap(~region) +
-  scale_colour_manual(values = direction_colours[levels(df$status)]) +
+  scale_colour_manual(values = direction_colours) +
   labs(
     x = paste(comps[[1]], "logFC"),
     y = paste(comps[[2]], "logFC"),
@@ -954,7 +960,7 @@ df %>%
     xintercept = c(1, -1) * lambda,
     linetype = 2, colour = "grey"
   ) +
-  geom_label_repel(
+  geom_text_repel(
     aes(label = detected),
     data = . %>% 
       dplyr::filter(!str_detect(status, "Unchanged.+Unchanged")) %>% 
@@ -968,7 +974,7 @@ df %>%
           str_wrap(25)
       ) %>% 
       dplyr::filter(detected != ""),
-    size = 3, alpha = 0.6,
+    size = 3, bg.color = "grey70", bg.r = 0.001,
     show.legend = FALSE
   ) +
   geom_text(
