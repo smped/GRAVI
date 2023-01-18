@@ -146,8 +146,9 @@ if (config$comparisons$paired) {
     block = block
   )$consensus.correlation
   txt <- glue(
-    "Data were nested within {rep_col} as a potential source of correlation. ",
-    "The estimated correlation within replicate samples was $\\rho = {round(paired_cors, 3)}$"
+    "Data were nested within {{rep_col}} as a potential source of correlation. ",
+    "The estimated correlation within replicate samples was $\\hat{\\rho} = {{round(paired_cors, 3)}}$",
+    .open = "{{", .close = "}}"
   )
 }
 fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
