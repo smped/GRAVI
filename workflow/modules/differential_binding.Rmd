@@ -1162,13 +1162,13 @@ for (i in names(sig_profiles)) {
   rm(temp_gr)
 }
 profile_heatmaps <- sig_profiles %>% 
-  bplapply(
+  parallel::mclapply(
     plotProfileHeatmap,
     profileCol = "profile_data", 
     colour = "name",
     xLab = "Distance from Centre (bp)",
     fillLab = "logCPM",
-    BPPARAM = MulticoreParam(length(sig_profiles))
+    mc.cores = length(sig_profiles)
   ) 
 fill_range <- profile_heatmaps %>% 
   lapply(function(x) x$data[,"score"]) %>% 

@@ -647,6 +647,14 @@ all_windows$detected <- all_windows$gene_name
 if (has_rnaseq) all_windows$detected <- endoapply(
   all_windows$detected, intersect, rnaseq$gene_name
 ) 
+n_mapped <- all_windows %>%
+  select(status, gene_id) %>% 
+  as_tibble() %>% 
+  unnest(everything()) %>% 
+  distinct(status, gene_id) %>% 
+  group_by(status) %>% 
+  summarise(mapped = dplyr::n()) %>% 
+  arrange(desc(mapped)) 
 ```
 
 
@@ -2916,6 +2924,51 @@ htmltools::tagList(
     )
 )
 ```
+
+`r if (length(goseq_group_sig)) "#### All Groups"`
+
+```{r plot-all-enriched, eval = length(goseq_group_sig) > 0, echo = length(goseq_group_sig) > 0, fig.width = min(5 + length(goseq_group_sig), knitr::opts_chunk$get("fig.width")), fig.cap = glue("*Combined enrichment across all groups, showing only significant results for enrichment. The top panel shows how many genes were mapped to sites for each group, whilst the right panel shows gene set size. Point sizes indicate the proportion of mapped genes which are from each pathway.*")}
+goseq_group_sig %>%  
+  bind_rows() %>% 
+  arrange(pval) %>% 
+  left_join(n_mapped, by = c("group" = "status")) %>% 
+  mutate(
+    gs_name = fct_inorder(gs_name),
+    prop = numDEInCat / mapped,
+    group = factor(group, levels = n_mapped$status)
+  ) %>%
+  droplevels() %>% 
+  ggplot(aes(group, fct_rev(gs_name))) + 
+  geom_point(aes(size = prop, fill = -log10(pval)), shape = 21) +
+  geom_ysidecol(
+    aes(x = numInCat), data = . %>% distinct(gs_name, numInCat),
+  ) +
+  geom_xsidecol(
+    aes(y = mapped),
+    data = n_mapped %>% 
+      dplyr::filter(status %in% names(goseq_group_sig)) %>% 
+      dplyr::rename(group = status),
+    width = 0.5
+  ) +
+  scale_x_discrete(labels = label_wrap(15)) +
+  scale_ysidex_continuous(expand = expansion(c(0, 0.15))) +
+  scale_xsidey_continuous(
+    expand = expansion(c(0, 0.15))
+  ) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_size(range = c(0, 5), labels = percent) + 
+  labs(
+    x = c(), y = c(), size = "% Mapped\nGenes", fill = expr(paste(-log[10], "p"))
+  ) +
+  theme(
+    panel.grid = element_blank(), 
+    legend.position = "right",
+    ggside.panel.scale.x = 0.2,
+    ggside.panel.scale.y = 0.3
+  ) 
+```
+
+
 
 `r if(length(tg_group_res) > 0) "### Network Plots {.tabset}"`
 

@@ -47,6 +47,14 @@ diff_windows <- diff_windows %>%
   split(.$status) %>% 
   lapply(pull, "gene_id") 
 any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
+n_mapped <- all_windows %>% 
+  dplyr::select(status, detected) %>% 
+  as_tibble() %>% 
+  unnest(everything()) %>% 
+  distinct(status, detected) %>% 
+  group_by(status) %>% 
+  summarise(detected = dplyr::n()) %>% 
+  right_join(n_mapped, by = "status")
 ```
 
 ## Volcano Plots
@@ -721,6 +729,51 @@ htmltools::tagList(
     setNames(names(cmn_res))
 )
 ```
+
+`r if (any_sig) "#### All Groups"`
+
+```{r plot-all-enriched-rna, eval = any_sig, echo = any_sig, fig.width = min(5 + length(cmn_res), knitr::opts_chunk$get("fig.width")), fig.cap = glue("*Combined enrichment across all groups, incorporating RNA expression data, showing only significant results for enrichment. The top panel shows how many detected genes were mapped to sites for each group, whilst the right panel shows gene set size, using detected genes only. Point sizes indicate the proportion of mapped and detected genes which are from each pathway.*")}
+cmn_res %>%  
+  bind_rows() %>% 
+  arrange(adj_p) %>% 
+  left_join(n_mapped, by = c("group" = "status")) %>% 
+  mutate(
+    gs_name = fct_inorder(gs_name),
+    prop = numDEInCat / detected,
+    group = factor(group, levels = arrange(n_mapped, detected)$status)
+  ) %>%
+  droplevels() %>% 
+  ggplot(aes(fct_rev(group), fct_rev(gs_name))) + 
+  geom_point(aes(size = prop, fill = -log10(adj_p)), shape = 21) +
+  geom_ysidecol(
+    aes(x = numInCat), data = . %>% distinct(gs_name, numInCat),
+  ) +
+  geom_xsidecol(
+    aes(y = detected),
+    data = n_mapped %>% 
+      dplyr::filter(status %in% names(cmn_res)) %>% 
+      dplyr::rename(group = status),
+    width = 0.5
+  ) +
+  scale_x_discrete(labels = label_wrap(15)) +
+  scale_ysidex_continuous(expand = expansion(c(0, 0.15))) +
+  scale_xsidey_continuous(
+    expand = expansion(c(0, 0.15))
+  ) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_size(range = c(0, 5), labels = percent) + 
+  labs(
+    x = c(), y = c(), size = "% Mapped\n& Detected\nGenes", 
+    fill = expr(paste(-log[10], p[!!sym(adj_method)]))
+  ) +
+  theme(
+    panel.grid = element_blank(), 
+    legend.position = "right",
+    ggside.panel.scale.x = 0.2,
+    ggside.panel.scale.y = 0.3
+  ) 
+```
+
 
 `r if (plot_net) "### Network Plots {.tabset}"`
 
