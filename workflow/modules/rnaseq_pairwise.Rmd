@@ -738,7 +738,9 @@ cmn_res %>%
   arrange(adj_p) %>% 
   left_join(n_mapped, by = c("group" = "status")) %>% 
   mutate(
-    gs_name = fct_inorder(gs_name),
+    gs_name = fct_inorder(gs_name) %>% 
+      fct_relabel(str_replace_all, "_", " ") %>% 
+      fct_relabel(str_trunc, width = 60),
     prop = numDEInCat / detected,
     group = factor(group, levels = arrange(n_mapped, detected)$status)
   ) %>%
