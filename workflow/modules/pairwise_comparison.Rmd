@@ -2796,7 +2796,7 @@ No sampling bias was included, with test results using a simple Hypergeometric D
 `r if(length(goseq_group_sig) == 0) "No enrichment was found amongst any group of windows"`
 
 
-`r if(length(goseq_group_sig) > 0) "### Result Tables {.tabset}"`
+`r if(length(goseq_group_sig) > 0) "### Results {.tabset}"`
 
 
 ```{r tbl-goseq-groups, eval = length(goseq_group_sig) > 0, echo = length(goseq_group_sig) > 0}
@@ -2952,7 +2952,7 @@ goseq_group_sig %>%
       dplyr::rename(group = status),
     width = 0.5
   ) +
-  scale_x_discrete(labels = label_wrap(12)) +
+  scale_x_discrete(labels = label_wrap(10)) +
   scale_ysidex_continuous(expand = expansion(c(0, 0.15))) +
   scale_xsidey_continuous(
     expand = expansion(c(0, 0.15))
@@ -2964,9 +2964,11 @@ goseq_group_sig %>%
   ) +
   theme(
     panel.grid = element_blank(), 
+    axis.text = element_text(size = 8),
     legend.position = "right",
     ggside.panel.scale.x = 0.2,
-    ggside.panel.scale.y = 0.3
+    ggside.panel.scale.y = 0.3,
+    ggside.axis.text.x.bottom = element_text(angle = 270, hjust = 0, vjust = 0.5)
   ) 
 ```
 
