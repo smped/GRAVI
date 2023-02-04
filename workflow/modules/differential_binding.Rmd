@@ -450,7 +450,7 @@ macs2_merged_logs <- file.path(
 	) %>%
 	importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
-## Default sliding windows
+## Default sliding windows are about 2/3 of the fragment length
 win_step <- 10*(1 + fl %/% 60)
 win_size <- 3*win_step
 ## Overwrite the defaults only if specified
