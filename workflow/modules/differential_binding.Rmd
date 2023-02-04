@@ -1349,18 +1349,18 @@ merged_results %>%
 
 ```{r plot-db-regions, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} binding across all genomic regions.*")}
 merged_results %>% 
-    subset(status != "Unchanged") %>%
-    as_tibble() %>% 
-    dplyr::rename(
-        "{target}" := status, Region = region
-    ) %>% 
-    plotSplitDonut(
-        inner = target, outer = "Region", min_p = 0.01,
-        inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-        outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-        inner_palette = direction_colours,
-        outer_palette = region_colours
-    )
+  subset(status != "Unchanged") %>%
+  as_tibble() %>% 
+  dplyr::rename(
+    "{target}" := status, Region = region
+  ) %>% 
+  plotSplitDonut(
+    inner = target, outer = "Region", min_p = 0.01,
+    inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+    outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+    inner_palette = direction_colours,
+    outer_palette = region_colours
+  )
 ```
 
 `r ifelse(has_features, "### Signal By Feature", "")`
@@ -1383,18 +1383,18 @@ merged_results %>%
 
 ```{r plot-db-features, eval = has_features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} binding across all external features.*")}
 merged_results %>% 
-    subset(status != "Unchanged") %>%
-    as_tibble() %>% 
-    dplyr::rename(
-        "{target}" := status, Feature = feature
-    ) %>% 
-    plotSplitDonut(
-        inner = target, outer = "Feature", min_p = 0.01,
-        inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-        outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-        inner_palette = direction_colours,
-        outer_palette = feature_colours
-    )
+  subset(status != "Unchanged") %>%
+  as_tibble() %>% 
+  dplyr::rename(
+    "{target}" := status, Feature = feature
+  ) %>% 
+  plotSplitDonut(
+    inner = target, outer = "Feature", min_p = 0.01,
+    inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+    outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+    inner_palette = direction_colours,
+    outer_palette = feature_colours
+  )
 ```
 
 `r ifelse(has_features, "### Differential Binding By Region And Feature", "")`
@@ -1527,11 +1527,11 @@ y_lim <- bwfl[[target]] %>%
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
   GRangesList()
-feature_colours <- colours$regions
+feat_col_hfgc <- colours$regions
 if (has_features) {
   feat_gr <- list(Regions = feat_gr)
   feat_gr$Features <- splitAsList(external_features, external_features$feature)
-  feature_colours <- list(
+  feat_col_hfgc <- list(
     Regions = unlist(colours$regions),
     Features = unlist(colours$features)
   )
@@ -1743,7 +1743,7 @@ grl_to_plot %>%
 plotHFGC(
   grl_to_plot$top_down_by_expr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1764,7 +1764,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_fdr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1785,7 +1785,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_by_lfc,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1806,7 +1806,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_down_no_macs2,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1826,7 +1826,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_expr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1847,7 +1847,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_fdr,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1868,7 +1868,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_by_lfc,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
@@ -1889,7 +1889,7 @@ plotHFGC(
 plotHFGC(
   grl_to_plot$top_up_no_macs2,
   hic = hic,
-  features = feat_gr,featcol = feature_colours, featsize = 1 + has_features,
+  features = feat_gr,featcol = feat_col_hfgc, featsize = 1 + has_features,
   genes = hfgc_genes, genecol = gene_col,
   coverage = bwfl, linecol = line_col,
   annotation = annot, 
