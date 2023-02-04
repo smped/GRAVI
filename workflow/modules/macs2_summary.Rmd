@@ -949,9 +949,9 @@ consensus_peaks %>%
 
 `r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
 
-```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
+```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap.*")}
 consensus_peaks %>% 
-    subset(Feature != "No Feature") %>% 
+    # subset(Feature != "No Feature") %>% 
     as_tibble() %>% 
     dplyr::rename(Region = region) %>% 
     plotSplitDonut(
