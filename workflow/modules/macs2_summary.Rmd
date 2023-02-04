@@ -54,6 +54,7 @@ colours <- read_rds(
   file.path(annotation_path, "colours.rds")
 ) %>% 
   lapply(unlist)
+region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 ```
 
 ```{r read-samples}
@@ -98,7 +99,7 @@ if (!is.null(config$external$features)) {
     mcols(external_features), function(x) all(is.na(x)), logical(1)
   )
   mcols(external_features) <- mcols(external_features)[keep_cols]
-  feature_cols <- colours$features %>% setNames(str_sep_to_title(names(.)))
+  feature_colours <- colours$features %>% setNames(str_sep_to_title(names(.)))
   has_features <- TRUE
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
@@ -942,7 +943,7 @@ consensus_peaks %>%
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 consensus_peaks %>% 
   plotPie(fill = "Feature", label_size = 4) +
-  scale_fill_manual(values = feature_cols) +
+  scale_fill_manual(values = feature_colours) +
   theme(legend.position = "none")
 ```
 
@@ -957,8 +958,8 @@ consensus_peaks %>%
         inner = "Feature", outer = "Region", min_p = 0.02, r_outer = 0.75,
         inner_glue = "{str_wrap(.data[[inner]], 12)}\n{percent(p, 0.1)}",
         outer_glue = "{str_wrap(.data[[outer]], 12)}\n{percent(p, 0.1)}",
-        inner_palette = feature_cols,
-        outer_palette = region_cols
+        inner_palette = feature_colours,
+        outer_palette = region_colours
     )
 ```
 
@@ -1013,11 +1014,11 @@ bwfl <- list2(
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
   GRangesList()
-feature_colours <- colours$regions
+feat_colours_hfgc <- colours$regions
 if (has_features) {
   feat_gr <- list(Regions = feat_gr)
   feat_gr$Features <- splitAsList(external_features, external_features$feature)
-  feature_colours <- list(
+  feat_colours_hfgc <- list(
     Regions = unlist(colours$regions),
     Features = unlist(colours$features)
   )
@@ -1117,7 +1118,7 @@ htmltools::tagList(
       ## Generate the plot
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
+        features = feat_gr, featcol = feat_colours_hfgc, featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
