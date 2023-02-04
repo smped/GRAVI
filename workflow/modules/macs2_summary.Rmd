@@ -54,7 +54,6 @@ colours <- read_rds(
   file.path(annotation_path, "colours.rds")
 ) %>% 
   lapply(unlist)
-region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 ```
 
 ```{r read-samples}
@@ -104,6 +103,7 @@ if (!is.null(config$external$features)) {
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
+region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
 if (length(rna_path) > 0) {
