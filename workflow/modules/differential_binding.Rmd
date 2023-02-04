@@ -450,14 +450,20 @@ macs2_merged_logs <- file.path(
 	) %>%
 	importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
+## Default sliding windows
+win_step <- 10*(1 + fl %/% 60)
+win_size <- 3*win_step
+## Overwrite the defaults only if specified
+if (is.numeric(config$comparisons$windows$step)) 
+    win_step <- config$comparisons$windows$step
+if (is.numeric(config$comparisons$windows$size))
+    win_size <- config$comparisons$windows$size
 rp <- readParam(
   pe = ifelse(any(anyPE), "both", "none"),
   dedup = any(anyDups),
   restrict = seqnames(sq),
   discard = c(granges(blacklist), greylist)
 )
-win_step <- 10*(1 + fl %/% 60)
-win_size <- 3*win_step
 window_counts <- windowCounts(
   bam.files = bfl,
   spacing = win_step,
