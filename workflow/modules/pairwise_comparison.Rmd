@@ -1675,11 +1675,11 @@ y_lim <- lapply(
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
   GRangesList()
-feature_colours <- colours$regions
+feat_col_hfgc <- colours$regions
 if (has_features) {
   feat_gr <- list(Regions = feat_gr)
   feat_gr$Features <- splitAsList(external_features, external_features$feature)
-  feature_colours <- list(
+  feat_col_hfgc <- list(
     Regions = unlist(colours$regions),
     Features = unlist(colours$features)
   )
@@ -1788,7 +1788,7 @@ htmltools::tagList(
         ct <- "meta"
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours, 
+        features = feat_gr, featcol = feat_col_hfgc, 
         featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
@@ -1934,7 +1934,7 @@ htmltools::tagList(
         ct <- "meta"
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours,
+        features = feat_gr, featcol = feat_col_hfgc,
         featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
