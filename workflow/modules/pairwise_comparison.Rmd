@@ -839,7 +839,7 @@ df %>%
       dplyr::filter(total_lfc == max(total_lfc)) %>% 
       mutate(
         detected = vapply(detected, paste, character(1), collapse = "; "),
-        lab = paste(status, detected, sep = ": ") %>% str_wrap(25)
+        lab = str_wrap(detected, 25)
       ),
     size = 3, alpha = 0.6,
     show.legend = FALSE
