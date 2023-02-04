@@ -98,6 +98,7 @@ if (!is.null(config$external$features)) {
     mcols(external_features), function(x) all(is.na(x)), logical(1)
   )
   mcols(external_features) <- mcols(external_features)[keep_cols]
+  feature_cols <- colours$features %>% setNames(str_sep_to_title(names(.)))
   has_features <- TRUE
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
@@ -941,9 +942,7 @@ consensus_peaks %>%
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 consensus_peaks %>% 
   plotPie(fill = "Feature", label_size = 4) +
-  scale_fill_manual(
-    values = colours$features %>% setNames(str_sep_to_title(names(.)))
-  ) +
+  scale_fill_manual(values = feature_cols) +
   theme(legend.position = "none")
 ```
 
@@ -951,21 +950,16 @@ consensus_peaks %>%
 
 ```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
 consensus_peaks %>% 
-  subset(Feature != "No Feature") %>% 
-  as_tibble() %>% 
-  droplevels() %>% 
-  plotPie(fill = "region", x = "Feature", label_size = 4, label_alpha = 0.7) +
-  scale_fill_manual(
-    values = colours$regions %>%
-      setNames(regions[names(.)])
-  ) +
-  labs(fill = "Region") +
-  theme(
-    panel.grid = element_blank(),
-    panel.border = element_blank(),
-    axis.line.x = element_line(),
-    legend.position = "top"
-  )
+    subset(Feature != "No Feature") %>% 
+    as_tibble() %>% 
+    dplyr::rename(Region = region) %>% 
+    plotSplitDonut(
+        inner = "Feature", outer = "Region", min_p = 0.02, r_outer = 0.75,
+        inner_glue = "{str_wrap(.data[[inner]], 12)}\n{percent(p, 0.1)}",
+        outer_glue = "{str_wrap(.data[[outer]], 12)}\n{percent(p, 0.1)}",
+        inner_palette = feature_cols,
+        outer_palette = region_cols
+    )
 ```
 
 

@@ -766,6 +766,32 @@ div(class = "table",
 )
 ```
 
+## Overall Status
+
+```{r plot-both-donut, fig.cap = "Summary of binding across both comparisons incorporating all sites where binding was detected in either copmarison. Regions where binding is changed in either comparisons are exploded."}
+all_windows %>% 
+  as_tibble() %>% 
+  dplyr::select(ends_with("_status")) %>% 
+  mutate(
+      across(everything(), str_extract, "Up|Down|Unchanged|Undetected|Ambiguous")
+  ) %>% 
+  dplyr::rename_with(.cols = everything(), .fn = str_remove_all, "_status") %>% 
+  plotSplitDonut(
+    inner = colnames(.)[[1]], outer = colnames(.)[[2]], min_p =0.02, 
+    inner_glue = "{inner}\n{.data[[inner]]}\n{percent(p, 0.1)}",
+    outer_glue = "{outer}\n{.data[[outer]]}\n{percent(p, 0.1)}",
+    explode_inner = "Down|Up", explode_outer = "Down|Up", explode_r = 0.4,
+    explode_query = "OR", nudge_r = 0.5,
+    inner_palette = colours$direction %>% 
+        unlist() %>% 
+        setNames(str_sep_to_title(names(.))),
+    outer_palette = colours$direction %>% 
+        unlist() %>% 
+        setNames(str_sep_to_title(names(.)))
+  ) %>% 
+    .[[1]]
+```
+
 
 ## Pairwise Differential Binding
 

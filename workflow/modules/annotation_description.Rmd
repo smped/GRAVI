@@ -447,51 +447,28 @@ colours$features <- feat_col
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
 ```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above.*")}
-suppressWarnings(
-  external_features %>% 
+external_features %>% 
     mutate(w = width) %>% 
-    mcols() %>% 
     as_tibble() %>% 
-    pivot_longer(
-      cols = all_of(names(regions)),
-      names_to = "region", values_to = "prop"
-    ) %>% 
-    group_by(feature, region) %>% 
-    summarise(ol = sum(prop*w/1e6), .groups = "drop") %>% 
-    left_join(
-      external_features %>%
-        group_by(feature) %>% 
-        summarise(w = sum(width/1e6)) %>%
-        as_tibble(),
-      by = "feature"
-    ) %>% 
+    pivot_longer(cols = all_of(names(gene_regions)), names_to = "region", values_to = "ol") %>% 
+    dplyr::filter(ol > 0) %>% 
     mutate(
-      p = ol / w,
-      Feature = factor(feature, levels = names(feat_col)) %>% 
-        fct_relabel(str_sep_to_title),
-      region = factor(regions[region], levels = regions)
+        p = w * ol / 1e3,
+        region = factor(region, levels = names(gene_regions)),
+        feature = factor(feature, levels = names(feat_col))
     ) %>% 
-    ggplot(
-      aes(fct_rev(region), p, fill = feature)
-    ) +
-    geom_col(colour = "grey80") +
-    geom_label(
-      aes(label = percent(p, accuracy = 1)),
-      data = . %>% 
-        group_by(region, feature, Feature) %>% 
-        summarise(p = sum(p), .groups = "drop"),
-      alpha = 0.5,
-      nudge_y = 0.03
-    ) +
-    coord_flip() +
-    facet_grid(Feature~., scales = "free_y", space = "free") +
-    scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-    scale_fill_manual(values = feat_col) +
-    labs(x = "", y = "") +
-    theme(legend.position = "none")
-)
+    plotSplitDonut(
+        inner = "feature", outer = "region", scale_by = "p",
+        r_centre = 0.6, r_outer = 0.6,
+        total_glue = "{comma(N, 1)}kb",
+        inner_glue = "{str_wrap(str_to_title(str_replace_all(.data[[inner]],'_', ' ')),10)}\n{percent(p, 0.1)}\n({comma(n, 1)}kb)",
+        outer_glue = "{str_wrap(regions[as.character(.data[[outer]])], 10)}\n{percent(p, 0.1)}",
+        min_p = 0.01, nudge_r = 0.4,
+        inner_palette = feat_col,
+        outer_palette = unlist(colours$regions)
+    ) %>% 
+    .[[1]]
 ```
-
 
 
 ```{r tab-features, eval = has_features, echo = has_features}
@@ -579,25 +556,25 @@ reg_combs <- expand.grid(regions, regions) %>%
     }
   ) %>% 
   unique()
-hic$regions <- anchors(hic) %>% 
+hic$regions <- anchors(hic) %>%
   vapply(
     bestOverlap,
     y = GRangesList(lapply(gene_regions, granges)),
     character(length(hic))
-  ) %>% 
-  apply(MARGIN = 2, function(x) regions[x]) %>% 
+  ) %>%
+  apply(MARGIN = 2, function(x) regions[x]) %>%
   apply(
-    MARGIN = 1, 
+    MARGIN = 1,
     function(x) {
       x <- sort(factor(x, levels = regions))
       paste(as.character(x), collapse = " - ")
     }
-  ) %>% 
+  ) %>%
   factor(levels = reg_combs) %>%
   fct_relabel(
     str_replace_all,
     pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
-  ) 
+  )
 ```
 
 `r ifelse(has_hic, glue("HiC data with {comma(length(hic), 1)} interaction pairs was provided and loaded."), "No HiC Data was supplied as an input.")`

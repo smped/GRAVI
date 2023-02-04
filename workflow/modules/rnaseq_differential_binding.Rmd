@@ -49,89 +49,43 @@ Genes were simply considered as detected if present in the RNA-Seq data, or unde
 Gene-centric regions were as defined previously.
 
 ```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
-w <- 0.8
-min_p <- 0.025
 merged_results %>%
   mutate(
-    any_detected = ifelse(
-      vapply(gene_name, length, integer(1)) > 1,
-      "Mapped to Detected Genes",
-      "Mapped to Undetected Genes"
+    RNASeq = ifelse(
+      vapply(gene_name, length, integer(1)) > 1, "Detected", "Undetected"
     )
   ) %>% 
-  plotPie(fill = "region", x = "any_detected", label_size = 4, width = w) +
-  geom_text(
-    aes(xlab, ylab, label =lab),
-    data = . %>% 
-      mutate(
-        xlab = x + w*(r + 0.1)*sin(label_radians),
-        ylab = 1 + w*(r + 0.1)*cos(label_radians),
-        lab = glue("{region}\n{percent(p, 0.1)}") %>% 
-          str_wrap(10)
-      ) %>% 
-      dplyr::filter(p * N > min_p * max(N)),
-    size = 3
-  ) +
-  geom_segment(
-    aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
-     data = . %>% 
-      mutate(
-        x_inner = x + w*r*sin(label_radians),
-        y_inner = 1 + w*r*cos(label_radians),
-        x_outer = x + w*(r + 0.01)*sin(label_radians),
-        y_outer = 1 + w*(r + 0.01)*cos(label_radians),
-      ) %>% 
-      dplyr::filter(p * N > min_p * max(N))
-  ) +
-  scale_fill_manual(
-    values = colours$regions %>% 
-      setNames(regions[names(.)]) 
-  ) +
-  labs(x = "", fill = "Region") +
-  theme(panel.grid = element_blank())
+  as_tibble() %>% 
+  dplyr::rename(Region = region) %>%   
+  plotSplitDonut(
+      inner = "RNASeq", outer = "Region", min_p = 0.02, r_outer = 0.7,
+      label_alpha = 0.7,
+      inner_glue = "{.data[[inner]]}\n{percent(p, 0.1)}",
+      outer_glue = "{str_wrap(.data[[outer]], 12)}\n{percent(p, 0.1)}",
+      inner_palette = as.character(colours$qc),
+      outer_palette = region_colours
+  )  
 ```
 
 `r ifelse(has_features, "### Detected Genes By Feature", "")`
 
 ```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by externally-defined features from {basename(config$external$features)}, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
-merged_results %>% 
+merged_results %>%
   mutate(
-    any_detected = ifelse(
-      vapply(gene_name, length, integer(1)) > 1,
-      "Mapped to Detected Genes",
-      "Mapped to Undetected Genes"
+    RNASeq = ifelse(
+      vapply(gene_name, length, integer(1)) > 1, "Detected", "Undetected"
     )
   ) %>% 
-  plotPie(fill = "feature", x = "any_detected", label_size = 4, width = w) +
-  geom_text(
-    aes(xlab, ylab, label =lab),
-    data = . %>% 
-      mutate(
-        xlab = x + w*(r + 0.1)*sin(label_radians),
-        ylab = 1 + w*(r + 0.1)*cos(label_radians),
-        lab = glue("{feature}\n{percent(p, 0.1)}") %>% 
-          str_wrap(10)
-      ) %>% 
-      dplyr::filter(p * N > min_p * max(N)),
-    size = 3
-  ) +
-  geom_segment(
-    aes(x_inner, y_inner, xend = x_outer, yend = y_outer),
-     data = . %>% 
-      mutate(
-        x_inner = x + w*r*sin(label_radians),
-        y_inner = 1 + w*r*cos(label_radians),
-        x_outer = x + w*(r + 0.01)*sin(label_radians),
-        y_outer = 1 + w*(r + 0.01)*cos(label_radians),
-      ) %>% 
-      dplyr::filter(p * N > min_p * max(N))
-  ) +
-  scale_fill_manual(
-    values = colours$features %>% 
-      setNames(str_sep_to_title(names(.)))
-  ) +
-  labs(x = "", fill = "External Feature") +
-  theme(panel.grid = element_blank())
+  as_tibble() %>% 
+  dplyr::rename(Feature = feature) %>%   
+  plotSplitDonut(
+      inner = "RNASeq", outer = "Feature", min_p = 0.02, r_outer = 0.7,
+      label_alpha = 0.7,
+      inner_glue = "{.data[[inner]]}\n{percent(p, 0.1)}",
+      outer_glue = "{str_wrap(.data[[outer]], 12)}\n{percent(p, 0.1)}",
+      inner_palette = as.character(colours$qc),
+      outer_palette = feature_colours
+  ) 
 ```
 
 

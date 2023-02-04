@@ -2,7 +2,7 @@ rule update_extrachips:
 	input: os.path.join("workflow", "scripts", "update_extrachips.R")
 	output: os.path.join("output", rmd_hash + "_extrachips.updated")
 	params:
-	    version = "1.2.3"
+	    version = "1.2.4"
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/rmarkdown/update_extrachips.log"
@@ -130,14 +130,14 @@ rule create_index_rmd:
 
 		if [[ {params.git} == "True" ]]; then
 			git add {output}
-		fi		
+		fi
 		"""
 
 rule compile_index_html:
 	input:
 		extrachips = rules.update_extrachips.output,
 		html = HTML_OUT,
-        here = here_file,		
+        here = here_file,
 		rmd = os.path.join(rmd_path, "index.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
