@@ -144,7 +144,7 @@ rna_col <- c(tx_col, "gene_id")[[1]]
 ```
 
 ```{r set-colours}
-colours <- read_rds(here::here("output", "annotations", "colours.rds")) %>% 
+colours <- read_rds(file.path(annotation_path, "colours.rds")) %>% 
   lapply(unlist)
 region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 if (has_features)
@@ -1349,39 +1349,18 @@ merged_results %>%
 
 ```{r plot-db-regions, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} binding across all genomic regions.*")}
 merged_results %>% 
-  subset(status %in% c("Up", "Down")) %>% 
-  select(status, region) %>% 
-  as_tibble() %>% 
-  mutate(
-    x = fct_relabel(
-      region, str_replace_all, pattern = " \\(", replacement = "\n("
+    subset(status != "Unchanged") %>%
+    as_tibble() %>% 
+    dplyr::rename(
+        "{target}" := status, Region = region
+    ) %>% 
+    plotSplitDonut(
+        inner = target, outer = "Region", min_p = 0.01,
+        inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+        outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+        inner_palette = direction_colours,
+        outer_palette = region_colours
     )
-  ) %>% 
-  group_by(x, region, status) %>% 
-  tally() %>% 
-  arrange(region, desc(status)) %>% 
-  mutate(y = cumsum(n)) %>% 
-  ggplot(
-    aes(x, n, fill = status)
-  ) +
-  geom_col() +
-  geom_label(
-    aes(y = y - 0.5*n, label = comma(n, 1), colour = status),
-    data = . %>% ungroup() %>% dplyr::filter(n > 0.05*max(y)),
-    fill = "white", alpha = 0.8,
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(y = y1, label = comma(y, 1)),
-    data = . %>% 
-      dplyr::filter(y == max(y)) %>% 
-      ungroup() %>% 
-      mutate(y1 = y + 0.03*max(y))
-  ) +
-  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values = direction_colours) +
-  scale_colour_manual(values = direction_colours) +
-  labs(x = "Region", y = "Merged Windows", fill = "Status")
 ```
 
 `r ifelse(has_features, "### Signal By Feature", "")`
@@ -1404,36 +1383,18 @@ merged_results %>%
 
 ```{r plot-db-features, eval = has_features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} binding across all external features.*")}
 merged_results %>% 
-  subset(status %in% c("Up", "Down")) %>% 
-  select(status, feature) %>% 
-  as_tibble() %>% 
-  group_by(feature, status) %>% 
-  tally() %>% 
-  arrange(feature, desc(status)) %>% 
-  mutate(y = cumsum(n)) %>% 
-  ungroup() %>% 
-  ggplot(
-    aes(feature, n, fill = status)
-  ) +
-  geom_col() +
-  geom_label(
-    aes(y = y - 0.5*n, label = comma(n, 1), colour = status),
-    data = . %>%  dplyr::filter(n > 0.05*max(y)),
-    fill = "white", alpha = 0.8,
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(y = y1, label = comma(y, 1)),
-    data = . %>% 
-      group_by(feature) %>% 
-      dplyr::filter(y == max(y)) %>% 
-      ungroup() %>% 
-      mutate(y1 = y + 0.03*max(y))
-  ) +
-  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values = direction_colours) +
-  scale_colour_manual(values = direction_colours) +
-  labs(x = "Feature", y = "Merged Windows", fill = "Status")
+    subset(status != "Unchanged") %>%
+    as_tibble() %>% 
+    dplyr::rename(
+        "{target}" := status, Feature = feature
+    ) %>% 
+    plotSplitDonut(
+        inner = target, outer = "Feature", min_p = 0.01,
+        inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+        outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+        inner_palette = direction_colours,
+        outer_palette = feature_colours
+    )
 ```
 
 `r ifelse(has_features, "### Differential Binding By Region And Feature", "")`
