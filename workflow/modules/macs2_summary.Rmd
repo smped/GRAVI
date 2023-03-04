@@ -462,12 +462,20 @@ replicates_by_treat <- individual_peaks %>%
 df <- individual_peaks %>% 
   makeConsensus(var = "qValue") %>% 
   as_tibble() %>% 
-  mutate(qValue = vapply(qValue, median, numeric(1))) %>% 
+  mutate(qValue = vapply(qValue, min, numeric(1))) %>% 
   rename_with(
       function(x) dplyr::filter(samples, sample == x)$label,
       all_of(samples$sample)
   )
 ql <- samples$label %>% 
+  lapply(
+    function(x) {
+      nm <- NULL
+      if (sum(df[[x]]) > 0) nm <- x
+      nm
+    }
+  ) %>% 
+  unlist() %>% 
   lapply(
     function(x) upset_query(
       set = x, 
@@ -485,12 +493,12 @@ df %>%
     base_annotations = list(
       `Peaks in Intersection` = intersection_size(
         text_mapping = aes(label = comma(!!size)),
-        bar_number_threshold = 1, text_colors = "black", 
+        bar_number_threshold = 1, text_colors = "black",
         text = list(size = 3, angle = 90, vjust = 0.5, hjust = -0.1)
       ) +
         scale_y_continuous(expand = expansion(c(0, 0.2)), label = comma) +
         theme(
-          panel.grid = element_blank(), 
+          panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill=  NA)
         )
@@ -500,9 +508,9 @@ df %>%
         geom_boxplot(na.rm = TRUE, outlier.colour = rgb(0, 0, 0, 0.2)) +
         coord_cartesian(ylim = c(0, quantile(df$qValue, 0.99))) +
         scale_y_continuous(expand = expansion(c(0, 0.05))) +
-        ylab(expr(paste("Macs2 ", q[med]))) +
+        ylab(expr(paste("Macs2 ", q[min]))) +
         theme(
-          panel.grid = element_blank(), 
+          panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill=  NA)
         )
@@ -510,13 +518,13 @@ df %>%
     set_sizes = (
       upset_set_size() +
         geom_text(
-          aes(label = comma(after_stat(count))), 
+          aes(label = comma(after_stat(count))),
           hjust = 1.1, stat = 'count', size = 3
         ) +
         scale_y_reverse(expand = expansion(c(0.2, 0)), label = comma) +
         ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
         theme(
-          panel.grid = element_blank(), 
+          panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill=  NA)
         )
