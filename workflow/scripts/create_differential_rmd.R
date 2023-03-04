@@ -6,12 +6,13 @@ target <- args[[1]]
 ref <- args[[2]]
 treat <- args[[3]]
 threads <- args[[4]]
-rmd <- args[[5]]
+type <- args[[5]]
+rmd <- args[[6]]
 
 glue(
 	"
 	---
-	title: '{{target}} Differential Binding: {{treat}} Vs. {{ref}}'
+	title: '{{target}} Differential {{type}}: {{treat}} Vs. {{ref}}'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	bibliography: references.bib
 	link-citations: true

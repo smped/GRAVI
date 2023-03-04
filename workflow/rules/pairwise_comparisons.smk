@@ -1,3 +1,10 @@
+def get_difftype(x):
+	if x in h3k27ac_targets:
+		return("h3k27ac")
+	else:
+		return("binding")
+
+
 rule create_pairwise_comparisons_rmd:
 	input:
 		module_pw = "workflow/modules/pairwise_comparison.Rmd",
@@ -46,8 +53,18 @@ rule compile_pairwise_comparisons_html:
 		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
-		results_t1 = "docs/{t1}_{ref1}_{treat1}_differential_binding.html",
-		results_t2 = "docs/{t2}_{ref2}_{treat2}_differential_binding.html",
+		results_t1 = lambda wildcards: expand(
+			os.path.join(
+				"docs", "{{t1}}_{{ref1}}_{{treat1}}_differential_{type}.html"
+			),
+			type = get_difftype(wildcards.t1)
+		),
+		results_t2 = lambda wildcards: expand(
+			os.path.join(
+				"docs", "{{t2}}_{{ref2}}_{{treat2}}_differential_{type}.html"
+			),
+			type = get_difftype(wildcards.t2)
+		),
 		rmd = expand(
 			os.path.join(
 				"analysis", 

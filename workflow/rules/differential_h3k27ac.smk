@@ -1,12 +1,13 @@
-rule create_differential_binding_rmd:
+
+rule create_differential_h3k27ac_rmd:
 	input:
 		db_mod = os.path.join(
-			"workflow", "modules", "differential_binding.Rmd"
+			"workflow", "modules", "differential_h3k27ac.Rmd"
 		),
 		r = "workflow/scripts/create_differential_rmd.R"
 	output: 
 		rmd = os.path.join(
-			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
+			rmd_path, "{target}_{ref}_{treat}_differential_h3k27ac.Rmd"
 		)
 	params:
 		git = git_add,
@@ -22,9 +23,9 @@ rule create_differential_binding_rmd:
 			),
 			max_threads
 		),
-		type = "Binding"
+		type = "Signal"
 	conda: "../envs/rmarkdown.yml"
-	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
+	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_h3k27ac.log"
 	threads: 1
 	retries: git_tries # Needed to subvert any issues with the git lock file
 	shell:
@@ -47,7 +48,7 @@ rule create_differential_binding_rmd:
 		fi
 		"""
 
-rule compile_differential_binding_html:
+rule compile_differential_h3k27ac_html:
 	input:
 		annotations = ALL_RDS,
 		aln = lambda wildcards: expand(
@@ -102,7 +103,7 @@ rule compile_differential_binding_html:
 		),
 		module = os.path.join("workflow", "modules", db_method + ".Rmd"),
 		rmd = os.path.join(
-			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
+			rmd_path, "{target}_{ref}_{treat}_differential_h3k27ac.Rmd"
 		),
 		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
@@ -116,17 +117,17 @@ rule compile_differential_binding_html:
 			"workflow", "modules", "rnaseq_differential_binding.Rmd"
 		)
 	output:
-		html = "docs/{target}_{ref}_{treat}_differential_binding.html",
+		html = "docs/{target}_{ref}_{treat}_differential_h3k27ac.html",
 		fig_path = directory(
 			os.path.join(
-				"docs", "{target}_{ref}_{treat}_differential_binding_files",
+				"docs", "{target}_{ref}_{treat}_differential_h3k27ac_files",
 				"figure-html"
 			)
 		),
 		renv = temp(
 			os.path.join(
 				"output", "envs",
-				"{target}_{ref}_{treat}-differential_binding.RData"
+				"{target}_{ref}_{treat}-differential_h3k27ac.RData"
 			)
 		),
 		outs = expand(
@@ -134,7 +135,7 @@ rule compile_differential_binding_html:
 				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}"
 			),
 			f = [
-				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv', 'enrichment.csv',
+				'differential_h3k27ac.rds', 'down.bed', 'up.bed','differential_h3k27ac.csv.gz', 'DE_genes.csv', 'enrichment.csv',
 				'rnaseq_enrichment.csv'
 			]
 		),
@@ -160,7 +161,7 @@ rule compile_differential_binding_html:
 			),
 			max_threads
 		)
-	log: log_path + "/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
+	log: log_path + "/differential_h3k27ac/{target}_{ref}_{treat}_differential_h3k27ac.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

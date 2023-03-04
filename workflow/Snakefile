@@ -10,6 +10,7 @@ import yaml
 import hashlib
 
 configfile: "config/config.yml"
+df = pd.read_table(config['samples']['file'])
 
 ## Figure out how to run check_yaml from here if possible
 ## python scripts/check_yaml.py
@@ -71,7 +72,7 @@ def check_git(x = "."):
 
 # Define all contrasts
 # x will be config['comparisons']['contrasts']:
-def make_contrasts(x):
+def make_contrasts(x, df = df):
 	ret_val = []
 	for comp in x:
 		ref = comp[0]
@@ -109,17 +110,18 @@ max_threads = workflow.cores
 ####################
 ## Define Samples ##
 ####################
-df = pd.read_table(config['samples']['file'])
 
 ## Now set all values as required
 samples = list(set(df['sample']))
-targets = list(set(df['target']))
+all_targets = list(set(df['target']))
+tf_targets = list(set(df[df['type'].str.lower() == 'tf']['target']))
+h3k27ac_targets = list(set(df[df['type'].str.lower() == 'h3k27ac']['target']))
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
 pairs=make_pairwise(config['comparisons']['contrasts'])
 
 wildcard_constraints:
-	target = "(" + '|'.join(targets) + ")",
+	target = "(" + '|'.join(all_targets) + ")",
 	samples = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
@@ -203,17 +205,34 @@ HTML_OUT = expand(
 HTML_OUT.extend(
 	expand(
 		os.path.join("docs", "{target}_macs2_summary.html"),
-		target = targets
+		target = all_targets
 	)
 )
 
 ## Differential Binding
-HTML_OUT.extend(
-	expand(
-		os.path.join("docs", "{cont}_differential_binding.html"),
-		cont = make_contrasts(config['comparisons']['contrasts'])
+if tf_targets:
+	HTML_OUT.extend(
+		expand(
+			os.path.join("docs", "{cont}_differential_binding.html"),
+			cont = make_contrasts(
+				config['comparisons']['contrasts'], 
+				df = df[df['type'].str.lower()  == "tf"]
+			)
+		)
 	)
-)
+
+## Differential H3K27ac
+if h3k27ac_targets:
+	HTML_OUT.extend(
+		expand(
+			os.path.join("docs", "{cont}_differential_h3k27ac.html"),
+			cont = make_contrasts(
+				config['comparisons']['contrasts'], 
+				df = df[df['type'].str.lower()  == "h3k27ac"]
+			)
+		)
+	)
+
 
 ## Pairwise Comparisons: Only if required
 if pairs:
@@ -232,7 +251,7 @@ ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
 ## Peaks generated from the Rmd files
 CONS_PEAKS = expand(
 	os.path.join(macs2_path, "{target}", "{file}"),
-	target = targets,
+	target = all_targets,
 	file = ['consensus_peaks.bed', 'oracle_peaks.rds']
 )
 ALL_OUTPUTS.extend(CONS_PEAKS)
@@ -285,5 +304,7 @@ include: "rules/samtools.smk"
 include: "rules/rmarkdown.smk"
 include: "rules/macs2.smk"
 include: "rules/annotations.smk"
+include: "rules/make_greylist.smk"
 include: "rules/differential_binding.smk"
+include: "rules/differential_h3k27ac.smk"
 include: "rules/pairwise_comparisons.smk"
