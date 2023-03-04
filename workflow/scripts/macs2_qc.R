@@ -47,7 +47,8 @@ if (!is.null(config$comparisons$contrasts)) {
     intersect(samples$treat) %>%
     unique()
 }
-rep_col <- setdiff(colnames(samples), c("sample", "treat", "target", "input"))
+def_cols <- c("sample", "treat", "target", "input", "type")
+rep_col <- setdiff(colnames(samples), def_cols)
 samples <- samples %>%
   unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
   mutate(
@@ -71,6 +72,7 @@ blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
 
+## May need to reconsider if switching H3K27ac marks to broad peaks
 individual_peaks <- file.path(
   macs2_path, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%

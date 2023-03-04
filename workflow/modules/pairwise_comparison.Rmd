@@ -81,9 +81,8 @@ samples <- file.path(macs2_path, "qc_samples.tsv") %>%
   dplyr::select(-qc) %>% 
   droplevels()
 stopifnot(nrow(samples) > 0)
-rep_col <- setdiff(
-  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
-)
+def_cols <- c("sample", "treat", "target", "input", "label", "qc", "type")
+rep_col <- setdiff(colnames(samples), def_cols)
 samples[[rep_col]] <- as.factor(samples[[rep_col]])
 ```
 

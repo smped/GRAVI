@@ -66,9 +66,8 @@ if (!is.null(config$comparisons$contrasts)) {
     intersect(samples$treat) %>% 
     unique()
 }
-rep_col <- setdiff(
-  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
-)
+def_cols <- c("sample", "treat", "target", "input", "label", "qc", "type")
+rep_col <- setdiff(colnames(samples), def_cols)
 samples <- samples %>%
   unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
   mutate(
