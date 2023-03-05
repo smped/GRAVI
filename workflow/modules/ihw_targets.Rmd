@@ -37,8 +37,7 @@ ihw_all <- other_targets %>%
   arrange(id) %>% 
   mutate(targets = fct_infreq(targets)) %>% 
   .[["targets"]]
-n_levels <- sum(table(ihw_all) > 1e3) - 1
-merged_results$ihw_covariate <- fct_lump_n(ihw_all, n = n_levels)
+merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
 ihw_proceed <- length(levels(merged_results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
 if (ihw_proceed) {

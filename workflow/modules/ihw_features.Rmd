@@ -28,8 +28,7 @@ ihw_all <- external_features %>%
   ) %>% 
   arrange(id) %>% 
   .[["feature"]]
-n_levels <- sum(table(ihw_all) > 1e3) - 1
-merged_results$ihw_covariate <- fct_lump_n(ihw_all, n = n_levels)
+merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
 ihw_proceed <- length(levels(merged_results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
 ihw_cols <- colours$features

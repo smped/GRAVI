@@ -132,7 +132,8 @@ rule compile_differential_h3k27ac_html:
 		),
 		outs = expand(
 			os.path.join(
-				diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}"
+				diff_h3k27ac_path, 
+				"{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}"
 			),
 			f = [
 				'differential_h3k27ac.rds', 'down.bed', 'up.bed','differential_h3k27ac.csv.gz', 'DE_genes.csv', 'enrichment.csv',
@@ -140,7 +141,7 @@ rule compile_differential_h3k27ac_html:
 			]
 		),
 		win = os.path.join(
-			diff_path, "{target}", "{target}_{ref}_{treat}-filtered_windows.rds"
+			diff_h3k27ac_path, "{target}", "{target}_{ref}_{treat}-filtered_windows.rds"
 		)
 	retries: 3
 	params:

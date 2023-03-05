@@ -22,11 +22,11 @@ ihw_all <- gene_regions %>%
   ) %>% 
   arrange(id) %>% 
   .[["region"]]
-n_levels <- sum(table(ihw_all) > 1e3) - 1
-merged_results$ihw_covariate <- fct_lump_n(ihw_all, n = n_levels)
+merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
 ihw_proceed <- length(levels(merged_results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
 ihw_cols <- colours$regions
+ihw <- NULL
 if (ihw_proceed) {
   ihw <- ihw(
     pvalues = merged_results$P.Value,
@@ -45,6 +45,7 @@ merged_results <- merged_results %>%
       factor(levels = c(levels(direction), "Unchanged")) %>% 
       droplevels()
   )
+lblr <- as_labeller(c(regions, "Other" = "Other"))
 ```
 
 
@@ -61,7 +62,6 @@ Where multiple overlapping regions were found, the region with the *largest* ove
 `r if (ihw_proceed) "### Summary Table"`
 
 ```{r ihw-tab, eval = ihw_proceed, echo = ihw_proceed}
-lblr <- as_labeller(c(regions, "Other" = "Other"))
 ihw %>%
   as.data.frame() %>% 
   mutate(

@@ -82,8 +82,8 @@ bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
-out_path <- here::here("output", "differential_binding", target)
-if (!dir.exists(out_path)) dir.create(out_path)
+out_path <- here::here("output", "differential_h3k27ac", target)
+if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 ```
 
 
@@ -256,11 +256,11 @@ facet_labeller <- as_labeller(
 all_out <- list(
   results = file.path(
     out_path, 
-    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_binding.rds")
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_h3k27ac.rds")
   ),
   csv = file.path(
     out_path, 
-    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_binding.csv.gz")
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_h3k27ac.csv.gz")
   ),
   windows  = file.path(
     out_path,
@@ -285,7 +285,7 @@ all_out <- list(
   renv = here::here(
     "output/envs",
     glue(
-      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_binding.RData"
+      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_h3k27ac.RData"
     )
   )
 )
@@ -2216,28 +2216,16 @@ tg_mapped %>%
 ## Windows With Differentially Bound `r target` {.tabset}
 
 ```{r goseq-diff, fig.show='hide'}
-pwf_diff <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
+df <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = up|down) %>% 
-  with(
-    nullp(
-      structure(diff, names = gene_id),
-      genome = config$genome$build,
-      bias.data = log1p(n_peaks),
-      plot.fit = FALSE
-    )
-  )
+  mutate(diff = up|down) 
 goseq_diff <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
-if (sum(pwf_diff$DEgenes) > 0) {
-  goseq_diff <- goseq(
-    pwf_diff, gene2cat = gs_by_geneid, method = "Hypergeometric"
-  ) %>% 
-    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-    dplyr::select(-starts_with("under")) %>% 
-    as_tibble() %>% 
-    arrange(pval) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
+if (sum(df$diff) > 0) {
+  goseq_diff <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
+    as.data.frame() %>% 
+    column_to_rownames("gene_id") %>% 
+    goseq_hyper(gene2cat = gs_by_geneid) %>% 
     mutate(adj_p = p.adjust(pval, adj_method)) %>% 
     dplyr::filter(numDEInCat >= min_sig)
 }
@@ -2245,7 +2233,7 @@ any_goseq_diff <- sum(goseq_diff$adj_p < enrich_alpha) > 0
 tg_diff <- make_tbl_graph(
   goseq_diff, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_diff, DEgenes))) %>%
+    lapply(intersect, subset(df, diff)$gene_id) %>%
     .[vapply(., length, integer(1)) > 0]
 )
 plot_network_diff <- length(tg_diff) >= min_network_size
@@ -2280,16 +2268,13 @@ cp <- htmltools::tags$caption(
 tbl <- goseq_diff %>% 
   dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    dplyr::distinct(msigdb, gs_name, gs_url, gs_description),
     by = "gs_name"
   ) %>% 
-  dplyr::filter(
-    gene_id %in% unlist(subset(merged_results, status != "Unchanged")$gene_id)
-  ) %>% 
-  dplyr::select(-gene_id) %>% 
-  chop(gene_name) %>% 
   mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    gene_name = vapply(
+      DEgenes, function(x) paste(id2gene[x], collapse = "; "), character(1)
+    ),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
@@ -2390,28 +2375,16 @@ tg_diff %>%
 ## Windows With Increased `r target` Binding {.tabset}
 
 ```{r goseq-up, fig.show='hide'}
-pwf_up <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
+df <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = up) %>% 
-  with(
-    nullp(
-      structure(diff, names = gene_id),
-      genome = config$genome$build,
-      bias.data = log1p(n_peaks),
-      plot.fit = FALSE
-    )
-  )
+  mutate(diff = up)
 goseq_up <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
-if (sum(pwf_up$DEgenes) > 0) {
-  goseq_up <- goseq(
-    pwf_up, gene2cat = gs_by_geneid, method = "Hypergeometric"
-  ) %>% 
-    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-    dplyr::select(-starts_with("under")) %>% 
-    as_tibble() %>% 
-    arrange(pval) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
+if (sum(df$diff) > 0) {
+  goseq_up <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
+    as.data.frame() %>% 
+    column_to_rownames("gene_id") %>% 
+    goseq_hyper(gene2cat = gs_by_geneid) %>% 
     mutate(adj_p = p.adjust(pval, adj_method)) %>% 
     dplyr::filter(numDEInCat >= min_sig)
 }
@@ -2419,7 +2392,7 @@ any_goseq_up <- sum(goseq_up$adj_p < enrich_alpha) > 0
 tg_up <- make_tbl_graph(
   goseq_up, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_up, DEgenes))) %>%
+    lapply(intersect, subset(df, diff)$gene_id) %>%
     .[vapply(., length, integer(1)) > 0]
 )
 plot_network_up <- length(tg_up) >= min_network_size
@@ -2454,22 +2427,19 @@ cp <- htmltools::tags$caption(
 tbl <- goseq_up %>% 
   dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    dplyr::distinct(msigdb, gs_name, gs_url, gs_description),
     by = "gs_name"
   ) %>% 
-  dplyr::filter(
-    gene_id %in% unlist(subset(merged_results, status == "Up")$gene_id)
-  ) %>% 
-  dplyr::select(-gene_id) %>% 
-  chop(gene_name) %>% 
   mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    gene_name = vapply(
+      DEgenes, function(x) paste(id2gene[x], collapse = "; "), character(1)
+    ),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to Gained Windows` = gene_name
+    `Genes Mapped to DB Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -2565,28 +2535,16 @@ tg_up %>%
 ## Windows With Decreased `r target` Binding {.tabset}
 
 ```{r goseq-down, fig.show='hide'}
-pwf_down <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
+df <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = down) %>% 
-  with(
-    nullp(
-      structure(diff, names = gene_id),
-      genome = config$genome$build,
-      bias.data = log1p(n_peaks),
-      plot.fit = FALSE
-    )
-  )
+  mutate(diff = down)
 goseq_down <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
-if (sum(pwf_down$DEgenes) > 0) {
-  goseq_down <- goseq(
-    pwf_down, config$genome$build, gene2cat = gs_by_geneid, method = "Hypergeometric"
-  ) %>% 
-    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-    dplyr::select(-starts_with("under")) %>% 
-    as_tibble() %>% 
-    arrange(pval) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
+if (sum(df$diff) > 0) {
+  goseq_down <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
+    as.data.frame() %>% 
+    column_to_rownames("gene_id") %>% 
+    goseq_hyper(gene2cat = gs_by_geneid) %>% 
     mutate(adj_p = p.adjust(pval, adj_method)) %>% 
     dplyr::filter(numDEInCat >= min_sig)
 }
@@ -2594,7 +2552,7 @@ any_goseq_down <- sum(goseq_down$adj_p < enrich_alpha) > 0
 tg_down <- make_tbl_graph(
   goseq_down, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_down, DEgenes))) %>%
+    lapply(intersect, subset(df, diff)$gene_id) %>%
     .[vapply(., length, integer(1)) > 0]
 )
 plot_network_down <- length(tg_down) >= min_network_size
@@ -2629,22 +2587,19 @@ cp <- htmltools::tags$caption(
 tbl <- goseq_down %>% 
   dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
+    dplyr::distinct(msigdb, gs_name, gs_url, gs_description),
     by = "gs_name"
   ) %>% 
-  dplyr::filter(
-    gene_id %in% unlist(subset(merged_results, status == "Down")$gene_id)
-  ) %>% 
-  dplyr::select(-gene_id) %>% 
-  chop(gene_name) %>% 
   mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    gene_name = vapply(
+      DEgenes, function(x) paste(id2gene[x], collapse = "; "), character(1)
+    ),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to Decreased Windows` = gene_name
+    `Genes Mapped to DB Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,

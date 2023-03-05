@@ -128,7 +128,7 @@ genes_gr <- all_gr$gene
 blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
-external_features <- c()
+external_features <- GRanges()
 has_features <- FALSE
 if (!is.null(config$external$features)) {
   external_features <- suppressWarnings(
@@ -253,9 +253,12 @@ db_results <- seq_along(pairs) %>%
   lapply(
     function(x) {
       tg <- names(pairs)[[x]]
+      type <- unique(dplyr::filter(samples, target == tg)$type)
+      file_type <- "binding"
+      if (type == "H3K27ac") file_type <- "h3k27ac"
       here::here(
-        "output", "differential_binding", tg, 
-        glue("{tg}_{pairs[[x]][[1]]}_{pairs[[x]][[2]]}-differential_binding.rds")
+        "output", glue("differential_{file_type}"), tg, 
+        glue("{tg}_{pairs[[x]][[1]]}_{pairs[[x]][[2]]}-differential_{file_type}.rds")
       )
     }
   ) %>% 
@@ -265,7 +268,7 @@ db_results <- seq_along(pairs) %>%
 fdr_column <- ifelse(
   "fdr_ihw" %in% colnames(mcols(db_results[[1]])), 
   "fdr_ihw", 
-  str_subset("fdr", colnames(mcols(db_results[[1]])))
+  str_subset(colnames(mcols(db_results[[1]])), "fdr")[[1]]
 )
 ```
 
@@ -343,7 +346,7 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
 )
-if (!dir.exists(out_path)) dir.create(out_path)
+if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 all_out <- list(
   csv = file.path(
     out_path, glue(comp_name, "-pairwise_comparison.csv.gz"
@@ -450,15 +453,7 @@ file.remove(list.files(fig_path, pattern = "log$", full.names = TRUE))
 ## Treatment Specific Peaks
 
 ```{r oracle-peaks-upset, fig.height = 6, fig.cap = glue("*Macs2 peaks detected for ", glue_collapse(unique(targets), sep = " and " ), " in the treatment groups ", glue_collapse(unique(unlist(pairs)), sep = ", ", last = " or "), ".*")}
-bar_cols <- treat_colours[rev(unlist(pairs))]
-if (length(unique(targets)) == 1)
-  bar_cols <- treat_colours[
-    pairs %>% 
-      unlist() %>% 
-      unique() %>% 
-      rev()
-  ]
-samples %>% 
+rng_list <- samples %>% 
   distinct(target, treat) %>% 
   mutate_all(as.character) %>% 
   unite(group, target, treat, remove = FALSE) %>% 
@@ -472,24 +467,36 @@ samples %>%
   setNames(
     str_replace_all(names(.), "(.+)_(.+)", "\\1 (\\2)")
   ) %>% 
+  .[vapply(., length, integer(1)) > 0]
+rng_list %>%
   fromList() %>% 
-  upset(
+  UpSetR::upset(
     sets = samples %>%
       distinct(target, treat) %>%
       mutate_all(as.character) %>%
       mutate(grp = glue("{target} ({treat})")) %>%
       pull("grp") %>%
       as.character() %>%
-      rev(),
+      rev() %>% 
+      intersect(names(rng_list)),
     keep.order = TRUE,
     order.by = "freq",
     set_size.show = TRUE, 
-    set_size.scale_max = oracle_peaks %>% 
-      lapply(function(x) lapply(x, length)) %>% 
-      unlist() %>% 
-      max() %>% 
+    set_size.scale_max = oracle_peaks %>%
+      lapply(function(x) lapply(x, length)) %>%
+      unlist() %>%
+      max() %>%
       multiply_by(1.15),
-    sets.bar.color = bar_cols
+    sets.bar.color = samples %>%
+      distinct(target, treat) %>%
+      mutate_all(as.character) %>%
+      mutate(
+        grp = glue("{target} ({treat})"), 
+        colour = treat_colours[treat] %>% setNames(grp)
+      ) %>% 
+      dplyr::filter(grp %in% names(rng_list)) %>%
+      arrange(rev(grp)) %>% 
+      pull(colour) 
   )
 ```
 
@@ -2257,7 +2264,6 @@ vec_t1t2 <- structure(
   mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
   names = mapped_ids
 )
-gs_method <- "Hypergeometric"
 any_goseq_t1t2 <- plot_network_t1t2 <- FALSE
 para <- glue(
   "
@@ -2273,36 +2279,28 @@ para <- glue(
 
 
 ```{r goseq_t1t2_res, eval = n_targets == 2, fig.show='hide'}
-pwf_t1t2 <- nullp(
-  vec_t1t2,
-  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-  plot.fit = TRUE
-) 
-if (sum(pwf_t1t2$DEgenes) > 0) {
-  goseq_t1t2_res <- pwf_t1t2 %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
+if (sum(vec_t1t2) > 0) {
+  goseq_t1t2_res <- data.frame(DEgenes = vec_t1t2) %>% 
+    goseq_hyper(gene2cat = gs_by_geneid) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
-    as_tibble() %>% 
-    dplyr::select(
-      gs_name = category, pval = over_represented_pvalue, starts_with("num")
-    ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha
+      enriched = adj_p < enrich_alpha,
+      DEgenes = lapply(DEgenes, function(x) id2gene[x])
     ) %>% 
     dplyr::filter(numDEInCat >= min_sig) %>% 
     left_join(
-      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+      distinct(msigdb, gs_name, gs_url, gs_description),
       by = "gs_name"
     ) %>% 
-    chop(gene_name) %>% 
+    dplyr::rename(gene_name = DEgenes) %>% 
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
 any_goseq_t1t2 <- sum(goseq_t1t2_res$adj_p < enrich_alpha) > 0
 tg_t1t2 <- make_tbl_graph(
   goseq_t1t2_res, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_t1t2, DEgenes))) %>% 
+    lapply(intersect, names(which(vec_t1t2))) %>% 
     .[vapply(., length, integer(1)) > 0]
 )
 plot_network_t1t2 <- length(tg_t1t2) >= min_network_size
@@ -2403,36 +2401,28 @@ para <- glue(
 ```
 
 ```{r goseq-t1only-res, fig.show='hide'}
-pwf_t1only <- nullp(
-  vec_t1only,
-  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-  plot.fit = TRUE
-) 
-if (sum(pwf_t1only$DEgenes) > 0) {
-  goseq_t1only_res <- pwf_t1only %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
+if (sum(vec_t1only) > 0) {
+  goseq_t1only_res <- data.frame(DEgenes = vec_t1only) %>% 
+    goseq_hyper(gene2cat = gs_by_geneid) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
-    as_tibble() %>% 
-    dplyr::select(
-      gs_name = category, pval = over_represented_pvalue, starts_with("num")
-    ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha
+      enriched = adj_p < enrich_alpha,
+      DEgenes = lapply(DEgenes, function(x) id2gene[x])
     ) %>% 
     dplyr::filter(numDEInCat >= min_sig) %>% 
     left_join(
-      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+      distinct(msigdb, gs_name, gs_url, gs_description),
       by = "gs_name"
     ) %>% 
-    chop(gene_name) %>% 
+    dplyr::rename(gene_name = DEgenes) %>% 
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
 any_goseq_t1only <- sum(goseq_t1only_res$adj_p < enrich_alpha) > 0
 tg_t1only <- make_tbl_graph(
   goseq_t1only_res, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_t1only, DEgenes))) %>% 
+    lapply(intersect, names(which(vec_t1only))) %>% 
     .[vapply(., length, integer(1)) > 0]
 )
 plot_network_t1only <- length(tg_t1only) >= min_network_size
@@ -2533,36 +2523,28 @@ any_goseq_t2only <- plot_network_t2only <- FALSE
 ```
 
 ```{r goseq-t2only-res, fig.show='hide'}
-pwf_t2only <- nullp(
-  vec_t2only,
-  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-  plot.fit = TRUE
-) 
-if (sum(pwf_t2only$DEgenes) > 0) {
-  goseq_t2only_res <- pwf_t2only %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
+if (sum(vec_t2only) > 0) {
+  goseq_t2only_res <- data.frame(DEgenes = vec_t2only) %>% 
+    goseq_hyper(gene2cat = gs_by_geneid) %>% 
     dplyr::filter(numDEInCat > 0) %>% 
-    as_tibble() %>% 
-    dplyr::select(
-      gs_name = category, pval = over_represented_pvalue, starts_with("num")
-    ) %>% 
     mutate(
       adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha
+      enriched = adj_p < enrich_alpha,
+      DEgenes = lapply(DEgenes, function(x) id2gene[x])
     ) %>% 
     dplyr::filter(numDEInCat >= min_sig) %>% 
     left_join(
-      dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+      distinct(msigdb, gs_name, gs_url, gs_description),
       by = "gs_name"
     ) %>% 
-    chop(gene_name) %>% 
+    dplyr::rename(gene_name = DEgenes) %>% 
     mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
 }
 any_goseq_t2only <- sum(goseq_t2only_res$adj_p < enrich_alpha) > 0
 tg_t2only <- make_tbl_graph(
   goseq_t2only_res, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_t2only, DEgenes))) %>% 
+    lapply(intersect, names(which(vec_t2only))) %>% 
     .[vapply(., length, integer(1)) > 0]
 )
 plot_network_t2only <- length(tg_t2only) >= min_network_size
@@ -2769,29 +2751,26 @@ tg_t2only %>%
 n_peaks <- structure(all_ids$n_windows, names = all_ids$gene_id)[mapped_ids]
 goseq_group_res <- group_ids %>% 
   .[str_detect(names(.), "Up|Down")] %>% 
+  .[vapply(., length, integer(1)) > 0] %>% 
   mclapply(
     function(x) {
       vec <- structure(mapped_ids %in% x, names = mapped_ids)
-      pwf <- nullp(vec, bias.data = n_peaks, plot.fit = FALSE)
       res <- tibble(adj_p = numeric())
-      gs_method <- "Hypergeometric"
-      if (sum(pwf$DEgenes) > 0) {
-        res <- goseq(pwf, gene2cat = gs_by_geneid, method = gs_method) %>% 
-          as_tibble() %>% 
+      if (sum(vec) > 0) {
+        res <- data.frame(DEgenes = vec) %>% 
+          goseq_hyper(gene2cat = gs_by_geneid, cores = 1) %>% 
           dplyr::filter(numDEInCat > 0) %>% 
-          mutate(adj_p = p.adjust(over_represented_pvalue, adj_method)) %>% 
+          mutate(adj_p = p.adjust(pval, adj_method)) %>% 
           dplyr::filter(numDEInCat >= min_sig) %>% 
-          dplyr::select(
-            gs_name = category, pval = over_represented_pvalue, adj_p, 
-            ends_with("InCat")
-          ) %>% 
+          dplyr::select(gs_name, pval, adj_p, ends_with("InCat"), DEgenes) %>% 
           left_join(
-            dplyr::filter(msigdb, gene_id %in% x)[c("gs_name", "gene_name", "gs_url", "gs_description")],
+            dplyr::distinct(msigdb, gs_name, gs_url, gs_description),
             by = "gs_name"
           ) %>% 
-          chop(gene_name) %>% 
           mutate(
-            gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
+            gene_name = vapply(
+              DEgenes, function(x) paste(id2gene[x], collapse = "; "), character(1)
+            )
           )
       }
       res
@@ -2945,7 +2924,8 @@ htmltools::tagList(
                   gene_name = colDef(
                     name = "Gene Names",
                     cell = function(value) with_tooltip(value, width = 150)
-                  )
+                  ),
+                  DEgenes = colDef(show = FALSE)
                 )
               )
           )
