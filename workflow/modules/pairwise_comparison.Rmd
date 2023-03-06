@@ -2646,8 +2646,8 @@ tg_mapped %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha= "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha= "none", edge_width = "none") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2677,8 +2677,8 @@ tg_t1t2 %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha= "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha= "none", edge_width = "none") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2708,8 +2708,8 @@ tg_t1only %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha= "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha= "none", edge_width = "none") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2739,8 +2739,8 @@ tg_t2only %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha= "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha= "none", edge_width = "none") +
+  labs(size = "Mapped Genes") +
   theme_void() 
 ```
 
@@ -2981,8 +2981,8 @@ htmltools::tagList(
           scale_size_continuous(range = c(1, 10)) +
           scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
           scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-          guides(edge_alpha= "none") +
-          labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+          guides(edge_alpha= "none", edge_width = "none") +
+          labs(size = "Mapped Genes") +
           theme_void()
         print(p)
         dev.off()
