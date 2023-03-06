@@ -582,7 +582,7 @@ p  +
 
 `r if (nrow(de_genes_db_regions) > 0) "### ChIP logFC Vs RNA logFC"`
 
-```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = "*logFC values for differentially bound ChIP-Seq peaks mapped to DE genes. The most highly ranked peak for each quandrant is labelled at showing both the gene and centre of the binding region. Whilst binding sites may be mapped to multiple genes, only the most highly ranked binding site is shown mapped to the mosthighly ranked DE genes. Points are coloured by differential expression status.*"}
+```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = "*logFC values for differentially bound ChIP-Seq peaks mapped to DE genes. The most extreme site for each quandrant is labelled showing both the gene and centre of the binding region. Whilst binding sites may be mapped to multiple genes, only the most highly ranked binding site is shown mapped to the most highly ranked DE genes. Points are coloured by differential expression status.*"}
 de_genes_db_regions %>% 
   dplyr::filter(ChIP_FDR < fdr_alpha) %>% 
   group_by(gene_name) %>%
@@ -597,8 +597,7 @@ de_genes_db_regions %>%
     aes(label = lab),
     data = . %>% 
       mutate(grp = paste(DE, status)) %>% 
-      # arrange(desc(abs(ChIP_logFC))) %>% 
-      arrange(ChIP_FDR, RNA_FDR) %>% 
+      arrange(desc(abs(ChIP_logFC) + abs(RNA_logFC))) %>% 
       split(.$grp) %>% 
       lapply(dplyr::slice, 1) %>% 
       bind_rows() %>% 
@@ -1508,7 +1507,7 @@ tg_diff %>%
   scale_colour_manual(
     values = setNames(direction_colours, str_to_title(names(direction_colours)))
   ) +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
@@ -1691,7 +1690,7 @@ tg_up %>%
   scale_colour_manual(
     values = setNames(direction_colours, str_to_title(names(direction_colours)))
   ) +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
@@ -1873,7 +1872,7 @@ tg_down %>%
   scale_colour_manual(
     values = setNames(direction_colours, str_to_title(names(direction_colours)))
   ) +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(
     size = glue("{target} Targets In Leading Edge") %>% str_wrap(15),
     colour = "GSEA\nDirection",
@@ -1986,8 +1985,13 @@ Using the ranked list of genes from the RNA-Seq data, the 5 genes most highly ra
 
 ### `r id2gene[names(grl_to_plot)[i]]`
 
+```{r cp1, echo=FALSE}
+cp <- .makeDEGCaption(names(grl_to_plot)[i])
+```
 
-```{r plot-gene1, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+
+
+```{r plot-gene1, fig.cap = cp}
 ct <- trans_models %>% 
   subsetByOverlaps(grl_to_plot[[i]]) %>% 
   as_tibble() %>% 
@@ -2016,7 +2020,7 @@ plotHFGC(
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
   fontsize = 10,
-  max = width(grl_to_plot[[i]]),
+  max = 1e6,
   ylim = y_lim,
   highlight = c(),
   col.title = "black", background.title = "white", showAxis = FALSE,
@@ -2027,8 +2031,12 @@ i <- i + 1
 
 ### `r id2gene[names(grl_to_plot)[i]]`
 
+```{r cp2, echo=FALSE}
+cp <- .makeDEGCaption(names(grl_to_plot)[i])
+```
 
-```{r plot-gene2, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+
+```{r plot-gene2, fig.cap = cp}
 ct <- trans_models %>% 
   subsetByOverlaps(grl_to_plot[[i]]) %>% 
   as_tibble() %>% 
@@ -2056,7 +2064,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
-  max = width(grl_to_plot[[i]]),
+  max = 1e6,
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
@@ -2068,8 +2076,12 @@ i <- i + 1
 
 ### `r id2gene[names(grl_to_plot)[i]]`
 
+```{r cp3, echo=FALSE}
+cp <- .makeDEGCaption(names(grl_to_plot)[i])
+```
 
-```{r plot-gene3, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+
+```{r plot-gene3, fig.cap = cp}
 ct <- trans_models %>% 
   subsetByOverlaps(grl_to_plot[[i]]) %>% 
   as_tibble() %>% 
@@ -2097,7 +2109,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
-  max = width(grl_to_plot[[i]]),
+  max = 1e6,
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
@@ -2109,8 +2121,11 @@ i <- i + 1
 
 ### `r id2gene[names(grl_to_plot)[i]]`
 
+```{r cp4, echo=FALSE}
+cp <- .makeDEGCaption(names(grl_to_plot)[i])
+```
 
-```{r plot-gene4, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+```{r plot-gene4, fig.cap = cp}
 ct <- trans_models %>% 
   subsetByOverlaps(grl_to_plot[[i]]) %>% 
   as_tibble() %>% 
@@ -2138,7 +2153,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
-  max = width(grl_to_plot[[i]]),
+  max = 1e6,
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),
@@ -2150,8 +2165,11 @@ i <- i + 1
 
 ### `r id2gene[names(grl_to_plot)[i]]`
 
+```{r cp5, echo=FALSE}
+cp <- .makeDEGCaption(names(grl_to_plot)[i])
+```
 
-```{r plot-gene5, fig.cap = .makeDEGCaption(names(grl_to_plot)[i])}
+```{r plot-gene5, fig.cap = cp}
 ct <- trans_models %>% 
   subsetByOverlaps(grl_to_plot[[i]]) %>% 
   as_tibble() %>% 
@@ -2179,7 +2197,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = ct, # Set this as a function of n_transcripts
   zoom = 1.1,
-  max = width(grl_to_plot[[i]]),
+  max = 1e6,
   fontsize = 10,
   ylim = y_lim,
   highlight = c(),

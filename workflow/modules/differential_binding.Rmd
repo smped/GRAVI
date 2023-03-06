@@ -15,7 +15,7 @@ library(plyranges)
 library(rtracklayer)
 library(GenomeInfoDb)
 library(Rsamtools)
-library(cowplot)
+library(patchwork)
 library(ngsReports)
 library(csaw)
 library(edgeR)
@@ -324,7 +324,7 @@ This step of the workflow uses a sliding window approach to differential binding
 `r desc_method[[db_method]]`
 `r if (ihw_method != "none") glue("3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on {desc_ihw}, which is considered here to be a statistically independent variable.")`
 
-The workflow also depends heavily on the function implemented in the Bioconductor package [extraChIPs](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html)
+The workflow also depends heavily on the functions implemented in the Bioconductor package [extraChIPs](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html)
 
 ## Enrichment Analysis
 
@@ -335,13 +335,13 @@ Beyond the simple analysis of differential binding, peaks are mapped to genes an
 3. Genes mapped to windows with *increasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
 4. Genes mapped to windows with *decreasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
 
-Enrichment testing is performed using `goseq` [@YoungGoseq2010] with *no term accounting for sampling bias*, except when comparing genes mapped to any window.
+Enrichment testing is performed using `goseq` [@YoungGoseq2010] with no term accounting for sampling bias (i.e. the Hypergeometric Distribution), *except when comparing genes mapped to any window.*
 For this case **only**, gene width is used to capture any sampling bias and Wallenius' Non-Central Hypergeometric Distribution is used.
 As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes considered for enrichment analysis are the `r comma(length(unique(genes_gr$gene_id)))` `r ifelse(has_rnaseq, "genes considered as detected in the RNA-Seq data", "annotated genes")`.
 
 `r if (has_rnaseq) "## Incorporation with RNA-Seq"`
 
-`r if (has_rnaseq) "Any association between differentially expressed genes and differentially bound sites will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the fgsea package [@KorotkevichFgsea2019]. The sets of genes associated with changed binding will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results. ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone."`
+`r if (has_rnaseq) "Any association between differentially expressed genes and differentially bound sites will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the fgsea package [@KorotkevichFgsea2019]. The sets of genes associated with changed binding will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results. ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone. A combined meta-analytic approach using Wilkinson's method will also be used to integration of results from enrichment testing in each standalong dataset."`
 
 # Data Preparation
 
@@ -487,7 +487,7 @@ window_counts <- sortSeqlevels(window_counts)
 seqinfo(window_counts) <- sq
 ```
 
-Using the macs2-estimated fragment length of `r fl`nt, a set of genomic sliding windows were defined using a window size of `r win_size`bp, sliding in increments of `r win_step`bp.
+A set of genomic sliding windows were defined using a window size of `r win_size`bp, sliding in increments of `r win_step`bp.
 With the exclusion of black-listed and grey-listed regions, all alignments within each window were counted for each `r target`-associated sample, and all relevant input samples.
 Any windows with fewer than `r length(bfl) - 1` alignments (i.e.1 read/sample) across all samples were discarded, leaving a total of `r comma(nrow(window_counts))` sliding windows, covering `r percent(sum(width(reduce(granges(window_counts)))) / sum(width(GRanges(sq))))` of the reference genome.
 
@@ -1013,7 +1013,7 @@ scaling_vals <- list(
 cp <- htmltools::em(
   glue(
     "The {show_n} most highly-ranked windows by FDR, with ",
-    sum(merged_results$P.Value_fdr < fdr_alpha), 
+    comma(sum(mcols(merged_results)[[fdr_column]] < fdr_alpha)), 
     " showing evidence of changed {target} binding. ",
     "Regions were assigned based on which genomic region showed the largest ",
     "overlap with the final merged window. ",
@@ -1026,7 +1026,7 @@ cp <- htmltools::em(
     "cell will reveal the full set of genes. ",
     ifelse(
       has_rnaseq,
-      "Only genes considered as detected in the RNA-Seq data are shown. ",
+      "Only genes considered as detected in the RNA-Seq data are included. ",
       ""
     ),
     "The Macs2 Peak column is filterable using T/F values"
@@ -1217,19 +1217,22 @@ merged_results %>%
   geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
   geom_hline(yintercept = 0) +
   geom_label_repel(
-    aes(y = 1.1*logFC, label = annot, colour = status),
+    aes(y = logFC, label = annot, colour = status),
     data= . %>%
-      dplyr::filter(logFC == max(logFC) | logFC == min(logFC)) %>%
+      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
+      dplyr::arrange(desc(abs(logFC))) %>% 
+      dplyr::slice(1:2) %>% 
       mutate(
         detected = gene_name %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40),
+          str_wrap(width = 40) %>% 
+          str_trunc(80),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
-    fill = rgb(1, 1, 1, 0.2),
+    fill = rgb(1, 1, 1, 0.4),
     size = 3,
     show.legend = FALSE
   ) +
@@ -1259,11 +1262,12 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40),
+          str_wrap(width = 40) %>% 
+          str_trunc(80),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
-    fill = rgb(1, 1, 1, 0.2),
+    fill = rgb(1, 1, 1, 0.4),
     size = 3,
     show.legend = FALSE
   ) +
@@ -1278,11 +1282,12 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40),
+          str_wrap(width = 40) %>% 
+          str_trunc(80),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
-    fill = rgb(1, 1, 1, 0.2),
+    fill = rgb(1, 1, 1, 0.4),
     size = 3,
     show.legend = FALSE
   ) +
@@ -1309,25 +1314,29 @@ profile_heatmaps$Down + guides(colour = "none")
 
 ### Results By Chromosome
 
-```{r plot-res-by-chromosome, fig.cap = "*Results for differential binding separated by chromosome*"}
+```{r plot-res-by-chromosome, fig.cap = "*Results for differential binding separated by chromosome. Results are scaled by chromosome length and shown as windows / Mb, although the distributions of windows will be unevenly spaced.*"}
 merged_results %>% 
   select(status) %>% 
-  as.data.frame() %>% 
+  as_tibble(rangeAsChar = FALSE) %>% 
   mutate(
     merge_status = fct_collapse(
       status,
       `Ambiguous/Unchanged` = intersect(c("Ambiguous", "Unchanged"), levels(status))
     )
   ) %>% 
-  ggplot(aes(seqnames, fill = status)) +
-  geom_bar() +
+  group_by(seqnames, merge_status) %>% 
+  summarise(n = dplyr::n(), .groups = "drop") %>% 
+  left_join(as_tibble(sq)) %>%
+  mutate(
+    p = 1e6 * n / seqlengths,
+    seqnames = fct(seqnames, levels = seqlevels(sq))
+  ) %>% 
+  ggplot(aes(seqnames, y = p, fill = merge_status)) +
+  geom_col() +
   facet_grid(merge_status~., scales = "free_y") +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   scale_fill_manual(values =  direction_colours) +
-  labs(
-    x = "Chromosome", y = "Number of Windows", 
-    fill = "Status", alpha = "Macs2 Peak"
-  )
+  labs(x = "Chromosome", y = "Windows / Mb", fill = "Status")
 ```
 
 ### Signal By Region
@@ -1521,13 +1530,18 @@ ind <- filtered_counts %>%
   apply(MARGIN = 2, which.max) %>%
   unique()
 max_ranges <- rowRanges(filtered_counts[ind])
-y_lim <- bwfl[[target]] %>%
-  lapply(import.bw, which = max_ranges) %>%
-  lapply(function(x) c(0, max(x$score))) %>% 
-  unlist() %>% 
-  range() %>% 
-  list() %>% 
-  setNames(target)
+y_lim <- list2(
+  "{target}" := here::here(
+    "output", "macs2", target, "{treat_levels}_merged_treat_pileup.summary"
+  ) %>% 
+    glue() %>% 
+    lapply(read_tsv) %>% 
+    bind_rows() %>% 
+    pull(score) %>% 
+    max() %>% 
+    c(0) %>% 
+    sort()
+)
 
 ## The features track
 feat_gr <- gene_regions %>% 
@@ -2062,7 +2076,9 @@ pwf_mapped <- genes_gr %>%
       plot.fit = TRUE
     )
   )
-goseq_mapped <- tibble(gs_name = character(), adj_p = numeric())
+goseq_mapped <- tibble(
+  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+)
 if (sum(pwf_mapped$DEgenes) > 0) {
   goseq_mapped <- goseq(
     pwf_mapped, config$genome$build, gene2cat = gs_by_geneid
@@ -2227,7 +2243,9 @@ df <- tibble(gene_id  = unique(genes_gr$gene_id)) %>%
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
   mutate(diff = up|down) 
-goseq_diff <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
+goseq_diff <- tibble(
+  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+)
 if (sum(df$diff) > 0) {
   goseq_diff <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
     as.data.frame() %>% 
@@ -2388,7 +2406,9 @@ df <- tibble(gene_id  = unique(genes_gr$gene_id)) %>%
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
   mutate(diff = up)
-goseq_up <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
+goseq_up <- tibble(
+  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+)
 if (sum(df$diff) > 0) {
   goseq_up <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
     as.data.frame() %>% 
@@ -2550,7 +2570,9 @@ df <- tibble(gene_id  = unique(genes_gr$gene_id)) %>%
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
   mutate(diff = down)
-goseq_down <- tibble(gs_name = character(), pval = numeric(), adj_p = numeric())
+goseq_down <- tibble(
+  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+)
 if (sum(df$diff) > 0) {
   goseq_down <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
     as.data.frame() %>% 
