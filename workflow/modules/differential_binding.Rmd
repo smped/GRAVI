@@ -1132,13 +1132,40 @@ sig_ranges <- merged_results %>%
   colToRanges("keyval_range") %>% 
   splitAsList(f = .$direction) %>% 
   .[vapply(., length, integer(1)) > 0] 
-sig_profiles <- bplapply(
-  sig_ranges, 
-  function(x) getProfileData(
-    bwfl, x, upstream = profile_width / 2, bins = n_bins
-  ),
-  BPPARAM = MulticoreParam(length(sig_ranges))
-)
+fc_heat <- names(sig_ranges) %>% 
+  lapply(
+    function(x) {
+      glue(
+        "
+        *Heatmap and histogram for all regions considered to show evidence of 
+        {ifelse(x == 'Up', 'increased', 'decreased')} {target} binding in 
+        response to {treat_levels[[2]]} treatment. A total of 
+        {comma(length(sig_ranges[[x]]))} regions were in this group.
+        ",
+        ifelse(
+          length(sig_ranges[[x]]) > 2e4, 
+          " Due to the large number of regions, these were randomly down-sampled to 20,000 for viable plotting.",
+          ""
+        ),
+        "*"
+      )
+    }
+  ) %>% 
+  setNames(names(sig_ranges))
+sig_profiles <- lapply(sig_ranges, function(x) NULL)
+for (i in names(sig_profiles)) {
+  ## Restrict to 20,000. Plots work poorly above this number.
+  ## Randomly sample
+  set.seed(threads)
+  temp_gr <- granges(sig_ranges[[i]])
+  n <- length(temp_gr)
+  if (n > 2e4) temp_gr <- temp_gr[sort(sample.int(n, 2e4))]
+  sig_profiles[[i]] <- getProfileData(
+    bwfl, temp_gr, upstream = profile_width / 2, bins = n_bins,
+    BPPARAM = bpparam()
+  )
+  rm(temp_gr)
+}
 profile_heatmaps <- sig_profiles %>% 
   bplapply(
     plotProfileHeatmap,
@@ -1146,7 +1173,7 @@ profile_heatmaps <- sig_profiles %>%
     colour = "name",
     xLab = "Distance from Centre (bp)",
     fillLab = "logCPM",
-    BPPARAM = MulticoreParam(length(sig_ranges))
+    BPPARAM = MulticoreParam(length(sig_profiles))
   ) 
 fill_range <- profile_heatmaps %>% 
   lapply(function(x) x$data[,"score"]) %>% 
@@ -1159,18 +1186,20 @@ sidey_range <- profile_heatmaps %>%
 profile_heatmaps <- profile_heatmaps %>% 
   lapply(
     function(x) {
-      x + 
-        scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
-        scale_xsidey_continuous(limits = sidey_range) +
-        scale_colour_manual(values = treat_colours) +
-        labs(
-          x = "Distance from Centre (bp)",
-          fill = "logCPM", 
-          colour = "Treat"
-        ) +
-        theme(
-          strip.text.y = element_text(angle = 0)
-        )
+      suppressWarnings(
+        x + 
+          scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
+          scale_xsidey_continuous(limits = sidey_range) +
+          scale_colour_manual(values = treat_colours) +
+          labs(
+            x = "Distance from Centre (bp)",
+            fill = "logCPM", 
+            colour = "Treat"
+          ) +
+          theme(
+            strip.text.y = element_text(angle = 0)
+          )
+      )
     }
   )
 ```
@@ -1267,14 +1296,14 @@ merged_results %>%
 
 `r ifelse("Up" %in% names(profile_heatmaps), "### Heatmap: Increased Binding\n", "")`
 
-```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of increased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Up']]))} regions were in this group.*"), fig.height = min(10, length(sig_ranges$Up)/1.5e3 + 3.5)}
+```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = fc_heat$Up, fig.height = min(10, length(sig_ranges$Up)/1.5e3 + 3.5)}
 profile_heatmaps$Up
 ```
 
 
 `r ifelse("Down" %in% names(profile_heatmaps), "### Heatmap: Decreased Binding\n", "")`
 
-```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = glue("*Heatmap and histogram for all regions considered to show evidence of decreased {target} binding in the {treat_levels[[2]]} group. A total of {comma(length(sig_ranges[['Down']]))} regions were in this group.*"), fig.height = min(10, length(sig_ranges$Down)/1.5e3 + 3.5)}
+```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = fc_heat$Down, fig.height = min(10, length(sig_ranges$Down)/1.5e3 + 3.5)}
 profile_heatmaps$Down
 ```
 
