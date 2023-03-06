@@ -1139,26 +1139,6 @@ sig_profiles <- bplapply(
   ),
   BPPARAM = MulticoreParam(length(sig_ranges))
 )
-## Currently, this is set to CPM as the only possible output of 
-## extraChIP::getProfileData. Until this is rectified, manually log-transform
-sig_profiles <- sig_profiles %>% 
-  bplapply(
-    function(x) {
-      temp_gr <- unlist(x)
-      temp_gr$profile_data <- lapply(
-        temp_gr$profile_data,
-        function(pd) {
-          pd$score <- log2(pd$score + 1)
-          pd
-        }
-      )
-      temp_gr$profile_data <- as(temp_gr$profile_data, "SplitDataFrameList")
-      out <- split(temp_gr, names(temp_gr))
-      out <- lapply(out, setNames, NULL)[names(x)]
-      GRangesList(out)
-    },
-    BPPARAM = MulticoreParam(length(sig_ranges))
-  ) 
 profile_heatmaps <- sig_profiles %>% 
   bplapply(
     plotProfileHeatmap,
@@ -2205,7 +2185,7 @@ tg_mapped %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
@@ -2367,7 +2347,7 @@ tg_diff %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
@@ -2424,7 +2404,7 @@ cp <- htmltools::tags$caption(
     )
   )
 )
-tbl <- goseq_up %>% 
+tbl <- goseq_up %>%
   dplyr::filter(adj_p < enrich_alpha) %>%
   left_join(
     distinct(msigdb, gs_name, gs_url, gs_description),
@@ -2441,7 +2421,7 @@ tbl <- goseq_up %>%
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to DB Windows` = gene_name
+    `Genes Mapped to Increasing Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -2465,7 +2445,7 @@ tbl <- goseq_up %>%
         cell = function(value) percent(value, 0.1),
         maxWidth = 80
       ),
-      numDEInCat = colDef(name = "Mapped to Gained Windows", maxWidth = 80),
+      numDEInCat = colDef(name = "Mapped to Increasing Windows", maxWidth = 80),
       numInCat = colDef(
         name = "Total Mapped",
         maxWidth = 80,
@@ -2488,7 +2468,7 @@ tbl <- goseq_up %>%
         },
         maxWidth = 70
       ),
-      "Genes Mapped to Gained Windows" = colDef(
+      "Genes Mapped to Increasing Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
@@ -2512,7 +2492,7 @@ tg_up %>%
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
-    geom_node_text(
+  geom_node_text(
     aes(label = label),
     colour = "black", size = 3, 
     data = . %>%
@@ -2528,7 +2508,7 @@ tg_up %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
@@ -2603,7 +2583,7 @@ tbl <- goseq_down %>%
   dplyr::select(
     `Gene Set` = gs_name, Description = gs_description,
     `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to DB Windows` = gene_name
+    `Genes Mapped to Decreasing Windows` = gene_name
   ) %>% 
   reactable(
     filterable = TRUE,
@@ -2627,7 +2607,7 @@ tbl <- goseq_down %>%
         cell = function(value) percent(value, 0.1),
         maxWidth = 80
       ),
-      numDEInCat = colDef(name = "Mapped to Decreased Windows", maxWidth = 90),
+      numDEInCat = colDef(name = "Mapped to Decreasing Windows", maxWidth = 90),
       numInCat = colDef(
         name = "Total Mapped",
         maxWidth = 80,
@@ -2650,7 +2630,7 @@ tbl <- goseq_down %>%
         },
         maxWidth = 70
       ),
-      "Genes Mapped to Decreased Windows" = colDef(
+      "Genes Mapped to Decreasing Windows" = colDef(
         cell = function(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
@@ -2690,7 +2670,7 @@ tg_down %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none") +
+  guides(edge_alpha= "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
