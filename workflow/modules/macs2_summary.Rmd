@@ -17,7 +17,7 @@ library(yaml)
 library(ngsReports)
 library(ComplexUpset)
 library(VennDiagram)
-library(cowplot)
+library(patchwork)
 library(rlang)
 library(BiocParallel)
 library(parallel)
@@ -244,23 +244,23 @@ macs2_logs %>%
 ```{r plot-macs2-libsize-individual, fig.height=6, fig.cap = glue("*Library sizes for each {target} sample. The horizontal line indicates the mean library size for each treatment group. Any samples marked for exclusion as described above will be indicated with an (F)*")}
 macs2_logs %>%
   ggplot(
-    aes(label, n_tags_treatment, fill = qc)
+    aes(label, n_tags_treatment/1e6, fill = qc)
   ) +
   geom_col(position = "dodge") +
   geom_hline(
     aes(yintercept = mn),
     data = . %>%
       group_by(treat) %>%
-      summarise(mn = mean(n_tags_treatment)),
+      summarise(mn = mean(n_tags_treatment/1e6)),
     linetype = 2,
     col = "grey"
   ) +
   facet_grid(~treat, scales = "free_x", space = "free_x") +
-  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
   scale_fill_manual(values = colours$qc) +
   labs(
     x = "Sample",
-    y = "Library Size",
+    y = "Library Size (millions)",
     fill = "QC"
   ) +
   ggtitle(
@@ -286,6 +286,7 @@ suppressWarnings(
           lab = comma(total_peaks, accuracy = 1),
           total = total_peaks
         ),
+      nudge_y = max(macs2_logs$total_peaks)/30,
       inherit.aes = FALSE,
       show.legend = FALSE
     ) +
@@ -337,9 +338,7 @@ samples$sample %>%
   scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
   scale_fill_manual(values = colours$qc) +
   labs(
-    x = "Sample",
-    y = "Fraction of Reads In Peaks",
-    fill = "QC"
+    x = "Sample", y = "FRIP (%)", fill = "QC"
   ) +
   ggtitle(
     glue("{target}: Fraction Of Reads In Peaks")
@@ -353,6 +352,7 @@ samples$sample %>%
 file.path(macs2_path, "cross_correlations.tsv") %>% 
   read_tsv() %>% 
   left_join(samples, by = "sample") %>% 
+  arrange(desc(treat), !!sym(rep_col)) %>% 
   ggplot(aes(fl, correlation, colour = treat)) +
   geom_point(alpha = 0.1) +
   geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
@@ -361,7 +361,7 @@ file.path(macs2_path, "cross_correlations.tsv") %>%
     data = macs2_logs,
     colour = "grey40", linetype = 2
   ) +
-  facet_grid(as.formula(paste("treat ~", rep_col))) +
+  facet_wrap(as.formula(paste("~ treat +", rep_col))) +
   scale_colour_manual(values = colours$treat[treat_levels]) +
   scale_x_continuous(
     breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
@@ -435,7 +435,7 @@ Replicates within treatment groups are only shown where at least one peak was de
 For two or three replicates, Euler (Venn) Diagrams were generated using the `python` package `matplotlib-venn`.
 Peak numbers may differ from above as those shown below are overlapping peaks which have been merged across replicates
 
-In the case of four or more replicates, the package `UpSetR` was used to create UpSet plots [@Upset2014].
+In the case of four or more replicates, the package `ComplexUpset` [@KrassowskiCompUp] was used to create UpSet plots [@Upset2014].
 
 ```{r load-replicates}
 replicates_by_treat <- individual_peaks %>%
@@ -458,7 +458,7 @@ replicates_by_treat <- individual_peaks %>%
 
 #### All Samples
 
-```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. The top panel shows a boxplot of the median $q$-values produced by `macs2 callpeak` for each peak in the intersection. The y-axis for this panel is truncated at the 99^th^ percentile of values. Only intersections with 10 or more peaks are shown.*"}
+```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. The top panel shows a boxplot of the minimum $q$-values produced by `macs2 callpeak` for each peak in the intersection. The y-axis for this panel is truncated at the 99^th^ percentile of values. Only intersections with 10 or more peaks are shown.*"}
 df <- individual_peaks %>% 
   makeConsensus(var = "qValue") %>% 
   as_tibble() %>% 
@@ -553,7 +553,7 @@ which_py <- c(
   .[file.exists(.)] %>% 
   .[1]
 stopifnot(length(which_py) == 1)
-rep_col <- hcl.colors(3, palette = "Zissou", rev = TRUE)
+rep_colours <- hcl.colors(3, palette = "Zissou", rev = TRUE)
 htmltools::tagList(
   names(replicates_by_treat) %>% 
     lapply(
@@ -583,7 +583,7 @@ htmltools::tagList(
             here::here("workflow", "scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' ", 
-            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[3]]}' ",
+            "-c1 '{rep_colours[[1]]}' -c2 '{rep_colours[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
             "-o '{fig_out}'"
@@ -603,7 +603,7 @@ htmltools::tagList(
             "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
             "-a13 {a13} -a23 {a23} -a123 {a123} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' -s3 '{names(x)[[3]]}' ", 
-            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[2]]}' -c3 '{rep_col[[3]]}' ",
+            "-c1 '{rep_colours[[1]]}' -c2 '{rep_colours[[2]]}' -c3 '{rep_colours[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
             "-o '{fig_out}'"
@@ -928,7 +928,7 @@ b <- consensus_peaks %>%
   ) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
   scale_x_continuous(breaks = seq(0, 100, by = 20))
-plot_grid(a, b, labels = c("A", "B"))
+a + b + plot_annotation(tag_levels = "A")
 ```
 
 
@@ -1079,18 +1079,17 @@ if (!is.null(config$external$coverage)) {
   )
 }
 line_col <- lapply(bwfl, function(x) colours$treat[names(x)])
-y_lim <- bwfl %>%
-  lapply(
-    function(x) {
-      gr <- unlist(grl_to_plot) %>% 
-        resize(width = 30 * width(.), fix = 'center')
-      x %>% 
-        lapply(import.bw, which = gr) %>%
-        lapply(function(rng) c(0, max(rng$score))) %>%
-        unlist() %>%
-        range()
-    }
-  )
+
+y_lim <- here::here(
+  "output", "macs2", target, "{treat_levels}_merged_treat_pileup.summary"
+) %>% 
+  glue() %>% 
+  lapply(read_tsv) %>% 
+  bind_rows() %>% 
+  pull(score) %>% 
+  max() %>% 
+  c(0) %>% 
+  sort()
 ```
 
 Coverage for a small set of highly ranked peaks are shown below.
@@ -1102,7 +1101,7 @@ htmltools::tagList(
   mclapply(
     seq_along(grl_to_plot),
     function(x) {
-      nm <- names(grl_to_plot)[[x]]
+      nm <- names(grl_to_plot[[x]])
       ## Export the figure
       fig_out <- file.path(
         fig_path,
@@ -1139,9 +1138,14 @@ htmltools::tagList(
       dev.off()
       
       ## Define the caption
-      gr <- join_nearest(grl_to_plot[[x]], all_gr$gene, distance = TRUE)
-      d <- gr$distance
-      gn <- gr$gene_name
+      gr <- join_overlap_inner(grl_to_plot[[x]], all_gr$gene)
+      if (length(gr)) {
+        d <- 0
+      } else {
+        gr <- join_nearest(grl_to_plot[[x]], all_gr$gene, distance = TRUE)
+        d <- gr$distance
+      }
+      gn <- collapseGenes(gr$gene_name, format = "")
       peak_desc <- ifelse(
         nm == "consensus",
         "consensus peak by combined score across all treatments.",
@@ -1163,7 +1167,7 @@ htmltools::tagList(
             glue(".")
           ),
           "
-          Y-axes for each coverage track are set to the most highly ranked peak
+          Y-axes for each coverage track are set to the maximum observed signal
           across all conditions.
           "
         )

@@ -38,6 +38,9 @@ parser.add_argument("-o", "--output", default = "venn.png", help = 'Output File'
 args = parser.parse_args()
 config = vars(args)
 
+# print(config)
+# exit()
+
 ## Set global plotting parameters
 plt.rcParams["font.family"] = config['ff']
 plt.rcParams["font.size"] = config['fs']
@@ -85,8 +88,10 @@ if not draw2:
 		sf = config['sf']
 		x0,y0 = v.get_label_by_id('111').get_position()
 		for ID in ['110', '101', '011']:
-			x1,y1 = v.get_label_by_id(ID).get_position()
-			v.get_label_by_id(ID).set_position((x0 + sf*(x1-x0), y0 + sf*(y1-y0)))
+		  lb = v.get_label_by_id(ID)
+		  if lb:
+			  x1,y1 = lb.get_position()
+			  v.get_label_by_id(ID).set_position((x0 + sf*(x1-x0), y0 + sf*(y1-y0)))
 
 	venn3_circles(subsets = areas,color=config['lc'], linewidth=config['lw'])
 

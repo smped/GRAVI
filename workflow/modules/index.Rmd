@@ -62,11 +62,11 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
 
 ```{r}
 samples %>% 
-  group_by(target, treat) %>%
+  group_by(target, treat, type) %>%
   summarise(n = dplyr::n(), .groups = "drop") %>% 
   rename_all(str_to_title) %>% 
   pander(
-    justify = "llr",
+    justify = "lllr",
     caption = "Summary of supplied ChIP targets and treatment groups"
   )
 ```
