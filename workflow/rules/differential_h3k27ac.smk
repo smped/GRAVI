@@ -114,7 +114,7 @@ rule compile_differential_h3k27ac_html:
 			file = ['config', 'params']
 		),
 		rnaseq_mod = os.path.join(
-			"workflow", "modules", "rnaseq_differential_binding.Rmd"
+			"workflow", "modules", "rnaseq_differential.Rmd"
 		)
 	output:
 		html = "docs/{target}_{ref}_{treat}_differential_h3k27ac.html",

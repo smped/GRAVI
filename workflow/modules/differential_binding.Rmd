@@ -704,7 +704,7 @@ In addition to statistical analysis, merged windows were first mapped to the gen
 
 During mapping to genes, promoters were defined the union of all regions defined based on transcript-level annotation, and any external features which were defined as promoters.
 `r ifelse(has_features, glue("Enhancers were any regions defined in {basename(config$external$features)} as enhancers."), glue(""))`
-`r ifelse(length(hic) > 0, glue("A set of {length(hic)} HiC-interactions was also included to enable the use of long-range interactions during the mappig process."), "")`
+`r ifelse(length(hic) > 0, glue("A set of {comma(length(hic))} HiC-interactions was also included to enable the use of long-range interactions during the mappig process."), "")`
 
 These features were used to map merged windows to features using the process defined in the function `extraChIPs::mapByFeature()`:
 
@@ -1103,7 +1103,7 @@ tbl <- merged_results %>%
       ),
       Region = colDef(maxWidth = 150),
       Genes = colDef(
-        cell = function(value) with_tooltip(value),
+        cell = function(value) with_tooltip(value, width = ifelse(has_features, 30, 60)),
         minWidth = 11 * fs
       )
     ),
@@ -1227,8 +1227,8 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40) %>% 
-          str_trunc(80),
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
@@ -1282,8 +1282,8 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40) %>% 
-          str_trunc(80),
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
@@ -1771,7 +1771,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_down_by_expr),
+  max = 8e3,
   ylim = y_lim,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
@@ -1792,7 +1792,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_down_by_fdr),
+  max = 8e3,
   ylim = y_lim,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
@@ -1834,8 +1834,10 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_down_no_macs2),
-  ylim = y_lim
+  max = 8e3,
+  ylim = y_lim,
+  col.title = "black", background.title = "white", showAxis = FALSE,
+  rotation.title = 90
 )
 ```
 
@@ -1854,7 +1856,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_up_by_expr),
+  max = 8e3,
   ylim = y_lim,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
@@ -1875,7 +1877,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_up_by_fdr),
+  max = 8e3,
   ylim = y_lim,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
@@ -1896,7 +1898,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_up_by_lfc),
+  max = 8e3,
   ylim = y_lim,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
@@ -1917,7 +1919,7 @@ plotHFGC(
   cytobands = bands_df,
   collapseTranscripts = FALSE,
   zoom = 10,
-  max = 10 * width(grl_to_plot$top_up_no_macs2),
+  max = 8e3,
   ylim = y_lim,
   col.title = "black", background.title = "white", showAxis = FALSE,
   rotation.title = 90
@@ -2728,7 +2730,7 @@ tg_down %>%
 
 
 
-```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_differential_binding.Rmd')}
+```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_differential.Rmd')}
 ```
 
 

@@ -43,13 +43,13 @@ diff_windows <- merged_results %>%
 
 ## Distribution Of Detected Genes {.tabset}
 
-### Detected Genes By `r target` Binding Region
-
-The distribution of merged windows, where `r target` was considered as present, was firstly compared to genes within the RNA-Seq dataset.
+The distribution of merged windows, where `r target` signal was detected, was firstly compared to genes within the RNA-Seq dataset.
 Genes were simply considered as detected if present in the RNA-Seq data, or undetected if not present.
 Gene-centric regions were as defined previously.
 
-```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
+### Detected Genes By `r target` Signal
+
+```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target} windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 merged_results %>%
   mutate(
     RNASeq = ifelse(
@@ -70,7 +70,7 @@ merged_results %>%
 
 `r ifelse(has_features, "### Detected Genes By Feature", "")`
 
-```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = glue("*Distribution of {target}-bound windows by externally-defined features from {basename(config$external$features)}, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
+```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = glue("*Distribution of {target} windows by externally-defined features from {basename(config$external$features)}, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
 merged_results %>%
   mutate(
     RNASeq = ifelse(
@@ -140,7 +140,7 @@ if (has_features) {
 }
 ```
 
-### DE Genes Associated with Changed `r target` Binding
+### DE Genes Associated with Changed `r target`
 
 ```{r any_diff_sites}
 de_genes_db_regions <- tibble()
@@ -170,15 +170,15 @@ if (any_de & any_diff_sites) {
   para <- glue(
     "
     Using the {comma(length(unique(unlist(diff_windows))))} genes mapped to a 
-    {target} binding site, genes were tested for any association between sites 
-    showing evidence of diferential binding and differential expression.
+    region with detected {target} signal, genes were tested for any association 
+    between sites showing evidence of diferential signal and differential expression.
     {comma(length(unique(unlist(diff_windows[c('Up', 'Down')]))))} genes were 
-    mapped to at least one site showing differential {target} binding with 
+    mapped to at least one site showing differential {target} signal with 
     {comma(ft_data['Diff', 'DE_TRUE'])} 
     ({percent(ft_data['Diff', 'DE_TRUE'] / sum(ft_data['Diff',]))}) of these
     being considered differentially expressed. This compares to 
     {percent(ft_data['Unchanged', 'DE_TRUE'] / sum(ft_data['Unchanged', ]), 0.1)}
-    of genes where no differential {target} binding was detected. Fisher's 
+    of genes where no differential {target} signal was detected. Fisher's 
     Exact test for any association gave this a p-value of 
     {ifelse(ft$p.value < 0.01, sprintf('%.2e', ft$p.value), round(ft$p.value, 3))}.
     "
@@ -186,7 +186,7 @@ if (any_de & any_diff_sites) {
 }
 ```
 
-`r if (!any_diff_sites) "No differentially bound sites were detected."`
+`r if (!any_diff_sites) glue("No sites with differential {target} signal were detected.")`
 
 `r if (any_de & any_diff_sites) para`
 
@@ -278,17 +278,17 @@ if (has_features) feat_def = list(
 cp <-  htmltools::em(
   glue(
     "
-    Differentially Expressed (DE) genes were checked for {target} binding
-    regions which showed evidence of changed binding. 
+    Differentially Expressed (DE) genes were checked for {target} regions which 
+    showed evidence of changed {target} signal. 
     {comma(length(unique(de_genes_db_regions$range)), 1)} unique regions were 
     mapped to {comma(length(unique(de_genes_db_regions$gene_id)), 1)} DE genes. 
     Data are presented in a gene-centric manner and ranges may map to multiple
     genes. The full set of ranges considered to be showing evidence of altered 
-    {target} binding are shown for each gene. The summarised range containing 
+    {target} signal are shown for each gene. The summarised range containing 
     all mapped ranges is given in the collapsed row, along with the range of 
     distances to gene and the range of signal levels. In the collapsed row, the 
     value for logFC represents the average across all mapped regions, with the 
-    maximum FDR also shown. If {target} binding occurs within another gene this 
+    maximum FDR also shown. If {target} is detected within another gene this 
     is indicated in the 'Region' column.
     All sites and genes were exported as {basename(all_out$de_genes)}.
     "
@@ -465,7 +465,7 @@ tbl <- de_genes_db_regions %>%
           )
         ),
         region = colDef(
-          name = "Binding Region",
+          name = "Genomic Region",
           aggregate = "unique"
         )
       ),
@@ -489,9 +489,9 @@ div(class = "table",
 ```
 
 
-### Volcano Plots By `r target` Binding
+### Volcano Plots By `r target` Status
 
-```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes may be mapped to multiple {target} binding events which include different binding patterns, genes may appear in multiple panels.*")}
+```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes may be mapped to multiple {target} sites with different patterns, genes may appear in multiple panels.*")}
 diff_tbl <- diff_windows %>% 
   lapply(function(x) tibble(gene_id = x)) %>% 
   bind_rows(.id = "status")
@@ -550,13 +550,13 @@ rnaseq %>%
 
 ### P-Values By `r target` Status
 
-```{r plot-p-target, fig.height = 5, fig.cap = glue("*P-Values for differential expression partitioned by {target} ChIP peak status. Genes were considered as being mapped to a differentially bound peak if one or more peaks was considered as differentially bound. No IHW procedure was undertaken using this data.*")}
+```{r plot-p-target, fig.height = 5, fig.cap = glue("*P-Values for differential expression partitioned by {target} status. Genes were considered as being mapped to a differential {target} site if one or more peaks was considered as showing evidence of changed signal. No IHW procedure was undertaken using this data.*")}
 p <- rnaseq %>% 
   mutate(
     mapped = case_when(
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Differentially Bound"),
+      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Changed"),
       gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
-      TRUE ~ paste("No", target, "Detected")
+      TRUE ~ paste(target, "Undetected")
     )
   ) %>% 
   ggplot(
@@ -583,7 +583,7 @@ p  +
 
 `r if (nrow(de_genes_db_regions) > 0) "### ChIP logFC Vs RNA logFC"`
 
-```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = "*logFC values for differentially bound ChIP-Seq peaks mapped to DE genes. The most extreme site for each quandrant is labelled showing both the gene and centre of the binding region. Whilst binding sites may be mapped to multiple genes, only the most highly ranked binding site is shown mapped to the most highly ranked DE genes. Points are coloured by differential expression status.*"}
+```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = glue("*logFC values for differential {target} sites mapped to DE genes. The most extreme site for each quandrant is labelled showing both the gene and centre of the {target} site. Whilst {target} sites may be mapped to multiple genes, only the most highly ranked site is shown mapped to the most highly ranked DE genes. Points are coloured by differential expression status.*")}
 de_genes_db_regions %>% 
   dplyr::filter(ChIP_FDR < fdr_alpha) %>% 
   group_by(gene_name) %>%
@@ -619,7 +619,7 @@ de_genes_db_regions %>%
         n = dplyr::n(),
         lab = glue("n = {comma(n)}"),
         x = max(abs(ChIP_logFC)) * sign(min(ChIP_logFC)) * 1.05,
-        y = max(abs(RNA_logFC)) * sign(min(RNA_logFC)) * 1.05,
+        y = 0 + sign(min(RNA_logFC)) * 0.2,
         .groups = "drop"
       ) %>% 
       group_by(DE) %>% 
@@ -640,7 +640,7 @@ de_genes_db_regions %>%
 ```
 
 
-## Binding Pattern GSEA 
+## `r target` Pattern GSEA 
 
 ```{r dev-to-png, echo = FALSE}
 knitr::opts_chunk$set(dev = 'png')
@@ -648,7 +648,7 @@ knitr::opts_chunk$set(dev = 'png')
 
 ### GSEA By Direction of Regulation {.tabset}
 
-GSEA analysis was first performed by taking the genes mapped to various sets of peaks, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, by significance of the logFC estimates.
+GSEA analysis was first performed by taking the genes mapped to various `r `target` ChIP-Seq signal regions, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, by significance of the logFC estimates.
 
 #### All Windows
 
@@ -673,14 +673,14 @@ p <- gsea_dir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_dir_sig) == 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes.")`
+`r if (nrow(gsea_dir_sig) == 0) glue("No association was found between {target} signal and *directional* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0}
 cp <-  htmltools::em(
   glue(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on  ",
-    "the direction of {target} binding with ",
+    "the direction of {target} signal with ",
     "{treat_levels[[2]]} treatment. {nrow(gsea_dir_sig)} sets of windows were ",
     "associated with changes in gene expression, using the sign of ", 
     "fold-change and ranking statistic to initially rank the ", 
@@ -761,7 +761,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = 1 + min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -788,14 +788,14 @@ p <- gsea_reg_dir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_reg_dir_sig) == 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes, when incorporating genomic region.")`
+`r if (nrow(gsea_reg_dir_sig) == 0) glue("No association was found between {target} signal and *directional* significance in differentially expressed genes, when incorporating genomic region.")`
 
 ```{r tbl-gsea-reg-dir_sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0}
 cp <-  htmltools::em(
   glue(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on which ",
-    "region was the best overlap, and the direction of {target} binding with ",
+    "region was the best overlap, and the direction of {target} signal with ",
     "{treat_levels[[2]]} treatment. {nrow(gsea_reg_dir_sig)} sets of windows were ",
     "associated with changes in gene expression, using the sign of ", 
     "fold-change and ranking statistic to initially rank the ", 
@@ -879,7 +879,7 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-reg-dir-sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-reg-dir-sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = 1 + min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -913,14 +913,14 @@ p <- gsea_feat_dir_sig %>%
   )
 ```
 
-`r if (has_features){ if (nrow(gsea_feat_dir_sig) == 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes, when incorporating external features.")}`
+`r if (has_features){ if (nrow(gsea_feat_dir_sig) == 0) glue("No association was found between {target} signal and *directional* significance in differentially expressed genes, when incorporating external features.")}`
 
 ```{r tbl-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0}
 cp <-  htmltools::em(
   glue(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on which ",
-    "feature was the best overlap, and the direction of {target} binding with ",
+    "feature was the best overlap, and the direction of {target} signal with ",
     "{treat_levels[[2]]} treatment. {nrow(gsea_feat_dir_sig)} sets of windows were ",
     "associated with changes in gene expression, using the sign of ", 
     "fold-change and ranking statistic to initially rank the ", 
@@ -998,7 +998,7 @@ div(class = "table",
 ```
 
 
-```{r barcode-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0,fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+```{r barcode-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0,fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = 1 + min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1027,14 +1027,14 @@ p <- gsea_nondir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_nondir_sig) == 0) glue("No association was found between {target} binding and *overall* significance in differentially expressed genes.")`
+`r if (nrow(gsea_nondir_sig) == 0) glue("No association was found between {target} signal and *overall* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0}
 cp <-  htmltools::em(
   glue(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on  ",
-    "the direction of {target} binding with ",
+    "the direction of {target} signal with ",
     "{treat_levels[[2]]} treatment. {nrow(gsea_nondir_sig)} sets of windows were ",
     "associated with changes in gene expression, using only the p-value to ", 
     "rank the {comma(nrow(rnaseq), 1)} genes considered as detected."
@@ -1094,7 +1094,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = 1 + min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1119,14 +1119,14 @@ p <- gsea_reg_nondir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_reg_nondir_sig) == 0) glue("No association was found between {target} binding and *overall* significance in differentially expressed genes.")`
+`r if (nrow(gsea_reg_nondir_sig) == 0) glue("No association was found between {target} signal and *overall* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0}
 cp <-  htmltools::em(
   glue(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on which ",
-    "region was the best overlap, and the direction of {target} binding with ",
+    "region was the best overlap, and the direction of {target} signal with ",
     "{treat_levels[[2]]} treatment. {nrow(gsea_reg_nondir_sig)} sets of windows were ",
     "associated with changes in gene expression, using only the p-value to ", 
     "rank the {comma(nrow(rnaseq), 1)} genes considered as detected."
@@ -1189,7 +1189,7 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+```{r barcode-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = 1 + min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1221,14 +1221,14 @@ p <- gsea_feat_nondir_sig %>%
   )
 ```
 
-`r if (has_features){ if (nrow(gsea_feat_nondir_sig) == 0) glue("No association was found between {target} binding and *directional* significance in differentially expressed genes, when incorporating external features.")}`
+`r if (has_features){ if (nrow(gsea_feat_nondir_sig) == 0) glue("No association was found between {target} signal and *directional* significance in differentially expressed genes, when incorporating external features.")}`
 
 ```{r tbl-gsea-feat-nondir-sig, eval = has_features & nrow(gsea_feat_nondir_sig) > 0, echo = has_features & nrow(gsea_feat_nondir_sig) > 0}
 cp <-  htmltools::em(
   glue(
     "Merged windows were mapped to genes and their position amongst the ",
     "RNA-Seq results was assessed. Windows were classified based on which ",
-    "feature was the best overlap, and the direction of {target} binding with ",
+    "feature was the best overlap, and the direction of {target} signal with ",
     "{treat_levels[[2]]} treatment. {nrow(gsea_feat_nondir_sig)} sets of windows were ",
     "associated with overall changes in gene expression, using only the ", 
     "test statistic to rank the ", 
@@ -1306,7 +1306,7 @@ div(class = "table",
 ```
 
 
-```{r barcode-gsea-feat-nondir-sig, eval = nrow(gsea_feat_nondir_sig) > 0, echo = nrow(gsea_feat_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __nondirectional__ changes in gene expression.*")}
+```{r barcode-gsea-feat-nondir-sig, eval = nrow(gsea_feat_nondir_sig) > 0, echo = nrow(gsea_feat_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.width = 1 + min(3*length(p), 9), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __nondirectional__ changes in gene expression.*")}
 plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
 ```
 
@@ -1334,12 +1334,12 @@ status_cols <- setNames(
 )
 ```
 
-The enrichment testing results from the `r target` differential binding analysis were then
+The enrichment testing results from the `r target` differential signal analysis were then
 compared to GSEA results obtained from the RNA-Seq data set.
 Given the orthogonal nature of the two dataset, p-values from each analysis were combined using Wilkinson's maximum p-value method and the resulting p-values adjusted as previously.
 Distances between nodes (gene-sets) for all network plots were determined by using ChIP target genes within the leading edge only.
 
-### Differentially Bound Windows {.tabset}
+### Differential `r target` Windows {.tabset}
 
 ```{r compare-alldiff-gsea}
 cmn_diff <- rnaseq_gsea %>%
@@ -1380,7 +1380,7 @@ tg_diff <- cmn_diff %>%
 plot_net <- length(tg_diff) >= min_network_size
 txt <- ifelse(
   nrow(cmn_diff) == 0,
-  glue("No gene sets were jointly enriched between all {target} differentially bound windows and the RNA-Seq data"),
+  glue("No gene sets were jointly enriched between all differential {target} windows and the RNA-Seq data"),
   "#### Results Table"
 )
 ```
@@ -1391,12 +1391,12 @@ txt <- ifelse(
 cp <- htmltools::tags$em(
   glue(
     "
-    Genes mapped to all windows showing evidence of differential binding were 
+    Genes mapped to all windows showing evidence of differential signal were 
     tested for enrichment using goseq, and results were compared to GSEA results
     for the RNA-Seq dataset. Wilkinson's method was used to integrate the two
     p-values with a combined FDR-adjusted p-value < {enrich_alpha} being taken
-    as evidence of potential regulatory targets from differentially bound 
-    {target} binding sites. Of the {nrow(cmn_diff)} gene-sets of interest, 
+    as evidence of potential regulatory targets from differential 
+    {target} sites. Of the {nrow(cmn_diff)} gene-sets of interest, 
     {sum(cmn_diff$Status == 'Both')} were individually enriched in both datasets,
     as indicated in the 'Status' column
     "
@@ -1479,7 +1479,7 @@ div(
 
 `r if (plot_net) "#### Network Plot"`
 
-```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differentially bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
+```{r network-cmn-alldiff, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all differential {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
 tg_diff %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down"))%>% 
@@ -1562,7 +1562,7 @@ tg_up <- cmn_up %>%
 plot_net <- length(tg_up) >= min_network_size
 txt <- ifelse(
   nrow(cmn_up) == 0,
-  glue("No gene sets were jointly enriched between all increasing {target} bound windows and the RNA-Seq data"),
+  glue("No gene sets were jointly enriched between all increasing {target} windows and the RNA-Seq data"),
   "#### Results Table"
 )
 ```
@@ -1573,12 +1573,12 @@ txt <- ifelse(
 cp <- htmltools::tags$em(
   glue(
     "
-    Genes mapped to all windows showing evidence of increased {target} binding were 
+    Genes mapped to all windows showing evidence of increased {target} signal were 
     tested for enrichment using goseq, and results were compared to GSEA results
     for the RNA-Seq dataset. Wilkinson's method was used to integrate the two
     p-values with a combined FDR-adjusted p-value < {enrich_alpha} being taken
-    as evidence of potential regulatory targets from increasingly bound 
-    {target} binding sites. Of the {nrow(cmn_up)} gene-sets of interest, 
+    as evidence of potential regulatory targets from increasing 
+    {target} signal sites. Of the {nrow(cmn_up)} gene-sets of interest, 
     {sum(cmn_up$Status == 'Both')} were individually enriched in both datasets,
     as indicated in the 'Status' column
     "
@@ -1661,7 +1661,7 @@ div(
 
 `r if (plot_net) "#### Network Plot"`
 
-```{r network-cmn-allup, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all increasingly bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
+```{r network-cmn-allup, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all increasing {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
 tg_up %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
@@ -1743,7 +1743,7 @@ tg_down <- cmn_down %>%
 plot_net <- length(tg_down) >= min_network_size
 txt <- ifelse(
   nrow(cmn_down) == 0,
-  glue("No gene sets were jointly enriched between all decreasing {target} bound windows and the RNA-Seq data"),
+  glue("No gene sets were jointly enriched between all decreasing {target} windows and the RNA-Seq data"),
   "#### Results Table"
 )
 ```
@@ -1754,12 +1754,12 @@ txt <- ifelse(
 cp <- htmltools::tags$em(
   glue(
     "
-    Genes mapped to all windows showing evidence of decreased {target} binding were 
+    Genes mapped to all windows showing evidence of decreased {target} signal were 
     tested for enrichment using goseq, and results were compared to GSEA results
     for the RNA-Seq dataset. Wilkinson's method was used to integrate the two
     p-values with a combined FDR-adjusted p-value < {enrich_alpha} being taken
-    as evidence of potential regulatory targets from decreasingly bound 
-    {target} binding sites. Of the {nrow(cmn_down)} gene-sets of interest, 
+    as evidence of potential regulatory targets from decreasing 
+    {target} sites. Of the {nrow(cmn_down)} gene-sets of interest, 
     {sum(cmn_down$Status == 'Both')} were individually enriched in both datasets,
     as indicated in the 'Status' column
     "
@@ -1842,7 +1842,7 @@ div(
 
 `r if (plot_net) "#### Network Plot"`
 
-```{r network-cmn-alldown, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all decreasingly bound {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
+```{r network-cmn-alldown, eval = plot_net, fig.cap = glue("*Network plot for pathways considered significant when assessing all decreasing {target} sites along with GSEA on the provided RNA-Seq data. Distances are derived from all detected genes within the pathway. Label colours indicate the direction of enrichment in GSEA results for genes in the pathway.*")}
 tg_down %>% 
   activate(nodes) %>% 
   mutate(direction = ifelse(NES > 0, "Up", "Down")) %>% 
@@ -1889,6 +1889,8 @@ knitr::opts_chunk$set(dev = fig_type)
 all_ids <- unlist(merged_results$gene_id)
 db_ids <- unlist(filter(merged_results, !!sym(fdr_column) < fdr_alpha)$gene_id)
 top_diff_win <- rnaseq %>% 
+  arrange(!!sym(rna_p_col)) %>% 
+  dplyr::slice(1:200)
   mutate(
     n_windows = vapply(
       gene_id,
@@ -1901,7 +1903,6 @@ top_diff_win <- rnaseq %>%
       integer(1)
     )
   ) %>% 
-  arrange(!!sym(rna_p_col)) %>% 
   dplyr::filter(n_windows > 1) %>% 
   dplyr::slice(1:5)
 grl_to_plot <- top_diff_win$gene_id %>% 
@@ -1948,7 +1949,7 @@ if (!is.null(config$external$coverage)) {
 i <- 1
 ```
 
-Using the ranked list of genes from the RNA-Seq data, the 5 genes most highly ranked for differential expression, with more than one `r target`-bound window mapped to it were selected for visualisation.
+Using the ranked list of genes from the RNA-Seq data, the 5 genes most highly ranked for differential expression, with more than one `r target` window mapped to it were selected for visualisation.
 
 ```{r make-deg-caption, echo = FALSE}
 .makeDEGCaption <- function(id) {
@@ -1960,7 +1961,7 @@ Using the ranked list of genes from the RNA-Seq data, the 5 genes most highly ra
     sprintf("%.3f", df[[rna_fdr_col]])
   )
   glue(
-    "*Region showing all merged {target}-bound windows mapped to ", 
+    "*Region showing all merged {target} windows mapped to ", 
     "{nm}. Windows considered to be unchanged for {target} are ", 
     "annotated in grey, with other colours indicating {target} gain or loss. ",
     "Mapped windows are only shown if within 5Mb of {nm}. ",
