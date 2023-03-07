@@ -1225,7 +1225,8 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40),
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
@@ -1259,7 +1260,8 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40),
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),
@@ -1278,7 +1280,8 @@ merged_results %>%
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
-          str_wrap(width = 40),
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
         range = ifelse(detected == "", range, paste0(range, "\n")),
         annot = glue("{range}{detected}")
       ),

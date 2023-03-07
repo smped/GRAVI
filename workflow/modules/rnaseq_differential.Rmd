@@ -1890,7 +1890,7 @@ all_ids <- unlist(merged_results$gene_id)
 db_ids <- unlist(filter(merged_results, !!sym(fdr_column) < fdr_alpha)$gene_id)
 top_diff_win <- rnaseq %>% 
   arrange(!!sym(rna_p_col)) %>% 
-  dplyr::slice(1:200)
+  dplyr::slice(1:200) %>% 
   mutate(
     n_windows = vapply(
       gene_id,
