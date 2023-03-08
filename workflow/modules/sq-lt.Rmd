@@ -1,4 +1,4 @@
-## Normalisation
+### Normalisation
 
 ```{r load-extra-packages}
 library(quantro)
@@ -35,29 +35,16 @@ qs <-qsmooth(
 assay(filtered_counts, "qsmooth") <- qsmoothData(qs)
 ```
 
-## Data Inspection {.tabset}
+### Data Inspection {.tabset}
 
-### QSmooth Weights
+#### QSmooth Weights
 
 ```{r plot-qs-weights, fig.height = 6, fig.cap = "*Quantile-specific weights used by the Smooth-Quantile normalisation. Low weights indicate signal quantiles which appear to be more specific within a group, whilst higher weights indicate similarity between groups.*"}
 qsmoothPlotWeights(qs, xLab = "Quantiles", yLab = "Weights", mainLab = "QSmooth Weights")
 ```
 
 
-### Density Plot: All Sliding Windows
-
-```{r plot-density-windows, fig.height = 6, fig.width = 8, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
-plotAssayDensities(
-  window_counts, trans = "log1p", n_max = n_max, colour = "treat",
-  linetype = "target"
-) +
-  scale_colour_manual(values = colours$treat) + 
-  labs(
-    x = "log(counts + 1)", y = "Density", colour = "Treat", linetype = "Target"
-  )
-```
-
-### logCPM Densities
+#### logCPM Densities
 
 ```{r plot-logcpm-densities, fig.height = 6, fig.cap = "*logCPM distributions for all retained windows A) prior to smooth quantile normalisation, and 2) after SQ normalisation.*"}
 a <- filtered_counts %>% 
@@ -73,7 +60,7 @@ b <- filtered_counts %>%
 a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 ```
 
-### RLE (Pre-Normalisation)
+#### RLE (Pre-Normalisation)
 
 ```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
 filtered_counts %>% 
@@ -88,7 +75,7 @@ filtered_counts %>%
 ```
 
 
-### RLE (Post-Normalisation)
+#### RLE (Post-Normalisation)
 
 ```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing normalised logCPM. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
 filtered_counts %>% 
@@ -103,7 +90,7 @@ filtered_counts %>%
 ```
 
 
-### PCA
+#### PCA
 
 ```{r plot-pca, fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after Smooth Quantile normalisation*"}
 a <- plotAssayPCA(
@@ -124,9 +111,9 @@ a + b + plot_annotation(tag_levels = "A")
 ```
 
 
-# Differential Binding Analysis
+## Differential Signal Analysis
 
-## Primary Analysis {.tabset}
+### Primary Analysis {.tabset}
 
 ```{r fit-model}
 X <- model.matrix(~treat, data = colData(filtered_counts)) %>%

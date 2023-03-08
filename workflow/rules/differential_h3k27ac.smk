@@ -48,6 +48,35 @@ rule create_differential_h3k27ac_rmd:
 		fi
 		"""
 
+rule count_h3k27ac_windows:
+	input:
+		r = os.path.join("workflow", "scripts", "make_filtered_counts.R")
+	output:
+		rds = expand(
+			os.path.join(
+				"differential_h3k27ac", "{{target}}", "{{target}}_{file}.rds"
+			),
+			file = ['window_counts', 'filtered_counts']
+		)
+	params:
+		type = "h3k27ac"
+	conda: "../envs/rmarkdown.yml"
+	log: log_path + "/diferential_h3k27ac/{target}_count_h3k27ac_windows.log"
+	threads:
+		lambda wildcards: min(
+			len(df[(df['target'] == wildcards.target)]),
+			max_threads
+		)
+	shell:
+		"""
+		Rscript --vanilla \
+		  {input.r} \
+		  {wildcards.targets} \
+		  {threads} 
+		  {params.type} &>> {log}
+		"""
+
+
 rule compile_differential_h3k27ac_html:
 	input:
 		annotations = ALL_RDS,
@@ -115,6 +144,9 @@ rule compile_differential_h3k27ac_html:
 		),
 		rnaseq_mod = os.path.join(
 			"workflow", "modules", "rnaseq_differential.Rmd"
+		),
+		windows = os.path.join(
+			diff_h3k27ac_path, "{target}", "{target}_filtered_windows.rds"
 		)
 	output:
 		html = "docs/{target}_{ref}_{treat}_differential_h3k27ac.html",
@@ -139,9 +171,6 @@ rule compile_differential_h3k27ac_html:
 				'differential_h3k27ac.rds', 'down.bed', 'up.bed','differential_h3k27ac.csv.gz', 'DE_genes.csv', 'enrichment.csv',
 				'rnaseq_enrichment.csv'
 			]
-		),
-		win = os.path.join(
-			diff_h3k27ac_path, "{target}", "{target}_{ref}_{treat}-filtered_windows.rds"
 		)
 	retries: 3
 	params:
