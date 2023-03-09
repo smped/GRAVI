@@ -49,6 +49,17 @@ rule create_differential_binding_rmd:
 
 rule count_tf_windows:
 	input:
+		aln = lambda wildcards: expand(
+			os.path.join(bam_path, "{{target}}", "{sample}.{suffix}"),
+			sample = df['sample'][df['target'] == wildcards.target],
+			suffix = ['bam', 'bam.bai']
+		),
+		greylist = lambda wildcards: expand(
+			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
+			ip_sample = set(df['input'][df['target'] == wildcards.target])
+		),
+		peaks = os.path.join(macs2_path, "{target}", "consensus_peaks.bed"),
+		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		r = os.path.join("workflow", "scripts", "make_filtered_counts.R")
 	output:
 		rds = expand(
@@ -63,14 +74,13 @@ rule count_tf_windows:
 	log: log_path + "/diferential_binding/{target}_count_tf_windows.log"
 	threads:
 		lambda wildcards: min(
-			len(df[(df['target'] == wildcards.target)]),
-			max_threads
+			len(df[(df['target'] == wildcards.target)]), max_threads
 		)
 	shell:
 		"""
 		Rscript --vanilla \
 		  {input.r} \
-		  {wildcards.targets} \
+		  {wildcards.target} \
 		  {threads} 
 		  {params.type} &>> {log}
 		"""
@@ -78,30 +88,7 @@ rule count_tf_windows:
 rule compile_differential_binding_html:
 	input:
 		annotations = ALL_RDS,
-		aln = lambda wildcards: expand(
-			os.path.join(bam_path, "{{target}}", "{sample}.{suffix}"),
-			sample = df['sample'][
-				(df['target'] == wildcards.target) &
-				(
-					(df['treat'] == wildcards.ref) |
-					(df['treat'] == wildcards.treat)
-				)
-			],
-			suffix = ['bam', 'bam.bai']
-		),
 		extrachips = rules.update_extrachips.output,
-		greylist = lambda wildcards: expand(
-			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
-			ip_sample = set(
-				df['input'][
-					(df['target'] == wildcards.target) &
-					(
-						(df['treat'] == wildcards.ref) |
-						(df['treat'] == wildcards.treat)
-					)
-				]
-			),
-		),
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}", "{pre}_merged_callpeak.log"
@@ -132,20 +119,16 @@ rule compile_differential_binding_html:
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
 		),
-		samples = os.path.join(macs2_path, "{target}", "qc_samples.tsv"),
 		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
 		yml = expand(
-			os.path.join("config", "{file}.yml"),
-			file = ['config', 'params']
+			os.path.join("config", "{file}.yml"), file = ['config', 'params']
 		),
 		rnaseq_mod = os.path.join(
 			"workflow", "modules", "rnaseq_differential.Rmd"
 		),
-		windows = os.path.join(
-			diff_tf_path, "{target}", "{target}_filtered_counts.rds"
-		)
+		windows = rules.count_tf_windows.output
 	output:
 		html = "docs/{target}_{ref}_{treat}_differential_binding.html",
 		fig_path = directory(
