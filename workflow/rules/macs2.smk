@@ -70,6 +70,9 @@ rule macs2_individual:
 		fdr = config['peaks']['macs2']['fdr'],
 		keep_duplicates = config['peaks']['macs2']['keep_duplicates']
 	threads: 1
+	resources:
+		runtime = "1h",
+		mem_mb = 4096
 	shell:
 		"""
 		echo -e "Running macs2 call peak on:\n{input.bam}" >> {log}
@@ -109,6 +112,9 @@ rule macs2_qc:
 		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
+	resources:
+		runtime = "30m",
+		mem_mb = 8192
 	log: log_path + "/macs2_individual/{target}/{target}_macs2_qc.log"
 	shell:
 		"""
@@ -154,6 +160,9 @@ rule macs2_merged:
 		fdr = config['peaks']['macs2']['fdr'],
 		keep_duplicates = config['peaks']['macs2']['keep_duplicates']
 	threads: 1
+	resources:
+		runtime = "2h",
+		mem_mb = 8192
 	shell:
 		"""
 		QC_PASS=$(egrep 'pass' {input.qc} | egrep {wildcards.treat} | cut -f1)
@@ -187,6 +196,9 @@ rule bedgraph_to_bigwig:
 	conda: "../envs/bedgraph_to_bigwig.yml"
 	log: log_path + "/bedgraph_to_bigwig/{target}/{sample}.log"
 	threads: 1
+	resources:
+		runtime = "2h",
+		mem_mb = 8192
 	shell:
 		"""
 		echo -e "\nConverting {input.bedgraph} to BigWig\n" >> {log}
@@ -214,6 +226,9 @@ rule get_coverage_summary:
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
+	resources:
+		runtime = "30m",
+		mem_mb = 4096
 	shell:
 		"""
 		## Create the summary tsv
@@ -237,6 +252,9 @@ rule create_macs2_summary_rmd:
 		)
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	resources:
+		runtime = "1m",
+		mem_mb = 512
 	retries: git_tries # Work around git lock file
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	shell:
@@ -317,6 +335,9 @@ rule compile_macs2_summary_html:
 			len(df[df['target'] == wildcards.target]),
 			max_threads
 		)
+	resources:
+		runtime = "2h",
+		mem_mb = 4096
 	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
 	shell:
 		"""

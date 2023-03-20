@@ -11,7 +11,10 @@ rule make_greylist:
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/scripts/{ip_sample}_make_greylist.log"
 	threads: 1
-	retries: git_tries
+	resources:
+		runtime = "1h",
+		mem_mb = 8192
+	retries: 1
 	shell:
 		"""
 		Rscript --vanilla \

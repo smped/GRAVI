@@ -26,6 +26,8 @@ rule create_differential_binding_rmd:
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
 	threads: 1
+	resources:
+		runtime="1m"
 	retries: git_tries # Needed to subvert any issues with the git lock file
 	shell:
 		"""
@@ -76,6 +78,9 @@ rule count_tf_windows:
 		lambda wildcards: min(
 			len(df[(df['target'] == wildcards.target)]), max_threads
 		)
+	resources:
+		runtime = "2h",
+		mem_mb = 32768
 	shell:
 		"""
 		Rscript --vanilla \
@@ -152,7 +157,7 @@ rule compile_differential_binding_html:
 				'rnaseq_enrichment.csv'
 			]
 		)
-	retries: 3
+	retries: 1
 	params:
 		git = git_add,
 		interval = random.uniform(0, 1),
@@ -171,6 +176,9 @@ rule compile_differential_binding_html:
 			),
 			max_threads
 		)
+	resources:
+		runtime = "1h",
+		mem_mb = 16384
 	log: log_path + "/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
 	shell:
 		"""

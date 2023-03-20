@@ -189,6 +189,8 @@ filtered_counts <- dualFilter(
     q = config$comparisons$filter_q
 )
 colData(filtered_counts) <- droplevels(colData(filtered_counts))
+ip_counts <- window_counts[, unique(samples$input)]
+ip_counts <- subsetByOverlaps(ip_counts, filtered_counts)
 
 #'
 #' Export the files
@@ -201,5 +203,10 @@ write_rds(
 write_rds(
     filtered_counts,
     file.path(out_path, glue("{target}_filtered_counts.rds")),
+    compress = "gz"
+)
+write_rds(
+    ip_counts,
+    file.path(out_path, glue("{target}_filtered_input_counts.rds")),
     compress = "gz"
 )

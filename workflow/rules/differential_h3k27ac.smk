@@ -27,6 +27,9 @@ rule create_differential_h3k27ac_rmd:
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_h3k27ac.log"
 	threads: 1
+	resources:
+		runtime = "1m"
+		mem_mb = 512
 	retries: git_tries # Needed to subvert any issues with the git lock file
 	shell:
 		"""
@@ -77,6 +80,9 @@ rule count_h3k27ac_windows:
 		lambda wildcards: min(
 			len(df[(df['target'] == wildcards.target)]), max_threads
 		)
+	resources:
+		runtime = "2h",
+		mem_mb = 32768
 	shell:
 		"""
 		Rscript --vanilla \
@@ -175,6 +181,9 @@ rule compile_differential_h3k27ac_html:
 			),
 			max_threads
 		)
+	resources:
+		runtime = "1h",
+		mem_mb = 16384		
 	log: log_path + "/differential_h3k27ac/{target}_{ref}_{treat}_differential_h3k27ac.log"
 	shell:
 		"""

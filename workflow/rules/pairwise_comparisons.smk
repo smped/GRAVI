@@ -23,6 +23,9 @@ rule create_pairwise_comparisons_rmd:
 	conda: "../envs/rmarkdown.yml"
 	retries: git_tries
 	threads: 1
+	resources:
+		runtime = "1m",
+		mem_mb = 512
 	log: log_path + "/create_rmd/create_{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_rmd"
 	shell:
 		"""
@@ -119,6 +122,9 @@ rule compile_pairwise_comparisons_html:
 		)
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
+	resources:
+		runtime = "2h",
+		mem_mb = 8192
 	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
 	shell:
 		"""
