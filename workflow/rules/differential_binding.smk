@@ -12,6 +12,8 @@ rule make_greylist:
 	log: log_path + "/scripts/{ip_sample}_make_greylist.log"
 	threads: 1
 	retries: git_tries
+	resources:
+		mem_mb = 16384
 	shell:
 		"""
 		Rscript --vanilla \
@@ -188,6 +190,9 @@ rule compile_differential_binding_html:
 			),
 			max_threads
 		)
+	resources:
+		mem_mb = 65536,
+		runtime = "3h"
 	log: log_path + "/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
 	shell:
 		"""

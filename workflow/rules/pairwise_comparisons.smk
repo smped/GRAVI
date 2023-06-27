@@ -103,6 +103,9 @@ rule compile_pairwise_comparisons_html:
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
 	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
+	resources:
+		mem_mb = 32768,
+		runtime = "2h"
 	shell:
 		"""
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
@@ -122,3 +125,4 @@ rule compile_pairwise_comparisons_html:
 			git add {params.asset_path}
         fi
 		"""
+		

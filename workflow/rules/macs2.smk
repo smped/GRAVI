@@ -70,6 +70,8 @@ rule macs2_individual:
 		fdr = config['peaks']['macs2']['fdr'],
 		keep_duplicates = config['peaks']['macs2']['keep_duplicates']
 	threads: 1
+	resources:
+		mem_mb = 8192
 	shell:
 		"""
 		echo -e "Running macs2 call peak on:\n{input.bam}" >> {log}
@@ -109,6 +111,8 @@ rule macs2_qc:
 		qc = os.path.join(macs2_path, "{target}", "qc_samples.tsv")
 	conda: "../envs/rmarkdown.yml"
 	threads: lambda wildcards: len(df[df['target'] == wildcards.target])
+	resources:
+		mem_mb = 8192
 	log: log_path + "/macs2_individual/{target}/{target}_macs2_qc.log"
 	shell:
 		"""
@@ -154,12 +158,16 @@ rule macs2_merged:
 		fdr = config['peaks']['macs2']['fdr'],
 		keep_duplicates = config['peaks']['macs2']['keep_duplicates']
 	threads: 1
+	resources:
+		mem_mb = 8192	
 	shell:
 		"""
 		QC_PASS=$(egrep 'pass' {input.qc} | egrep {wildcards.treat} | cut -f1)
 		SAMPLES=$(for f in $QC_PASS; do echo {params.bamdir}/{wildcards.target}/$f.bam; done)
 		echo -e "The following passed qc:\n$SAMPLES\n" >> {log}
-		INPUT_PASS=$(egrep 'pass$' {input.qc} | egrep {wildcards.treat} | cut -f6 | uniq)
+		## Get the input column
+		I=$(head -n1 {input.qc} | sed -r 's/\\t/\\n/g' | egrep -n '[Ii]nput' | sed -r 's/([0-9]+):[Ii]nput/\\1/g')
+		INPUT_PASS=$(egrep 'pass$' {input.qc} | egrep "{wildcards.treat}\s" | cut -f$I | uniq)
 		INPUT=$(for f in $INPUT_PASS; do echo {params.bamdir}/Input/$f.bam; done)
 		echo -e "Control:\n$INPUT" >> {log}
 		macs2 callpeak \
@@ -187,6 +195,10 @@ rule bedgraph_to_bigwig:
 	conda: "../envs/bedgraph_to_bigwig.yml"
 	log: log_path + "/bedgraph_to_bigwig/{target}/{sample}.log"
 	threads: 1
+	retries: 1
+	resources:
+		mem_mb = 16384,
+		runtime = "3h"
 	shell:
 		"""
 		echo -e "\nConverting {input.bedgraph} to BigWig\n" >> {log}
@@ -195,7 +207,8 @@ rule bedgraph_to_bigwig:
 
 		## Sort the file
 		echo -e "\nSorting as $SORTED_BDG..." >> {log}
-		sort -k1,1 -k2,2n {input.bedgraph} | egrep $'^chr[0-9XY]+\t' > $SORTED_BDG
+		sort -k1,1 -k2,2n -S {resources.mem_mb}M {input.bedgraph} |\
+		  egrep $'^chr[0-9XY]+\t' > $SORTED_BDG
 
 		## Convert the file
 		echo -e "Done\nConverting..." >> {log}
@@ -214,6 +227,8 @@ rule get_coverage_summary:
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/get_coverage_summary/{target}/{sample}.log"
 	threads: 1
+	resources:
+		mem_mb = 16384
 	shell:
 		"""
 		## Create the summary tsv
@@ -317,6 +332,8 @@ rule compile_macs2_summary_html:
 			len(df[df['target'] == wildcards.target]),
 			max_threads
 		)
+	resources:
+		mem_mb = 8192
 	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
 	shell:
 		"""

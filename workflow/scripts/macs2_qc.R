@@ -71,6 +71,7 @@ blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
   import.bed(seqinfo = sq) %>%
   sort()
 
+message("Loading peaks")
 individual_peaks <- file.path(
   macs2_path, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%
@@ -78,6 +79,7 @@ individual_peaks <- file.path(
   GRangesList() %>%
   setNames(samples$sample)
 
+message("Loading macs2_logs")
 macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
   importNgsLogs() %>%
   dplyr::select(
@@ -108,6 +110,7 @@ macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
   ) %>%
   ungroup()
 ## Now export for use in the merged peak calling
+message("Writing qc_samples")
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
   write_tsv(
@@ -130,6 +133,7 @@ bfl <- bam_path %>%
 
 ## Check if there are any paired end reads
 ys <- 1000
+message("Checking for duplicates")
 anyDups <- bplapply(
   bfl,
   function(x) {
@@ -142,6 +146,7 @@ anyDups <- bplapply(
   }
 ) %>%
   unlist()
+  message("Checking for PE reads")
 anyPE <- bplapply(
   bfl,
   function(x){
@@ -161,9 +166,11 @@ rp <- readParam(
   restrict = seqnames(sq)[1:5],
   discard = blacklist,
 )
+message("Estimating correlations")
 read_corrs <- bfl[samples$sample] %>%
   path %>%
-  bplapply(correlateReads, param = rp, max.dist = 5*fl) %>%
+  # bplapply(correlateReads, param = rp, max.dist = 5*fl) %>%
+  lapply(correlateReads, param = rp, max.dist = 5*fl) %>%
   as_tibble() %>%
   mutate(fl = seq_len(nrow(.))) %>%
   pivot_longer(

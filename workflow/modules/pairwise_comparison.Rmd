@@ -351,7 +351,7 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 out_path <- here::here(
   "output", "pairwise_comparisons", paste(targets, collapse = "_")
 )
-if (!dir.exists(out_path)) dir.create(out_path)
+if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 all_out <- list(
   csv = file.path(
     out_path, glue(comp_name, "-pairwise_comparison.csv.gz"
@@ -622,26 +622,31 @@ all_windows$hic <- NA
 if (has_hic)
   all_windows$hic <- overlapsAny(all_windows, hic)
 
+## Define promoters for mapping
+feat_prom <- feat_enh <- GRanges()
+if (has_features) {
+  feat_prom <- ifelse(
+    "feature" %in% colnames(mcols(external_features)), 
+    list(granges(subset(external_features, str_detect(feature, "[Pp]rom")))), 
+    list(GRanges())
+  )[[1]]
+  feat_enh <- ifelse(
+    "feature" %in% colnames(mcols(external_features)), 
+    list(granges(subset(external_features, str_detect(feature, "[Ee]nhanc")))), 
+    list(GRanges())
+  )[[1]]
+}
+prom4mapping <- GRangesList(feat_prom, granges(gene_regions$promoters)) %>%
+  unlist() %>%
+  GenomicRanges::reduce()
+
 all_windows <- all_windows %>% 
   select(any_of(c("region", "feature", "hic")), everything()) %>% 
   mapByFeature(
-    all_gr$gene,
-    prom = GRangesList(
-      ## Add any external features which appear to be promoters
-      ifelse(
-        "feature" %in% colnames(mcols(external_features)), 
-        list(granges(subset(external_features, str_detect(feature, "[Pp]rom")))), 
-        list(GRanges())
-      )[[1]], 
-      granges(gene_regions$promoters)) %>% 
-      unlist() %>% 
-      GenomicRanges::reduce(),
-    enh = ifelse(
-      "feature" %in% colnames(mcols(external_features)), 
-      list(granges(subset(external_features, str_detect(feature, "[Ee]nhanc")))), 
-      list(GRanges())
-    )[[1]],
-    gi = hic
+    all_gr$gene, prom = prom4mapping, enh = feat_enh, gi = hic,
+    gr2gene = params$mapping$gr2gene, 
+    prom2gene = params$mapping$prom2gene,
+    enh2gene = params$mapping$enh2gene, gi2gene = params$mapping$gi2gene
   ) 
 all_windows$detected <- all_windows$gene_name
 if (has_rnaseq) all_windows$detected <- endoapply(
