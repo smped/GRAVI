@@ -95,6 +95,9 @@ rule compile_annotations_html:
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/rmarkdown/compile_annotations_html.log"
+	resources:
+		mem_mb = 4096,
+		disk_mb = 4000,
 	shell:
 	  """
 	  cp {input.rmd} {output.rmd}
