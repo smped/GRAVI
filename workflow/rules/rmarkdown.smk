@@ -2,7 +2,7 @@ rule update_extrachips:
     input: os.path.join("workflow", "scripts", "update_extrachips.R")
     output: temp(os.path.join("output", rmd_hash + "_extrachips.updated"))
     params:
-        version = "1.5.6"
+        version = "1.5.7"
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: log_path + "/rmarkdown/update_extrachips.log"
