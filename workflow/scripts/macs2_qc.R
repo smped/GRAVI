@@ -14,9 +14,6 @@
 #' generated for later inclusion in differential_binding and macs2_summary
 #' workflows
 
-if (!"extraChIPs" %in% rownames(installed.packages()))
-  BiocManager::install("steveped/extraChIPs", ask = FALSE)
-
 library(tidyverse)
 library(yaml)
 library(glue)
@@ -181,6 +178,6 @@ read_corrs <- bfl[samples$sample] %>%
     values_to = "correlation"
   )
 write_tsv(
-  read_corrs, 
+  read_corrs,
   file.path(macs2_path, target, glue("{target}_cross_correlations.tsv"))
 )

@@ -96,8 +96,9 @@ All combinations of the comparisons defined above will will be used to perform p
 
 ### Genome
 
-- The genome build (`r config$genome$build`) was sourced from Gencode release `r config$genome$gencode`
-- Blacklisted sites were sourced from [https://github.com/boyle-lab/Blacklist/](ENCODE) for this specific genome build
+- The genome was specified as (`r config$genome$build`)
+- Annotations were provided in `r config$external$gtf`
+- Blacklisted sites were provided as `r config$external$blacklist`
 
 
 ```{r extdata, echo = FALSE}
