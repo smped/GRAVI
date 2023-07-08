@@ -15,15 +15,13 @@ glue(
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	bibliography: references.bib
 	link-citations: true
+	params:
+	    target: \"{{target}}\"
+	    treat_levels: [\"{{ref}}\", \"{{treat}}\"]
+	    threads: {{threads}}
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
-	```
-
-	```{r set-vals}
-	target <- \"{{target}}\"
-	treat_levels <- c(\"{{ref}}\", \"{{treat}}\")
-	threads <- {{threads}}
 	```
 
 	",

@@ -2,7 +2,7 @@
 #' on individual samples. For each sample group, any sample with > X-fold, or
 #' fewer than 1/X-fold peaks when copmared to the median for each sample group
 #' is marked for exclusion from the
-#' calling of oracle/consensus peaks, as well as any downstream detection of
+#' calling of treatment/union peaks, as well as any downstream detection of
 #' differential binding. This value 'X' is specified in the main config.yml
 #' as the parameter `outlier_threshold`
 #'
@@ -63,24 +63,26 @@ outlier_thresh <- config$peaks$qc$outlier_threshold
 allow_zero <- as.logical(config$peaks$qc$allow_zero)
 
 annotation_path <- here::here("output", "annotations")
-macs2_path <- here::here("output", "macs2", target)
-if (!dir.exists(macs2_path)) dir.create(macs2_path)
+macs2_path <- here::here("output", "macs2")
+if (!dir.exists(macs2_path)) dir.create(file.path(macs2_path, target))
 
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-blacklist <-  file.path(annotation_path, "blacklist.bed.gz") %>%
-  import.bed(seqinfo = sq) %>%
-  sort()
+blacklist <- import.bed(
+  here::here(config$external$blacklist),
+  seqinfo = sq
+)
 
 message("Loading peaks")
 individual_peaks <- file.path(
-  macs2_path, glue("{samples$sample}_peaks.narrowPeak")
+  macs2_path, samples$sample, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%
   importPeaks(seqinfo = sq, blacklist = blacklist) %>%
   GRangesList() %>%
   setNames(samples$sample)
 
 message("Loading macs2_logs")
-macs2_logs <- file.path(macs2_path, glue("{samples$sample}_callpeak.log")) %>%
+macs2_logs <- macs2_path %>%
+  file.path(samples$sample, glue("{samples$sample}_callpeak.log")) %>%
   importNgsLogs() %>%
   dplyr::select(
     -contains("file"), -outputs, -n_reads, -alt_fragment_length
@@ -114,7 +116,7 @@ message("Writing qc_samples")
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
   write_tsv(
-    file.path(macs2_path, "qc_samples.tsv")
+    file.path(macs2_path, target, glue("{target}_qc_samples.tsv"))
   )
 
 ##################
@@ -124,9 +126,9 @@ macs2_logs %>%
 bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
 bfl <- bam_path %>%
-  file.path(target, glue("{samples$sample}.bam")) %>%
+  file.path(glue("{samples$sample}.bam")) %>%
   c(
-    file.path(bam_path, "Input", glue("{unique(samples$input)}.bam"))
+    file.path(bam_path, glue("{unique(samples$input)}.bam"))
   ) %>%
   BamFileList() %>%
   setNames(c(samples$sample, unique(samples$input)))
@@ -178,4 +180,7 @@ read_corrs <- bfl[samples$sample] %>%
     names_to = "sample",
     values_to = "correlation"
   )
-write_tsv(read_corrs, file.path(macs2_path, "cross_correlations.tsv"))
+write_tsv(
+  read_corrs, 
+  file.path(macs2_path, target, glue("{target}_cross_correlations.tsv"))
+)

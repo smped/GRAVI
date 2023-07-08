@@ -1,8 +1,8 @@
 rule index_bam:
 	input:
-		bam = os.path.join(bam_path, "{dir}", "{bam}.bam")
+		bam = os.path.join(bam_path, "{bam}.bam")
 	output:
-		bai = os.path.join(bam_path, "{dir}", "{bam}.bam.bai")
+		bai = os.path.join(bam_path, "{bam}.bam.bai")
 	conda: "../envs/samtools.yml"
 	threads: 8
 	shell:

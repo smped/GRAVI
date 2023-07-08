@@ -51,7 +51,7 @@ Treatment groups and targets are specified using `config/config.yml`.
 here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
-  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install)") %>%
+  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install|update)") %>%
   change_node_colour("(index|macs2|annotations|bedgraph|compile|greylist|coverage)", "red") %>%
   change_node_colour("(create|build|update)", "forestgreen") %>%
   change_node_colour("(download|write|copy|install)", "blue") %>%
@@ -128,7 +128,7 @@ Two additional QC settings were incorporated for peak filtering.
 
 - For a sample to pass initial QC, the number of identified peaks needs to be &lt; `r config$peaks$qc$outlier_threshold`-fold (or &gt; 1/`r config$peaks$qc$outlier_threshold`-fold ) the median number of peaks identified in each specific treatment group.
 `r if (config$peaks$qc$allow_zero) "- Samples with zero peaks were permitted given the possibility of cytoplasmic sequestering of ChIP targets under some conditions"`
-- For a peak to be included in the set of treatment-specific "Oracle Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
+- For a peak to be included in the set of treatment-specific "Treatment Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
 
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">

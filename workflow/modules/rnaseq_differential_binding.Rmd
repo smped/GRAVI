@@ -13,7 +13,7 @@ rna_status <- rnaseq %>%
   ) %>% 
   dplyr::select(gene_id, gene_name, de_status) %>% 
   bind_rows(
-    genes_gr %>% 
+    gtf_gene %>% 
       subset(!gene_id %in% rnaseq$gene_id) %>% 
       select(gene_id, gene_name) %>% 
       mcols() %>% 
@@ -268,7 +268,7 @@ de_genes_db_regions <- merged_results %>%
   mutate(
     dist2Gene = mapply(
       function(x, y) {
-        distance(GRanges(x), subset(genes_gr, gene_id == y)) 
+        distance(GRanges(x), subset(gtf_gene, gene_id == y)) 
       },
       x = range,
       y = gene_id
@@ -276,7 +276,7 @@ de_genes_db_regions <- merged_results %>%
   ) %>% 
   mutate(
     region = case_when(
-      dist2Gene > params$gene_regions$upstream & str_detect(region, "Promoter|Exon|Intron") ~ paste(
+      dist2Gene > extra_params$gene_regions$upstream & str_detect(region, "Promoter|Exon|Intron") ~ paste(
         str_extract(region, ".*(Promoter|Exon|Intron)"), "(Other Gene)"),
       TRUE ~ as.character(region)
     ),
@@ -813,7 +813,7 @@ knitr::opts_chunk$set(dev = 'png')
 
 
 ```{r barcode-gsea-dir-sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+wrap_plots(p)
 ```
 
 #### Windows By Region
@@ -931,7 +931,7 @@ div(class = "table",
 
 
 ```{r barcode-gsea-reg-dir-sig, eval = nrow(gsea_reg_dir_sig) > 0, echo = nrow(gsea_reg_dir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+wrap_plots(p)
 ```
 
 
@@ -1050,7 +1050,7 @@ div(class = "table",
 
 
 ```{r barcode-gsea-feat-dir-sig, eval = has_features & nrow(gsea_feat_dir_sig) > 0, echo = has_features & nrow(gsea_feat_dir_sig) > 0,fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+wrap_plots(p)
 ```
 
 
@@ -1146,7 +1146,7 @@ div(class = "table",
 ```
 
 ```{r barcode-gsea-nondir-sig, eval = nrow(gsea_nondir_sig) > 0, echo = nrow(gsea_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+wrap_plots(p)
 ```
 
 
@@ -1241,7 +1241,7 @@ div(class = "table",
 ```
 
 ```{r barcode-gsea-reg-nondir-sig, eval = nrow(gsea_reg_nondir_sig) > 0, echo = nrow(gsea_reg_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+wrap_plots(p)
 ```
 
 
@@ -1358,7 +1358,7 @@ div(class = "table",
 
 
 ```{r barcode-gsea-feat-nondir-sig, eval = nrow(gsea_feat_nondir_sig) > 0, echo = nrow(gsea_feat_nondir_sig) > 0, fig.height= max(3, 3 * ceiling( length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __nondirectional__ changes in gene expression.*")}
-plot_grid(plotlist = p, nrow = ceiling(length(p) / 3))
+wrap_plots(p)
 ```
 
 
@@ -1405,7 +1405,7 @@ cmn_diff <- rnaseq_gsea %>%
   ) %>%
   unnest(p) %>% 
   dplyr::rename(padj_chip = adj_p, padj_rna = padj) %>% 
-  mutate(adj_p = p.adjust(pval, params$enrichment$adj)) %>% 
+  mutate(adj_p = p.adjust(pval, extra_params$enrichment$adj)) %>% 
   arrange(pval) %>% 
   dplyr::filter(adj_p < enrich_alpha) %>% 
   mutate(
@@ -1474,7 +1474,7 @@ tbl <- cmn_diff %>%
         minWidth = 120
       ),
       adj_p = colDef(
-        name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
+        name = glue("p<sub>{extra_params$enrichment$adj}</sub>"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1492,7 +1492,7 @@ tbl <- cmn_diff %>%
         maxWidth = 80
       ),
       padj_rna = colDef(
-        name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+        name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (RNA)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1501,7 +1501,7 @@ tbl <- cmn_diff %>%
         maxWidth = 80
       ),
       padj_chip = colDef(
-        name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+        name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1586,7 +1586,7 @@ cmn_up <- rnaseq_gsea %>%
     ) %>%
   unnest(p) %>% 
   dplyr::rename(padj_chip = adj_p, padj_rna = padj) %>% 
-  mutate(adj_p = p.adjust(pval, params$enrichment$adj)) %>% 
+  mutate(adj_p = p.adjust(pval, extra_params$enrichment$adj)) %>% 
   arrange(pval) %>% 
   dplyr::filter(adj_p < enrich_alpha) %>% 
   mutate(
@@ -1657,7 +1657,7 @@ tbl <- cmn_up %>%
         minWidth = 120
       ),
       adj_p = colDef(
-        name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
+        name = glue("p<sub>{extra_params$enrichment$adj}</sub>"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1675,7 +1675,7 @@ tbl <- cmn_up %>%
         maxWidth = 80
       ),
       padj_rna = colDef(
-        name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+        name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (RNA)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1684,7 +1684,7 @@ tbl <- cmn_up %>%
         maxWidth = 80
       ),
       padj_chip = colDef(
-        name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+        name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1768,7 +1768,7 @@ cmn_down <- rnaseq_gsea %>%
     pval = vapply(p, function(x) metap::maximump(unlist(x))$p, numeric(1))
     ) %>%
   dplyr::rename(padj_chip = adj_p, padj_rna = padj) %>% 
-  mutate(adj_p = p.adjust(pval, params$enrichment$adj)) %>% 
+  mutate(adj_p = p.adjust(pval, extra_params$enrichment$adj)) %>% 
   arrange(pval) %>% 
   dplyr::filter(adj_p < enrich_alpha) %>% 
   mutate(
@@ -1839,7 +1839,7 @@ tbl <- cmn_down %>%
         minWidth = 120
       ),
       adj_p = colDef(
-        name = glue("p<sub>{params$enrichment$adj}</sub>"), html = TRUE,
+        name = glue("p<sub>{extra_params$enrichment$adj}</sub>"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1857,7 +1857,7 @@ tbl <- cmn_down %>%
         maxWidth = 80
       ),
       padj_rna = colDef(
-        name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+        name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (RNA)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1866,7 +1866,7 @@ tbl <- cmn_down %>%
         maxWidth = 80
       ),
       padj_chip = colDef(
-        name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+        name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
         cell = function(value) ifelse(
           value < 0.001,
           sprintf("%.2e", value),
@@ -1968,10 +1968,10 @@ grl_to_plot <- top_diff_win$gene_id %>%
         granges() %>% 
         ## Restrict this to only sites within 5Mb of a gene
         subsetByOverlaps(
-          resize(subset(genes_gr, gene_id == x), width = 1e7, fix = 'center')
+          resize(subset(gtf_gene, gene_id == x), width = 1e7, fix = 'center')
         ) %>% 
         c(
-          granges(subset(genes_gr, gene_id == x))
+          granges(subset(gtf_gene, gene_id == x))
         ) %>% 
         unstrand() %>% 
         sort()
@@ -2051,7 +2051,7 @@ plotHFGC(
   grl_to_plot[[i]],
   hic = hic %>% 
      subsetByOverlaps(
-       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+       subset(gtf_gene, gene_id == names(grl_to_plot)[[i]])
      ) %>% 
     subsetByOverlaps(
       subsetByOverlaps(merged_results, grl_to_plot[[i]])
@@ -2092,7 +2092,7 @@ plotHFGC(
   grl_to_plot[[i]],
   hic = hic %>% 
      subsetByOverlaps(
-       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+       subset(gtf_gene, gene_id == names(grl_to_plot)[[i]])
      ) %>% 
     subsetByOverlaps(
       subsetByOverlaps(merged_results, grl_to_plot[[i]])
@@ -2133,7 +2133,7 @@ plotHFGC(
   grl_to_plot[[i]],
   hic = hic %>% 
      subsetByOverlaps(
-       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+       subset(gtf_gene, gene_id == names(grl_to_plot)[[i]])
      ) %>% 
     subsetByOverlaps(
       subsetByOverlaps(merged_results, grl_to_plot[[i]])
@@ -2174,7 +2174,7 @@ plotHFGC(
   grl_to_plot[[i]],
   hic = hic %>% 
      subsetByOverlaps(
-       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+       subset(gtf_gene, gene_id == names(grl_to_plot)[[i]])
      ) %>% 
     subsetByOverlaps(
       subsetByOverlaps(merged_results, grl_to_plot[[i]])
@@ -2215,7 +2215,7 @@ plotHFGC(
   grl_to_plot[[i]],
   hic = hic %>% 
      subsetByOverlaps(
-       subset(genes_gr, gene_id == names(grl_to_plot)[[i]])
+       subset(gtf_gene, gene_id == names(grl_to_plot)[[i]])
      ) %>% 
     subsetByOverlaps(
       subsetByOverlaps(merged_results, grl_to_plot[[i]])

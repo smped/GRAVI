@@ -1,8 +1,7 @@
-```{r example, echo = FALSE, eval=TRUE}
-## This module requires the following to be set during preparation
-# target <- "ER"
-# threads <- 6
-# treat_levels <- c("Veh", "DHT")
+```{r get_params, echo = FALSE, eval=TRUE}
+target <- params$target
+treat_levels <- params$treat_levels
+threads <- params$threads
 ```
 
 ```{r packages}
@@ -15,7 +14,7 @@ library(plyranges)
 library(rtracklayer)
 library(GenomeInfoDb)
 library(Rsamtools)
-library(cowplot)
+library(patchwork)
 library(ngsReports)
 library(csaw)
 library(edgeR)
@@ -36,9 +35,6 @@ library(extraChIPs)
 library(tidygraph)
 library(ggraph)
 library(metap)
-```
-
-```{r options}
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -53,15 +49,12 @@ source(here::here("workflow", "scripts", "custom_functions.R"))
 ```
 
 ```{r load-config}
-params <- read_yaml(here::here("config", "params.yml"))
+extra_params <- read_yaml(here::here("config", "params.yml"))
 config <- read_yaml(here::here("config", "config.yml"))
 macs2_path <- here::here("output", "macs2", target)
-samples <- file.path(macs2_path, "qc_samples.tsv") %>% 
+samples <- file.path(macs2_path, glue("{target}_qc_samples.tsv")) %>% 
   read_tsv() %>% 
-  dplyr::filter(
-    qc == "pass",
-    treat %in% treat_levels
-  ) %>% 
+  dplyr::filter(qc == "pass", treat %in% treat_levels) %>% 
   mutate(treat = factor(treat, levels = treat_levels)) %>% 
   droplevels()
 stopifnot(nrow(samples) > 0)
@@ -84,17 +77,14 @@ stopifnot(dir.exists(bam_path))
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
 out_path <- here::here("output", "differential_binding", target)
-if (!dir.exists(out_path)) dir.create(out_path)
+if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 ```
 
 
 ```{r load-annotations}
 sq <- file.path(annotation_path, "seqinfo.rds") %>% 
   read_rds()
-blacklist <- here::here(annotation_path, "blacklist.bed.gz") %>%
-  import.bed(seqinfo = sq) %>%
-  sort()
-
+blacklist <- import.bed(here::here(config$external$blacklist), seqinfo = sq)
 cb <- config$genome$build %>% 
   str_to_lower() %>% 
   paste0(".cytobands") 
@@ -104,10 +94,8 @@ stopifnot(
   colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
 )
 
-all_gr <- file.path(annotation_path, "all_gr.rds") %>% 
-  read_rds() 
-genes_gr <- all_gr$gene
-id2gene <- structure(genes_gr$gene_name, names = genes_gr$gene_id)
+gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
+id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
 trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
   read_rds() 
 
@@ -133,7 +121,7 @@ if (length(rna_path) > 0) {
   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-  genes_gr <- subset(genes_gr, gene_id %in% rnaseq$gene_id)
+  gtf_gene <- subset(gtf_gene, gene_id %in% rnaseq$gene_id)
   rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
   rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
 }
@@ -238,8 +226,8 @@ has_hic <- as.logical(length(hic))
 facet_labeller <- as_labeller(
   c(
     c(
-      `TRUE` = "Consensus Peak",
-      `FALSE` = "No Consensus Peak"
+      `TRUE` = "Union Peak",
+      `FALSE` = "No Union Peak"
     ),
     structure(treat_levels, names = treat_levels),
     c(
@@ -321,7 +309,7 @@ desc_ihw <- list(
 
 This step of the workflow uses a sliding window approach to differential binding, as a logical extension to the methods suggested and implemented in the `csaw` package [@LunSmythF1000].
 
-1. Consensus Peaks derived from `macs2 callpeak` [@Zhang18798982] results are used to determine inclusion/exclusion values for sliding windows
+1. Union Peaks derived from `macs2 callpeak` [@Zhang18798982] results are used to determine inclusion/exclusion values for sliding windows
 `r desc_method[[db_method]]`
 `r if (ihw_method != "none") glue("3. Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on {desc_ihw}, which is considered here to be a statistically independent variable.")`
 
@@ -338,7 +326,7 @@ Beyond the simple analysis of differential binding, peaks are mapped to genes an
 
 Enrichment testing is performed using `goseq` [@YoungGoseq2010] with *no term accounting for sampling bias*, except when comparing genes mapped to any window.
 For this case **only**, gene width is used to capture any sampling bias and Wallenius' Non-Central Hypergeometric Distribution is used.
-As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes considered for enrichment analysis are the `r comma(length(unique(genes_gr$gene_id)))` `r ifelse(has_rnaseq, "genes considered as detected in the RNA-Seq data", "annotated genes")`.
+As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes considered for enrichment analysis are the `r comma(length(unique(gtf_gene$gene_id)))` `r ifelse(has_rnaseq, "genes considered as detected in the RNA-Seq data", "annotated genes")`.
 
 `r if (has_rnaseq) "## Incorporation with RNA-Seq"`
 
@@ -347,17 +335,14 @@ As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes con
 # Data Preparation
 
 ```{r import-peaks}
-consensus_peaks <- here::here(macs2_path, "consensus_peaks.bed") %>%
+union_peaks <- file.path(macs2_path, glue("{target}_union_peaks.bed")) %>%
 	import.bed(seqinfo = sq)
 ```
 
 
 ```{r bfl}
 bfl <- bam_path %>%
-  file.path(target, glue("{samples$sample}.bam")) %>%
-  c(
-    file.path(bam_path, "Input", glue("{unique(samples$input)}.bam"))
-  ) %>% 
+  file.path(glue("{unique(c(samples$sample, samples$input))}.bam")) %>% 
   BamFileList() %>%
   setNames(c(samples$sample, unique(samples$input)))
 ```
@@ -384,11 +369,11 @@ bfl_summary <- bfl %>%
 		names_to = "stat",
 		values_to = "value"
 	) %>%
-	left_join(samples, by = "sample") %>% 
+	left_join(samples, by = "sample") %>%
 	mutate(
 		across(
 			all_of(c("target", "label", "treat")),
-			str_replace_na, replacement = "Input"
+      \(x) str_replace_na(x, replacement = "Input")
 		),
 		treat = factor(treat, levels = c("Input", treat_levels)),
 		label = fct_inorder(label)
@@ -446,7 +431,7 @@ Regions assigned to the greylist were added to the blacklisted regions and exclu
 
 ```{r window-counts}
 macs2_merged_logs <- file.path(
-  macs2_path, glue("{treat_levels}_merged_callpeak.log")
+  macs2_path, glue("{target}_{treat_levels}_merged_callpeak.log")
 	) %>%
 	importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
@@ -487,7 +472,7 @@ With the exclusion of black-listed and grey-listed regions, all alignments withi
 Any windows with fewer than `r length(bfl) - 1` alignments (i.e.1 read/sample) across all samples were discarded, leaving a total of `r comma(nrow(window_counts))` sliding windows, covering `r percent(sum(width(reduce(granges(window_counts)))) / sum(width(GRanges(sq))))` of the reference genome.
 
 These windows were then filtered using the `dualFilter()` function from `extraChIPs`, discarding windows with low counts.
-Under this approach, two thresholds are determined above which windows are retained, and with values chosen to return `r percent(config$comparisons$filter_q)` of sliding windows which overlap a macs2-derived consensus peak.
+Under this approach, two thresholds are determined above which windows are retained, and with values chosen to return `r percent(config$comparisons$filter_q)` of sliding windows which overlap a macs2-derived union peak.
 These values are set to filter based on 1) signal relative to input over an extended range and, 2) overall signal level.
 Both filtering strategies rely on the infrastructure provided by `csaw` [@LunSmythCsaw2014].
 
@@ -496,7 +481,7 @@ Both filtering strategies rely on the infrastructure provided by `csaw` [@LunSmy
 filtered_counts <- dualFilter(
   x = window_counts[, samples$sample],
   bg = window_counts[, samples$input],
-  ref = consensus_peaks,
+  ref = union_peaks,
   keep.totals = TRUE,
   q = config$comparisons$filter_q
 )
@@ -511,7 +496,7 @@ sample_labeller <- as_labeller(
 list(
   `Genomic Windows` = window_counts,
   `Retained Windows` = filtered_counts,
-  `Consensus Peaks` = consensus_peaks
+  `Union Peaks` = union_peaks
 ) %>% 
   lapply(granges) %>% 
   lapply(
@@ -529,15 +514,15 @@ list(
   unnest(everything()) %>% 
   left_join(
     tibble(
-      Dataset = c("Retained Windows", "Consensus Peaks"),
+      Dataset = c("Retained Windows", "Union Peaks"),
       `Unique (kb)` = c(
-        round(sum(width(setdiff(granges(filtered_counts), consensus_peaks))) / 1e3, 1),
-        round(sum(width(setdiff(consensus_peaks, granges(filtered_counts)))) / 1e3, 1)
+        round(sum(width(setdiff(granges(filtered_counts), union_peaks))) / 1e3, 1),
+        round(sum(width(setdiff(union_peaks, granges(filtered_counts)))) / 1e3, 1)
       ),
       `% Unique` = percent(
         1e3*`Unique (kb)` / c(
           sum(width(reduce(granges(filtered_counts)))),
-          sum(width(consensus_peaks))
+          sum(width(union_peaks))
         ),
         0.1
       )
@@ -548,24 +533,24 @@ list(
     caption = paste(
       "A dual filtering strategy was used based on retaining", 
       percent(config$comparisons$filter_q, 0.1), 
-      "of genomic windows overlapping the consensus peaks identified by ", 
+      "of genomic windows overlapping the union peaks identified by ", 
       "`macs2 callpeak` on merged samples. This approach combined both ", 
       "1) expression percentiles, and 2) signal strength in relation to the input sample.",
       "The complete set of sliding windows covered the majority of the genome,",
       "whilst those retained after filtering were focussed on strong binding",
-      "signal. Consensus peaks were as identified by `macs2 callpeak` in a", 
+      "signal. Union peaks were as identified by `macs2 callpeak` in a", 
       "previous step of the workflow.",
-      "Importantly, consensus peaks are non-overlapping, whilst the other two",
+      "Importantly, union peaks are non-overlapping, whilst the other two",
       "datasets are derived from overlapping sliding windows.",
       "This strategy of filtering the set of initial sliding windows retained",
       percent(
-        1 - sum(width(setdiff(consensus_peaks, rowRanges(filtered_counts)))) / sum(width(consensus_peaks))
+        1 - sum(width(setdiff(union_peaks, rowRanges(filtered_counts)))) / sum(width(union_peaks))
       ), 
-      "of the genomic regions covered by consensus peaks, with", 
+      "of the genomic regions covered by union peaks, with", 
       percent(
-        sum(width(setdiff(rowRanges(filtered_counts), consensus_peaks))) / sum(width(reduce(granges(filtered_counts)))))
+        sum(width(setdiff(rowRanges(filtered_counts), union_peaks))) / sum(width(reduce(granges(filtered_counts)))))
       , 
-      "of the retained windows being outside genomic regions covered by consensus peaks.",
+      "of the retained windows being outside genomic regions covered by union peaks.",
       ifelse(
         n_max == 5e4, 
         "For subsequent density and RLE plots, a subsample of 50,000 genomic regions will be used for speed.", 
@@ -602,7 +587,7 @@ merged_results <- mergeByCol(
   inc_cols = "p_mu0"
 ) %>% 
   mutate(
-    overlaps_ref = overlapsAny(., consensus_peaks),
+    overlaps_ref = overlapsAny(., union_peaks),
     direction = case_when(
       n_up == 0 & n_down == 0 ~ "Unchanged",
       logFC > 0 & n_up > n_down ~ "Up",
@@ -658,6 +643,8 @@ merged_results <- merged_results %>%
     ) %>% 
       factor(levels = regions)
   )
+feat_prom <- GRanges()
+feat_enh <- GRanges()
 if (has_features) {
   merged_results <- merged_results %>% 
     mutate(
@@ -667,30 +654,25 @@ if (has_features) {
         factor(levels = names(colours$features)) %>% 
         fct_relabel(str_sep_to_title)
     )
+  if ("feature" %in% colnames(mcols(external_features))) {
+    feat_prom <- external_features %>%
+      subset(str_detect(feature, "[Pp]rom")) %>%
+      granges()
+    feat_enh <- external_features %>%
+      subset(str_detect(feature, "[Ee]nhanc")) %>%
+      granges()
+  }
 }
 merged_results <- merged_results %>%
   mapByFeature(
-    genes = genes_gr, 
-    prom = GRangesList(
-      ## Add any external features which appear to be promoters
-      ifelse(
-        "feature" %in% colnames(mcols(external_features)), 
-        list(granges(subset(external_features, str_detect(feature, "[Pp]rom")))), 
-        list(GRanges())
-      )[[1]], 
-      granges(gene_regions$promoters)) %>% 
-      unlist() %>% 
-      reduce(),
-    enh = ifelse(
-      "feature" %in% colnames(mcols(external_features)), 
-      list(granges(subset(external_features, str_detect(feature, "[Ee]nhanc")))), 
-      list(GRanges())
-    )[[1]],
+    genes = gtf_gene, 
+    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+    enh = feat_enh,
     gi = hic, 
-    gr2gene = params$mapping$gr2gene,
-    prom2gene = params$mapping$prom2gene,
-    enh2gene = params$mapping$enh2gene,
-    gi2gene = params$mapping$gi2gene
+    gr2gene = extra_params$mapping$gr2gene,
+    prom2gene = extra_params$mapping$prom2gene,
+    enh2gene = extra_params$mapping$enh2gene,
+    gi2gene = extra_params$mapping$gi2gene
   )
 ```
 
@@ -703,10 +685,10 @@ During mapping to genes, promoters were defined the union of all regions defined
 
 These features were used to map merged windows to features using the process defined in the function `extraChIPs::mapByFeature()`:
 
-1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(params$mapping$prom2gene == 0, "directly overlapping", paste("within", params$mapping$prom2gene, "bp of"))` that specific promoter
-2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(params$mapping$enh2gene == 0, "directly overlapping", paste("within", round(params$mapping$enh2gene/1e3, 1), "kb of"))` the enhancer
-3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(params$mapping$gi2gene == 0, "directly overlapping", paste("within", round(params$mapping$gi2gene/1e3, 1), "kb of"))` either end of the interaction
-4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(params$mapping$gr2gene/1e3, 1)`kb
+1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(extra_params$mapping$prom2gene == 0, "directly overlapping", paste("within", extra_params$mapping$prom2gene, "bp of"))` that specific promoter
+2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(extra_params$mapping$enh2gene == 0, "directly overlapping", paste("within", round(extra_params$mapping$enh2gene/1e3, 1), "kb of"))` the enhancer
+3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(extra_params$mapping$gi2gene == 0, "directly overlapping", paste("within", round(extra_params$mapping$gi2gene/1e3, 1), "kb of"))` either end of the interaction
+4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(extra_params$mapping$gr2gene/1e3, 1)`kb
 
 Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3.
 For visualisation purposes, only genes which were considered as detected in any provided RNA-Seq data will be shown as the mapping targets.
@@ -1119,7 +1101,9 @@ div(class = "table",
 ```{r make-heatmaps}
 profile_width <- 5e3
 n_bins <- 100
-bwfl <- file.path(macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")) %>% 
+bwfl <- file.path(
+    macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+  ) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- merged_results %>% 
@@ -1540,7 +1524,7 @@ fh <- max(4, 1 + 3 * ceiling(length(grl_to_plot) / 3)) %>%
 ## The coverage
 bwfl <- list2(
   "{target}" := file.path(
-    macs2_path, glue("{treat_levels}_merged_treat_pileup.bw")
+    macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
   ) %>% 
     BigWigFileList() %>% 
     setNames(treat_levels)
@@ -1699,10 +1683,10 @@ makeCaption <- function(.gr) {
     ifelse(
       .gr$overlaps_ref,
       paste(
-        "A consensus peak overlapping this region was identified by",
+        "A union peak overlapping this region was identified by",
         "`macs2 callpeak` when using merged samples."
       ),
-      "No consensus peak was identified using `macs2 callpeak`."
+      "No union peak was identified using `macs2 callpeak`."
     ),
     ifelse(
       length(gn) > 0,
@@ -1844,7 +1828,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_down_no_macs2" %in% names(grl_to_plot), "### Significant Decreased Binding (No Consensus Peak)", "")`
+`r ifelse("top_down_no_macs2" %in% names(grl_to_plot), "### Significant Decreased Binding (No Union Peak)", "")`
 
 ```{r plot-top_down_no_macs2, eval = "top_down_no_macs2" %in% names(grl_to_plot), echo = "top_down_no_macs2" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_no_macs2)}
 plotHFGC(
@@ -1927,7 +1911,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_up_no_macs2" %in% names(grl_to_plot), "### Significant Increased Binding (No Consensus Peak)", "")`
+`r ifelse("top_up_no_macs2" %in% names(grl_to_plot), "### Significant Increased Binding (No Union Peak)", "")`
 
 ```{r plot-top_up_no_macs2, eval = "top_up_no_macs2" %in% names(grl_to_plot), echo = "top_up_no_macs2" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_no_macs2)}
 plotHFGC(
@@ -1951,21 +1935,21 @@ plotHFGC(
 # Enrichment Testing 
 
 ```{r msigdb}
-min_gs_size <- params$enrichment$min_size
+min_gs_size <- extra_params$enrichment$min_size
 if (is.null(min_gs_size) | is.na(min_gs_size)) min_gs_size <- 0
-max_gs_size <- params$enrichment$max_size
+max_gs_size <- extra_params$enrichment$max_size
 if (is.null(max_gs_size) | is.na(max_gs_size)) max_gs_size <- Inf
-min_sig <- params$enrichment$min_sig
+min_sig <- extra_params$enrichment$min_sig
 if (is.null(min_sig) | is.na(min_sig)) min_sig <- 1
 msigdb <- msigdbr(species = "Homo sapiens") %>% 
   dplyr::filter(
-    gs_cat %in% unlist(params$enrichment$msigdb$gs_cat) |
-      gs_subcat %in% unlist(params$enrichment$msigdb$gs_subcat),
+    gs_cat %in% unlist(extra_params$enrichment$msigdb$gs_cat) |
+      gs_subcat %in% unlist(extra_params$enrichment$msigdb$gs_subcat),
     str_detect(ensembl_gene, "^E")
   ) %>% 
   dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
   dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
-  dplyr::filter(gene_id %in% genes_gr$gene_id) %>% 
+  dplyr::filter(gene_id %in% gtf_gene$gene_id) %>% 
   mutate(gs_url = str_extract(gs_url, "^[^|]+")) %>% 
   group_by(gs_name) %>% 
   mutate(n = dplyr::n()) %>% 
@@ -1990,21 +1974,21 @@ gs_url <- msigdb %>%
   ) %>% 
   with(setNames(gs_url, gs_name))
 
-min_network_size <- params$networks$min_size
+min_network_size <- extra_params$networks$min_size
 if (is.null(min_network_size) | is.na(min_network_size))
   min_network_size <- 2
 
-max_network_size <- params$networks$max_size
+max_network_size <- extra_params$networks$max_size
 if (is.null(max_network_size) | is.na(max_network_size))
   max_network_size <- Inf
 
-max_network_dist <- params$networks$max_distance
+max_network_dist <- extra_params$networks$max_distance
 if (is.null(max_network_dist) | is.na(max_network_dist))
   max_network_dist <- 1
 
-net_layout <- params$networks$layout
-enrich_alpha <- params$enrichment$alpha
-adj_method <- match.arg(params$enrichment$adj, p.adjust.methods)
+net_layout <- extra_params$networks$layout
+enrich_alpha <- extra_params$enrichment$alpha
+adj_method <- match.arg(extra_params$enrichment$adj, p.adjust.methods)
 adj_desc <- case_when(
   p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
   p.adjust.methods %in% c("BY") ~ "the Benjamini-Yekutieli FDR",
@@ -2085,7 +2069,7 @@ All network plots were generated using the `r net_layout` layout algorithm.
 
 
 ```{r goseq-mapped, fig.show='hide'}
-pwf_mapped <- genes_gr %>% 
+pwf_mapped <- gtf_gene %>% 
   mutate(w = width(.)) %>% 
   as_tibble() %>% 
   dplyr::select(gene_id, w) %>% 
@@ -2261,7 +2245,7 @@ tg_mapped %>%
 ## Windows With Differentially Bound `r target` {.tabset}
 
 ```{r goseq-diff, fig.show='hide'}
-pwf_diff <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
+pwf_diff <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
   mutate(diff = up|down) %>% 
@@ -2435,7 +2419,7 @@ tg_diff %>%
 ## Windows With Increased `r target` Binding {.tabset}
 
 ```{r goseq-up, fig.show='hide'}
-pwf_up <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
+pwf_up <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
   mutate(diff = up) %>% 
@@ -2610,7 +2594,7 @@ tg_up %>%
 ## Windows With Decreased `r target` Binding {.tabset}
 
 ```{r goseq-down, fig.show='hide'}
-pwf_down <- tibble(gene_id  = unique(genes_gr$gene_id)) %>% 
+pwf_down <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
   mutate(diff = down) %>% 
@@ -2801,7 +2785,7 @@ merged_results %>%
   mutate(
     distance_to_gene = distance(
       GRanges(range),
-      setNames(genes_gr, genes_gr$gene_id)[gene_id]
+      setNames(gtf_gene, gtf_gene$gene_id)[gene_id]
     )
   ) %>% 
   write_csv(

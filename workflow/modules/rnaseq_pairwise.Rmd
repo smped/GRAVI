@@ -2,11 +2,9 @@
 
 ```{r define-objects}
 library(fgsea)
-library(cowplot)
-library(BiocParallel)
+library(patchwork)
 library(metap)
-register(MulticoreParam(workers = threads))
-id2gene <- structure(all_gr$gene$gene_name, names = all_gr$gene$gene_id)
+id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
 rna_status <- rnaseq %>% 
   mutate(
     de_status = case_when(
@@ -17,7 +15,7 @@ rna_status <- rnaseq %>%
   ) %>% 
   dplyr::select(gene_id, gene_name, de_status) %>% 
   bind_rows(
-    all_gr$gene %>% 
+    gtf_gene %>% 
       subset(!gene_id %in% rnaseq$gene_id) %>% 
       select(gene_id, gene_name) %>% 
       mcols() %>% 
@@ -34,12 +32,13 @@ rna_p_col <- colnames(rnaseq)[
   str_detect(str_to_lower(colnames(rnaseq)), "pval|p\\.val")
 ][1]
 stopifnot(length(rna_p_col) == 1)
-diff_windows <- all_windows %>% 
-  as_tibble() 
-diff_windows[["r1"]] <- rank(mcols(all_windows)[[c1_fdr]], ties.method = "min")
-diff_windows[["r2"]] <- rank(mcols(all_windows)[[c2_fdr]], ties.method = "min")
-diff_windows <- diff_windows %>% 
-  dplyr::arrange(r1 + r2) %>% 
+ids_by_group <- all_windows %>% 
+  as_tibble() %>% 
+  mutate(
+    r1 = rank(!!sym(glue("{c1}_fdr")), ties.method = "min"),
+    r2 = rank(!!sym(glue("{c2}_fdr")), ties.method = "min")
+  ) %>% 
+  arrange(r1 + r2) %>% 
   dplyr::select(gene_id, status, r1, r2) %>% 
   unnest(everything()) %>% 
   distinct(gene_id, .keep_all = TRUE) %>% 
@@ -47,30 +46,22 @@ diff_windows <- diff_windows %>%
   split(.$status) %>% 
   lapply(pull, "gene_id") 
 any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
-n_mapped <- all_windows %>% 
-  dplyr::select(status, detected) %>% 
-  as_tibble() %>% 
-  unnest(everything()) %>% 
-  distinct(status, detected) %>% 
-  group_by(status) %>% 
-  summarise(detected = dplyr::n()) %>% 
-  right_join(n_mapped, by = "status")
 ```
 
 ## Volcano Plots
 
 ```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Some genes will have multiple target binding regions mapped to them, and may appear in multiple panels. The two most highly ranked genes for differential expression are labelled in each panel. All DE genes are listed with full binding patterns in the table below.*")}
-diff_windows %>% 
+ids_by_group %>% 
   lapply(function(x) tibble(gene_id = x)) %>% 
   bind_rows(.id = "binding_status") %>% 
   mutate(
     binding_status = factor(binding_status, levels = combs) %>% 
       fct_lump_prop(0.01)
   ) %>% 
-  full_join(rnaseq) %>% 
+  full_join(rnaseq, by = "gene_id") %>% 
   dplyr::filter(!is.na(gene_name)) %>% 
   mutate(
-    binding_status = fct_explicit_na(binding_status, na_level = "No Targets"),
+    binding_status = fct_na_value_to_level(binding_status, level = "No Targets"),
     de_status = case_when(
       DE & !!sym(rna_lfc_col) > 0 ~ "Up",
       DE & !!sym(rna_lfc_col) < 0 ~ "Down",
@@ -117,20 +108,20 @@ diff_windows %>%
 
 `r if (any_de) "## DE Genes And Pairwise Binding"`
 
-```{r tab-de-both, eval = any_de, echo=any_de}
+```{r tab-de-both, eval = any_de, echo = any_de}
 col_defs <- list2(
-      de = colDef(
-        name = "Gene", maxWidth = 120
-      ),
-      logFC = colDef(
-        name = "logFC<br>(RNA-Seq)",
-        html = TRUE,
-        aggregate = "mean",
-        maxWidth = 100,
-        format = colFormat(digits = 2),
-        style = JS(
-            glue(
-            "function(rowInfo) {
+  de = colDef(
+    name = "Gene", maxWidth = 120
+  ),
+  logFC = colDef(
+    name = "logFC<br>(RNA-Seq)",
+    html = TRUE,
+    aggregate = "mean",
+    maxWidth = 100,
+    format = colFormat(digits = 2),
+    style = JS(
+      glue(
+        "function(rowInfo) {
               var value = rowInfo.row['logFC']
               if (value < 0) {
                 var color = '{{colours$direction[['down']]}}'
@@ -139,14 +130,14 @@ col_defs <- list2(
               } 
               return { color: color }
             }",
-            .open = "{{", .close = "}}"
-            )
-        )
-      ),
-      range = colDef(
-        name = "Range",
-        aggregate = JS(
-            "function(values){
+        .open = "{{", .close = "}}"
+      )
+    )
+  ),
+  range = colDef(
+    name = "Range",
+    aggregate = JS(
+      "function(values){
               var chrom = [];
               var rng = [];
               var start = [];
@@ -165,45 +156,45 @@ col_defs <- list2(
               return ret_val
               
             }"
-          )
-      ),
-      region = colDef(
-        aggregate = "unique",
-        name = "Region"
-      ),
-      "{c1_logfc}" := colDef(
-        name = comps[[1]],
-        maxWidth = 100,
-        format = colFormat(digits = 2),
-        style = function(value) {
-          cl <- ifelse(
-            value > 0, colours$direction[["up"]], colours$direction[["down"]]
-          )
-          list(color = cl)
-        }
-      ),
-      "{c2_logfc}" := colDef(
-        name = comps[[2]],
-        maxWidth = 100,
-        format = colFormat(digits = 2),
-        style = function(value) {
-          cl <- ifelse(
-            value > 0, colours$direction[["up"]], colours$direction[["down"]]
-          )
-          list(color = cl)
-        }
-      ),
-      "{c1_status}" := colDef(
-        aggregate = "unique",
-        name = comps[[1]],
-        maxWidth = 150
-      ),
-      "{c2_status}" := colDef(
-        aggregate = "unique",
-        name = comps[[2]],
-        maxWidth = 150
+    )
+  ),
+  region = colDef(
+    aggregate = "unique",
+    name = "Region"
+  ),
+  "{c1}_logFC" := colDef(
+    name = comps[[1]],
+    maxWidth = 100,
+    format = colFormat(digits = 2),
+    style = function(value) {
+      cl <- ifelse(
+        value > 0, colours$direction[["up"]], colours$direction[["down"]]
       )
-    ) 
+      list(color = cl)
+    }
+  ),
+  "{c2}_logFC" := colDef(
+    name = comps[[2]],
+    maxWidth = 100,
+    format = colFormat(digits = 2),
+    style = function(value) {
+      cl <- ifelse(
+        value > 0, colours$direction[["up"]], colours$direction[["down"]]
+      )
+      list(color = cl)
+    }
+  ),
+  "{c1}_status" := colDef(
+    aggregate = "unique",
+    name = comps[[1]],
+    maxWidth = 150
+  ),
+  "{c2}_status" := colDef(
+    aggregate = "unique",
+    name = comps[[2]],
+    maxWidth = 150
+  )
+) 
 if (has_features) col_defs$feature <- colDef(
   name = "Feature",
   aggregate = "unique"   
@@ -219,10 +210,7 @@ htmltools::tags$caption(
   )
 )
 de_genes_both_comps <- all_windows %>% 
-  as_tibble()
-## Placeholder until conda-forge sort out R4.2.1
-colnames(de_genes_both_comps) <- c("range", colnames(mcols(all_windows)))
-de_genes_both_comps <- de_genes_both_comps %>% 
+  as_tibble() %>% 
   dplyr::select(
     any_of(c("range", "region", "feature")), ends_with("logFC"), ends_with("status"), 
     any_of(c("detected"))
@@ -245,17 +233,17 @@ de_genes_both_comps <- de_genes_both_comps %>%
   ) 
 de_genes_both_comps %>% 
   reactable(
-    filterable = TRUE,
+    filterable = TRUE, resizable = TRUE, showPageSizeOptions = TRUE,
     groupBy = "de",
     columns = col_defs,
     columnGroups = list(
       colGroup(
         name = "ChIP logFC", 
-        columns = c(as.character(c1_logfc), as.character(c2_logfc))
+        columns = as.character(glue("{comps}_logFC"))
       ),
       colGroup(
         name = "ChIP Status",
-        columns =  c(as.character(c1_status), as.character(c2_status))
+        columns =  as.character(glue("{comps}_status"))
       )
     ),
     theme = reactableTheme(style = list(fontSize = 14))
@@ -297,14 +285,13 @@ This second analysis allows for detecting regulatory changes due to altered bind
 ### Directional GSEA
 
 ```{r gsea-dir-sig}
-gsea_dir <- fgsea(status_gs, rna_dir_ranks)
-gsea_dir_sig <- gsea_dir %>%
+gsea_dir <- fgsea(status_gs, rna_dir_ranks) %>% 
+  as_tibble() %>% 
   arrange(pval) %>%
   mutate(padj = p.adjust(pval, adj_method)) %>% 
-  dplyr::filter(padj < enrich_alpha, size >= min_sig) %>%
   as_tibble()
-p <- gsea_dir_sig %>% 
-  dplyr::slice(1:9) %>% 
+p <- gsea_dir %>% 
+  dplyr::filter(padj < enrich_alpha, size >= min_sig) %>%
   pull("pathway") %>% 
   lapply(
     function(x) {
@@ -317,19 +304,19 @@ p <- gsea_dir_sig %>%
   )
 ```
 
-`r if (nrow(gsea_dir_sig) == 0) glue("No association was found between joint binding patterns and *directional* significance in differentially expressed genes.")`
+`r if (length(p) == 0) glue("No association was found between joint binding patterns and *directional* significance in differentially expressed genes.")`
 
-```{r tbl-gsea-dir_sig, eval = nrow(gsea_dir_sig) > 0, echo = nrow(gsea_dir_sig) > 0}
+```{r tbl-gsea-dir_sig, eval = length(p) > 0, echo = length(p) > 0}
 cp <-  htmltools::em(
   glue(
     "Combined windows were mapped to genes, and their position amongst the ",
-    "RNA-Seq results was assessed. {nrow(gsea_dir_sig)} sets of windows were ",
+    "RNA-Seq results was assessed. {sum(gsea_dir$padj < enrich_alpha)} sets of windows were ",
     "associated with changes in gene expression, using the sign of ", 
     "fold-change and ranking statistic to initially rank the ", 
     "{comma(nrow(rnaseq), 1)} genes considered as detected."
   )
 )
-tbl <- gsea_dir_sig %>%
+tbl <- gsea_dir %>%
   mutate(
     `Edge Size` = vapply(leadingEdge, length, integer(1)),
     leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %>% 
@@ -424,8 +411,8 @@ div(class = "table",
 
 
 
-```{r barcode-gsea-dir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height= max(3, 3 * ceiling(length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, ncol = min(3, length(p)))
+```{r barcode-gsea-dir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height = max(3, 3 * ceiling(length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __directional__ changes in gene expression.*")}
+wrap_plots(p)
 ```
 
 
@@ -434,14 +421,12 @@ plot_grid(plotlist = p, ncol = min(3, length(p)))
 ```{r gsea-nondir-sig}
 gsea_nondir <- suppressWarnings(
   fgsea(status_gs, rna_sig_ranks, scoreType = "pos")
-)
-gsea_nondir_sig <- gsea_nondir %>% 
+) %>% 
+  as_tibble() %>% 
   arrange(pval) %>% 
-  mutate(padj = p.adjust(pval, adj_method)) %>% 
+  mutate(padj = p.adjust(pval, adj_method)) 
+p <- gsea_nondir %>% 
   dplyr::filter(padj < enrich_alpha, size >= min_sig) %>% 
-  as_tibble() 
-p <- gsea_nondir_sig %>% 
-  dplyr::slice(1:9) %>% 
   pull("pathway") %>% 
   lapply(
     function(x) {
@@ -459,16 +444,16 @@ txt <- ifelse(
 
 `r txt`
 
-```{r tbl-gsea_nondir_sig, eval = length(p) > 0, echo = length(p) > 0}
+```{r tbl-gsea_nondir, eval = length(p) > 0, echo = length(p) > 0}
 cp <-  htmltools::em(
   glue(
     "Combined windows were mapped to genes, and their position amongst the ",
-    "RNA-Seq results was assessed. {nrow(gsea_nondir_sig)} sets of windows were ",
+    "RNA-Seq results was assessed. {sum(gsea_nondir$padj < enrich_alpha)} sets of windows were ",
     "associated with changes in gene expression, using only the p-value to ", 
     "rank the {comma(nrow(rnaseq), 1)} genes considered as detected."
   )
 )
-tbl <- gsea_nondir_sig %>%
+tbl <- gsea_nondir %>%
   mutate(
     `Edge Size` = vapply(leadingEdge, length, integer(1)),
     leadingEdge = lapply(leadingEdge, function(x) id2gene[x]) %>% 
@@ -548,8 +533,8 @@ div(class = "table",
 )
 ```
 
-```{r barcode-gsea-nondir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height= max(3, 3 * ceiling(length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
-plot_grid(plotlist = p, ncol = min(3, length(p)))
+```{r barcode-gsea-nondir-sig, dev = 'png', eval = length(p) > 0, echo = length(p) > 0, fig.height = max(3, 3 * ceiling(length(p) / 3)), fig.cap = glue("*Barcode plots for the top {length(p)} sets of windows associated with __non-directional__ changes in gene expression.*")}
+wrap_plots(p)
 ```
 
 
@@ -680,7 +665,7 @@ htmltools::tagList(
               ),
               status = colDef(name = "Individual Status", maxWidth = 100),
               padj_rna = colDef(
-                name =  glue("p<sub>{params$enrichment$adj}</sub> (RNA)"), html = TRUE,
+                name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (RNA)"), html = TRUE,
                 cell = function(value) ifelse(
                   value < 0.001,
                   sprintf("%.2e", value),
@@ -689,7 +674,7 @@ htmltools::tagList(
                 maxWidth = 80
               ),
               padj_chip = colDef(
-                name =  glue("p<sub>{params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
+                name =  glue("p<sub>{extra_params$enrichment$adj}</sub> (ChIP)"), html = TRUE,
                 cell = function(value) ifelse(
                   value < 0.001,
                   sprintf("%.2e", value),
@@ -718,7 +703,7 @@ htmltools::tagList(
               str_replace_all(" ", "-") %>% 
               str_replace_all("-+", "-") %>% 
               paste("gsea", sep = "-"),
-            class="section level4",
+            class = "section level4",
             htmltools::h4(class = "tabset", x),
             htmltools::tags$em(cp),
             tbl
@@ -741,8 +726,8 @@ cmn_res %>%
     gs_name = fct_inorder(gs_name) %>% 
       fct_relabel(str_replace_all, "_", " ") %>% 
       fct_relabel(str_trunc, width = 60),
-    prop = numDEInCat / detected,
-    group = factor(group, levels = arrange(n_mapped, detected)$status)
+    prop = numDEInCat / mapped,
+    group = factor(group, levels = arrange(n_mapped, mapped)$status)
   ) %>%
   droplevels() %>% 
   ggplot(aes(fct_rev(group), fct_rev(gs_name))) + 
@@ -751,7 +736,7 @@ cmn_res %>%
     aes(x = numInCat), data = . %>% distinct(gs_name, numInCat),
   ) +
   geom_xsidecol(
-    aes(y = detected),
+    aes(y = mapped),
     data = n_mapped %>% 
       dplyr::filter(status %in% names(cmn_res)) %>% 
       dplyr::rename(group = status),
@@ -831,12 +816,11 @@ htmltools::tagList(
               str_to_title(names( unlist(colours$direction)))
             )
           ) +
-          guides(edge_alpha= "none") +
+          guides(edge_alpha = "none", edge_width = "none") +
           labs(
-            size = glue("{x} Targets In Leading Edge") %>% str_wrap(15),
+            size = "Targets In\nLeading Edge",
             colour = "GSEA\nDirection",
             fill = "Prior\nStatus",
-            edge_width = expr(paste(OC^2))
           ) +
           theme_void()
         print(p)
@@ -859,7 +843,7 @@ htmltools::tagList(
               str_remove_all(glue(".{fig_type}$")) %>%
               str_to_lower() %>%
               str_replace_all("_", "-"),
-            class="section level4",
+            class = "section level4",
             htmltools::h4(x),
             htmltools::div(
               class = "figure", style = "text-align: center",

@@ -32,42 +32,20 @@ def get_here_file():
 ####################################
 ## Check all external files exist ##
 ####################################
-all_exist=True
-# if config['external']['rnaseq'] != '':
-# 	if not os.path.isfile(config['external']['rnaseq']):
-# 		all_exist=False
-# 		print(config['external']['rnaseq'] + " does not exist")
+for i in config['external']:
+	f = config['external'][i]
+	if type(f) == str:
+		msg = "File " + f + " not found"
+		assert (os.path.isfile(f)), msg
+	if type(f) == dict:
+		for j in f:
+			for k in f[j]:
+				msg = "File " + f[j][k] + " not found"
+				assert(os.path.isfile(f[j][k])), msg
+			
+		
+	
 
-
-if not all_exist:
-	sys.exit(1)
-
-def get_ucsc_genome(x):
-	map = pd.Series(['hg19', 'hg38'], index = ['GRCh37', 'GRCh38'])
-	if not x in map.keys():
-		print("The only currently supported genome builds are:")
-		print(*map.keys(), sep = ' & ')
-		sys.exit(1)
-	else:
-		return(map[x])
-
-def check_git(x = "."):
-	is_installed = subprocess.run(
-    	['which', 'git'], universal_newlines=True, check=True,
-    	stdout=subprocess.PIPE
-	)
-	path = os.path.join(x, ".git")
-	repo_exists = os.path.isdir(path)
-	if is_installed and repo_exists:
-		ret_val = True
-		print(
-			"Viable git repository detected. Files will be added when created",
-			file = sys.stderr
-		)
-	else:
-		ret_val = False
-		print("No viable git repository detected", file = sys.stderr)
-	return(ret_val)
 
 # Define all contrasts
 # x will be config['comparisons']['contrasts']:
@@ -96,14 +74,6 @@ def make_pairwise(x):
 	return(ret_val)
 
 
-
-###############################################################
-## Check whether Git is installed & the directory has a repo ##
-###############################################################
-# git_add = check_git(".")
-git_tries = 100
-git_add = False
-
 max_threads = workflow.cores
 
 ####################
@@ -120,7 +90,7 @@ pairs=make_pairwise(config['comparisons']['contrasts'])
 
 wildcard_constraints:
 	target = "(" + '|'.join(targets) + ")",
-	samples = "(" + '|'.join(samples) + ")",
+	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
 
@@ -150,14 +120,8 @@ if type(fig_type) is list:
 ## External Annotation Files ##
 ###############################
 ## These are required input for multiple steps
-ucsc_build = get_ucsc_genome(config['genome']['build'])
-gtf = os.path.join(
-	annotation_path,
-	"gencode.v" + config['genome']['gencode'] + "lift" +
-	config['genome']['build'][-2:] +
-	".annotation.gtf.gz"
-)
-blacklist = os.path.join(annotation_path, "blacklist.bed.gz")
+gtf = config['external']['gtf']
+blacklist = config['external']['blacklist']
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
 ##################################
@@ -187,7 +151,10 @@ ALL_OUTPUTS = []
 ## created
 ALL_RDS = expand(
 	os.path.join(annotation_path, "{file}.rds"),
-	file = ['all_gr', 'colours', 'gene_regions', 'seqinfo', 'trans_models','tss']
+	file = [
+		'colours', 'gene_regions', 'seqinfo', 'trans_models','tss', 'gtf_gene',
+		'gtf_transcript', 'gtf_exon'
+	]
 )
 ALL_OUTPUTS.extend(ALL_RDS)
 
@@ -231,9 +198,9 @@ ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
 
 ## Peaks generated from the Rmd files
 CONS_PEAKS = expand(
-	os.path.join(macs2_path, "{target}", "{file}"),
+	os.path.join(macs2_path, "{target}", "{target}_{file}"),
 	target = targets,
-	file = ['consensus_peaks.bed', 'oracle_peaks.rds']
+	file = ['union_peaks.bed', 'treatment_peaks.rds']
 )
 ALL_OUTPUTS.extend(CONS_PEAKS)
 
@@ -241,19 +208,13 @@ ALL_OUTPUTS.extend(CONS_PEAKS)
 ###########################
 ## Peak Files from macs2 ##
 ###########################
-indiv_pre = df[['target', 'sample']].apply(
-	lambda row: '/'.join(row.values.astype(str)), axis=1
-)
 INDIV_PEAKS = expand(
-	os.path.join(macs2_path, "{path}_peaks.narrowPeak"),
-	path = indiv_pre
+	os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
+	sample = samples
 )
 ALL_OUTPUTS.extend(INDIV_PEAKS)
-merged_pre = set(
-	df[['target', 'treat']].apply(
-		lambda row: '/'.join(row.values.astype(str)), axis=1
-	)
-)
+df['merged_pre'] = df[['target', 'treat']].agg('_'.join, axis = 1)
+merged_pre = set(df[['target', 'merged_pre']].agg('/'.join, axis = 1))
 MERGED_PEAKS = expand(
 	os.path.join(macs2_path, "{pre}_merged_peaks.narrowPeak"),
 	pre = merged_pre
@@ -265,17 +226,19 @@ ALL_OUTPUTS.extend(MERGED_PEAKS)
 ## BigWig Files ##
 ##################
 INDIV_BW = expand(
-	os.path.join(macs2_path, "{path}_treat_pileup.{suffix}"),
-	path = indiv_pre,
-	suffix = ['bw']#, 'summary']
+	os.path.join(macs2_path, "{sample}", "{sample}_treat_pileup.bw"),
+	sample = samples
 )
 ALL_OUTPUTS.extend(INDIV_BW)
 MERGED_BW = expand(
-	os.path.join(macs2_path, "{path}_merged_treat_pileup.{suffix}"),
-	path = merged_pre,
-	suffix = ['bw', 'summary']
+	os.path.join(macs2_path, "{path}_merged_treat_pileup.bw"),
+	path = merged_pre
 )
 ALL_OUTPUTS.extend(MERGED_BW)
+FE_BW = expand(
+	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
+)
+ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
     input:
@@ -284,6 +247,7 @@ rule all:
 include: "rules/samtools.smk"
 include: "rules/rmarkdown.smk"
 include: "rules/macs2.smk"
+include: "rules/bigwig.smk"
 include: "rules/annotations.smk"
 include: "rules/differential_binding.smk"
 include: "rules/pairwise_comparisons.smk"

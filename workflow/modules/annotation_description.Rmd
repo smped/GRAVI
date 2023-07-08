@@ -19,6 +19,7 @@ library(htmltools)
 library(plyranges)
 library(GenomicInteractions)
 library(extraChIPs)
+library(GenomeInfoDb)
 ```
 
 
@@ -30,11 +31,14 @@ theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
 )
+source(here::here("workflow", "scripts", "custom_functions.R"))
 annotation_path <- here::here("output", "annotations")
 all_out <- list(
   chrom_sizes = file.path(annotation_path, "chrom.sizes"),
   gene_regions = file.path(annotation_path, "gene_regions.rds"),
-  gtf  = file.path(annotation_path, "all_gr.rds"),
+  gtf_gene = file.path(annotation_path, "gtf_gene.rds"),
+  gtf_transcript = file.path(annotation_path, "gtf_transcript.rds"),
+  gtf_exon = file.path(annotation_path, "gtf_exon.rds"),
   seqinfo = file.path(annotation_path, "seqinfo.rds"),
   transcript_models = file.path(annotation_path, "trans_models.rds"),
   tss = file.path(annotation_path, "tss.rds"),
@@ -42,20 +46,10 @@ all_out <- list(
 )
 ```
 
-```{r extra-funs}
-source(
-  here::here("workflow", "scripts", "custom_functions.R")
-)
-```
-
-
 ```{r config}
 config <- read_yaml(here::here("config", "config.yml"))
 params <- read_yaml(here::here("config", "params.yml"))
 colours <- read_yaml(here::here("config", "colours.yml"))
-```
-
-```{r treat_levels}
 treat_levels <- config$comparisons$contrasts %>% 
   unlist() %>% 
   unique()
@@ -79,7 +73,7 @@ if (has_external) {
 
 # Genome Annotations
 
-Before analysing any datasets, annotations for the genome and transcriptome were defined.
+Before analysing any datasets, annotations for the genome and transcriptome were checked and key objects were defined for consistent use throughout the workflow.
 
 ## Genome Description
 
@@ -94,10 +88,10 @@ This `Seqinfo` object is added to all subsequent objects requiring information a
 ## Blacklisted Regions {.tabset}
 
 ```{r blacklist}
-blacklist <- file.path(annotation_path, "blacklist.bed.gz") %>%
-  import.bed(seqinfo = sq) %>%
-  sort()
+blacklist <- import.bed(here::here(config$external$blacklist), seqinfo = sq)
 ```
+
+Blacklisted regions were supplied in the file `rconfig$external$blacklist`.
 
 ### Summary
 
@@ -106,7 +100,7 @@ blacklist %>%
   group_by(name) %>% 
   summarise(
     n = n(),
-    p = percent(sum(width)/ sum(seqlengths(sq))),
+    p = percent(sum(width) / sum(seqlengths(sq))),
     kb = sum(width) / 1e3,
     min = min(width) / 1e3,
     median = median(width) / 1e3,
@@ -125,9 +119,8 @@ blacklist %>%
   ) %>% 
   pander(
     caption = glue(
-      "*Summary of genomic regions excluded in the blacklist. ",
-      "The default set of blacklisted regions was used, as obtained from ",
-      "https://github.com/Boyle-Lab/Blacklist (ENCODE)*"
+      "*Summary of genomic regions provided in the blacklist. ",
+      "These regions will be excluded from all subsequent analyses.*"
     ),
     justify = "lrrrrrr"
   )
@@ -166,16 +159,18 @@ blacklist %>%
 ## Basic Annotations
 
 ```{r load-gtf}
-all_gr <- read_rds(file.path(annotation_path, "all_gr.rds"))
+gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
+gtf_transcript <- read_rds(file.path(annotation_path, "gtf_transcript.rds"))
+gtf_exon <- read_rds(file.path(annotation_path, "gtf_exon.rds"))
 ```
 
 - The complete set of genes, transcripts and exons was loaded from the supplied `gtf`, excluding mitochondrial features.
 - The previously generated `Seqinfo` was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects
-- Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(all_gr$gene)))`) retained.
+- Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(gtf_gene)))`) retained.
 - Visualisation using the Bioconductor package `Gviz` requires a specific `GRanges` structure for gene and transcript models to be displayed.
 This object was created at this point so transcript models could be simply visualised throughout the workflow.
 
-In total this annotation build contained `r comma(length(all_gr$gene))` genes, `r comma(length(all_gr$transcript))` transcripts and `r comma(length(all_gr$exon))` exons.
+In total this annotation build contained `r comma(length(gtf_gene))` genes, `r comma(length(gtf_transcript))` transcripts and `r comma(length(gtf_exon))` exons, after restricting the dataset to the autosomes and sex chromosomes.
 
 
 ## Gene-Centric Regions {.tabset}
@@ -185,10 +180,10 @@ In total this annotation build contained `r comma(length(all_gr$gene))` genes, `
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 missing_reg_col <- setdiff(names(regions), names(colours$regions))
-if (length(missing_reg_col) > 0){
+if (length(missing_reg_col) > 0) {
   def_reg_cols <- c(
-    promoters = "#FF3300", upstream = "#E1EE05", exons = "#7EDD57", 
-    introns = "#006600", proximal = "#000066", distal = "#551A8B"
+    promoter = "#FF3300", upstream_promoter = "#E1EE05", exon = "#7EDD57", 
+    intron = "#006600", proximal_intergenic = "#000066", distal_intergenic = "#551A8B"
   )
   colours$regions[missing_reg_col] <- def_reg_cols[missing_reg_col]
 }
@@ -197,25 +192,22 @@ region_cols <- unlist(colours$regions) %>%
 ```
 
 
-Using the provided GTF, **unique** gene and transcript-centric features were also defined as:
+Using the provided GTF, **unique** gene and transcript-centric features were also defined using `defineRegions()`, and will be treated as annotated regions throughout the workflow.
+The regions are:
 
-1. Promoters
-2. Upstream 
+1. Promoters (-`r params$gene_regions$promoters$upstream`/+`r params$gene_regions$promoters$downstream`bp)
+2. Upstream Promoters (> `r params$gene_regions$promoters$upstream`bp; < `r params$gene_regions$upstream`bp)
 3. Exons
 4. Introns
 5. Intergenic regions within `r params$gene_regions$intergenic/1e3`kb of a gene
 6. Intergenic regions >`r params$gene_regions$intergenic/1e3`kb from any defined genes
 
-In addition, TSS regions were defined as a separate object given each TSS has single-base width. 
-With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, unstranded manner.
+Colours were also defined for each of these regions for consistent visualisation.
 
-- *TSS* regions were the individual start sites for each transcript. Given that many transcripts can originate from the same TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF
-- *Promoters* were first defined for all individual transcripts as the region `r glue("-{params$gene_regions$promoters$upstream}/+{params$gene_regions$promoters$downstream}")`bp around each TSS, as specified in `config.params.yml`.
-Overlapping regions were merged to create a single promoter region for all transcripts within that genomic region.
-- *Upstream promoters* were then defined as the region extending `r glue(params$gene_regions$upstream/1e3)`kb upstream from a TSS, but excluding any region already defined as a promoter through the previous merging step.
-<!-- Any ranges within these which overlapped other genes were removed. -->
-- *Exons* and *Introns* were considered to be any exon or intron, not previously included in one of the above regions.
-- *Intergenic* regions were defined as those within `r params$gene_regions$intergenic/1e3`kb (excluding upstream promoters) or those >`r params$gene_regions$intergenic/1e3`kb from any gene
+In addition, TSS regions were defined as a separate object given each TSS has single-base width. 
+With the exception of TSS and Promoters, these features were non-overlapping and defined in a hierarchical, un-stranded manner.
+*TSS* regions represent the individual start sites for each transcript, and given that many transcripts can originate from the same TSS, this is somewhat smaller than the number of actual transcripts defined in the GTF.
+
 
 ```{r tab-regions}
 cp <- em(
@@ -286,15 +278,18 @@ div(class = "table",
 
 ### Summary
 
-```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-centric regions using the above workflow and the supplied GTF. Percentages represent the amount of the genome allocated to each region. Blacklisted regions were not considered for this step of the annotation.*"}
+```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-centric regions using `defineRegions()` and the supplied GTF. Percentages represent the amount of the genome allocated to each region with total widths shown in Mb. Blacklisted regions were not considered for this step of the annotation.*"}
 gene_regions %>% 
   lapply(select, region) %>% 
   GRangesList() %>% 
   unlist() %>% 
   mutate(region = factor(region, levels = regions)) %>% 
+  setNames(NULL) %>%
   plotPie(
-    fill = "region", scale_by = "width", show_total = FALSE, 
-    category_size = 3.5
+    fill = "region", scale_by = "width", scale_factor = 1e6,
+    total_glue = "{comma(N, 0.1)}Mb", total_size = 4.5,
+    cat_glue = "{str_wrap(.data[[fill]], 10)}\n{comma(n, 0.1)}Mb\n({percent(p, 0.1)})",
+    cat_alpha = 0.8, cat_adj = 0.1, cat_size = 3.5
   ) +
   scale_fill_manual(values = region_cols) +
   theme(legend.position = "none")
@@ -303,12 +298,12 @@ gene_regions %>%
 ### Example
 
 ```{r example-id}
-id <- sort(all_gr$gene$gene_id)[[1]]
+id <- sort(gtf_gene$gene_id)[[1]]
 ```
 
 
-```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(all_gr$gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
-gr <- subset(all_gr$gene, gene_id == id) %>% 
+```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf_gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
+gr <- subset(gtf_gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
 ft <- gene_regions %>% 
@@ -321,10 +316,10 @@ ft <- gene_regions %>%
   subset(region != "TSS") %>% 
   sort()
 df <- list(
-  all_gr$transcript %>% 
+  gtf_transcript %>% 
     subsetByOverlaps(gr) %>% 
     as_tibble(rangeAsChar = FALSE),
-  all_gr$exon %>% 
+  gtf_exon %>% 
     subsetByOverlaps(gr) %>% 
     as_tibble(rangeAsChar = FALSE) 
 ) %>% 
@@ -361,10 +356,10 @@ df %>%
       y = as.integer(transcript_name),
       yend = as.integer(transcript_name)
     ),
-    data = all_gr$transcript %>% 
+    data = gtf_transcript %>% 
       subsetByOverlaps(gr) %>% 
       select(transcript_name) %>% 
-      setdiffMC(all_gr$exon) %>%
+      setdiffMC(gtf_exon) %>%
       as.data.frame() %>% 
       mutate(transcript_name = vctrs::vec_proxy(transcript_name)) %>% 
       unnest(transcript_name) %>% 
@@ -411,7 +406,7 @@ df %>%
 feat_path <- here::here(config$external$features)
 external_features <- list(features = c())
 has_features <- FALSE
-if (length(feat_path)> 0) {
+if (length(feat_path) > 0) {
   stopifnot(file.exists(feat_path))
   external_features <- suppressWarnings(
     import.gff(feat_path, genome = sq)
@@ -446,50 +441,20 @@ colours$features <- feat_col
 
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above.*")}
-suppressWarnings(
-  external_features %>% 
-    mutate(w = width) %>% 
-    mcols() %>% 
-    as_tibble() %>% 
-    pivot_longer(
-      cols = all_of(names(regions)),
-      names_to = "region", values_to = "prop"
-    ) %>% 
-    group_by(feature, region) %>% 
-    summarise(ol = sum(prop*w/1e6), .groups = "drop") %>% 
-    left_join(
-      external_features %>%
-        group_by(feature) %>% 
-        summarise(w = sum(width/1e6)) %>%
-        as_tibble(),
-      by = "feature"
-    ) %>% 
-    mutate(
-      p = ol / w,
-      Feature = factor(feature, levels = names(feat_col)) %>% 
-        fct_relabel(str_sep_to_title),
-      region = factor(regions[region], levels = regions)
-    ) %>% 
-    ggplot(
-      aes(fct_rev(region), p, fill = feature)
-    ) +
-    geom_col(colour = "grey80") +
-    geom_label(
-      aes(label = percent(p, accuracy = 1)),
-      data = . %>% 
-        group_by(region, feature, Feature) %>% 
-        summarise(p = sum(p), .groups = "drop"),
-      alpha = 0.5,
-      nudge_y = 0.03
-    ) +
-    coord_flip() +
-    facet_grid(Feature~., scales = "free_y", space = "free") +
-    scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
-    scale_fill_manual(values = feat_col) +
-    labs(x = "", y = "") +
-    theme(legend.position = "none")
-)
+```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions.*")}
+external_features %>% 
+  as_tibble() %>% 
+  dplyr::select(range, feature, all_of(names(gene_regions))) %>% 
+  pivot_longer(
+    cols = all_of(names(gene_regions)), names_to = "region", values_to = "p"
+  ) %>% 
+  mutate(region = regions[region]) %>% 
+  plotSplitDonut(
+    inner = "feature", outer = "region", scale_by = "p", scale_factor = 1,
+    inner_palette = colours$feature, outer_palette = region_cols,
+    inner_glue = "{str_wrap(.data[[inner]], 10)}\n{comma(n, 1)}\n{percent(p,0.1)}",
+    outer_glue = "{str_wrap(.data[[outer]], 15)}\n{percent(p,0.1)}",
+  )
 ```
 
 
@@ -524,7 +489,7 @@ tbl <- external_features %>%
     columns = list(
       guide = colDef(
         maxWidth = 40,
-        style = function(value) list(background= value),
+        style = function(value) list(background = value),
         cell = function(value) "",
         name = ""
       ),
@@ -555,7 +520,6 @@ div(class = "table",
   )
 )
 ```
-
 
 
 # HiC Data {.tabset}
@@ -684,7 +648,7 @@ missing_dir_cols <- setdiff(
   c("up", "down", "unchanged", "undetected", "ambiguous"), 
   names(colours$direction)
 )
-if (length(missing_dir_cols) > 0){
+if (length(missing_dir_cols) > 0) {
   def_dir_cols <- c(
     up = "#CA0020", down = "#0571B0", 
     unchanged = "#7F7F7F", undetected = "#E5E5E5",
@@ -755,7 +719,7 @@ colorRampPalette(colours$heatmaps)(11) %>%
 
 # Data Export
 
-During the setup of all required annotations, the following files were exported:
+During setup of all required annotations, the following files were exported:
 
 `r pander(lapply(all_out, str_extract, paste0(basename(here::here()), ".+")))`
 

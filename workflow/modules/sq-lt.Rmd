@@ -70,14 +70,7 @@ b <- filtered_counts %>%
   labs(
     x = "Normalised logCPM", colour = "Treat"
   )
-plot_grid(
-  a + theme(legend.position = "none"), 
-  b + theme(legend.position = "none"),
-  get_legend(b),
-  nrow = 1,
-  rel_widths = c(5, 5, 1),
-  labels = c("A", "B")
-)
+a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 ```
 
 ### RLE (Pre-Normalisation)
@@ -119,11 +112,7 @@ a <- plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") 
 b <- plotAssayPCA(filtered_counts, "qsmooth", colour = "treat", label = "label") +
   scale_colour_manual(values = treat_colours) +
   ggtitle("Post-Normalisation")
-plot_grid(
-  a + theme(legend.position = "none"), b + theme(legend.position = "none"), 
-  get_legend(b + labs(colour = "Treat")), rel_widths = c(1, 1, 0.2), 
-  nrow = 1, labels = c("A", "B")
-  )
+a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 ```
 
 
