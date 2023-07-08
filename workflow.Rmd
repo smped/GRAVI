@@ -147,6 +147,8 @@ Highly-ranked union and treatment-specific Treatment peaks are also shown in the
 
 - Union peaks will be exported as `output/macs2/<target>/<target>_union_peaks.bed`
 - Treatment peaks will be exported as individual bed files for each treatment group (`output/macs2/<Ctarget>/<target>_<treat>_treatment_peaks.bed`), as well as combined in a single `RDS` object for faster parsing into an `R` environment as `output/macs2/<target>/<target>_treatment_peaks.rds`
+- BigWig files will be generated from the bedgraph files output by `mcas2 callpeak` using the `--SPMR` tag, for each individual sample and for each set of peaks called by merging samples from the same group
+- Additional BigWig files will be produced from the bedgraph files output by `macs2 bdgcmp`, representing fold-enrichment over the input sample for each set of grouped samples
 
 
 ## Differential Signal {#differential-signal}

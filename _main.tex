@@ -80,7 +80,7 @@
 
 \title{GRAVI User Guide (v0.1.6)}
 \author{Stephen Pederson}
-\date{2023-07-08}
+\date{2023-07-09}
 
 \begin{document}
 \maketitle
@@ -269,6 +269,10 @@ Highly-ranked union and treatment-specific Treatment peaks are also shown in the
   Union peaks will be exported as \texttt{output/macs2/\textless{}target\textgreater{}/\textless{}target\textgreater{}\_union\_peaks.bed}
 \item
   Treatment peaks will be exported as individual bed files for each treatment group (\texttt{output/macs2/\textless{}Ctarget\textgreater{}/\textless{}target\textgreater{}\_\textless{}treat\textgreater{}\_treatment\_peaks.bed}), as well as combined in a single \texttt{RDS} object for faster parsing into an \texttt{R} environment as \texttt{output/macs2/\textless{}target\textgreater{}/\textless{}target\textgreater{}\_treatment\_peaks.rds}
+\item
+  BigWig files will be generated from the bedgraph files output by \texttt{mcas2\ callpeak} using the \texttt{-\/-SPMR} tag, for each individual sample and for each set of peaks called by merging samples from the same group
+\item
+  Additional BigWig files will be produced from the bedgraph files output by \texttt{macs2\ bdgcmp}, representing fold-enrichment over the input sample for each set of grouped samples
 \end{itemize}
 
 \hypertarget{differential-signal}{%
