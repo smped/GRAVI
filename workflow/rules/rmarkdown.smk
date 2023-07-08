@@ -57,7 +57,7 @@ rule compile_index_html:
     input:
         extrachips = rules.update_extrachips.output,
         html = HTML_OUT,
-        here = here_file,		
+        here = here_file,
         rmd = os.path.join(rmd_path, "index.Rmd"),
         setup = rules.create_setup_chunk.output,
         site_yaml = rules.create_site_yaml.output,
@@ -112,7 +112,7 @@ rule compile_macs2_summary_html:
 		blacklist = blacklist,
 		bw = lambda wildcards: expand(
 			os.path.join(
-				macs2_path, "{{target}}", 
+				macs2_path, "{{target}}",
 				"{{target}}_{treat}_merged_treat_pileup.bw"
 			),
 			treat = set(df[df.target == wildcards.target]['treat'])
