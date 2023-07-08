@@ -1,16 +1,16 @@
 --- 
-title: "GRAVI User Guide (v0.1.5)"
+title: "GRAVI User Guide (v0.1.6)"
 author: "Stephen Pederson"
 date: "`r Sys.Date()`"
 site: bookdown::bookdown_site
 documentclass: book
 bibliography: [book.bib, packages.bib]
-url: https://steveped.github.io/GRAVI/
+url: https://smped.github.io/GRAVI/
 # cover-image: path to the social sharing image like images/cover.jpg
 description: |
   This is the main documentation for the GRAVI workflow
 link-citations: yes
-github-repo: steveped/GRAVI
+github-repo: smped/GRAVI
 always_allow_html: true
 ---
 
@@ -19,6 +19,11 @@ always_allow_html: true
 This book is the primary documentation for running the GRAVI (Gene Regulatory Analysis using Variable Inputs) workflow.
 This workflow is managed using `snakemake` (>v7.7) for running locally or on any HPC, and is designed to minimally take one ChIP target under at least two conditions.
 There is no theoretical upper limit to the number of ChIP targets which can be analysed, although the practicalities of interpretation will dictate this.
+
+**Required** additional inputs are:
+
+- A gtf with gene, transcript and exon-level annotations. The workflow has been tested extensively with [Gencode annotations](https://www.gencodegenes.org/) and these are preferred.
+- A blacklist should also be provided as a bed file. These can easily be obtained from [here](https://github.com/Boyle-Lab/Blacklist/tree/master/lists)
 
 
 In addition to $\geq 1$ ChIP targets, **optional** input includes:
@@ -36,7 +41,6 @@ The GRAVI workflow itself will
 - Compare differential binding results across ChIP targets or samples (Pair-wise comparisons)
 - Perform enrichment analyses at all steps of the workflow
 <!-- - *TO BE COMPLETED*: Perform motif analysis based on key binding patterns within and across ChIP targets -->
-- Add Rmd and html files to any local `git` repository
 
 The primary output is a series of `html` pages generated from `rmarkdown` files, along with key figures and tables able to be shared amongst collaborators and incorporated directly into publications.
 

@@ -27,7 +27,7 @@ project_home/
  └── workflow
 ```
 
-- Rmarkdown scripts will be added and executed from the `analysis` directory
+- Rmarkdown scripts will be added to and executed from the `analysis` directory
 - Key configuration files are provided in the `config` directory
 - *Your data* should be placed in the `data` directory as described below
 - The `html` output summarising all results will be produced in the `docs` directory
@@ -41,29 +41,24 @@ The GRAVI workflow currently takes `bam` files as the primary input.
 Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.
 
 Files should be placed in the `data/bam` directory as set in `config.yml`, although this can be changed if desired.
-Each ChIP target should be placed in a separate directory using the example layout as given below.
-As IgG input may be shared between ChIP targets, these can all be placed in the directory `data/Input` and this is hard-wired into the workflow.
 
 ```
 project_home/
  └── data
       └── bam 
-           ├── TF1 
-           │    ├── control_rep1.bam
-           │    ├── control_rep2.bam
-           │    ├── control_rep3.bam
-           │    ├── treat_rep1.bam
-           │    ├── treat_rep2.bam
-           │    └── treat_rep3.bam
-           ├── TF2 
-           │    ├── control_rep1.bam
-           │    ├── control_rep2.bam
-           │    ├── control_rep3.bam
-           │    ├── treat_rep1.bam
-           │    ├── treat_rep2.bam
-           │    └── treat_rep3.bam           
-           └── Input
-                └── pooled_input.bam 
+           ├── target1_control_rep1.bam
+           ├── target1_control_rep2.bam
+           ├── target1_control_rep3.bam
+           ├── target1_treat_rep1.bam
+           ├── target1_treat_rep2.bam
+           ├── target1_treat_rep3.bam
+           ├── target2_control_rep1.bam
+           ├── target2_control_rep2.bam
+           ├── target2_control_rep3.bam
+           ├── target2_treat_rep1.bam
+           ├── target2_treat_rep2.bam
+           ├── target2_treat_rep3.bam
+           └── input1.bam 
 ```
 
 ## Sample Descriptions {#sample-descriptions}
@@ -77,14 +72,14 @@ A brief example would follow the layout
 ```{r}
 tribble(
     ~sample, ~target, ~treat, ~replicate, ~input,
-    "control_rep1", "TF1", "Control", 1, "pooled_input",
-    "control_rep2", "TF1", "Control", 2, "pooled_input",
-    "control_rep3", "TF1", "Control", 3, "pooled_input",
-    "treat_rep1", "TF1", "Treatment", 1, "pooled_input",
-    "treat_rep2", "TF1", "Treatment", 2, "pooled_input",
-    "treat_rep3", "TF1", "Treatment", 3, "pooled_input"
+    "target1_control_rep1", "Target1", "Control", 1, "input1",
+    "target1_control_rep2", "Target1", "Control", 2, "input1",
+    "target1_control_rep3", "Target1", "Control", 3, "input1",
+    "target1_treat_rep1", "Target1", "Treat1", 1, "input1",
+    "target1_treat_rep2", "Target1", "Treat1", 2, "input1",
+    "target1_treat_rep3", "Target1", "Treat1", 3, "input1"
 ) %>% 
-    pander()
+    pander(justify = "lllll")
 ```
 
 
@@ -94,10 +89,9 @@ This file must contain all four of the columns `sample`, `target`, `treat`, `inp
 If supplied, optional columns such as `replicate`, `passage` etc can be referenced in the workflow.
 As well as defining all required steps for the workflow, labels for plots will be generated from combinations of these columns.
 
-- `sample`: This **must** be identical to the filename, but without the `bam` extension.
-- `target`: This **must** be the directory name within `data/aligned` which contains the sample
+- `sample`: This **must** be identical to the filename, but without the `.bam` extension.
 - `treat`: This is used to define all comparisons 
-- `input`: All files must correspond to a file in `data/aligned/Input` but without the `bam` suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.
+- `input`: All files must correspond to a file in `data/bam` but without the `.bam` suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.
 
 ### Optional Columns
 
@@ -114,13 +108,12 @@ Names can be any informative name chosen by the user.
 ```
 project_home/
  └── data
-      ├── aligned 
-      │    ├── TF1 
-      │    ├── TF2 
-      │    └── Input
+      ├── bam 
       └── external
+           ├── gencode_annotation.gtf.gz
+           ├── blacklist.bed.gz
            ├── rnaseq_topTable.tsv
-           ├── external_features.gtf
+           ├── external_features.gtf.gz
            ├── hic_interactions.bedpe
            ├── additional_coverage_control.bw
            └── additional_coverage_treat.bw
@@ -135,7 +128,7 @@ Additional expected columns will be `logFC` and `FDR` or similar names which cou
 ### External Features
 
 These must be provided as a GTF which can be prepared by any method.
-The feature types should be defined in a field named `feature`.
+The feature types should be defined in a **field named `feature`.**
 Non-overlapping features are optimal but not essential, and this is left to the users discretion.
 For example, if providing features such as enhancers and super-enhancers[@rose], it may be more sensible to provide these as mutually exclusive groups.
 

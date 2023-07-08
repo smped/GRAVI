@@ -4,18 +4,18 @@
 
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Chapter 3 Quick Start Guide | GRAVI User Guide (v0.1.5)</title>
+  <title>Chapter 3 Quick Start Guide | GRAVI User Guide (v0.1.6)</title>
   <meta name="description" content="This is the main documentation for the GRAVI workflow" />
-  <meta name="generator" content="bookdown 0.30 and GitBook 2.6.7" />
+  <meta name="generator" content="bookdown 0.34 and GitBook 2.6.7" />
 
-  <meta property="og:title" content="Chapter 3 Quick Start Guide | GRAVI User Guide (v0.1.5)" />
+  <meta property="og:title" content="Chapter 3 Quick Start Guide | GRAVI User Guide (v0.1.6)" />
   <meta property="og:type" content="book" />
   
   <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
-  <meta name="github-repo" content="steveped/GRAVI" />
+  <meta name="github-repo" content="smped/GRAVI" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Chapter 3 Quick Start Guide | GRAVI User Guide (v0.1.5)" />
+  <meta name="twitter:title" content="Chapter 3 Quick Start Guide | GRAVI User Guide (v0.1.6)" />
   
   <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
   
@@ -23,7 +23,7 @@
 <meta name="author" content="Stephen Pederson" />
 
 
-<meta name="date" content="2023-01-13" />
+<meta name="date" content="2023-07-08" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -52,13 +52,17 @@
 <link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
 <link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
 <script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
-<script src="libs/htmlwidgets-1.5.4/htmlwidgets.js"></script>
+<script src="libs/htmlwidgets-1.6.2/htmlwidgets.js"></script>
 <script src="libs/viz-1.8.2/viz.js"></script>
 <link href="libs/DiagrammeR-styles-0.2/styles.css" rel="stylesheet" />
-<script src="libs/grViz-binding-1.0.9/grViz.js"></script>
+<script src="libs/grViz-binding-1.0.10/grViz.js"></script>
 
 
 
+<style type="text/css">
+  
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+</style>
 <style type="text/css">
 /* Used with Pandoc 2.11+ new --citeproc when CSL is used */
 div.csl-bib-body { }
@@ -103,7 +107,7 @@ div.csl-indent {
 <ul>
 <li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
 <li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
-<li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
+<li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-signal"><i class="fa fa-check"></i><b>2.3</b> Differential Signal</a></li>
 <li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a>
 <ul>
 <li class="chapter" data-level="2.4.1" data-path="workflow.html"><a href="workflow.html#key-outputs-2"><i class="fa fa-check"></i><b>2.4.1</b> Key Outputs</a></li>
@@ -162,7 +166,7 @@ div.csl-indent {
       <div class="body-inner">
         <div class="book-header" role="navigation">
           <h1>
-            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.5)</a>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.6)</a>
           </h1>
         </div>
 
@@ -176,19 +180,16 @@ div.csl-indent {
 <h2><span class="header-section-number">3.1</span> Install Snakemake<a href="quick-start.html#snakemake" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>You will need a <code>snakemake</code> installation to begin.
 Please see <a href="https://snakemake.readthedocs.io/en/stable/getting_started/installation.html">here</a> for help setting this up.
-If you are running the pipeline on an HPC and are unsure, please consult with your HPC support team about setting up <code>snakemake</code> on your specific cluster.
-<code>Snakemake</code> itself is in widespread use globally, so they should be able to provide the support you need.</p>
+If you are running the pipeline on an HPC and are unsure, please consult with your HPC support team about setting up a <code>snakemake</code> profile on your specific cluster.</p>
 </div>
 <div id="quick-directories" class="section level2 hasAnchor" number="3.2">
 <h2><span class="header-section-number">3.2</span> Create the Directory Structure<a href="quick-start.html#quick-directories" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <ol style="list-style-type: decimal">
-<li>Create a new <code>github</code> repository on your account by going to <a href="https://github.com/steveped/GRAVI/generate">the github template repository</a></li>
+<li>Create a new <code>github</code> repository on your account by going to <a href="https://github.com/smped/GRAVI/generate">the github template repository</a></li>
 <li>Download your new repository to your local server or HPC using <code>git clone &lt;myrepository&gt;</code></li>
-<li>Place your bam files in the subdirectory <code>data/aligned</code> as described in section <a href="input-files.html#alignments">4.2</a>
-<ul>
-<li>These should be placed in separate directories for each target, such <code>data/bam/target1</code> and <code>data/bam/target2</code></li>
-</ul></li>
+<li>Place your bam files in the subdirectory <code>data/bam</code> or <code>data/aligned</code> as described in section <a href="input-files.html#alignments">4.2</a></li>
 <li>Edit <code>samples.tsv</code> in the <code>config</code> directory as described in section <a href="input-files.html#sample-descriptions">4.3</a></li>
+<li>Ensure you have the blacklist as a bed file and annotations as gtf</li>
 <li>Modify any parameters in <code>config/config.yml</code></li>
 </ol>
 </div>

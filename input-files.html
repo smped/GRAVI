@@ -4,18 +4,18 @@
 
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <title>Chapter 4 Files and Directories | GRAVI User Guide (v0.1.5)</title>
+  <title>Chapter 4 Files and Directories | GRAVI User Guide (v0.1.6)</title>
   <meta name="description" content="This is the main documentation for the GRAVI workflow" />
-  <meta name="generator" content="bookdown 0.30 and GitBook 2.6.7" />
+  <meta name="generator" content="bookdown 0.34 and GitBook 2.6.7" />
 
-  <meta property="og:title" content="Chapter 4 Files and Directories | GRAVI User Guide (v0.1.5)" />
+  <meta property="og:title" content="Chapter 4 Files and Directories | GRAVI User Guide (v0.1.6)" />
   <meta property="og:type" content="book" />
   
   <meta property="og:description" content="This is the main documentation for the GRAVI workflow" />
-  <meta name="github-repo" content="steveped/GRAVI" />
+  <meta name="github-repo" content="smped/GRAVI" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Chapter 4 Files and Directories | GRAVI User Guide (v0.1.5)" />
+  <meta name="twitter:title" content="Chapter 4 Files and Directories | GRAVI User Guide (v0.1.6)" />
   
   <meta name="twitter:description" content="This is the main documentation for the GRAVI workflow" />
   
@@ -23,7 +23,7 @@
 <meta name="author" content="Stephen Pederson" />
 
 
-<meta name="date" content="2023-01-13" />
+<meta name="date" content="2023-07-08" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -52,13 +52,17 @@
 <link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
 <link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
 <script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
-<script src="libs/htmlwidgets-1.5.4/htmlwidgets.js"></script>
+<script src="libs/htmlwidgets-1.6.2/htmlwidgets.js"></script>
 <script src="libs/viz-1.8.2/viz.js"></script>
 <link href="libs/DiagrammeR-styles-0.2/styles.css" rel="stylesheet" />
-<script src="libs/grViz-binding-1.0.9/grViz.js"></script>
+<script src="libs/grViz-binding-1.0.10/grViz.js"></script>
 
 
 
+<style type="text/css">
+  
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+</style>
 <style type="text/css">
 /* Used with Pandoc 2.11+ new --citeproc when CSL is used */
 div.csl-bib-body { }
@@ -103,7 +107,7 @@ div.csl-indent {
 <ul>
 <li class="chapter" data-level="2.1" data-path="workflow.html"><a href="workflow.html#annotation"><i class="fa fa-check"></i><b>2.1</b> Annotation Setup</a></li>
 <li class="chapter" data-level="2.2" data-path="workflow.html"><a href="workflow.html#peak-calling"><i class="fa fa-check"></i><b>2.2</b> Peak Calling</a></li>
-<li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-binding"><i class="fa fa-check"></i><b>2.3</b> Differential Binding</a></li>
+<li class="chapter" data-level="2.3" data-path="workflow.html"><a href="workflow.html#differential-signal"><i class="fa fa-check"></i><b>2.3</b> Differential Signal</a></li>
 <li class="chapter" data-level="2.4" data-path="workflow.html"><a href="workflow.html#pairwise-comparisons"><i class="fa fa-check"></i><b>2.4</b> Pairwise Comparisons</a>
 <ul>
 <li class="chapter" data-level="2.4.1" data-path="workflow.html"><a href="workflow.html#key-outputs-2"><i class="fa fa-check"></i><b>2.4.1</b> Key Outputs</a></li>
@@ -162,7 +166,7 @@ div.csl-indent {
       <div class="body-inner">
         <div class="book-header" role="navigation">
           <h1>
-            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.5)</a>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">GRAVI User Guide (v0.1.6)</a>
           </h1>
         </div>
 
@@ -185,7 +189,7 @@ The required directory structure is</p>
  ├── output
  └── workflow</code></pre>
 <ul>
-<li>Rmarkdown scripts will be added and executed from the <code>analysis</code> directory</li>
+<li>Rmarkdown scripts will be added to and executed from the <code>analysis</code> directory</li>
 <li>Key configuration files are provided in the <code>config</code> directory</li>
 <li><em>Your data</em> should be placed in the <code>data</code> directory as described below</li>
 <li>The <code>html</code> output summarising all results will be produced in the <code>docs</code> directory</li>
@@ -198,28 +202,23 @@ The required directory structure is</p>
 <h2><span class="header-section-number">4.2</span> Alignments<a href="input-files.html#alignments" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>The GRAVI workflow currently takes <code>bam</code> files as the primary input.
 Multiple workflows exist for quality control, adapter removal and de-duplication and it is assumed that supplied reads will have been pre-processed with the above steps, then aligned to the genome of interest.</p>
-<p>Files should be placed in the <code>data/bam</code> directory as set in <code>config.yml</code>, although this can be changed if desired.
-Each ChIP target should be placed in a separate directory using the example layout as given below.
-As IgG input may be shared between ChIP targets, these can all be placed in the directory <code>data/Input</code> and this is hard-wired into the workflow.</p>
+<p>Files should be placed in the <code>data/bam</code> directory as set in <code>config.yml</code>, although this can be changed if desired.</p>
 <pre><code>project_home/
  └── data
       └── bam 
-           ├── TF1 
-           │    ├── control_rep1.bam
-           │    ├── control_rep2.bam
-           │    ├── control_rep3.bam
-           │    ├── treat_rep1.bam
-           │    ├── treat_rep2.bam
-           │    └── treat_rep3.bam
-           ├── TF2 
-           │    ├── control_rep1.bam
-           │    ├── control_rep2.bam
-           │    ├── control_rep3.bam
-           │    ├── treat_rep1.bam
-           │    ├── treat_rep2.bam
-           │    └── treat_rep3.bam           
-           └── Input
-                └── pooled_input.bam </code></pre>
+           ├── target1_control_rep1.bam
+           ├── target1_control_rep2.bam
+           ├── target1_control_rep3.bam
+           ├── target1_treat_rep1.bam
+           ├── target1_treat_rep2.bam
+           ├── target1_treat_rep3.bam
+           ├── target2_control_rep1.bam
+           ├── target2_control_rep2.bam
+           ├── target2_control_rep3.bam
+           ├── target2_treat_rep1.bam
+           ├── target2_treat_rep2.bam
+           ├── target2_treat_rep3.bam
+           └── input1.bam </code></pre>
 </div>
 <div id="sample-descriptions" class="section level2 hasAnchor" number="4.3">
 <h2><span class="header-section-number">4.3</span> Sample Descriptions<a href="input-files.html#sample-descriptions" class="anchor-section" aria-label="Anchor link to header"></a></h2>
@@ -228,65 +227,65 @@ Any files placed in the <code>data/aligned</code> directory, but not specified i
 The desired layout should be a <em>tab-delimited file</em> (i.e. tsv).
 These can be generated using Excel, Notepad++, R, Visual Studio, or any other software you are comfortable with.
 A brief example would follow the layout</p>
-<table style="width:88%;">
+<table style="width:89%;">
 <colgroup>
-<col width="20%" />
+<col width="31%" />
+<col width="13%" />
+<col width="13%" />
+<col width="16%" />
 <col width="12%" />
-<col width="16%" />
-<col width="16%" />
-<col width="20%" />
 </colgroup>
 <thead>
 <tr class="header">
-<th align="center">sample</th>
-<th align="center">target</th>
-<th align="center">treat</th>
-<th align="center">replicate</th>
-<th align="center">input</th>
+<th align="left">sample</th>
+<th align="left">target</th>
+<th align="left">treat</th>
+<th align="left">replicate</th>
+<th align="left">input</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="center">control_rep1</td>
-<td align="center">TF1</td>
-<td align="center">Control</td>
-<td align="center">1</td>
-<td align="center">pooled_input</td>
+<td align="left">target1_control_rep1</td>
+<td align="left">Target1</td>
+<td align="left">Control</td>
+<td align="left">1</td>
+<td align="left">input1</td>
 </tr>
 <tr class="even">
-<td align="center">control_rep2</td>
-<td align="center">TF1</td>
-<td align="center">Control</td>
-<td align="center">2</td>
-<td align="center">pooled_input</td>
+<td align="left">target1_control_rep2</td>
+<td align="left">Target1</td>
+<td align="left">Control</td>
+<td align="left">2</td>
+<td align="left">input1</td>
 </tr>
 <tr class="odd">
-<td align="center">control_rep3</td>
-<td align="center">TF1</td>
-<td align="center">Control</td>
-<td align="center">3</td>
-<td align="center">pooled_input</td>
+<td align="left">target1_control_rep3</td>
+<td align="left">Target1</td>
+<td align="left">Control</td>
+<td align="left">3</td>
+<td align="left">input1</td>
 </tr>
 <tr class="even">
-<td align="center">treat_rep1</td>
-<td align="center">TF1</td>
-<td align="center">Treatment</td>
-<td align="center">1</td>
-<td align="center">pooled_input</td>
+<td align="left">target1_treat_rep1</td>
+<td align="left">Target1</td>
+<td align="left">Treat1</td>
+<td align="left">1</td>
+<td align="left">input1</td>
 </tr>
 <tr class="odd">
-<td align="center">treat_rep2</td>
-<td align="center">TF1</td>
-<td align="center">Treatment</td>
-<td align="center">2</td>
-<td align="center">pooled_input</td>
+<td align="left">target1_treat_rep2</td>
+<td align="left">Target1</td>
+<td align="left">Treat1</td>
+<td align="left">2</td>
+<td align="left">input1</td>
 </tr>
 <tr class="even">
-<td align="center">treat_rep3</td>
-<td align="center">TF1</td>
-<td align="center">Treatment</td>
-<td align="center">3</td>
-<td align="center">pooled_input</td>
+<td align="left">target1_treat_rep3</td>
+<td align="left">Target1</td>
+<td align="left">Treat1</td>
+<td align="left">3</td>
+<td align="left">input1</td>
 </tr>
 </tbody>
 </table>
@@ -296,10 +295,9 @@ A brief example would follow the layout</p>
 If supplied, optional columns such as <code>replicate</code>, <code>passage</code> etc can be referenced in the workflow.
 As well as defining all required steps for the workflow, labels for plots will be generated from combinations of these columns.</p>
 <ul>
-<li><code>sample</code>: This <strong>must</strong> be identical to the filename, but without the <code>bam</code> extension.</li>
-<li><code>target</code>: This <strong>must</strong> be the directory name within <code>data/aligned</code> which contains the sample</li>
+<li><code>sample</code>: This <strong>must</strong> be identical to the filename, but without the <code>.bam</code> extension.</li>
 <li><code>treat</code>: This is used to define all comparisons</li>
-<li><code>input</code>: All files must correspond to a file in <code>data/aligned/Input</code> but without the <code>bam</code> suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.</li>
+<li><code>input</code>: All files must correspond to a file in <code>data/bam</code> but without the <code>.bam</code> suffix. Each sample can have a separate input sample, or input samples can be shared across all or some of the samples.</li>
 </ul>
 </div>
 <div id="optional-columns" class="section level3 hasAnchor" number="4.3.2">
@@ -316,28 +314,27 @@ Full details are demonstrated in Section <a href="editing-yaml.html#config-yml">
 Names can be any informative name chosen by the user.</p>
 <pre><code>project_home/
  └── data
-      ├── aligned 
-      │    ├── TF1 
-      │    ├── TF2 
-      │    └── Input
+      ├── bam 
       └── external
+           ├── gencode_annotation.gtf.gz
+           ├── blacklist.bed.gz
            ├── rnaseq_topTable.tsv
-           ├── external_features.gtf
+           ├── external_features.gtf.gz
            ├── hic_interactions.bedpe
            ├── additional_coverage_control.bw
            └── additional_coverage_treat.bw</code></pre>
 <div id="rna-seq" class="section level3 hasAnchor" number="4.4.1">
 <h3><span class="header-section-number">4.4.1</span> RNA-Seq<a href="input-files.html#rna-seq" class="anchor-section" aria-label="Anchor link to header"></a></h3>
-<p>Files provided with differential expression analysis results from a relevant RNA-Seq experiment should follow the layout as produced by <code>topTable()</code> from the <code>limma</code> package<span class="citation">(<a href="#ref-limma" role="doc-biblioref">Ritchie et al. 2015</a>)</span>.
+<p>Files provided with differential expression analysis results from a relevant RNA-Seq experiment should follow the layout as produced by <code>topTable()</code> from the <code>limma</code> package<span class="citation">(<a href="#ref-limma">Ritchie et al. 2015</a>)</span>.
 Gene IDs should match those in the Gencode GTF (Ensembl IDs) and should be contained in a column called <code>gene_id</code>.
 Additional expected columns will be <code>logFC</code> and <code>FDR</code> or similar names which could be reasonably found by <code>regex</code> matching within the workflow.</p>
 </div>
 <div id="external-features" class="section level3 hasAnchor" number="4.4.2">
 <h3><span class="header-section-number">4.4.2</span> External Features<a href="input-files.html#external-features" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>These must be provided as a GTF which can be prepared by any method.
-The feature types should be defined in a field named <code>feature</code>.
+The feature types should be defined in a <strong>field named <code>feature</code>.</strong>
 Non-overlapping features are optimal but not essential, and this is left to the users discretion.
-For example, if providing features such as enhancers and super-enhancers<span class="citation">(<a href="#ref-rose" role="doc-biblioref">Whyte et al. 2013</a>)</span>, it may be more sensible to provide these as mutually exclusive groups.</p>
+For example, if providing features such as enhancers and super-enhancers<span class="citation">(<a href="#ref-rose">Whyte et al. 2013</a>)</span>, it may be more sensible to provide these as mutually exclusive groups.</p>
 </div>
 <div id="hic-interactions" class="section level3 hasAnchor" number="4.4.3">
 <h3><span class="header-section-number">4.4.3</span> HiC Interactions<a href="input-files.html#hic-interactions" class="anchor-section" aria-label="Anchor link to header"></a></h3>
