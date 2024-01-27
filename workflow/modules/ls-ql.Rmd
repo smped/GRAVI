@@ -40,7 +40,9 @@ plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
 
 ```{r fit-model}
 fm <- ifelse(
-  config$comparisons$paired, glue("~ {rep_col} + treat"), glue("~ treat")
+  config$comparisons$paired & length(unique(vapply(split(samples, samples$treat), nrow, integer(1)))) == 1, 
+  glue("~ {rep_col} + treat"), 
+  glue("~ treat")
 ) %>% 
   as.formula()
 X <- model.matrix(fm, data = colData(filtered_counts)) %>%
@@ -85,3 +87,4 @@ rowData(filtered_counts) <- rowData(filtered_counts) %>%
 ```
 
 Using simple library-size normalisation, the Quasi-Likelihood model was fitted across the set of sliding windows, taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, with all default settings.
+`r if (str_detect(as.character(fm)[[2]], "\\+")) paste("A separate baseline expression level was estimated for each", rep_col, "with a common treatment response being fitted.")`

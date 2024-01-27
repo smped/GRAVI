@@ -18,17 +18,15 @@ glue(
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	bibliography: references.bib
 	link-citations: true
+	params:
+	  threads: {{threads}}
+	  pairs:
+	    value:
+	      {{target1}}: [\"{{ref1}}\", \"{{treat1}}\"]
+	      {{target2}}: [\"{{ref2}}\", \"{{treat2}}\"]
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
-	```
-
-	```{r set-vals}
-	threads <- {{threads}}
-	pairs <- list(
-	  \"{{target1}}\" = c(\"{{ref1}}\", \"{{treat1}}\"),
-	  \"{{target2}}\" = c(\"{{ref2}}\", \"{{treat2}}\")
-	)
 	```
 
 	",

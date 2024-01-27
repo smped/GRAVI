@@ -1,6 +1,7 @@
 library(tidyverse)
 library(rtracklayer)
 library(plyranges)
+library(yaml)
 
 stopifnot(library(extraChIPs, logical.return = TRUE))
 
@@ -10,12 +11,16 @@ bw <- args[[1]]
 tsv <- args[[2]]
 stopifnot(file.exists(bw))
 
+config <- read_yaml(here::here("config", "config.yml"))
 sq <- read_rds(
   here::here("output/annotations/seqinfo.rds")
 )
 blacklist <- import.bed(
-  here::here("output/annotations/blacklist.bed.gz"), genome = sq
+  here::here(config$external$blacklist),
+  seqinfo = sq
 )
+
+
 gr <- sq %>%
   GRanges() %>%
   setdiff(blacklist)

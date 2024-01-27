@@ -107,7 +107,7 @@ b <- plotAssayPCA(
   scale_colour_manual(values = treat_colours) +
   guides(colour = "none") +
   ggtitle("Post-Normalisation")
-a + b + plot_annotation(tag_levels = "A") 
+a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 ```
 
 
@@ -119,7 +119,7 @@ a + b + plot_annotation(tag_levels = "A")
 X <- model.matrix(~treat, data = colData(filtered_counts)) %>%
   set_colnames(str_remove(colnames(.), "treat"))
 colData(filtered_counts)$design <- X
-paired_cors <- block <- NULL
+paired_cors <- block <- txt <- NULL
 if (config$comparisons$paired) {
   block <- colData(filtered_counts)[[rep_col]]
   set.seed(1e6)
@@ -129,6 +129,11 @@ if (config$comparisons$paired) {
     design = X,
     block = block
   )$consensus.correlation
+  txt <- glue(
+    "Data were nested within {{rep_col}} as a potential source of correlation. ",
+    "The estimated correlation within replicate samples was $\\hat{\\rho} = {{round(paired_cors, 3)}}$",
+    .open = "{{", .close = "}}"
+  )
 }
 fc <- ifelse(is.null(config$comparisons$fc), 1, config$comparisons$fc)
 fit <- assay(filtered_counts, "qsmooth") %>%
@@ -156,3 +161,4 @@ rowData(filtered_counts) <- rowData(filtered_counts) %>%
 
 After SQ-normalisation of logCPM values, the `limma-trend` method [@LawVoom2014] was applied to all retained windows.
 A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, incorporating a trended prior-variance.
+`r txt`

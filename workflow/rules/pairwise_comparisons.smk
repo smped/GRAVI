@@ -18,10 +18,8 @@ rule create_pairwise_comparisons_rmd:
 			f = "pairwise_comparison.Rmd"
 		)
 	params:
-		git = git_add,
 		threads = 4,
 	conda: "../envs/rmarkdown.yml"
-	retries: git_tries
 	threads: 1
 	resources:
 		runtime = "1m",
@@ -43,15 +41,12 @@ rule create_pairwise_comparisons_rmd:
 
         ## Add the remainder of the module as literal text
         cat {input.module_pw} >> {output.rmd}
-
-		if [[ {params.git} == "True" ]]; then
-			git add {output.rmd}
-		fi
 		"""
 
 rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
+		blacklist = blacklist,
 		config = "config/config.yml",
 		extrachips = rules.update_extrachips.output,
 		here = here_file,
@@ -114,9 +109,6 @@ rule compile_pairwise_comparisons_html:
 			)
 		)
 	params:
-		git = git_add,
-		interval = random.uniform(0, 1),
-		tries = git_tries,
 		asset_path = os.path.join(
 			"docs", "assets", "{t1}_{ref1}_{treat1}-{t2}_{ref2}_{treat2}"
 		)
@@ -126,22 +118,10 @@ rule compile_pairwise_comparisons_html:
 		runtime = "2h",
 		mem_mb = 8192
 	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
+	resources:
+		mem_mb = 32768,
+		runtime = "2h"
 	shell:
 		"""
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
-
-        if [[ {params.git} == "True" ]]; then
-            TRIES={params.tries}
-            while [[ -f .git/index.lock ]]
-            do
-                if [[ "$TRIES" == 0 ]]; then
-                    echo "ERROR: Timeout while waiting for removal of git index lock" &>> {log}
-                    exit 1
-                fi
-                sleep {params.interval}
-                ((TRIES--))
-            done
-            git add {output.html} {output.fig_path} {output.csv}
-			git add {params.asset_path}
-        fi
 		"""

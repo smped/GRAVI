@@ -1,4 +1,4 @@
-## Please see https://steveped.github.io/GRAVI/editing-yaml.html for a description of this file
+## Please see https://smped.github.io/GRAVI/editing-yaml.html for a description of this file
 samples:
   file: "config/samples.tsv"
 
@@ -29,10 +29,15 @@ comparisons:
   fdr: 0.05
   paired: false
   contrasts:
-    - ["Control", "Treat"]
-  ihw: "regions"
+    - ["E2", "E2DHT"]
+  ihw: "targets"
+
+genome:
+  build: "GRCh37"
 
 external:
+  blacklist:
+  gtf:
   rnaseq:
   features:
   hic:

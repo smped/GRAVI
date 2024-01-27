@@ -7,7 +7,7 @@ other_targets <- here::here(config$samples$file) %>%
 ihw_all <- other_targets %>% 
   sapply(
     function(x) {
-      here::here(dirname(macs2_path), x, "consensus_peaks.bed") %>%
+      here::here(dirname(macs2_path), x, glue("{x}_union_peaks.bed")) %>%
         import.bed(seqinfo = sq)
     },
     simplify = FALSE
@@ -62,10 +62,10 @@ merged_results <- merged_results %>%
 
 
 Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential binding by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
-The presence of `r glue_collapse(other_targets, sep = ", ", last = " and ")` was defined simply using the consensus peaks detected under any treatment by `macs2 callpeak`, as determined [previously](`r glue("{target}_macs2_summary.html")`).
+The presence of `r glue_collapse(other_targets, sep = ", ", last = " and ")` was defined simply using the union peaks detected under any treatment by `macs2 callpeak`, as determined [previously](`r glue("{target}_macs2_summary.html")`).
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
-The provided consensus peaks were used as initial partitions in combination, merging the smallest groups below this size until all partitions were of a suitable size.
+The provided union peaks were used as initial partitions in combination, merging the smallest groups below this size until all partitions were of a suitable size.
 
 Windows were classified as overlapping a peak from a secondary ChIP target if *any* section of the window overlapped the secondary peak.
 `r if (!ihw_proceed) "Only one partition > 1000 was able to be formed and IHW was not executed."`

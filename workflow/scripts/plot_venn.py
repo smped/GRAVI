@@ -88,9 +88,9 @@ if not draw2:
 		sf = config['sf']
 		x0,y0 = v.get_label_by_id('111').get_position()
 		for ID in ['110', '101', '011']:
-		  lb = v.get_label_by_id(ID)
-		  if lb:
-			  x1,y1 = lb.get_position()
+		  pos = v.get_label_by_id(ID)
+		  if bool(pos):
+			  x1,y1 =pos.get_position()
 			  v.get_label_by_id(ID).set_position((x0 + sf*(x1-x0), y0 + sf*(y1-y0)))
 
 	venn3_circles(subsets = areas,color=config['lc'], linewidth=config['lw'])
