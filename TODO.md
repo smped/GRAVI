@@ -5,6 +5,7 @@
 - [] Change terminology from differential binding to differential signal
 - [] Check for compatibility with extraChIPs >= v1.6
 - [] Add required column to samples.tsv to indicate signal type. This should be restricted to the values ['TF', "H3K27ac'] with the intent of adding 'ATAC' later
+  - This may require removing the 'differential_h3k27ac' module
 - [] Redefine all config settings to have a default, with optional overwrite using the target type
 - [] Checks for input file consistency/structure
 - [] Shift `cowplot` to `patchwork`

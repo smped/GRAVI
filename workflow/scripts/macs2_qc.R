@@ -3,7 +3,7 @@
 #' fewer than 1/X-fold peaks when copmared to the median for each sample group
 #' is marked for exclusion from the
 #' calling of treatment/union peaks, as well as any downstream detection of
-#' differential binding. This value 'X' is specified in the main config.yml
+#' differential signal. This value 'X' is specified in the main config.yml
 #' as the parameter `outlier_threshold`
 #'
 #' Given that some ChIP targets may yield no peaks under some conditions due to
@@ -11,7 +11,7 @@
 #' `true/false` in config.yml
 #'
 #' Additionally, the cross-correlation between reads is calculated with a tsv
-#' generated for later inclusion in differential_binding and macs2_summary
+#' generated for later inclusion in differential_signal and macs2_summary
 #' workflows
 
 library(tidyverse)

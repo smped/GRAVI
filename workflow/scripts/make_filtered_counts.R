@@ -1,4 +1,4 @@
-#' Takes the section initially in differential binding/signal workflows and
+#' Takes the section initially in differential signal/signal workflows and
 #' forms the `window_counts.rds` and `filtered_counts.rds` objects for easier
 #' loading into these workflows. Whilst these windows were initially formed
 #' using only the two treatment groups under investigation in the specific

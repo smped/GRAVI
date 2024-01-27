@@ -103,7 +103,7 @@ here_file = get_here_file()
 bam_path = config['paths']['bam']
 rmd_path = "analysis"
 annotation_path = os.path.join("output", "annotations")
-diff_tf_path = os.path.join("output", "differential_binding")
+diff_tf_path = os.path.join("output", "differential_signal")
 diff_h3k27ac_path = os.path.join("output", "differential_h3k27ac")
 macs2_path = os.path.join("output", "macs2")
 log_path = os.path.join("workflow", "logs")
@@ -133,7 +133,7 @@ chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 rmd_hash = hashlib.md5(open('workflow/envs/rmarkdown.yml', "rb").read()).hexdigest()
 
 #################################
-## Differential Binding Method ##
+## Differential Signal Method ##
 #################################
 
 # Currently LibSize + QuasiLikelihood (ls-ql) or 
@@ -177,11 +177,11 @@ HTML_OUT.extend(
 	)
 )
 
-## Differential Binding
+## Differential Signal
 if tf_targets:
 	HTML_OUT.extend(
 		expand(
-			os.path.join("docs", "{cont}_differential_binding.html"),
+			os.path.join("docs", "{cont}_differential_signal.html"),
 			cont = make_contrasts(
 				config['comparisons']['contrasts'], 
 				df = df[df['type'].str.lower()  == "tf"]
@@ -271,6 +271,6 @@ include: "rules/macs2.smk"
 include: "rules/bigwig.smk"
 include: "rules/annotations.smk"
 include: "rules/make_greylist.smk"
-include: "rules/differential_binding.smk"
+include: "rules/differential_signal.smk"
 include: "rules/differential_h3k27ac.smk"
 include: "rules/pairwise_comparisons.smk"

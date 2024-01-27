@@ -42,11 +42,11 @@ tf_comparisons <- lapply(
   split(.$target) %>%
   setNames(c())
 
-## Differential Binding YAML
-diff_binding_yaml <- NULL
+## Differential Signal YAML
+diff_signal_yaml <- NULL
 if (length(tf_comparisons)) {
-  diff_binding_yaml <- list(
-    text = "Differential Binding",
+  diff_signal_yaml <- list(
+    text = "Differential Signal",
     menu =   tf_comparisons %>%
       lapply(
         function(x){
@@ -57,7 +57,7 @@ if (length(tf_comparisons)) {
               function(y) {
                 list(
                   text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
-                  href = paste0(y$rmd, "_differential_binding.html")
+                  href = paste0(y$rmd, "_differential_signal.html")
                 )
               }
             ) %>%
@@ -222,10 +222,10 @@ site_yaml$navbar$left <- list(
     )
   ),
 
-  ## Differential TF Binding
-  diff_binding_yaml,
+  ## Differential TF Signal
+  diff_signal_yaml,
 
-  ## Differential H3K27ac Binding
+  ## Differential H3K27ac Signal
   diff_h3k27ac_yaml,
 
   ## Pairwise Comparisons

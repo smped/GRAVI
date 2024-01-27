@@ -21,16 +21,16 @@ rule make_greylist:
 			{output.bed} &>> {log}
 		"""
 
-rule create_differential_binding_rmd:
+rule create_differential_signal_rmd:
 	input:
 		chk = rules.check_r_packages.output,
 		db_mod = os.path.join(
-			"workflow", "modules", "differential_binding.Rmd"
+			"workflow", "modules", "differential_signal.Rmd"
 		),
 		r = "workflow/scripts/create_differential_rmd.R"
 	output: 
 		rmd = os.path.join(
-			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
+			rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
 		)
 	params:
 		threads = lambda wildcards: min(
@@ -45,9 +45,9 @@ rule create_differential_binding_rmd:
 			),
 			max_threads
 		),
-		type = "Binding"
+		type = "Signal"
 	conda: "../envs/rmarkdown.yml"
-	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_binding.log"
+	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_signal.log"
 	threads: 1
 	shell:
 		"""
@@ -90,14 +90,14 @@ rule count_tf_windows:
 	output:
 		rds = expand(
 			os.path.join(
-				"differential_binding", "{{target}}", "{{target}}_{file}.rds"
+				"differential_signal", "{{target}}", "{{target}}_{file}.rds"
 			),
 			file = ['window_counts', 'filtered_counts']
 		)
 	params:
-		type = "binding"
+		type = "signal"
 	conda: "../envs/rmarkdown.yml"
-	log: log_path + "/diferential_binding/{target}_count_tf_windows.log"
+	log: log_path + "/diferential_signal/{target}_count_tf_windows.log"
 	threads:
 		lambda wildcards: min(
 			len(df[(df['target'] == wildcards.target)]), max_threads
@@ -114,7 +114,7 @@ rule count_tf_windows:
 		  {params.type} &>> {log}
 		"""
 
-rule compile_differential_binding_html:
+rule compile_differential_signal_html:
 	input:
 		annotations = ALL_RDS,
 		chk = rules.check_r_packages.output,
@@ -138,7 +138,7 @@ rule compile_differential_binding_html:
 		here = here_file,
 		module = os.path.join("workflow", "modules", db_method + ".Rmd"),
 		rmd = os.path.join(
-			rmd_path, "{target}_{ref}_{treat}_differential_binding.Rmd"
+			rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
 		),
 		samples = os.path.join(
 			macs2_path, "{target}", "{target}_qc_samples.tsv"
@@ -154,17 +154,17 @@ rule compile_differential_binding_html:
 		),
 		windows = rules.count_tf_windows.output
 	output:
-		html = "docs/{target}_{ref}_{treat}_differential_binding.html",
+		html = "docs/{target}_{ref}_{treat}_differential_signal.html",
 		fig_path = directory(
 			os.path.join(
-				"docs", "{target}_{ref}_{treat}_differential_binding_files",
+				"docs", "{target}_{ref}_{treat}_differential_signal_files",
 				"figure-html"
 			)
 		),
 		renv = temp(
 			os.path.join(
 				"output", "envs",
-				"{target}_{ref}_{treat}-differential_binding.RData"
+				"{target}_{ref}_{treat}-differential_signal.RData"
 			)
 		),
 		outs = expand(
@@ -172,7 +172,7 @@ rule compile_differential_binding_html:
 				diff_tf_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}"
 			),
 			f = [
-				'differential_binding.rds', 'down.bed', 'up.bed','differential_binding.csv.gz', 'DE_genes.csv', 'enrichment.csv',
+				'differential_signal.rds', 'down.bed', 'up.bed','differential_signal.csv.gz', 'DE_genes.csv', 'enrichment.csv',
 				'rnaseq_enrichment.csv'
 			]
 		)
@@ -194,7 +194,7 @@ rule compile_differential_binding_html:
 	resources:
 		mem_mb = 65536,
 		runtime = "3h"
-	log: log_path + "/differential_binding/{target}_{ref}_{treat}_differential_binding.log"
+	log: log_path + "/differential_signal/{target}_{ref}_{treat}_differential_signal.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
