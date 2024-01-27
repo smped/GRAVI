@@ -2,6 +2,7 @@ rule make_greylist:
 	input: 
 		bam = os.path.join(bam_path, "{ip_sample}.bam"),
 		bim = os.path.join(bam_path, "{ip_sample}.bam.bai"),
+		chk = rules.check_r_packages.output,
 		r = os.path.join("workflow", "scripts", "make_greylist.R"),
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds")
 	output:
@@ -22,6 +23,7 @@ rule make_greylist:
 
 rule create_differential_binding_rmd:
 	input:
+		chk = rules.check_r_packages.output,
 		db_mod = os.path.join(
 			"workflow", "modules", "differential_binding.Rmd"
 		),
@@ -77,7 +79,7 @@ rule count_tf_windows:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
-		extrachips = rules.update_extrachips.output,
+		chk = rules.check_r_packages.output,
 		greylist = lambda wildcards: expand(
 			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
 			ip_sample = set(df['input'][df['target'] == wildcards.target])
@@ -115,7 +117,7 @@ rule count_tf_windows:
 rule compile_differential_binding_html:
 	input:
 		annotations = ALL_RDS,
-		extrachips = rules.update_extrachips.output,
+		chk = rules.check_r_packages.output,
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}", "{{target}}_{pre}_merged_callpeak.log"

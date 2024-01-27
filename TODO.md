@@ -1,13 +1,31 @@
-## Features
+## General
 
-- Add 3-way comparisons
-- Incorporate motif detection
-- Checks for input file consistency/structure
-- Add Jon Bischlak's install of R4.2.0
-- Update manual to include all recent changes
+- [] Update all Rmd for RELEASE 3.18
+- [x] Update r environment for RELEASE 3.18
+- [] Change terminology from differential binding to differential signal
+- [] Check for compatibility with extraChIPs >= v1.6
+- [] Add required column to samples.tsv to indicate signal type. This should be restricted to the values ['TF', "H3K27ac'] with the intent of adding 'ATAC' later
+- [] Redefine all config settings to have a default, with optional overwrite using the target type
+- [] Checks for input file consistency/structure
+- [] Shift `cowplot` to `patchwork`
+
+## Differential Signal
+
+- [] Restrict methods to:
+  1. Sliding Windows with SQN (quantro not required)
+  2. Sliding Windows with TMM/RLE (after quantro)
+  3. Fixed width using TMM/RLE (after quantro)
+
+This should require writing a DiffSig module for sliding and another for fixed
+
+## Features (Unlikely)
+
+- [] Add 3-way comparisons
+- [] Incorporate motif detection
+
 
 ## Bugs
 
-- Add `pairwise_comparisons/{t1}_{t2}/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}-de_genes.csv` to output of pairwise_comparisons when RNA-Seq data is provided
-- Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
-- Cleanup handling of detected genes, particularly in the setup of annotations
+- [] Add `pairwise_comparisons/{t1}_{t2}/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}-de_genes.csv` to output of pairwise_comparisons when RNA-Seq data is provided
+- [] Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
+- [] Cleanup handling of detected genes, particularly in the setup of annotations

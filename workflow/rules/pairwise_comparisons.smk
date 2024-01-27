@@ -7,6 +7,7 @@ def get_difftype(x):
 
 rule create_pairwise_comparisons_rmd:
 	input:
+		chk = rules.check_r_packages.output,
 		module_pw = "workflow/modules/pairwise_comparison.Rmd",
 		r = "workflow/scripts/create_pairwise_comparison.R"
 	output:
@@ -47,8 +48,8 @@ rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		blacklist = blacklist,
+		chk = rules.check_r_packages.output,
 		config = "config/config.yml",
-		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
 		results_t1 = lambda wildcards: expand(

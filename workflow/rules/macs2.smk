@@ -83,7 +83,7 @@ rule macs2_qc:
         ),
         blacklist = blacklist,
         config = "config/config.yml",
-        extrachips = rules.update_extrachips.output,
+        chk = rules.check_r_packages.output,
         indiv_macs2 = lambda wildcards: expand(
             os.path.join(macs2_path, "{sample}", "{sample}_{suffix}"),
             sample = set(df[df.target == wildcards.target]['sample']),

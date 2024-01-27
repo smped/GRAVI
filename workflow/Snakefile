@@ -264,6 +264,7 @@ rule all:
     input:
         ALL_OUTPUTS
 
+include: "rules/initial_checks.smk"
 include: "rules/samtools.smk"
 include: "rules/rmarkdown.smk"
 include: "rules/macs2.smk"

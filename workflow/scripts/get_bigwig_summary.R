@@ -2,8 +2,7 @@ library(tidyverse)
 library(rtracklayer)
 library(plyranges)
 library(yaml)
-
-stopifnot(library(extraChIPs, logical.return = TRUE))
+library(extraChIPs)
 
 args <- commandArgs(TRUE)
 

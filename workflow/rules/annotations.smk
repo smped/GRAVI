@@ -1,38 +1,37 @@
 rule create_annotations:
-	input:
-		bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
-		blacklist = blacklist,
-		config = ancient(os.path.join("config", "config.yml")),
-		extrachips = rules.update_extrachips.output,
-		gtf = gtf,
-		r = os.path.join("workflow", "scripts", "create_annotations.R"),
-		yaml = os.path.join("config", "params.yml")
-	output:
-		rds = expand(
-		  os.path.join(annotation_path, "{file}.rds"),
-		  file = [
-			'gene_regions', 'gtf_gene', 'gtf_transcript', 'gtf_exon', 'seqinfo',
-			'tss', 'trans_models'
-			]
-		),
-		chrom_sizes = chrom_sizes
-	params:
-		annot_path = annotation_path
-	conda: "../envs/rmarkdown.yml"
-	threads: 1
-	resources:
-		mem_mb = 16384	
-	log: log_path + "/scripts/create_annotations.log"
-	shell:
-		"""
-		Rscript --vanilla {input.r} {params.annot_path} &>> {log}
-		"""
-
+    input:
+        bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
+        blacklist = blacklist,
+        config = ancient(os.path.join("config", "config.yml")),
+        chk = rules.check_r_packages.output,
+        gtf = gtf,
+        r = os.path.join("workflow", "scripts", "create_annotations.R"),
+        yaml = os.path.join("config", "params.yml")
+    output:
+        rds = expand(
+          os.path.join(annotation_path, "{file}.rds"),
+          file = [
+            'gene_regions', 'gtf_gene', 'gtf_transcript', 'gtf_exon', 'seqinfo',
+            'tss', 'trans_models'
+            ]
+        ),
+        chrom_sizes = chrom_sizes
+    params:
+        annot_path = annotation_path
+    conda: "../envs/rmarkdown.yml"
+    threads: 1
+    resources:
+        mem_mb = 16384	
+    log: log_path + "/scripts/create_annotations.log"
+    shell:
+        """
+        Rscript --vanilla {input.r} {params.annot_path} &>> {log}
+        """
 
 rule compile_annotations_html:
     input:
         blacklist = blacklist,
-        extrachips = rules.update_extrachips.output,
+        chk = rules.check_r_packages.output,
         here = here_file,
         rmd = "workflow/modules/annotation_description.Rmd",
         rds = rules.create_annotations.output.rds,
@@ -61,3 +60,4 @@ rule compile_annotations_html:
         cp {input.rmd} {output.rmd}
         R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
         """
+

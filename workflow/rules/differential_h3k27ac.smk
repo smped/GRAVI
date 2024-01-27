@@ -1,6 +1,7 @@
 
 rule create_differential_h3k27ac_rmd:
 	input:
+		chk = rules.check_r_packages.output,
 		db_mod = os.path.join(
 			"workflow", "modules", "differential_h3k27ac.Rmd"
 		),
@@ -58,6 +59,7 @@ rule count_h3k27ac_windows:
 			sample = df['sample'][df['target'] == wildcards.target],
 			suffix = ['bam', 'bam.bai']
 		),
+		chk = rules.check_r_packages.output,
 		greylist = lambda wildcards: expand(
 			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
 			ip_sample = set(df['input'][df['target'] == wildcards.target])
@@ -96,7 +98,7 @@ rule count_h3k27ac_windows:
 rule compile_differential_h3k27ac_html:
 	input:
 		annotations = ALL_RDS,
-		extrachips = rules.update_extrachips.output,
+		chk = rules.check_r_packages.output,
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}", "{pre}_merged_callpeak.log"
@@ -188,19 +190,4 @@ rule compile_differential_h3k27ac_html:
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
-
-		if [[ {params.git} == "True" ]]; then
-			TRIES={params.tries}
-			while [[ -f .git/index.lock ]]
-			do
-				if [[ "$TRIES" == 0 ]]; then
-					echo "ERROR: Timeout while waiting for removal of git index.lock" &>> {log}
-					exit 1
-				fi
-				sleep {params.interval}
-				((TRIES--))
-			done
-			git add {output.html} {output.outs}
-			git add {output.fig_path}
-		fi
 		"""
