@@ -6,7 +6,7 @@ library(qsmooth)
 ```
 
 
-The `quantro` test was first applied [@HicksQuantro2015] to determine if treatment-specific binding distributions were found in the data.
+The `quantro` test was first applied [@HicksQuantro2015] to determine if treatment-specific signal distributions were found in the data.
 Whilst this may not always be the case, the robustness of smooth-quantile normalisation (SQN) [@HicksSQN2017] will be applicable if data is drawn from different or near-identical distributions, and this method was applied grouping data by treatment.
 
 ```{r qtest, results='asis'}
@@ -62,7 +62,7 @@ a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 
 #### RLE (Pre-Normalisation)
 
-```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
 filtered_counts %>% 
   plotAssayRle(
   "logCPM", fill = "treat", rle_group = "treat", n_max = n_max
@@ -77,7 +77,7 @@ filtered_counts %>%
 
 #### RLE (Post-Normalisation)
 
-```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing normalised logCPM. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+```{r plot-rle-normalised, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing normalised logCPM. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
 filtered_counts %>% 
   plotAssayRle(
   "qsmooth", fill = "treat", rle_group = "treat", n_max = n_max
@@ -160,5 +160,5 @@ rowData(filtered_counts) <- rowData(filtered_counts) %>%
 
 
 After SQ-normalisation of logCPM values, the `limma-trend` method [@LawVoom2014] was applied to all retained windows.
-A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, incorporating a trended prior-variance.
+A simple linear model was fitted taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` signal within each sliding window, incorporating a trended prior-variance.
 `r txt`

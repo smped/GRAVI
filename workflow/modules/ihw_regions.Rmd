@@ -49,7 +49,7 @@ lblr <- as_labeller(c(regions, "Other" = "Other"))
 ```
 
 
-Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential binding by genomic regions defined previously, and estimate weights to apply to each p-value as a divisor.
+Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential signal by genomic regions defined previously, and estimate weights to apply to each p-value as a divisor.
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
 The provided genomic regions were used as initial partitions, merging the smallest groups below this size until all partitions were of a suitable size.
@@ -102,7 +102,7 @@ ihw %>%
     justify = "lrrrrrr",
     caption = paste(
       "*Summary of changes introduced by IHW for windows considered as",
-      paste0("differentially bound by ", target, "."), 
+      paste0("showing differential ", target, "signal."),
       "This corresponds to a nett change of", 
         dplyr::slice(., nrow(.)) %>% 
         mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 

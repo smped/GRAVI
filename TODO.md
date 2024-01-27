@@ -2,7 +2,7 @@
 
 - [] Update all Rmd for RELEASE 3.18
 - [x] Update r environment for RELEASE 3.18
-- [] Change terminology from differential binding to differential signal
+- [x] Change terminology from differential binding to differential signal
 - [] Check for compatibility with extraChIPs >= v1.6
 - [] Add required column to samples.tsv to indicate signal type. This should be restricted to the values ['TF', "H3K27ac'] with the intent of adding 'ATAC' later
   - This may require removing the 'differential_h3k27ac' module

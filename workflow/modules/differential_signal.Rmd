@@ -73,7 +73,7 @@ ihw_method <- ihw_method[[1]]
 ```{r set-paths}
 annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
-out_path <- here::here("output", "differential_binding", target)
+out_path <- here::here("output", "differential_signal", target)
 if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 ```
 
@@ -228,8 +228,8 @@ facet_labeller <- as_labeller(
     ),
     structure(treat_levels, names = treat_levels),
     c(
-      Up = glue("Increased {target} Binding"),
-      Down = glue("Decreased {target} Binding")
+      Up = glue("Increased {target} Signal"),
+      Down = glue("Decreased {target} Signal")
     ),
     c(
       AveExpr = "logCPM", logFC = "logFC"
@@ -242,11 +242,11 @@ facet_labeller <- as_labeller(
 all_out <- list(
   results = file.path(
     out_path, 
-    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_binding.rds")
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_signal.rds")
   ),
   csv = file.path(
     out_path, 
-    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_binding.csv.gz")
+    glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_signal.csv.gz")
   ),
   up_regions = file.path(
     out_path, glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-up.bed")
@@ -267,7 +267,7 @@ all_out <- list(
   renv = here::here(
     "output/envs",
     glue(
-      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_binding.RData"
+      "{target}_{treat_levels[[1]]}_{treat_levels[[2]]}-differential_signal.RData"
     )
   )
 )
@@ -279,12 +279,12 @@ cmn_diff <- cmn_up <- cmn_down <- tibble(leadingEdge = list())
 desc_method <- list(
   "sq-lt" = glue(
     "2. Smooth Quantile Normalisation [@HicksSQN2017] is used on the set of logCPM values obtained from retained sliding windows. This was chosen given that many transcription factors can show vastly different cytoplasmic/nuclear distributions across treatments
-3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential binding. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in binding, below which we are not interested in any changed signal
+3. The *limma-trend* method [@LawVoom2014] is used alongside `treat` [@McCarthyTreat2009] for detection of differential signal. This should correctly control the FDR, and allows the specification as a percentage of a suitable threshold for the estimated change in signal, below which we are not interested in any changed signal
     "
   ),
   "ls-ql" = glue(
     "2. The Quasi-Likelhood model [@LunSmythGLMQL2017] will be fitted to all sliding windows using library size as the normalisation strategy
-    3. A range-based Null Hypothesis [@McCarthyTreat2009] will be used for testing of differential binding as described in detail below"
+    3. A range-based Null Hypothesis [@McCarthyTreat2009] will be used for testing of differential signal as described in detail below"
   )
 )
 desc_ihw <- list(
@@ -298,9 +298,9 @@ desc_ihw <- list(
 
 ## Outline
 
-### Differential Binding
+### Differential Signal
 
-This step of the workflow uses a sliding window approach to differential binding, as a logical extension to the methods suggested and implemented in the `csaw` package [@LunSmythF1000].
+This step of the workflow uses a sliding window approach to differential signal, as a logical extension to the methods suggested and implemented in the `csaw` package [@LunSmythF1000].
 
 1. Union Peaks derived from `macs2 callpeak` [@Zhang18798982] results are used to determine inclusion/exclusion values for sliding windows
 `r desc_method[[db_method]]`
@@ -310,12 +310,12 @@ The workflow also depends heavily on the functions implemented in the Bioconduct
 
 ### Enrichment Analysis
 
-Beyond the simple analysis of differential binding, peaks are mapped to genes and enrichment testing is performed on the following:
+Beyond the simple analysis of differential signal, peaks are mapped to genes and enrichment testing is performed on the following:
 
 1. Genes mapped to any window with detected `r target` are compared to all genes not mapped to any window
-2. Genes mapped to *all differentially bound windows* are compared to genes mapped to windows which are not differentially bound
-3. Genes mapped to windows with *increasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
-4. Genes mapped to windows with *decreasing* `r target` binding are compared to genes mapped to windows which are not differentially bound
+2. Genes mapped to *all windows with differential signal* are compared to genes mapped to windows with no difference in signal
+3. Genes mapped to windows with *increasing* `r target` signal are compared to genes mapped to windows with no difference in signal
+4. Genes mapped to windows with *decreasing* `r target` signal are compared to genes mapped to windows with no difference in signal
 
 Enrichment testing is performed using `goseq` [@YoungGoseq2010] with no term accounting for sampling bias (i.e. the Hypergeometric Distribution), *except when comparing genes mapped to any window.*
 For this case **only**, gene width is used to capture any sampling bias and Wallenius' Non-Central Hypergeometric Distribution is used.
@@ -323,7 +323,7 @@ As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes con
 
 `r if (has_rnaseq) "### Incorporation with RNA-Seq"`
 
-`r if (has_rnaseq) "Any association between differentially expressed genes and differentially bound sites will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the fgsea package [@KorotkevichFgsea2019]. The sets of genes associated with changed binding will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results. ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone. A combined meta-analytic approach using Wilkinson's method will also be used to integration of results from enrichment testing in each standalong dataset."`
+`r if (has_rnaseq) "Any association between differentially expressed genes and differential signal regions will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the fgsea package [@KorotkevichFgsea2019]. The sets of genes associated with changed signal will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results. ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone. A combined meta-analytic approach using Wilkinson's method will also be used to integration of results from enrichment testing in each standalong dataset."`
 
 ## Data Preparation
 
@@ -493,7 +493,7 @@ With the exclusion of black-listed and grey-listed regions, all alignments withi
 Any windows with fewer than `r ncol(filtered_counts)` alignments (i.e.1 read/sample) across all samples were initially discarded before filtering using `extraChIPs::dualFilter()`
 
 When filtering, windows were discarded with low counts using a) counts relative to the Input sample and b) the overall signal level.
-Thresholds were set automatically to include `r percent(config$comparisons$filter_q)` of windows which overlapped the reference set of binding sites, defined as those identified by `macs callpeak` across all treatments.
+Thresholds were set automatically to include `r percent(config$comparisons$filter_q)` of windows which overlapped the reference set of sites, defined as those identified by `macs callpeak` across all treatments.
 This ensures a minimum number of counts was present within each window, specifically avoiding problems created across regions where no counts were returned in any input samples.
 
 ```{r tab-filtered-windows}
@@ -540,8 +540,8 @@ list(
       "`macs2 callpeak` on merged samples. This approach combined both ", 
       "1) expression percentiles, and 2) signal strength in relation to the input sample.",
       "The complete set of sliding windows covered the majority of the genome,",
-      "whilst those retained after filtering were focussed on strong binding",
-      "signal. Union peaks were as identified by `macs2 callpeak` in a", 
+      "whilst those retained after filtering were focussed on strong signal.",
+      "Union peaks were as identified by `macs2 callpeak` in a", 
       "previous step of the workflow.",
       "Importantly, union peaks are non-overlapping, whilst the other two",
       "datasets are derived from overlapping sliding windows.",
@@ -577,11 +577,11 @@ against
 $$
 H_A: |\mu| > \lambda
 $$
-where $\mu$ represents the true mean change in `r target` binding.
+where $\mu$ represents the true mean change in `r target` signal.
 The value $\lambda =$ `r round(log2(fc), 2)` was chosen as this corresponds to a `r percent(fc - 1)` change in detected signal on the log~2~ scale.
 This is known as the `treat` method [@McCarthyTreat2009], and p-values were obtained for each initial window, before merging adjoining windows.
 
-For subsequent classification when combining across multiple differential binding results, an additional p-value testing $\mu = 0$ was added, however this is not used for detection of sites showing evidence of altered `r target` binding.
+For subsequent classification when combining across multiple differential signal results, an additional p-value testing $\mu = 0$ was added, however this is not used for detection of sites showing evidence of altered `r target` signal.
 
 
 ```{r merged-results}
@@ -603,9 +603,9 @@ merged_results <- mergeByCol(
 ```
 
 After selection of the `r comma(nrow(filtered_counts))` sliding windows (`r win_size`bp), these were merged into `r comma(length(merged_results))` genomic regions with size ranging from `r glue_collapse(range(width(merged_results)), last = " to ")`bp, with the median width being `r median(width(merged_results))`bp.
-Representative estimates of differential binding (i.e. logFC) were taken from the sliding window with the *highest average signal* across all samples, within each set of windows to be merged.
+Representative estimates of differential signal (i.e. logFC) were taken from the sliding window with the *highest average signal* across all samples, within each set of windows to be merged.
 Similarly, p-values from the above tests were also selected from the same sliding window as representative of the merged region [@LunSmythF1000].
-The number of windows showing increased or decreased binding within each merged region were also included, by counting those within each set of windows with p-values lower than the selected window.
+The number of windows showing increased or decreased signal within each merged region were also included, by counting those within each set of windows with p-values lower than the selected window.
 FDR-adjustment was performed with `r comma(sum(merged_results$P.Value_fdr < fdr_alpha))` regions (`r percent(mean(merged_results$P.Value_fdr < fdr_alpha), accuracy = 0.1)`) showing significance, based on an FDR-adjusted p-value alone.
 
 
@@ -870,7 +870,7 @@ tbl <- merged_results %>%
   )
 cp <- htmltools::em(
   glue(
-    "Overall results for changed {target} binding in the ",
+    "Overall results for changed {target} signal in the ",
     glue_collapse(rev(treat_levels), last = " Vs. "),
     " comparison."
   )
@@ -911,7 +911,7 @@ df <- merged_results %>%
   )
 cp <- htmltools::em(
   glue(
-    "Overall results for changed {target} binding in the ",
+    "Overall results for changed {target} signal in the ",
     glue_collapse(rev(treat_levels), last = " Vs. "),
     " comparison, broken down by which genomic region contains the largest ", 
     "overlap with each merged window."
@@ -959,7 +959,7 @@ df <- merged_results %>%
   )
 cp <- htmltools::em(
   glue(
-    "Overall results for changed {target} binding in the ",
+    "Overall results for changed {target} signal in the ",
     glue_collapse(rev(treat_levels), last = " Vs. "),
     " comparison, broken down by which external feature contains the largest ", 
     "overlap with each merged window."
@@ -994,7 +994,7 @@ cp <- htmltools::em(
   glue(
     "The {show_n} most highly-ranked windows by FDR, with ",
     comma(sum(mcols(merged_results)[[fdr_column]] < fdr_alpha)), 
-    " showing evidence of changed {target} binding. ",
+    " showing evidence of changed {target} signal. ",
     "Regions were assigned based on which genomic region showed the largest ",
     "overlap with the final merged window. ",
     ifelse(
@@ -1120,7 +1120,7 @@ fc_heat <- names(sig_ranges) %>%
       glue(
         "
         *Heatmap and histogram for all regions considered to show evidence of 
-        {ifelse(x == 'Up', 'increased', 'decreased')} {target} binding in 
+        {ifelse(x == 'Up', 'increased', 'decreased')} {target} signal in 
         response to {treat_levels[[2]]} treatment. A total of 
         {comma(length(sig_ranges[[x]]))} regions were in this group.
         ",
@@ -1228,7 +1228,7 @@ merged_results %>%
 
 #### Volcano Plot
 
-```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} binding. The most significant regions are labelled along with any genes these regions are mapped to.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} signal. The most significant regions are labelled along with any genes these regions are mapped to.*")}
 merged_results %>% 
   as_tibble() %>% 
   ggplot(aes(logFC, -log10(P.Value))) +
@@ -1281,14 +1281,14 @@ merged_results %>%
   )
 ```
 
-`r ifelse("Up" %in% names(profile_heatmaps), "#### Heatmap: Increased Binding\n", "")`
+`r ifelse("Up" %in% names(profile_heatmaps), "#### Heatmap: Increased Signal\n", "")`
 
 ```{r plot-up-heatmap, eval = "Up" %in% names(profile_heatmaps), echo = "Up" %in% names(profile_heatmaps), fig.cap = fc_heat$Up, fig.height = min(10, length(sig_ranges$Up)/1.5e3 + 3.5)}
 profile_heatmaps$Up + guides(colour = "none")
 ```
 
 
-`r ifelse("Down" %in% names(profile_heatmaps), "#### Heatmap: Decreased Binding\n", "")`
+`r ifelse("Down" %in% names(profile_heatmaps), "#### Heatmap: Decreased Signal\n", "")`
 
 ```{r plot-down-heatmap, eval = "Down" %in% names(profile_heatmaps), echo = "Down" %in% names(profile_heatmaps), fig.cap = fc_heat$Down, fig.height = min(10, length(sig_ranges$Down)/1.5e3 + 3.5)}
 profile_heatmaps$Down + guides(colour = "none")
@@ -1296,7 +1296,7 @@ profile_heatmaps$Down + guides(colour = "none")
 
 #### Results By Chromosome
 
-```{r plot-res-by-chromosome, fig.cap = "*Results for differential binding separated by chromosome. Results are scaled by chromosome length and shown as windows / Mb, although the distributions of windows will be unevenly spaced.*"}
+```{r plot-res-by-chromosome, fig.cap = "*Results for differential signal separated by chromosome. Results are scaled by chromosome length and shown as windows / Mb, although the distributions of windows will be unevenly spaced.*"}
 merged_results %>% 
   select(status) %>% 
   as_tibble(rangeAsChar = FALSE) %>% 
@@ -1342,9 +1342,9 @@ merged_results %>%
   labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
 
-#### Differential Binding By Region
+#### Differential Signal By Region
 
-```{r plot-db-regions, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} binding across all genomic regions.*")}
+```{r plot-db-regions, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all genomic regions.*")}
 merged_results %>% 
   subset(status != "Unchanged") %>%
   as_tibble() %>% 
@@ -1376,9 +1376,9 @@ merged_results %>%
   labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
 
-`r ifelse(has_features, "#### Differential Binding By Feature", "")`
+`r ifelse(has_features, "#### Differential Signal By Feature", "")`
 
-```{r plot-db-features, eval = has_features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} binding across all external features.*")}
+```{r plot-db-features, eval = has_features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all external features.*")}
 merged_results %>% 
   subset(status != "Unchanged") %>%
   as_tibble() %>% 
@@ -1394,9 +1394,9 @@ merged_results %>%
   )
 ```
 
-`r ifelse(has_features, "#### Differential Binding By Region And Feature", "")`
+`r ifelse(has_features, "#### Differential Signal By Region And Feature", "")`
 
-```{r scatterpie-region-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparison of changes in {target} binding separated by gene-centric region and external features provided in {basename(config$external$features)}*")}
+```{r scatterpie-region-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparison of changes in {target} signal separated by gene-centric region and external features provided in {basename(config$external$features)}*")}
 df <- merged_results %>% 
   as_tibble() %>% 
   dplyr::filter(status %in% c("Up", "Down")) %>% 
@@ -1642,7 +1642,7 @@ makeCaption <- function(.gr) {
   )
   cp <- c(
     glue(
-      "*The {width(.gr)}bp region showing {dir} {target} binding in response to ", 
+      "*The {width(.gr)}bp region showing {dir} {target} signal in response to ", 
       "{treat_levels[[2]]} treatment (FDR = {fdr}). ",
       "The range mostly overlapped with {reg}, with all ",
       "defined regions shown as a contiguous bar. ",
@@ -1684,7 +1684,7 @@ makeCaption <- function(.gr) {
 
 `r if (db_method == "sq-lt") "#### Normalised Sliding Windows"`
 
-```{r plot-qsmooth-top-ranges, eval = db_method == "sq-lt", fig.height = fh, echo = db_method == "sq-lt", fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} binding in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Binding Strength (Signal) and logFC. Windows are shown free of the genomic context.*")}
+```{r plot-qsmooth-top-ranges, eval = db_method == "sq-lt", fig.height = fh, echo = db_method == "sq-lt", fig.cap = glue("*Most highly ranked ranges for both gained and decreased {target} signal in repsonse to {treat_levels[[2]]} treatment. The smooth-quantile normalised values are shown across the initial set of sliding windows before merging. Ranges were chosen as the most extreme for FDR, Signal Strength and logFC. Windows are shown free of the genomic context.*")}
 grl_to_plot %>% 
   lapply(
     function(x){
@@ -1741,7 +1741,7 @@ grl_to_plot %>%
   )
 ```
 
-`r ifelse("top_down_by_expr" %in% names(grl_to_plot), "#### Decreased Binding (Strongest Signal)", "")`
+`r ifelse("top_down_by_expr" %in% names(grl_to_plot), "#### Decreased Signal (Strongest Signal)", "")`
 
 ```{r plot-top-down-by-expr, eval = "top_down_by_expr" %in% names(grl_to_plot), echo = "top_down_by_expr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_by_expr)}
 plotHFGC(
@@ -1762,7 +1762,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_down_by_fdr" %in% names(grl_to_plot), "#### Decreased Binding (Lowest FDR)", "")`
+`r ifelse("top_down_by_fdr" %in% names(grl_to_plot), "#### Decreased Signal (Lowest FDR)", "")`
 
 ```{r plot-top_down_by_fdr, eval = "top_down_by_fdr" %in% names(grl_to_plot), echo = "top_down_by_fdr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_by_fdr)}
 plotHFGC(
@@ -1783,7 +1783,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_down_by_lfc" %in% names(grl_to_plot), "#### Decreased Binding (Most Extreme)", "")`
+`r ifelse("top_down_by_lfc" %in% names(grl_to_plot), "#### Decreased Signal (Most Extreme)", "")`
 
 ```{r plot-top_down_by_lfc, eval = "top_down_by_lfc" %in% names(grl_to_plot), echo = "top_down_by_lfc" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_by_lfc)}
 plotHFGC(
@@ -1804,7 +1804,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_down_no_macs2" %in% names(grl_to_plot), "### Significant Decreased Binding (No Union Peak)", "")`
+`r ifelse("top_down_no_macs2" %in% names(grl_to_plot), "### Significant Decreased Signal (No Union Peak)", "")`
 
 ```{r plot-top_down_no_macs2, eval = "top_down_no_macs2" %in% names(grl_to_plot), echo = "top_down_no_macs2" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_down_no_macs2)}
 plotHFGC(
@@ -1826,7 +1826,7 @@ plotHFGC(
 ```
 
 
-`r ifelse("top_up_by_expr" %in% names(grl_to_plot), "#### Increased Binding (Strongest Signal)", "")`
+`r ifelse("top_up_by_expr" %in% names(grl_to_plot), "#### Increased Signal (Strongest Signal)", "")`
 
 ```{r plot-top-up-by-expr, eval = "top_up_by_expr" %in% names(grl_to_plot), echo = "top_up_by_expr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_by_expr)}
 plotHFGC(
@@ -1847,7 +1847,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_up_by_fdr" %in% names(grl_to_plot), "#### Increased Binding (Lowest FDR)", "")`
+`r ifelse("top_up_by_fdr" %in% names(grl_to_plot), "#### Increased Signal (Lowest FDR)", "")`
 
 ```{r plot-top_up_by_fdr, eval = "top_up_by_fdr" %in% names(grl_to_plot), echo = "top_up_by_fdr" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_by_fdr)}
 plotHFGC(
@@ -1868,7 +1868,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_up_by_lfc" %in% names(grl_to_plot), "#### Increased Binding (Most Extreme)", "")`
+`r ifelse("top_up_by_lfc" %in% names(grl_to_plot), "#### Increased Signal (Most Extreme)", "")`
 
 ```{r plot-top_up_by_lfc, eval = "top_up_by_lfc" %in% names(grl_to_plot), echo = "top_up_by_lfc" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_by_lfc)}
 plotHFGC(
@@ -1889,7 +1889,7 @@ plotHFGC(
 )
 ```
 
-`r ifelse("top_up_no_macs2" %in% names(grl_to_plot), "### Significant Increased Binding (No Union Peak)", "")`
+`r ifelse("top_up_no_macs2" %in% names(grl_to_plot), "### Significant Increased Signal (No Union Peak)", "")`
 
 ```{r plot-top_up_no_macs2, eval = "top_up_no_macs2" %in% names(grl_to_plot), echo = "top_up_no_macs2" %in% names(grl_to_plot), fig.cap = makeCaption(grl_to_plot$top_up_no_macs2)}
 plotHFGC(
@@ -2030,10 +2030,10 @@ msigdb %>%
 Retained windows were tested for enrichment of these gene-sets using:
 
 1. Any window mapped to a gene from these gene-sets
-2. Any window with evidence of differential binding mapped to a gene from these gene-sets
+2. Any window with evidence of differential signal mapped to a gene from these gene-sets
 
 In the first case, mapped genes were tested for enrichment against all annotated genes, or all detected genes if RNA-Seq data was provided.
-In the second case, i.e. Differentially Bound Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
+In the second case, i.e. Differential Signal Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
 After adjustment, any enriched gene-sets with fewer than `r min_sig` mapped genes were excluded as being uninformative.
 
@@ -2104,7 +2104,7 @@ cp <- htmltools::tags$caption(
       glue(
         "
          < {enrich_alpha}) amongst the merged windows with detectable {target} 
-        binding. Genes mapped to a merged window were compared to those not 
+        signal. Genes mapped to a merged window were compared to those not 
         mapped to any merged windows. Gene width was used to capture any 
         gene-level sampling bias.
         "
@@ -2192,7 +2192,7 @@ div(class = "table",
 
 `r ifelse(plot_network_mapped, "#### Network Plot", "")`
 
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site for {target}.*")}
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing gene-sets enriched amongst the overall set of sites with detectable signal for {target}.*")}
 tg_mapped %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -2222,7 +2222,7 @@ tg_mapped %>%
 ```
 
 
-### Windows With Differentially Bound `r target` {.tabset}
+### Windows With Differential `r target` Signal {.tabset}
 
 ```{r goseq-diff, fig.show='hide'}
 pwf_diff <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
@@ -2251,7 +2251,7 @@ plot_network_diff <- length(tg_diff) >= min_network_size
 ```
 
 
-`r ifelse(!any_goseq_diff, "No enrichment was found amongst genes mapped to sites showing any differential binding", "#### Results Table")`
+`r ifelse(!any_goseq_diff, "No enrichment was found amongst genes mapped to sites showing any differential signal", "#### Results Table")`
 
 
 ```{r tbl-goseq-diff, eval = any_goseq_diff, echo = any_goseq_diff}
@@ -2268,7 +2268,7 @@ cp <- htmltools::tags$caption(
       glue(
         "
          < {enrich_alpha}) amongst the windows showing evidence of changed 
-        {target} binding. Genes mapped to a differentially-bound window were 
+        {target} signal. Genes mapped to a differential signal window were 
         compared to those mapped to any merged window. A standard (unbiased)
         hypergeomtric test was used to test for enrichment.
         "
@@ -2385,7 +2385,7 @@ tg_diff %>%
   theme_void() 
 ```
 
-### Windows With Increased `r target` Binding {.tabset}
+### Windows With Increased `r target` Signal {.tabset}
 
 ```{r goseq-up, fig.show='hide'}
 pwf_up <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
@@ -2414,7 +2414,7 @@ plot_network_up <- length(tg_up) >= min_network_size
 ```
 
 
-`r ifelse(!any_goseq_up, glue("No enrichment was found amongst genes mapped to sites showing increased {target} binding"), "#### Results Table")`
+`r ifelse(!any_goseq_up, glue("No enrichment was found amongst genes mapped to sites showing increased {target} signal"), "#### Results Table")`
 
 
 ```{r tbl-goseq-up, eval = any_goseq_up, echo = any_goseq_up}
@@ -2431,7 +2431,7 @@ cp <- htmltools::tags$caption(
       glue(
         "
          < {enrich_alpha}) amongst the windows showing evidence of increased 
-        {target} binding. Genes mapped to an increasing window were 
+        {target} signal. Genes mapped to an increasing window were 
         compared to those mapped to any merged window. A standard (unbiased)
         hypergeomtric test was used to test for enrichment.
         "
@@ -2549,7 +2549,7 @@ tg_up %>%
 ```
 
 
-### Windows With Decreased `r target` Binding {.tabset}
+### Windows With Decreased `r target` Signal {.tabset}
 
 ```{r goseq-down, fig.show='hide'}
 pwf_down <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
@@ -2578,7 +2578,7 @@ plot_network_down <- length(tg_down) >= min_network_size
 ```
 
 
-`r ifelse(!any_goseq_down, glue("No enrichment was found amongst genes mapped to sites showing decreased {target} binding"), "#### Results Table")`
+`r ifelse(!any_goseq_down, glue("No enrichment was found amongst genes mapped to sites showing decreased {target} signal"), "#### Results Table")`
 
 
 ```{r tbl-goseq-down, eval = any_goseq_down, echo = any_goseq_down}
@@ -2595,7 +2595,7 @@ cp <- htmltools::tags$caption(
       glue(
         "
          < {enrich_alpha}) amongst the windows showing evidence of decreased 
-        {target} binding. Genes mapped to a decreasing window were 
+        {target} signal. Genes mapped to a decreasing window were 
         compared to those mapped to any merged window. A standard (unbiased)
         hypergeomtric test was used to test for enrichment.
         "
@@ -2608,7 +2608,7 @@ tbl <- goseq_down %>%
   left_join(
     distinct(msigdb, gs_name, gs_url, gs_description),
     by = "gs_name"
-  )%>% 
+  ) %>% 
   mutate(
     gene_name = vapply(
       DEgenes, 

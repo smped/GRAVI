@@ -269,7 +269,7 @@ db_results <- seq_along(pairs) %>%
     function(x) {
       tg <- names(pairs)[[x]]
       type <- unique(dplyr::filter(samples, target == tg)$type)
-      file_type <- "binding"
+      file_type <- "signal"
       if (type == "H3K27ac") file_type <- "h3k27ac"
       here::here(
         "output", glue("differential_{file_type}"), tg, 
@@ -405,34 +405,34 @@ cmn_res <- list(tibble(gs_name = character(), leadingEdge = list()))
 
 # Outline
 
-This stage of the GRAVI workflow takes the results from two individual differential binding analyses and compares the results, by finding peaks which directly overlap and considering the joint behaviour.
-In this specific analyses the differential binding response for `r names(pairs)[[1]]` when comparing `r glue_collapse(rev(pairs[[1]]), sep = " Vs ")`, will be integrated with the differential binding response for `r names(pairs)[[2]]` comparing `r glue_collapse(rev(pairs[[2]]), sep = " Vs ")`.
-Data will first be described from the perspective of *union peaks* and *treatment peaks*, before moving onto the differentially bound windows obtained in previous steps.
+This stage of the GRAVI workflow takes the results from two individual differential signal analyses and compares the results, by finding peaks which directly overlap and considering the joint behaviour.
+In this specific analyses the differential signal response for `r names(pairs)[[1]]` when comparing `r glue_collapse(rev(pairs[[1]]), sep = " Vs ")`, will be integrated with the differential signal response for `r names(pairs)[[2]]` comparing `r glue_collapse(rev(pairs[[2]]), sep = " Vs ")`.
+Data will first be described from the perspective of *union peaks* and *treatment peaks*, before moving onto the differential signal obtained in previous steps.
 
-## Integration Of Differential Binding Results
+## Integration Of Differential Signal Results
 
-The initial steps of differential binding analysis detect regions with clear changes in binding patterns, however the integration of datasets instead focusses on the *most correct* classification of a given range/window, where unchanged is not simply lack of a statistical result, but a true state needing to be identified.
-Differential binding analyses generally focus on controlling the Type I errors (i.e. false positive), which comes with a commensurate increase in Type II errors (false negatives).
+The initial steps of differential signal analysis detect regions with clear changes in signal, however the integration of datasets instead focusses on the *most correct* classification of a given range/window, where unchanged is not simply lack of a statistical result, but a true state needing to be identified.
+Differential signal analyses generally focus on controlling the Type I errors (i.e. false positive), which comes with a commensurate increase in Type II errors (false negatives).
 When seeking to correctly classify a window across two datasets, the detection as changed can be taken as a robust finding, whilst the consideration as unchanged may be less robust.
-When comparing a window across two datasets, a detection as changed within one dataset is taken as primary evidence of 'something interesting' occurring, with the secondary consideration being the correct description of the combined binding patterns.
+When comparing a window across two datasets, a detection as changed within one dataset is taken as primary evidence of 'something interesting' occurring, with the secondary consideration being the correct description of the combined signal patterns.
 For this reason, and to minimise issues with hard thresholding, once a window is considered to be of interest, the p-value used in the second comparison is that obtained (and FDR-adjusted) using the test for $H_0: \mu = 0$ instead of the initial $H_0: 0 < |\mu| < \lambda$.
 The insistence on the more stringent initial inclusion criteria still protects against false discoveries from the perspective of window identification, but this approach instead allows *improved classification* across both comparisons.
 
 For *classification steps within each window*, each target is given the status 1) Up, 2) Down, 3) Unchanged, or 4) Undetected.
-Across two comparisons, this gives 15 possible classifications for each region found with at least one target bound (e.g. Up-Up, Up-Down, Up-Unchanged, Up-Undetected etc.), given that any potential Undetected-Undetected windows will not be included for obvious reasons.
+Across two comparisons, this gives 15 possible classifications for each region found with signal from at least one target (e.g. Up-Up, Up-Down, Up-Unchanged, Up-Undetected etc.), given that any potential Undetected-Undetected windows will not be included for obvious reasons.
 
 ## Enrichment Testing
 
-After direct comparison of binding patterns, enrichment analysis is performed in a similar manner to for individual analyses.
+After direct comparison of signal patterns, enrichment analysis is performed in a similar manner to for individual analyses.
 If RNA-Seq data is provided, genes will be restricted to those present within the RNA-Seq dataset, as representative of detected genes.
 Enrichment testing is performed on:
 
-1. All genes mapped to any bound region against those not mapped to a bound region
+1. All genes mapped to any region with detected signal against those not mapped to detected signal
 2. All genes mapped to both targets against genes not mapped 
 
 ## Comparison To RNA-Seq
 
-If RNA-Seq data is supplied, the sets of genes associated with all binding patterns (e.g. Up-Up, Up-Down etc) were treated as gene-sets and Gene Set Enrichment Analysis (GSEA) [@SubramanianGsea2005] was used to determine enrichment and leading-edge genes associated with altered expression.
+If RNA-Seq data is supplied, the sets of genes associated with all signal patterns (e.g. Up-Up, Up-Down etc) were treated as gene-sets and Gene Set Enrichment Analysis (GSEA) [@SubramanianGsea2005] was used to determine enrichment and leading-edge genes associated with altered expression.
 Genes will be ranked to incorporate direction of change (i.e. Directional GSEA) or significance only (i.e Non-Directional GSEA).
 The results from enrichment analysis across ChIP target and RNA-Seq data will also be combined to reveal pathways under the regulatory influence in either comparison, for which we also have evidence of changed gene expression.
 
@@ -507,7 +507,7 @@ treatment_peaks %>%
   )
 ```
 
-# Differentially Bound Windows {.tabset}
+# Differential Signal Windows {.tabset}
 
 ```{r all-windows}
 cols <- c(cpm_column, "logFC", "status", fdr_column, "fdr_mu0", "centre")
@@ -628,7 +628,7 @@ A set of `r comma(length(all_windows))` common windows was formed by obtaining t
 These common windows were formed using any overlap between target-specific windows.
 The window-to-gene mappings and the best overlap with genomic regions was also reformed.
 `r if (has_features) "The best overlap with external features was also reformed."`
-`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For the {comma(sum(!str_detect(all_windows$status, 'Undetected')))} windows where binding was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
+`r if (has_hic) glue("HiC data was also included, with {percent(mean(all_windows$hic), 0.1)} of all windows overlapping a HiC interaction bin. For the {comma(sum(!str_detect(all_windows$status, 'Undetected')))} windows where signal was observed in both datasets, this became {percent(mean(subset(all_windows, !str_detect(status, 'Undetected'))$hic), 0.1)}")`
 
 In the original datasets, `r comma(length(db_results[[1]]))` windows were included for `r comps[[1]]`, whilst `r comma(length(db_results[[2]]))` windows were included for `r comps[[2]]`.
 The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. 
@@ -637,7 +637,7 @@ Taking the complete set of `r comma(length(all_windows))` windows, `r comma(sum(
 The median distance between windows found in both comparisons was `r  median(all_windows$distance, na.rm = TRUE)`bp.
 `r comma(sum(all_windows$distance == 0, na.rm = TRUE))` peaks (`r percent(mean(all_windows$distance == 0, na.rm = TRUE), 0.1)`) were found to directly overlap.
 
-Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value < `r fdr_alpha` from either comparison were used to consider a window as showing changed binding in at least one comparison.
+Merged windows were compared across both targets and in order to obtain the best classification for each window, the initial values of an FDR-adjusted p-value < `r fdr_alpha` from either comparison were used to consider a window as showing changed signal in at least one comparison.
 A secondary step was then introduced for each window such that if one target was significant and the other target had 1) received an FDR-adjusted p-value < `r fdr_alpha` *using a point-based* $H_0$, and 2) had an estimated logFC beyond the range specified for the range-based null hypothesis ($H_0: 0 < |\mu| < \lambda$ for $\lambda = `r round(lambda, 2)`$), these windows were then considered significant in the second comparison.
 This was to help *reduce the number of windows incorrectly classified as unchanged* whilst the alternative ChIP target was defined as changed.
 
@@ -646,7 +646,7 @@ Whilst summary tables and figures are presented below, **the full set of windows
 ```{r tbl-summary}
 cp <- htmltools::tags$em(
   glue(
-    "Summary of combined binding windows for ",
+    "Summary of combined windows for ",
     glue_collapse(comps, sep = " and "),
     ". Windows were classified as described above. ",
     "The number of windows showing each combined pattern are given, along ",
@@ -748,7 +748,7 @@ div(class = "table",
 
 ## Overall Status
 
-```{r plot-both-donut, fig.cap = "Summary of binding across both comparisons incorporating all sites where binding was detected in either copmarison. Regions where binding is changed in either comparisons are exploded."}
+```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either copmarison. Regions where signal is changed in either comparisons are exploded."}
 all_windows %>% 
   as_tibble() %>% 
   dplyr::select(ends_with("_status")) %>% 
@@ -773,10 +773,10 @@ all_windows %>%
 ```
 
 
-## Pairwise Differential Binding
+## Pairwise Differential Signal
 
 
-```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in signal is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df <- all_windows %>% 
   select(ends_with("logFC"), status, detected, any_of(c("region", "feature"))) %>% 
   as_tibble()
@@ -883,7 +883,7 @@ df %>%
 
 ## logFC By Region
 
-```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in signal for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df %>% 
   mutate(status = fct_lump_min(status, 2)) %>%
   ggplot() +
@@ -959,7 +959,7 @@ df %>%
 
 `r if (has_features) "## logFC By Feature"`
 
-```{r plot-dbwin-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in binding for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in signal for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df %>% 
   mutate(status = fct_lump_min(status, 2)) %>%
   ggplot() +
@@ -1052,7 +1052,7 @@ db_results %>%
 
 ## Distribution By Region
 
-```{r status-by-region, fig.cap = glue("*Distribution of binding patterns by genomic regions as defined in earlier sections. Windows are only shown if change was detected in one of the comparisons. Segments where changes were detected in both comparisons are exploded.*")}
+```{r status-by-region, fig.cap = glue("*Distribution of signal patterns by genomic regions as defined in earlier sections. Windows are only shown if change was detected in one of the comparisons. Segments where changes were detected in both comparisons are exploded.*")}
 all_windows %>% 
   filter(grepl("Up|Down", status)) %>% 
   mutate(status = fct_lump_prop(status, 0.01)) %>% 
@@ -1070,7 +1070,7 @@ all_windows %>%
 
 `r if (has_features) "## Distribution By Feature"`
 
-```{r status-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Distribution of binding patterns by external features as defined in earlier sections. Windows are only shown if change was detected in one of the comparisons.*")}
+```{r status-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Distribution of signal patterns by external features as defined in earlier sections. Windows are only shown if change was detected in one of the comparisons.*")}
 all_windows %>% 
   filter(grepl("Up|Down", status)) %>% 
   mutate(status = fct_lump_prop(status, 0.01)) %>% 
@@ -1120,7 +1120,7 @@ all_windows %>%
 
 `r if (n_targets > 1) "## Distance by Region"`
 
-```{r distance-by-region, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed binding. The x-axis is truncated 1kb.*"}
+```{r distance-by-region, echo = n_targets > 1, eval = n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
 all_windows %>% 
   as_tibble() %>% 
   dplyr::filter(!is.na(distance)) %>% 
@@ -1148,7 +1148,7 @@ all_windows %>%
 
 `r if (has_features & n_targets > 1) "## Distance By Feature"`
 
-```{r distance-by-feature, echo = has_features & n_targets > 1, eval = has_features & n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed binding. The x-axis is truncated 1kb.*"}
+```{r distance-by-feature, echo = has_features & n_targets > 1, eval = has_features & n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
 all_windows %>% 
   as_tibble() %>% 
   dplyr::filter(!is.na(distance)) %>% 
@@ -1177,11 +1177,11 @@ all_windows %>%
 ```
 
 
-# Combined Binding
+# Combined Signal
 
 ## Heatmaps {.tabset}
 
-A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where binding was detected as changed in at least one of the comparisons.
+A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where signal was detected as changed in at least one of the comparisons.
 If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
 If only one target is detected within a range, peaks are centred at the range with maximal signal.
 Scales for fill and average signal (both logCPM) are held constant across all plots for easier comparison between groups.
@@ -1355,7 +1355,7 @@ htmltools::tagList(
 ## Windows With The Strongest Signal {.tabset}
 
 For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
-Groups were restricted to those where differential binding was seen in at least comparison.
+Groups were restricted to those where differential signal was seen in at least comparison.
 
 ```{r grl-to-plot-avexpr}
 grl_to_plot <- all_windows %>% 
@@ -1606,7 +1606,7 @@ htmltools::tagList(
 ## Windows With The Largest Change {.tabset}
 
 For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
-Groups were restricted to those where differential binding was seen in at least comparison.
+Groups were restricted to those where differential signal was seen in at least comparison.
 
 ```{r grl-to-plot-logfc}
 grl_to_plot <- all_windows %>% 
@@ -1859,19 +1859,19 @@ group_ids <- all_windows %>%
 
 ## Comparison of Genes Mapped To Targets
 
-The first level of enrichment testing performed was to simply check the genes mapped to a binding site in either comparison, with no consideration being paid to the dynamics of binding in either comparison.
+The first level of enrichment testing performed was to simply check the genes mapped to a site in either comparison, with no consideration being paid to the dynamics of signal in either comparison.
 This will capture and describe the overall biological activity being jointly regulated.
 
 The genes in each section and intersection in the following Venn Diagram will then be analysed against the complete set of `r comma(length(unique(unlist(comp_ids))))` genes mapped to either `r glue_collapse(comps, last = ' or ')`.
-Firstly, all `r comma(length(mapped_ids))` genes mapped to a binding site were tested for enrichment in comparison to the set of `r comma(length(unique(gtf_gene$gene_id)))` `r ifelse(has_rnaseq, "detected", "annotated")` genes.
+Firstly, all `r comma(length(mapped_ids))` genes mapped to a site were tested for enrichment in comparison to the set of `r comma(length(unique(gtf_gene$gene_id)))` `r ifelse(has_rnaseq, "detected", "annotated")` genes.
 For this analysis, gene width was used as a potential source of sampling bias and Wallenius' Non-Central Hypergeometric was used as implemented in `goseq` [@YoungGoseq2010].
 
 The sets of genes mapped to each section of the Venn Diagram were then tested for enrichment in comparison to the larger set of `r comma(length(mapped_ids))` mapped genes.
 The standard hypergeometric distribution was used for these analyses.
 
-If `r min_network_size` or more gene-sets were considered to be enriched, a network plot was produced using the same methodology as for results from differential binding for individual comparisons.
+If `r min_network_size` or more gene-sets were considered to be enriched, a network plot was produced using the same methodology as for results from differential signal for individual comparisons.
 
-```{r venn-shared-genes, results = 'hide', fig.show = 'asis', fig.cap = glue("*Venn Diagram showing __genes__ mapped to a binding region associated with {glue_collapse(comps, sep = ' or ')}. Of the {comma(nrow(all_ids))} genes under consideration, a total of {comma(length(mapped_ids))} genes were mapped to a binding region across both comparisons, leaving {comma(nrow(all_ids) - length(mapped_ids))} genes unmapped to a binding region across either comparison.*")}
+```{r venn-shared-genes, results = 'hide', fig.show = 'asis', fig.cap = glue("*Venn Diagram showing __genes__ mapped to a signal region associated with {glue_collapse(comps, sep = ' or ')}. Of the {comma(nrow(all_ids))} genes under consideration, a total of {comma(length(mapped_ids))} genes were mapped to a signal region across both comparisons, leaving {comma(nrow(all_ids) - length(mapped_ids))} genes unmapped to a signal region across either comparison.*")}
 plotOverlaps(
   comp_ids, set_col = comp_cols[comps], cex = 1.2, cat.cex = 1.2
 )
@@ -1980,7 +1980,7 @@ tbl <- goseq_mapped_res %>%
   )
 cp <- glue(
   "
-  All {comma(length(mapped_ids))} genes with a mapped binding window from 
+  All {comma(length(mapped_ids))} genes with a mapped window from 
   either comparison were compared to the complete set of 
   {comma(length(unique(gtf_gene$gene_id)))} annotated genes, in order to 
   ascertain which key gene-sets and pathways were likely to be targeted in either analysis. 
@@ -1992,7 +1992,7 @@ cp <- glue(
   ),
   "
   Gene-length was included as the source of any potential sampling bias for a 
-  gene being mapped to any target-bound range. This analysis provides an overall 
+  gene being mapped to any target-signal range. This analysis provides an overall 
   viewpoint as to which pathways are regulated across either dataset.
   "
 )
@@ -2020,7 +2020,7 @@ any_goseq_t1t2 <- plot_network_t1t2 <- FALSE
 para <- glue(
   "
   All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes with a 
-  mapped binding window to both {glue_collapse(comps, last = ' and ')} were compared to 
+  mapped window to both {glue_collapse(comps, last = ' and ')} were compared to 
   the {comma(length(mapped_ids))} genes mapped to either, 
   in order to ascertain whether any key gene-sets were likely to be targeted by 
   both factors in combination. No sampling bias offset was incorporated, instead 
@@ -2148,7 +2148,7 @@ any_goseq_t1only <- plot_network_t1only <- FALSE
 para <- glue(
   "
   All {comma(length(setdiff(comp_ids[[1]], comp_ids[[2]])))} genes with a 
-  mapped binding window to only {comps[[1]]} were compared to 
+  mapped window to only {comps[[1]]} were compared to 
   the {comma(length(mapped_ids))} genes mapped to either
   {glue_collapse(comps, last = ' or ')}, in order to ascertain whether any gene-sets 
   were likely to be targeted exclusively. No sampling bias offset was 
@@ -2274,7 +2274,7 @@ gs_method <- "Hypergeometric"
 para <- glue(
   "
   All {comma(length(setdiff(comp_ids[[2]], comp_ids[[1]])))} genes with a 
-  mapped binding window to only {comps[[2]]} were compared to 
+  mapped window to only {comps[[2]]} were compared to 
   the {comma(length(mapped_ids))} genes mapped to either 
   {glue_collapse(comps, last = ' or ')}, in order to ascertain whether any gene-sets 
   were likely to be targeted exclusively. No sampling bias offset was 
@@ -2389,7 +2389,7 @@ div(class = "table",
 
 `r if (plot_network_mapped) "#### All Mapped Genes"`
 
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap = glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with a binding site from __either__ comparison.*")}
+```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap = glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with signal detected in __either__ comparison.*")}
 tg_mapped %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -2420,7 +2420,7 @@ tg_mapped %>%
 
 `r if (plot_network_t1t2) paste("#### Genes Mapped to Both", glue_collapse(comps, last = ' and '))`
 
-```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap = glue("*Network plot showing gene-sets enriched amongst the overall set of sites with a binding site for __both__ {comps[[1]]} and {comps[[2]]}.*")}
+```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap = glue("*Network plot showing gene-sets enriched amongst the overall set of sites with detected signal in __both__ {comps[[1]]} and {comps[[2]]}.*")}
 tg_t1t2 %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -2451,7 +2451,7 @@ tg_t1t2 %>%
 
 `r if (plot_network_t1only) glue("#### Genes Mapped to {comps[[1]]} Only")`
 
-```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap = glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[1]]} only__.*")}
+```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap = glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with detected signal in __{comps[[1]]} only__.*")}
 tg_t1only %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -2482,7 +2482,7 @@ tg_t1only %>%
 
 `r if (plot_network_t2only) glue("#### Genes Mapped to {comps[[2]]} Only")`
 
-```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap = glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with a binding site for __{comps[[2]]} only__.*")}
+```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap = glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with detected signal in __{comps[[2]]} only__.*")}
 tg_t2only %>% 
   ggraph(layout = net_layout, weights = oc^2) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -2512,7 +2512,7 @@ tg_t2only %>%
 ```
 
 
-## Comparison of Differentially Bound Windows
+## Comparison of Differential Signal Regions
 
 ```{r goseq-groups, fig.show = 'hide'}
 n_peaks <- structure(all_ids$n_windows, names = all_ids$gene_id)[mapped_ids]
@@ -2568,7 +2568,7 @@ tg_group_res <- names(goseq_group_sig) %>%
 ```
 
 The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
-The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a binding window mapped from either target.
+The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a window mapped from either target.
 No sampling bias was included, with test results using a simple Hypergeometric Distribution.
 `r if(length(goseq_group_sig) == 0) "No enrichment was found amongst any group of windows"`
 
@@ -2583,9 +2583,9 @@ htmltools::tagList(
       function(x) {
         cp <- glue(
           "
-          All {comma(length(group_ids[[x]]), 1)} genes mapped to binding windows
+          All {comma(length(group_ids[[x]]), 1)} genes mapped to windows
            with the pattern {x} were compared to the complete set of 
-          {comma(length(mapped_ids), 1)} genes mapped to at least one binding
+          {comma(length(mapped_ids), 1)} genes mapped to at least one
           window. {nrow(goseq_group_sig[[x]])} gene-sets were considered as 
           enriched using a threshold of {enrich_alpha} for adjusted-p-values.
           "

@@ -61,7 +61,7 @@ merged_results <- merged_results %>%
 ```
 
 
-Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential binding by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
+Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential signal by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
 The presence of `r glue_collapse(other_targets, sep = ", ", last = " and ")` was defined simply using the union peaks detected under any treatment by `macs2 callpeak`, as determined [previously](`r glue("{target}_macs2_summary.html")`).
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
@@ -111,8 +111,8 @@ ihw %>%
   pander(
     justify = "lrrrrrr",
     caption = paste(
-      "*Summary of changes introduced by IHW for windows considered as being", 
-      paste0("differentially bound by ", target, "."),
+      "*Summary of changes introduced by IHW for windows considered as", 
+      paste0("showing differential ", target, "signal."),
       "This corresponds to a __nett change of", 
         dplyr::slice(., nrow(.)) %>% 
         mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 
