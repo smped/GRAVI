@@ -5,15 +5,24 @@ samples:
 paths:
   bam: "data/bam"
 
-peaks:
-  macs2:
+genome:
+  build: "GRCh37"
+
+## Both macs2 fields are now updated so there is a default
+## This is passed to all targets, however, if a different value is required
+## in any field for a specific target, then adding that field for the given
+## target can be done, e.g. AR: fdr: 0.01 (in the correct YAML format)
+macs2:
+  default:
     gsize: "hs"
     fdr: 0.05
-    keep_duplicates: "all"
-  qc:
+    keep_duplicates: "all"   
+
+macs2_qc:
+  default:
     outlier_threshold: 10
     allow_zero: true
-    min_prop_reps: 0.5
+    min_prop_reps: 0.5 # Currently, this cannot be set within a given target
 
 comparisons:
   windows:
@@ -27,9 +36,6 @@ comparisons:
   contrasts:
     - ["E2", "E2DHT"]
   ihw: "targets"
-
-genome:
-  build: "GRCh37"
 
 external:
   blacklist:

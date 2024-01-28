@@ -80,6 +80,28 @@ wildcard_constraints:
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats[:-1]) + ")"
 
+#######################
+## Update parameters ##
+#######################
+## Set the defaults for every target, updating where manually set
+macs2_param = {}
+for i in targets:
+	macs2_param[i] = config['macs2']['default'].copy()
+	if i in config['macs2'].keys():
+		for j in config['macs2'][i].keys():
+			macs2_param[i][j] = config['macs2'][i][j]
+
+
+macs2_qc_param = {}
+for i in targets:
+	macs2_qc_param[i] = config['macs2_qc']['default'].copy()
+	if i in config['macs2_qc'].keys():
+		for j in config['macs2_qc'][i].keys():
+			macs2_qc_param[i][j] = config['macs2_qc'][i][j]
+
+
+
+
 
 ###############
 ## Key Paths ##
@@ -156,12 +178,12 @@ HTML_OUT.extend(
 )
 
 # Differential Signal
-HTML_OUT.extend(
-	expand(
-		os.path.join("docs", "{cont}_differential_signal.html"),
-		cont = make_contrasts(config['comparisons']['contrasts'])
-	)
-)
+# HTML_OUT.extend(
+# 	expand(
+# 		os.path.join("docs", "{cont}_differential_signal.html"),
+# 		cont = make_contrasts(config['comparisons']['contrasts'])
+# 	)
+# )
 
 ## Pairwise Comparisons: Only if required
 if pairs:

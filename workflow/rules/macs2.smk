@@ -53,9 +53,15 @@ rule macs2_individual:
     params:
         outdir = os.path.join(macs2_path, "{sample}"),
         prefix = "{sample}",
-        gsize = config['peaks']['macs2']['gsize'],
-        fdr = config['peaks']['macs2']['fdr'],
-        keep_duplicates = config['peaks']['macs2']['keep_duplicates']
+        gsize = lambda wildcards: macs2_param[
+            list(df[df['sample'] == wildcards.sample]['target'])[0]
+        ]['gsize'],
+        fdr = lambda wildcards: macs2_param[
+            list(df[df['sample'] == wildcards.sample]['target'])[0]
+        ]['fdr'],
+        keep_duplicates = lambda wildcards: macs2_param[
+            list(df[df['sample'] == wildcards.sample]['target'])[0]
+        ]['keep_duplicates']
     threads: 1
     resources:
         mem_mb = 8192
@@ -82,7 +88,6 @@ rule macs2_qc:
             suffix = ['bam', 'bam.bai']
         ),
         blacklist = blacklist,
-        config = "config/config.yml",
         chk = expand(
             os.path.join("output", "checks", "{f}.chk"),
             f = ['r-packages', 'here']
@@ -100,6 +105,9 @@ rule macs2_qc:
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv")
+    params:
+        outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold'],
+        allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
@@ -111,7 +119,9 @@ rule macs2_qc:
         Rscript --vanilla \
             {input.r} \
             {wildcards.target} \
-            {threads} &>> {log}
+            {threads} \
+            {params.outlier_threshold} \
+            {params.allow_zero} &>> {log}
         """
 
 rule macs2_merged:
@@ -145,9 +155,9 @@ rule macs2_merged:
         bamdir = bam_path,
         outdir = os.path.join(macs2_path, "{target}"),
         prefix = "{target}_{treat}_merged",
-        gsize = config['peaks']['macs2']['gsize'],
-        fdr = config['peaks']['macs2']['fdr'],
-        keep_duplicates = config['peaks']['macs2']['keep_duplicates']
+        gsize = lambda wildcards: macs2_param[wildcards.target]['gsize'],
+        fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
+        keep_duplicates = lambda wildcards: macs2_param[wildcards.target]['keep_duplicates']
     threads: 1
     resources:
         mem_mb = 8192	

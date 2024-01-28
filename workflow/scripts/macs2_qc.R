@@ -14,6 +14,12 @@
 #' generated for later inclusion in differential_signal and macs2_summary
 #' workflows
 
+args <- commandArgs(TRUE)
+target <- args[[1]]
+threads <- args[[2]]
+outlier_thresh <- as.numeric(args[[3]])
+allow_zero <- args[[4]] == "True"
+
 library(tidyverse)
 library(yaml)
 library(glue)
@@ -25,9 +31,6 @@ library(Rsamtools)
 library(BiocParallel)
 library(csaw)
 
-args <- commandArgs(TRUE)
-target <- args[[1]]
-threads <- args[[2]]
 register(MulticoreParam(workers = threads))
 
 config <- read_yaml(
@@ -44,21 +47,23 @@ if (!is.null(config$comparisons$contrasts)) {
     intersect(samples$treat) %>%
     unique()
 }
-def_cols <- c("sample", "treat", "target", "input", "type")
+def_cols <- c("sample", "treat", "target", "input")
 rep_col <- setdiff(colnames(samples), def_cols)
-samples <- samples %>%
-  unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
-  mutate(
-    treat = factor(treat, levels = treat_levels),
-    "{rep_col}" := as.factor(!!sym(rep_col))
-  )
+if (length(rep_col) > 0) {
+  samples <- samples %>%
+    unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
+    mutate(
+      "{rep_col}" := as.factor(!!sym(rep_col))
+    )
+} else {
+  samples <- samples %>%
+    mutate(label = paste(treat, seq_along(treat), sep = "_"), .by = treat)
+}
+samples$treat <- factor(samples$treat, levels = treat_levels)
 
 ########
 ## QC ##
 ########
-
-outlier_thresh <- config$peaks$qc$outlier_threshold
-allow_zero <- as.logical(config$peaks$qc$allow_zero)
 
 annotation_path <- here::here("output", "annotations")
 macs2_path <- here::here("output", "macs2")
