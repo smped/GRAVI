@@ -33,7 +33,6 @@ library(glue)
 args <- commandArgs(TRUE)
 target <- args[[1]]
 threads <- args[[2]]
-type <- args[[3]]
 
 #'
 #' Setup the key config elements
@@ -50,7 +49,7 @@ annotation_path <- here::here("output", "annotations")
 stopifnot(dir.exists(annotation_path))
 bam_path <- here::here(config$paths$bam)
 stopifnot(dir.exists(bam_path))
-out_path <- here::here("output", glue("differential_{type}"), target)
+out_path <- here::here("output", glue("differential_signal"), target)
 if (!dir.exists(out_path)) dir.create(out_path)
 message("Files will be written to:\n", out_path)
 

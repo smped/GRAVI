@@ -7,28 +7,13 @@ import sys
 import random
 import itertools
 import yaml
-import hashlib
 
 configfile: "config/config.yml"
-df = pd.read_table(config['samples']['file'])
+
+max_threads = workflow.cores
 
 ## Figure out how to run check_yaml from here if possible
 ## python scripts/check_yaml.py
-
-## Set the here file as defined by here::here() for Rmarkdown files
-## In a valid Rproj file is found, use that. Otherwise use .here
-def get_here_file():
-	wd = os.getcwd()
-	rproj = os.path.basename(wd) + ".Rproj"
-	rproj_path = os.path.join(wd, rproj)
-	here_file = os.path.join(wd, ".here")
-	if os.path.isfile(rproj_path):
-		## Check contents of file for Version in line 1
-		with open(rproj_path) as f:
-			ln = f.readline().rstrip()
-		if 'Version:' in ln:
-			here_file = rproj_path
-	return(here_file)
 
 ####################################
 ## Check all external files exist ##
@@ -46,11 +31,9 @@ for i in config['external']:
 			
 		
 	
-
-
 # Define all contrasts
 # x will be config['comparisons']['contrasts']:
-def make_contrasts(x, df = df):
+def make_contrasts(x):
 	ret_val = []
 	for comp in x:
 		ref = comp[0]
@@ -61,6 +44,7 @@ def make_contrasts(x, df = df):
 		for t in comp_tgts:
 			ret_val.extend([t + "_" + ref + "_" + treat])
 	return(ret_val)
+
 
 
 def make_pairwise(x):
@@ -75,36 +59,35 @@ def make_pairwise(x):
 	return(ret_val)
 
 
-max_threads = workflow.cores
 
 ####################
 ## Define Samples ##
 ####################
+df = pd.read_table(config['samples']['file'])
 
 ## Now set all values as required
 samples = list(set(df['sample']))
-all_targets = list(set(df['target']))
-tf_targets = list(set(df[df['type'].str.lower() == 'tf']['target']))
-h3k27ac_targets = list(set(df[df['type'].str.lower() == 'h3k27ac']['target']))
+targets = list(set(df['target']))
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
-pairs=make_pairwise(config['comparisons']['contrasts'])
+# pairs=make_pairwise(config['comparisons']['contrasts'])
+pairs = False
 
+## Note that the last level in treats can never be the reference level
 wildcard_constraints:
 	target = "(" + '|'.join(targets) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
-	ref = "(" + '|'.join(treats) + ")"
+	ref = "(" + '|'.join(treats[:-1]) + ")"
+
 
 ###############
 ## Key Paths ##
 ###############
-here_file = get_here_file()
 bam_path = config['paths']['bam']
 rmd_path = "analysis"
 annotation_path = os.path.join("output", "annotations")
-diff_tf_path = os.path.join("output", "differential_signal")
-diff_h3k27ac_path = os.path.join("output", "differential_h3k27ac")
+diff_path = os.path.join("output", "differential_signal")
 macs2_path = os.path.join("output", "macs2")
 log_path = os.path.join("workflow", "logs")
 
@@ -126,11 +109,6 @@ if type(fig_type) is list:
 gtf = config['external']['gtf']
 blacklist = config['external']['blacklist']
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
-
-##################################
-## Hash for updating extraChIPs ##
-##################################
-rmd_hash = hashlib.md5(open('workflow/envs/rmarkdown.yml', "rb").read()).hexdigest()
 
 #################################
 ## Differential Signal Method ##
@@ -173,34 +151,17 @@ HTML_OUT = expand(
 HTML_OUT.extend(
 	expand(
 		os.path.join("docs", "{target}_macs2_summary.html"),
-		target = all_targets
+		target = targets
 	)
 )
 
-## Differential Signal
-if tf_targets:
-	HTML_OUT.extend(
-		expand(
-			os.path.join("docs", "{cont}_differential_signal.html"),
-			cont = make_contrasts(
-				config['comparisons']['contrasts'], 
-				df = df[df['type'].str.lower()  == "tf"]
-			)
-		)
+# Differential Signal
+HTML_OUT.extend(
+	expand(
+		os.path.join("docs", "{cont}_differential_signal.html"),
+		cont = make_contrasts(config['comparisons']['contrasts'])
 	)
-
-## Differential H3K27ac
-if h3k27ac_targets:
-	HTML_OUT.extend(
-		expand(
-			os.path.join("docs", "{cont}_differential_h3k27ac.html"),
-			cont = make_contrasts(
-				config['comparisons']['contrasts'], 
-				df = df[df['type'].str.lower()  == "h3k27ac"]
-			)
-		)
-	)
-
+)
 
 ## Pairwise Comparisons: Only if required
 if pairs:
@@ -270,7 +231,5 @@ include: "rules/rmarkdown.smk"
 include: "rules/macs2.smk"
 include: "rules/bigwig.smk"
 include: "rules/annotations.smk"
-include: "rules/make_greylist.smk"
 include: "rules/differential_signal.smk"
-include: "rules/differential_h3k27ac.smk"
 include: "rules/pairwise_comparisons.smk"

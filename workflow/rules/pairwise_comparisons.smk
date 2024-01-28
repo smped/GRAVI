@@ -1,13 +1,9 @@
-def get_difftype(x):
-	if x in h3k27ac_targets:
-		return("h3k27ac")
-	else:
-		return("binding")
-
-
 rule create_pairwise_comparisons_rmd:
 	input:
-		chk = rules.check_r_packages.output,
+		chk = expand(
+			os.path.join("output", "checks", "{f}.chk"),
+			f = ['r-packages', 'here']
+		),
 		module_pw = "workflow/modules/pairwise_comparison.Rmd",
 		r = "workflow/scripts/create_pairwise_comparison.R"
 	output:
@@ -48,21 +44,17 @@ rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		blacklist = blacklist,
-		chk = rules.check_r_packages.output,
-		config = "config/config.yml",
-		here = here_file,
-		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
-		results_t1 = lambda wildcards: expand(
-			os.path.join(
-				"docs", "{{t1}}_{{ref1}}_{{treat1}}_differential_{type}.html"
-			),
-			type = get_difftype(wildcards.t1)
+		chk = expand(
+			os.path.join("output", "checks", "{f}.chk"),
+			f = ['r-packages', 'here']
 		),
-		results_t2 = lambda wildcards: expand(
-			os.path.join(
-				"docs", "{{t2}}_{{ref2}}_{{treat2}}_differential_{type}.html"
-			),
-			type = get_difftype(wildcards.t2)
+		config = "config/config.yml",
+		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
+		results_t1 = os.path.join(
+			"docs", "{t1}_{ref1}_{treat1}_differential_signal.html"
+		),
+		results_t2 = os.path.join(
+			"docs", "{t2}_{ref2}_{treat2}_differential_signal.html"
 		),
 		rmd = expand(
 			os.path.join(
