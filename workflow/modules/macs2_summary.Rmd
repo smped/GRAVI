@@ -1,6 +1,6 @@
 ```{r get-params}
 target <- params$target
-threads <- params$threads
+threads <- as.integer(params$threads)
 min_prop <- params$min_prop
 ```
 
@@ -65,15 +65,6 @@ if (!is.null(config$comparisons$contrasts)) {
     intersect(samples$treat) %>% 
     unique()
 }
-def_cols <- c("sample", "treat", "target", "input", "label", "qc", "type")
-rep_col <- setdiff(colnames(samples), def_cols)
-samples <- samples %>%
-  unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
-  mutate(
-    treat = factor(treat, levels = treat_levels),
-    "{rep_col}" := as.factor(!!sym(rep_col))
-  ) %>% 
-  dplyr::filter(treat %in% treat_levels)
 stopifnot(nrow(samples) > 0)
 ```
 
@@ -192,6 +183,14 @@ This section provides a simple series of visualisations to enable detection of a
 ```{r macs2-logs-individual}
 emphasize.italics.rows(NULL)
 any_fail <- any(macs2_logs$qc == "fail")
+fdr_macs2 <- config$macs2$default$fdr
+if (!is.null(config$macs2$default$fdr)) {
+  fdr_macs2 <- config$macs2$default$fdr
+}
+thresh <- config$macs2_qc$default$outlier_threshold
+if (!is.null(config$macs2_qc[[target]]$outlier_threshold)) {
+  thresh <- config$macs2_qc[[target]]$outlier_threshold
+}
 if (any_fail) emphasize.italics.rows(which(macs2_logs$qc == "fail"))
 macs2_logs %>%
   dplyr::select(
@@ -206,14 +205,14 @@ macs2_logs %>%
     caption = glue(
       "*Summary of results for `macs2 callpeak` on individual {target} samples.",
       "Total peaks indicates the number retained after applying the FDR ", 
-      "threshold of {percent(config$peaks$macs2$fdr)} during the peak calling ", 
+      "threshold of {percent(fdr_macs2)} during the peak calling ", 
       "process.",
       ifelse(
         any_fail,
         glue(
           "Samples shown in italics were marked for exclusion from ",
           "downstream analysis as they identified a number of peaks beyond ",
-          "+/- {config$macs2_qc$default$outlier_threshold}-fold the median number of ",
+          "+/- {thresh}-fold the median number of ",
           "peaks amongst all samples within the relevant treatment group.",
         ),
         glue(
@@ -269,7 +268,7 @@ macs2_logs %>%
 
 ### Peaks Detected
 
-```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {config$peaks$macs2$fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
+```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {fdr_macs2}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
 suppressWarnings(
   macs2_logs %>%
     ggplot(aes(label, total_peaks, fill = qc)) +
@@ -334,7 +333,7 @@ macs2_path %>%
   file.path(target, glue("{target}_cross_correlations.tsv")) %>% 
   read_tsv() %>% 
   left_join(samples, by = "sample") %>% 
-  arrange(desc(treat), !!sym(rep_col)) %>% 
+  arrange(desc(treat), label) %>% 
   ggplot(aes(fl, correlation, colour = treat)) +
   geom_point(alpha = 0.1) +
   geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
@@ -350,7 +349,7 @@ macs2_path %>%
       dplyr::filter(correlation == max(correlation), .by = sample),
     show.legend = FALSE, alpha = 0.7
   ) +
-  facet_grid(as.formula(paste("treat ~", rep_col))) +
+  facet_grid(vars(treat), scales = "free", space = "free") +
   scale_colour_manual(values = colours$treat[treat_levels]) +
   scale_x_continuous(
     breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
@@ -522,7 +521,7 @@ individual_peaks %>%
           hjust = 1.1, stat = 'count', size = 3.5
         ) +
         scale_y_reverse(expand = expansion(c(0.3, 0)), label = comma) +
-        ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
+        ylab(glue("Macs2 Peaks (FDR < {fdr_macs2})")) +
         theme(
           panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
@@ -690,7 +689,7 @@ htmltools::tagList(
                     hjust = 1.1, stat = 'count', size = 4
                   ) +
                   scale_y_reverse(expand = expansion(c(0.2, 0)), label = comma) +
-                  ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
+                  ylab(glue("Macs2 Peaks (FDR < {fdr_macs2})")) +
                   theme(
                     text = element_text(size = 14),
                     panel.grid = element_blank(), 

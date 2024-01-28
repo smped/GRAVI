@@ -82,7 +82,7 @@ rule create_macs2_summary_rmd:
 	output:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
 	params:
-		threads = lambda wildcards: min(
+		cores = lambda wildcards: min(
 			len(df[df['target'] == wildcards.target]),
 			max_threads
 		),
@@ -90,14 +90,17 @@ rule create_macs2_summary_rmd:
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
+	resources:
+		mem_mb = 1024,
+		runtime = "5m"
 	shell:
 		"""
 		## Create the generic markdown
 		Rscript --vanilla \
 			{input.r} \
-			{wildcards.target} \
-			{params.threads} \
-			{params.min_prop} \
+			"{wildcards.target}" \
+			"{params.cores}.0" \
+			"{params.min_prop}" \
 			{output.rmd} &>> {log}
 
 		## Add the module directly as literal code
