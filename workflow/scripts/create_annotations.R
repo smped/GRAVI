@@ -99,7 +99,6 @@ all_gtf <- gtf %>%
   ) %>%
   sort() %>%
   subset(seqnames %in% seqlevels(sq)) %>%
-  keepSeqlevels(seqlevels(sq)) %>%
   splitAsList(f = .$type)
 cat("GTF imported successfully...\n")
 
@@ -108,6 +107,7 @@ if (all(vapply(all_gtf, length, integer(1)) == 0))
     "No valid ranges found in the provided GTF.\nPlease check for compatible ",
     "chromosome identifiers"
     )
+seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
 
 cat("Exporting gene, transcript and exon-level objects\n")
@@ -119,7 +119,7 @@ cat("All gtf_*.rds objects written successfully...\n")
 #### Transcript Models (Gviz) ####
 trans_models <- all_gtf$exon %>%
   select(
-    type, gene = gene_id, exon = exon_id, transcript = transcript_id, 
+    type, gene = gene_id, exon = exon_id, transcript = transcript_id,
     symbol = gene_name
   )
 write_rds(trans_models, all_out$transcript_models, compress = "gz")

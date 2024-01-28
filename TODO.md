@@ -1,6 +1,10 @@
 ## General
 
 - [ ] Update all Rmd for RELEASE 3.18
+    - [x] annotations
+    - [ ] macs2
+    - [ ] differential signal
+    - [ ] pairwise comparisons
 - [x] Update r environment for RELEASE 3.18
 - [x] Change terminology from differential binding to differential signal
 - [ ] Check for compatibility with extraChIPs >= v1.6
