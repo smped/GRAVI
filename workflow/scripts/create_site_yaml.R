@@ -16,18 +16,19 @@ fl <- here::here(args[[1]])
 config <- read_yaml(here::here("config", "config.yml"))
 rmd <- read_yaml(here::here("config", "rmarkdown.yml"))
 samples <- read_tsv(here::here(config$samples$file))
-tf_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "tf")$target)
-h3k27ac_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "h3k27ac")$target)
+# tf_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "tf")$target)
+# h3k27ac_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "h3k27ac")$target)
 # atac_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "atac")$target)
-all_targets <- c(tf_targets, h3k27ac_targets)
+# all_targets <- c(tf_targets, h3k27ac_targets)
+all_targets <- unique(samples$target)
 treats <- unique(samples$treat)
 
 ## Sort out the TF comparisons
-tf_comparisons <- lapply(
+comparisons <- lapply(
   config$comparisons$contrasts,
   function(x) {
     dplyr::filter(
-      samples, treat %in% x, target %in% tf_targets
+      samples, treat %in% x, target %in% all_targets
     ) %>%
       mutate(treat = factor(treat, levels = x)) %>%
       distinct(target, treat) %>%
@@ -44,10 +45,10 @@ tf_comparisons <- lapply(
 
 ## Differential Signal YAML
 diff_signal_yaml <- NULL
-if (length(tf_comparisons)) {
+if (length(comparisons)) {
   diff_signal_yaml <- list(
     text = "Differential Signal",
-    menu =   tf_comparisons %>%
+    menu =   comparisons %>%
       lapply(
         function(x){
           list(
@@ -69,51 +70,51 @@ if (length(tf_comparisons)) {
 }
 
 
-## Sort out the H3K27ac comparisons
-h3k27ac_comparisons <- lapply(
-  config$comparisons$contrasts,
-  function(x) {
-    dplyr::filter(
-      samples, treat %in% x, target %in% h3k27ac_targets
-    ) %>%
-      mutate(treat = factor(treat, levels = x)) %>%
-      distinct(target, treat) %>%
-      arrange(target, treat) %>%
-      group_by(target) %>%
-      summarise(comparison = paste(treat, collapse = "_")) %>%
-      dplyr::filter(comparison == paste(x, collapse = "_")) %>%
-      unite(rmd, everything(), sep ="_", remove = FALSE)
-  }
-) %>%
-  bind_rows() %>%
-  split(.$target) %>%
-  setNames(c())
+# ## Sort out the H3K27ac comparisons
+# h3k27ac_comparisons <- lapply(
+#   config$comparisons$contrasts,
+#   function(x) {
+#     dplyr::filter(
+#       samples, treat %in% x, target %in% h3k27ac_targets
+#     ) %>%
+#       mutate(treat = factor(treat, levels = x)) %>%
+#       distinct(target, treat) %>%
+#       arrange(target, treat) %>%
+#       group_by(target) %>%
+#       summarise(comparison = paste(treat, collapse = "_")) %>%
+#       dplyr::filter(comparison == paste(x, collapse = "_")) %>%
+#       unite(rmd, everything(), sep ="_", remove = FALSE)
+#   }
+# ) %>%
+#   bind_rows() %>%
+#   split(.$target) %>%
+#   setNames(c())
 
-## Differential H3K27ac YAML
+# ## Differential H3K27ac YAML
 diff_h3k27ac_yaml <- NULL
-if (length(h3k27ac_comparisons)) {
-  diff_h3k27ac_yaml <- list(
-    text = "Differential H3K27ac",
-    menu = h3k27ac_comparisons %>%
-      lapply(
-        function(x){
-          list(
-            text = unique(x$target),
-            menu = lapply(
-              split(x, f = seq_len(nrow(x))),
-              function(y) {
-                list(
-                  text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
-                  href = paste0(y$rmd, "_differential_h3k27ac.html")
-                )
-              }
-            ) %>%
-              setNames(NULL)
-          )
-        }
-      )
-  )
-}
+# if (length(h3k27ac_comparisons)) {
+#   diff_h3k27ac_yaml <- list(
+#     text = "Differential H3K27ac",
+#     menu = h3k27ac_comparisons %>%
+#       lapply(
+#         function(x){
+#           list(
+#             text = unique(x$target),
+#             menu = lapply(
+#               split(x, f = seq_len(nrow(x))),
+#               function(y) {
+#                 list(
+#                   text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
+#                   href = paste0(y$rmd, "_differential_h3k27ac.html")
+#                 )
+#               }
+#             ) %>%
+#               setNames(NULL)
+#           )
+#         }
+#       )
+#   )
+# }
 
 
 ## Sort out the pairwise comparisons

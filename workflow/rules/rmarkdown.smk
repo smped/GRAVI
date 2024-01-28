@@ -85,7 +85,8 @@ rule create_macs2_summary_rmd:
 		threads = lambda wildcards: min(
 			len(df[df['target'] == wildcards.target]),
 			max_threads
-		)
+		),
+		min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps'],
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
@@ -96,6 +97,7 @@ rule create_macs2_summary_rmd:
 			{input.r} \
 			{wildcards.target} \
 			{params.threads} \
+			{params.min_prop} \
 			{output.rmd} &>> {log}
 
 		## Add the module directly as literal code

@@ -97,7 +97,6 @@ rule macs2_qc:
             sample = set(df[df.target == wildcards.target]['sample']),
             suffix = ['callpeak.log', 'peaks.narrowPeak']
         ),
-        samples = config['samples']['file'],
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
         r = "workflow/scripts/macs2_qc.R"
     output:

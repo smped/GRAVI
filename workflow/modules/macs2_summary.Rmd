@@ -1,6 +1,7 @@
 ```{r get-params}
 target <- params$target
 threads <- params$threads
+min_prop <- params$min_prop
 ```
 
 
@@ -773,7 +774,7 @@ treatment_peaks <- treat_levels %>%
         file.path(target, glue("{target}_{x}_merged_peaks.narrowPeak")) %>%
         importPeaks(seqinfo = sq, blacklist = blacklist, centre = TRUE) %>% 
         unlist()
-      k <- dplyr::filter(n_reps, treat == x)$n * config$macs2_qc$default$$min_prop_reps
+      k <- dplyr::filter(n_reps, treat == x)$n * min_prop
       if (k > 0) {
         samp <- dplyr::filter(macs2_logs, treat == x, qc != "fail")$name
         gr$n_reps <- countOverlaps(gr, individual_peaks[samp]) 
@@ -818,7 +819,7 @@ if (has_features) {
 
 A set of treatment-specific `r target` peaks (i.e. *treatment peaks*) was defined for each condition by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
 Replicates which failed the previous QC steps are omitted from this step.
-Treatment peaks which overlapped a peak in more than `r percent(config$macs2_qc$default$min_prop_reps)` of the *individual replicates passing QC* in each treatment group, were retained.
+Treatment peaks which overlapped a peak in more than `r percent(min_prop)` of the *individual replicates passing QC* in each treatment group, were retained.
 
 ```{r tab-treatment-peak}
 treatment_peaks %>%
@@ -842,7 +843,7 @@ treatment_peaks %>%
     caption = glue(
       "Treatment peaks detected by merging samples within each treatment group.",
       "Peaks were only retained if detected in at least",
-      "{percent(config$macs2_qc$default$min_prop_reps)} of the retained samples for each", "treatment group, as described above.",
+      "{percent(min_prop)} of the retained samples for each", "treatment group, as described above.",
       .sep = " "
     )
   )

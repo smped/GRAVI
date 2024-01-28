@@ -4,7 +4,8 @@ library(glue)
 args <- commandArgs(TRUE)
 target <- args[[1]]
 threads <- args[[2]]
-rmd <- args[[3]]
+min_prop <- args[[3]]
+rmd <- args[[4]]
 
 glue(
 	"
@@ -16,6 +17,7 @@ glue(
 	params:
 	    target: \"{{target}}\"
 	    threads: {{threads}}
+	    min_prop: {{min_prop}}
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
