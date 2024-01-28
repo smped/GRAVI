@@ -64,9 +64,8 @@ if (!is.null(config$comparisons$contrasts)) {
     intersect(samples$treat) %>% 
     unique()
 }
-rep_col <- setdiff(
-  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
-)
+def_cols <- c("sample", "treat", "target", "input", "label", "qc", "type")
+rep_col <- setdiff(colnames(samples), def_cols)
 samples <- samples %>%
   unite(label, treat, !!sym(rep_col), remove = FALSE) %>%
   mutate(
@@ -97,10 +96,12 @@ if (!is.null(config$external$features)) {
     mcols(external_features), function(x) all(is.na(x)), logical(1)
   )
   mcols(external_features) <- mcols(external_features)[keep_cols]
+  feature_colours <- colours$features %>% setNames(str_sep_to_title(names(.)))
   has_features <- TRUE
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
+region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
 if (length(rna_path) > 0) {
@@ -240,23 +241,23 @@ macs2_logs %>%
 ```{r plot-macs2-libsize-individual, fig.height=6, fig.cap = glue("*Library sizes for each {target} sample. The horizontal line indicates the mean library size for each treatment group. Any samples marked for exclusion as described above will be indicated with an (F)*")}
 macs2_logs %>%
   ggplot(
-    aes(label, n_tags_treatment, fill = qc)
+    aes(label, n_tags_treatment/1e6, fill = qc)
   ) +
   geom_col(position = "dodge") +
   geom_hline(
     aes(yintercept = mn),
     data = . %>%
       group_by(treat) %>%
-      summarise(mn = mean(n_tags_treatment)),
+      summarise(mn = mean(n_tags_treatment/1e6)),
     linetype = 2,
     col = "grey"
   ) +
   facet_grid(~treat, scales = "free_x", space = "free_x") +
-  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
   scale_fill_manual(values = colours$qc) +
   labs(
     x = "Sample",
-    y = "Library Size",
+    y = "Library Size (millions)",
     fill = "QC"
   ) +
   ggtitle(
@@ -332,6 +333,7 @@ macs2_path %>%
   file.path(target, glue("{target}_cross_correlations.tsv")) %>% 
   read_tsv() %>% 
   left_join(samples, by = "sample") %>% 
+  arrange(desc(treat), !!sym(rep_col)) %>% 
   ggplot(aes(fl, correlation, colour = treat)) +
   geom_point(alpha = 0.1) +
   geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
@@ -448,6 +450,14 @@ valid_sets <- makeConsensus(individual_peaks) %>%
 ## Use upset_query objects to fill key intersections and sets
 ql <- samples$label %>% 
   lapply(
+    function(x) {
+      nm <- NULL
+      if (sum(df[[x]]) > 0) nm <- x
+      nm
+    }
+  ) %>% 
+  unlist() %>% 
+  lapply(
     function(x) upset_query(
       set = x, 
       fill = colours$treat[as.character(dplyr::filter(samples, label == x)$treat)]
@@ -485,7 +495,7 @@ individual_peaks %>%
       ) +
         scale_y_continuous(expand = expansion(c(0, 0.25)), label = comma) +
         theme(
-          panel.grid = element_blank(), 
+          panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill =  NA)
         )
@@ -497,9 +507,9 @@ individual_peaks %>%
           ylim = c(0, quantile(unlist(individual_peaks)$qValue, 0.99))
         ) +
         scale_y_continuous(expand = expansion(c(0, 0.05))) +
-        ylab(expr(paste("Macs2 ", q[med]))) +
+        ylab(expr(paste("Macs2 ", q[min]))) +
         theme(
-          panel.grid = element_blank(), 
+          panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill =  NA)
         )
@@ -513,7 +523,7 @@ individual_peaks %>%
         scale_y_reverse(expand = expansion(c(0.3, 0)), label = comma) +
         ylab(glue("Macs2 Peaks (FDR < {config$peaks$macs2$fdr})")) +
         theme(
-          panel.grid = element_blank(), 
+          panel.grid = element_blank(),
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill =  NA)
         )
@@ -555,7 +565,7 @@ which_py <- c(
   .[file.exists(.)] %>% 
   .[1]
 stopifnot(length(which_py) == 1)
-rep_col <- hcl.colors(3, palette = "Zissou", rev = TRUE)
+rep_colours <- hcl.colors(3, palette = "Zissou", rev = TRUE)
 htmltools::tagList(
   names(ranges_by_rep_treat) %>% 
     lapply(
@@ -585,7 +595,7 @@ htmltools::tagList(
             here::here("workflow", "scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' ", 
-            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[3]]}' ",
+            "-c1 '{rep_colours[[1]]}' -c2 '{rep_colours[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
             "-o '{fig_out}'"
@@ -605,7 +615,7 @@ htmltools::tagList(
             "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
             "-a13 {a13} -a23 {a23} -a123 {a123} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' -s3 '{names(x)[[3]]}' ", 
-            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[2]]}' -c3 '{rep_col[[3]]}' ",
+            "-c1 '{rep_colours[[1]]}' -c2 '{rep_colours[[2]]}' -c3 '{rep_colours[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
             "-o '{fig_out}'"
@@ -1115,11 +1125,11 @@ bwfl <- list2(
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
   GRangesList()
-feature_colours <- colours$regions
+feat_colours_hfgc <- colours$regions
 if (has_features) {
   feat_gr <- list(Regions = feat_gr)
   feat_gr$Features <- splitAsList(external_features, external_features$feature)
-  feature_colours <- list(
+  feat_colours_hfgc <- list(
     Regions = unlist(colours$regions),
     Features = unlist(colours$features)
   )
@@ -1173,18 +1183,17 @@ if (!is.null(config$external$coverage)) {
   )
 }
 line_col <- lapply(bwfl, function(x) colours$treat[names(x)])
-y_lim <- bwfl %>%
-  lapply(
-    function(x) {
-      gr <- unlist(grl_to_plot) %>% 
-        resize(width = 30 * width(.), fix = 'center')
-      x %>% 
-        lapply(import.bw, which = gr) %>%
-        lapply(function(rng) c(0, max(rng$score))) %>%
-        unlist() %>%
-        range()
-    }
-  )
+
+y_lim <- here::here(
+  "output", "macs2", target, "{treat_levels}_merged_treat_pileup.summary"
+) %>% 
+  glue() %>% 
+  lapply(read_tsv) %>% 
+  bind_rows() %>% 
+  pull(score) %>% 
+  max() %>% 
+  c(0) %>% 
+  sort()
 ```
 
 Coverage for a small set of highly ranked peaks are shown below.
@@ -1196,7 +1205,7 @@ htmltools::tagList(
   mclapply(
     seq_along(grl_to_plot),
     function(x) {
-      nm <- names(grl_to_plot)[[x]]
+      nm <- names(grl_to_plot[[x]])
       ## Export the figure
       fig_out <- file.path(
         fig_path,
@@ -1219,7 +1228,7 @@ htmltools::tagList(
       ## Generate the plot
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
+        features = feat_gr, featcol = feat_colours_hfgc, featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
@@ -1257,7 +1266,7 @@ htmltools::tagList(
             glue(".")
           ),
           "
-          Y-axes for each coverage track are set to the most highly ranked peak
+          Y-axes for each coverage track are set to the maximum observed signal
           across all conditions.
           "
         )

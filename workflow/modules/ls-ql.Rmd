@@ -1,21 +1,8 @@
-## Data Inspection {.tabset}
+### Data Inspection {.tabset}
 
 No normalisation was performed beyond library size, with library sizes being determined from the *entire bam file*, not just areas where `r target` was considered detected
 
-### Density Plot: All Sliding Windows
-
-```{r plot-density-windows, fig.height = 6, fig.width = 8, fig.cap = "*Density plot for __all windows prior to the selection of windows__ more likely to contain true signal. Retained windows will be those at the upper end, whilst discarded windows will be at the lower end.*"}
-plotAssayDensities(
-  window_counts, trans = "log1p", n_max = n_max, colour = "treat",
-  linetype = "target"
-) +
-  scale_colour_manual(values = colours$treat) + 
-  labs(
-    x = "log(counts + 1)", y = "Density", colour = "Treat", linetype = "Target"
-  )
-```
-
-### logCPM Densities
+#### logCPM Densities
 
 ```{r plot-logcpm-densities, fig.height = 6, fig.width = 8, fig.cap = "*logCPM distributions for all retained windows.*"}
 filtered_counts %>% 
@@ -24,9 +11,9 @@ filtered_counts %>%
   labs(colour = "Treat")
 ```
 
-### RLE 
+#### RLE 
 
-```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different binding dynamics of {target}.*")}
+```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
 filtered_counts %>% 
   plotAssayRle(
   "logCPM", fill = "treat", rle_group = "treat", n_max = n_max
@@ -39,7 +26,7 @@ filtered_counts %>%
 ```
 
 
-### PCA
+#### PCA
 
 ```{r plot-pca, fig.height = 6, fig.width = 8, fig.cap = "*PCA plot based on logCPM values*"}
 plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
@@ -47,9 +34,9 @@ plotAssayPCA(filtered_counts, "logCPM", colour = "treat", label = "label") +
 ```
 
 
-# Differential Binding Analysis
+## Differential Signal Analysis
 
-## Primary Analysis {.tabset}
+### Primary Analysis {.tabset}
 
 ```{r fit-model}
 fm <- ifelse(
@@ -99,5 +86,5 @@ rowData(filtered_counts) <- rowData(filtered_counts) %>%
   ) 
 ```
 
-Using simple library-size normalisation, the Quasi-Likelihood model was fitted across the set of sliding windows, taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` binding within each sliding window, with all default settings.
+Using simple library-size normalisation, the Quasi-Likelihood model was fitted across the set of sliding windows, taking `r treat_levels[[1]]` as the baseline and estimating the effects of `r treat_levels[[2]]` on `r target` signal within each sliding window, with all default settings.
 `r if (str_detect(as.character(fm)[[2]], "\\+")) paste("A separate baseline expression level was estimated for each", rep_col, "with a common treatment response being fitted.")`

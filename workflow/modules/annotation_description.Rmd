@@ -458,7 +458,6 @@ external_features %>%
 ```
 
 
-
 ```{r tab-features, eval = has_features, echo = has_features}
 cp <- em(
   glue(
@@ -543,25 +542,25 @@ reg_combs <- expand.grid(regions, regions) %>%
     }
   ) %>% 
   unique()
-hic$regions <- anchors(hic) %>% 
+hic$regions <- anchors(hic) %>%
   vapply(
     bestOverlap,
     y = GRangesList(lapply(gene_regions, granges)),
     character(length(hic))
-  ) %>% 
-  apply(MARGIN = 2, function(x) regions[x]) %>% 
+  ) %>%
+  apply(MARGIN = 2, function(x) regions[x]) %>%
   apply(
-    MARGIN = 1, 
+    MARGIN = 1,
     function(x) {
       x <- sort(factor(x, levels = regions))
       paste(as.character(x), collapse = " - ")
     }
-  ) %>% 
+  ) %>%
   factor(levels = reg_combs) %>%
   fct_relabel(
     str_replace_all,
     pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
-  ) 
+  )
 ```
 
 `r ifelse(has_hic, glue("HiC data with {comma(length(hic), 1)} interaction pairs was provided and loaded."), "No HiC Data was supplied as an input.")`

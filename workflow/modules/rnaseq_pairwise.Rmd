@@ -50,7 +50,7 @@ any_de <- sum(rnaseq[[rna_fdr_col]] < fdr_alpha) > 0
 
 ## Volcano Plots
 
-```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target binding patterns. Some genes will have multiple target binding regions mapped to them, and may appear in multiple panels. The two most highly ranked genes for differential expression are labelled in each panel. All DE genes are listed with full binding patterns in the table below.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plots for differential expression separated by target signal patterns. Some genes will have multiple target signal regions mapped to them, and may appear in multiple panels. The two most highly ranked genes for differential expression are labelled in each panel. All DE genes are listed with full patterns in the table below.*")}
 ids_by_group %>% 
   lapply(function(x) tibble(gene_id = x)) %>% 
   bind_rows(.id = "binding_status") %>% 
@@ -106,7 +106,7 @@ ids_by_group %>%
 ```
 
 
-`r if (any_de) "## DE Genes And Pairwise Binding"`
+`r if (any_de) "## DE Genes And Pairwise Signal"`
 
 ```{r tab-de-both, eval = any_de, echo = any_de}
 col_defs <- list2(
@@ -203,7 +203,7 @@ htmltools::tags$caption(
   htmltools::em(
     glue(
     "
-    All differentially expressed genes where binding was detected in both 
+    All differentially expressed genes where signal was detected in both 
     comparisons.
     "
     )
@@ -252,7 +252,7 @@ de_genes_both_comps %>%
 
 
 
-## Binding Pattern GSEA {.tabset}
+## Signal Pattern GSEA {.tabset}
 
 
 ```{r define_genesets}
@@ -277,10 +277,10 @@ status_gs <- all_windows %>%
   .[vapply(., length, integer(1)) > min_gs_size]
 ```
 
-GSEA analysis was performed taking the set of genes mapped to each binding pattern.
+GSEA analysis was performed taking the set of genes mapped to each signal pattern.
 This was initially performed ranking the RNA-Seq results in order of significance, with most significantly up-regulated and one end and the most significantly down-regulated at the other, i.e. Directional GSEA
 A secondary analysis was performed taking only statistical significance into account, without including the direction of any change in expression, i.e. Non_Directional GSEA.
-This second analysis allows for detecting regulatory changes due to altered binding, but which are spread between both up- and down-regulation, as may be induced by the presence of other co-factors not under direct investigation here.
+This second analysis allows for detecting regulatory changes due to altered signal, but which are spread between both up- and down-regulation, as may be induced by the presence of other co-factors not under direct investigation here.
 
 ### Directional GSEA
 
@@ -304,7 +304,7 @@ p <- gsea_dir %>%
   )
 ```
 
-`r if (length(p) == 0) glue("No association was found between joint binding patterns and *directional* significance in differentially expressed genes.")`
+`r if (length(p) == 0) glue("No association was found between joint signal patterns and *directional* significance in differentially expressed genes.")`
 
 ```{r tbl-gsea-dir_sig, eval = length(p) > 0, echo = length(p) > 0}
 cp <-  htmltools::em(
@@ -438,7 +438,7 @@ p <- gsea_nondir %>%
 txt <- ifelse(
   length(p) > 0,
   glue(""),
-  glue("No association was found between changed binding across {comps[[1]]} and {comps[[2]]} when combined with *overall* significance in differentially expressed genes.")
+  glue("No association was found between changed signal across {comps[[1]]} and {comps[[2]]} when combined with *overall* significance in differentially expressed genes.")
 )
 ```
 
@@ -540,11 +540,11 @@ wrap_plots(p)
 
 ## Integration of RNA and ChIP Enrichment Analyses
 
-Directional GSEA was performed on the set of RNA-Seq results and given that enrichment for differentially bound target is an orthogonal measure, enrichment for a set of potential pathways for each pairwise set of regions was performed.
-The p-values from binding enrichment and GSEA were combined using Wilkinson's method for meta-analysis, taking the maximum p-value and adjusting the resulting p-value using the same strategy as earlier.
+Directional GSEA was performed on the set of RNA-Seq results and given that enrichment for differential ChIP signal target is an orthogonal measure, enrichment for a set of potential pathways for each pairwise set of regions was performed.
+The p-values from signal enrichment and GSEA were combined using Wilkinson's method for meta-analysis, taking the maximum p-value and adjusting the resulting p-value using the same strategy as earlier.
 Any pathways are annotated as being significant in *both, either or neither* dataset when being analysed individually.
 
-Distances between nodes (gene-sets) for any network plots were estimated by using the similarity of genes within the leading edge which were also mapped to binding regions showing the respective pattern.
+Distances between nodes (gene-sets) for any network plots were estimated by using the similarity of genes within the leading edge which were also mapped to signal regions showing the respective pattern.
 If the genes of interest from any two pathways were identical, only the most highly-ranked pathway was included in the network, and similarly if one gene-set was a subset of another, the most highly-ranked was retained for visualisation.
 
 ```{r cmn-sig}
@@ -691,7 +691,7 @@ htmltools::tagList(
           )
         cp <- glue(
           "The {nrow(df)} Gene sets considered significant when combining GSEA 
-          from RNA-Seq and enrichment anaylsis from binding sites corresponding 
+          from RNA-Seq and enrichment anaylsis from sites corresponding 
           to {x}. The direction of the NES indicates the enriched direction in 
           the RNA-Seq data.
         "

@@ -37,8 +37,7 @@ ihw_all <- other_targets %>%
   arrange(id) %>% 
   mutate(targets = fct_infreq(targets)) %>% 
   .[["targets"]]
-n_levels <- sum(table(ihw_all) > 1e3) - 1
-merged_results$ihw_covariate <- fct_lump_n(ihw_all, n = n_levels)
+merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
 ihw_proceed <- length(levels(merged_results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
 if (ihw_proceed) {
@@ -62,7 +61,7 @@ merged_results <- merged_results %>%
 ```
 
 
-Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential binding by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
+Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential signal by the detection of the other ChIP targets under investigation in this workflow (`r glue_collapse(other_targets, sep = ", ", last = " and ")`).
 The presence of `r glue_collapse(other_targets, sep = ", ", last = " and ")` was defined simply using the union peaks detected under any treatment by `macs2 callpeak`, as determined [previously](`r glue("{target}_macs2_summary.html")`).
 This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
@@ -112,8 +111,8 @@ ihw %>%
   pander(
     justify = "lrrrrrr",
     caption = paste(
-      "*Summary of changes introduced by IHW for windows considered as being", 
-      paste0("differentially bound by ", target, "."),
+      "*Summary of changes introduced by IHW for windows considered as", 
+      paste0("showing differential ", target, "signal."),
       "This corresponds to a __nett change of", 
         dplyr::slice(., nrow(.)) %>% 
         mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 
@@ -148,7 +147,7 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, fig.height= 3 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
+```{r plot-ihw-pvals, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
 y <- ggplot_build(
   tibble(
     P.Value = merged_results$P.Value,
@@ -184,7 +183,7 @@ merged_results %>%
 
 `r ifelse(ihw_proceed, "### IHW Weights", "")`
 
-```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height = 5, fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
+```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
 plot(ihw) +
   geom_hline(yintercept = 1) +
   facet_wrap(~group) +
@@ -194,7 +193,7 @@ plot(ihw) +
 
 `r ifelse(ihw_proceed, "### FDR Comparison", "")`
 
-```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height = 5, fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
+```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
 ihw %>%
   as.data.frame() %>% 
   ggplot(

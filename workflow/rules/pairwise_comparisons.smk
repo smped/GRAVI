@@ -1,5 +1,13 @@
+def get_difftype(x):
+	if x in h3k27ac_targets:
+		return("h3k27ac")
+	else:
+		return("binding")
+
+
 rule create_pairwise_comparisons_rmd:
 	input:
+		chk = rules.check_r_packages.output,
 		module_pw = "workflow/modules/pairwise_comparison.Rmd",
 		r = "workflow/scripts/create_pairwise_comparison.R"
 	output:
@@ -14,6 +22,9 @@ rule create_pairwise_comparisons_rmd:
 		threads = 4,
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	resources:
+		runtime = "1m",
+		mem_mb = 512
 	log: log_path + "/create_rmd/create_{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison_rmd"
 	shell:
 		"""
@@ -37,12 +48,22 @@ rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		blacklist = blacklist,
+		chk = rules.check_r_packages.output,
 		config = "config/config.yml",
-		extrachips = rules.update_extrachips.output,
 		here = here_file,
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
-		results_t1 = "docs/{t1}_{ref1}_{treat1}_differential_binding.html",
-		results_t2 = "docs/{t2}_{ref2}_{treat2}_differential_binding.html",
+		results_t1 = lambda wildcards: expand(
+			os.path.join(
+				"docs", "{{t1}}_{{ref1}}_{{treat1}}_differential_{type}.html"
+			),
+			type = get_difftype(wildcards.t1)
+		),
+		results_t2 = lambda wildcards: expand(
+			os.path.join(
+				"docs", "{{t2}}_{{ref2}}_{{treat2}}_differential_{type}.html"
+			),
+			type = get_difftype(wildcards.t2)
+		),
 		rmd = expand(
 			os.path.join(
 				"analysis", 
@@ -94,6 +115,9 @@ rule compile_pairwise_comparisons_html:
 		)
 	conda: "../envs/rmarkdown.yml"
 	threads: 4
+	resources:
+		runtime = "2h",
+		mem_mb = 8192
 	log: "workflow/logs/pairwise/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}_pairwise_comparison.log"
 	resources:
 		mem_mb = 32768,

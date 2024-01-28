@@ -38,6 +38,9 @@ parser.add_argument("-o", "--output", default = "venn.png", help = 'Output File'
 args = parser.parse_args()
 config = vars(args)
 
+# print(config)
+# exit()
+
 ## Set global plotting parameters
 plt.rcParams["font.family"] = config['ff']
 plt.rcParams["font.size"] = config['fs']

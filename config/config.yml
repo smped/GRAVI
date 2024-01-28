@@ -5,12 +5,29 @@ samples:
 paths:
   bam: "data/bam"
 
+genome:
+  build: "GRCh37"
+  gencode: "33"
+
+peaks:
+  macs2:
+    gsize: "hs"
+    fdr: 0.05
+    keep_duplicates: "all"
+  qc:
+    outlier_threshold: 10
+    allow_zero: true
+    min_prop_reps: 0.5
+
 comparisons:
+  windows:
+    size: 120
+    step: 40
+  filter_q: 0.6
   method: "sq-lt"
   fc: 1.2
   fdr: 0.05
   paired: false
-  filter_q: 0.6
   contrasts:
     - ["E2", "E2DHT"]
   ihw: "targets"
@@ -26,13 +43,4 @@ external:
   hic:
   coverage:
 
-peaks:
-  macs2:
-    gsize: "hs"
-    fdr: 0.05
-    keep_duplicates: "all"
-  qc:
-    outlier_threshold: 10
-    allow_zero: true
-    min_prop_reps: 0.5
 

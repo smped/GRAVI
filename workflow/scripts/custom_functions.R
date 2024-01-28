@@ -104,3 +104,61 @@ make_tbl_graph <- function(
   edges$to <- node_ids[edges$to]
   tbl_graph(nodes = nodes, edges = edges, directed = FALSE)
 }
+
+
+#' Run an enrichment analysis using the Hypergeometric Distribution
+#'
+#' @details
+#' Stripped down version of \link[goseq](goseq) with only the Hypergeomtric
+#' test implemented. The original output column over_represented_pvalue has
+#' been renamed to simply pval. The output is also a tibble as opposed to
+#' a standard `data.frame`
+#'
+#' @param pwf a Simple data.frame as would be produced by \link[goseq](nullp).
+#' Rownames must be gene ids and the column `DEgenes` is mandatory.
+#' @param gene2cat List of gene_ids with pathway mappings included for each element
+#' @param cores The number of threads to use when running in parallel
+#'
+#' @importFrom parallel mclapply
+#'
+goseq_hyper <- function (pwf, gene2cat = NULL, cores = threads) {
+  ## Stripped down version of goseq, fixed to the Hypergeometric Distribution
+  ## The pwf should be matrix/df with column "DEgenes" and rownames as gene_ids
+  ## The columns bias.data & pwf are ignored for this stripped down version
+  ##
+  ## Should really be rewritten to match values using slightly more readable code
+  ## All we really need is a vector of genes for each geneset
+  stopifnot("DEgenes" %in% colnames(pwf))
+  mapped_genes <- intersect(rownames(pwf), names(gene2cat))
+  gene2cat <- gene2cat[mapped_genes]
+  cat2gene <- goseq:::reversemapping(gene2cat)
+  cat2gene <- cat2gene[vapply(cat2gene, length, integer(1)) > 0]
+  cat2gene <- lapply(cat2gene, unique)
+  de <- intersect(rownames(subset(pwf, DEgenes == 1)), mapped_genes)
+  n_de <- length(de)
+  n_genes <- length(mapped_genes)
+
+  f <- lapply
+  if (cores > 1){
+    f <- parallel::mclapply
+    formals(f)$mc.cores <- cores
+  }
+
+  list_res <- f(
+    cat2gene,
+    function(x){
+      df <- tibble(
+        numDEInCat = sum(x %in% de),
+        numInCat =  length(x),
+        pval = dhyper(numDEInCat, numInCat, n_genes - numInCat, n_de) +
+          phyper(numDEInCat, numInCat, n_genes - numInCat, n_de, lower.tail = FALSE),
+        DEgenes = list(intersect(x, de))
+      )
+      df
+    }
+  )
+  df <- bind_rows(list_res, .id = "gs_name")
+  df <- arrange(df, pval)
+  dplyr::select(df, gs_name, pval, everything())
+
+}

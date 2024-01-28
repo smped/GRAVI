@@ -16,14 +16,19 @@ fl <- here::here(args[[1]])
 config <- read_yaml(here::here("config", "config.yml"))
 rmd <- read_yaml(here::here("config", "rmarkdown.yml"))
 samples <- read_tsv(here::here(config$samples$file))
-targets <- sort(unique(samples$target))
+tf_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "tf")$target)
+h3k27ac_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "h3k27ac")$target)
+# atac_targets <- unique(dplyr::filter(samples, str_to_lower(type) == "atac")$target)
+all_targets <- c(tf_targets, h3k27ac_targets)
 treats <- unique(samples$treat)
 
-## Sort out the comparisons
-comparisons <- lapply(
+## Sort out the TF comparisons
+tf_comparisons <- lapply(
   config$comparisons$contrasts,
   function(x) {
-    dplyr::filter(samples, treat %in% x) %>%
+    dplyr::filter(
+      samples, treat %in% x, target %in% tf_targets
+    ) %>%
       mutate(treat = factor(treat, levels = x)) %>%
       distinct(target, treat) %>%
       arrange(target, treat) %>%
@@ -37,10 +42,84 @@ comparisons <- lapply(
   split(.$target) %>%
   setNames(c())
 
+## Differential Signal YAML
+diff_signal_yaml <- NULL
+if (length(tf_comparisons)) {
+  diff_signal_yaml <- list(
+    text = "Differential Signal",
+    menu =   tf_comparisons %>%
+      lapply(
+        function(x){
+          list(
+            text = unique(x$target),
+            menu = lapply(
+              split(x, f = seq_len(nrow(x))),
+              function(y) {
+                list(
+                  text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
+                  href = paste0(y$rmd, "_differential_signal.html")
+                )
+              }
+            ) %>%
+              setNames(NULL)
+          )
+        }
+      )
+  )
+}
+
+
+## Sort out the H3K27ac comparisons
+h3k27ac_comparisons <- lapply(
+  config$comparisons$contrasts,
+  function(x) {
+    dplyr::filter(
+      samples, treat %in% x, target %in% h3k27ac_targets
+    ) %>%
+      mutate(treat = factor(treat, levels = x)) %>%
+      distinct(target, treat) %>%
+      arrange(target, treat) %>%
+      group_by(target) %>%
+      summarise(comparison = paste(treat, collapse = "_")) %>%
+      dplyr::filter(comparison == paste(x, collapse = "_")) %>%
+      unite(rmd, everything(), sep ="_", remove = FALSE)
+  }
+) %>%
+  bind_rows() %>%
+  split(.$target) %>%
+  setNames(c())
+
+## Differential H3K27ac YAML
+diff_h3k27ac_yaml <- NULL
+if (length(h3k27ac_comparisons)) {
+  diff_h3k27ac_yaml <- list(
+    text = "Differential H3K27ac",
+    menu = h3k27ac_comparisons %>%
+      lapply(
+        function(x){
+          list(
+            text = unique(x$target),
+            menu = lapply(
+              split(x, f = seq_len(nrow(x))),
+              function(y) {
+                list(
+                  text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
+                  href = paste0(y$rmd, "_differential_h3k27ac.html")
+                )
+              }
+            ) %>%
+              setNames(NULL)
+          )
+        }
+      )
+  )
+}
+
+
 ## Sort out the pairwise comparisons
 ## This currently automatically finds every possible combination and compares
 ## them. Alternatives could be manually specifying or manually excluding...
-
+## H3K27ac comparisons are treated identically as TF comparisons at this point
 pairs_yaml <- NULL
 all_pairs <- lapply(
   config$comparisons$contrasts,
@@ -133,7 +212,7 @@ site_yaml$navbar$left <- list(
   list(
     text = "MACS2 Peak Calling",
     menu = lapply(
-      targets,
+      all_targets,
       function(x) {
         list(
           text = x,
@@ -142,28 +221,12 @@ site_yaml$navbar$left <- list(
       }
     )
   ),
-  ## Differential Binding
-  list(
-    text = "Differential Binding",
-    menu =   comparisons %>%
-      lapply(
-        function(x){
-          list(
-            text = unique(x$target),
-            menu = lapply(
-              split(x, f = seq_len(nrow(x))),
-              function(y) {
-                list(
-                  text = str_replace_all(y$comparison, "(.+)_(.+)", "\\2 Vs. \\1"),
-                  href = paste0(y$rmd, "_differential_binding.html")
-                )
-              }
-            ) %>%
-              setNames(NULL)
-          )
-        }
-      )
-  ),
+
+  ## Differential TF Signal
+  diff_signal_yaml,
+
+  ## Differential H3K27ac Signal
+  diff_h3k27ac_yaml,
 
   ## Pairwise Comparisons
   pairs_yaml
