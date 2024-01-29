@@ -82,25 +82,20 @@ rule create_macs2_summary_rmd:
 	output:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
 	params:
-		cores = lambda wildcards: min(
-			len(df[df['target'] == wildcards.target]),
-			max_threads
-		),
 		min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps'],
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	resources:
 		mem_mb = 1024,
-		runtime = "5m"
+		runtime = "2m"
 	shell:
 		"""
 		## Create the generic markdown
 		Rscript --vanilla \
 			{input.r} \
-			"{wildcards.target}" \
-			"{params.cores}.0" \
-			"{params.min_prop}" \
+			{wildcards.target} \
+			{params.min_prop} \
 			{output.rmd} &>> {log}
 
 		## Add the module directly as literal code
@@ -169,7 +164,7 @@ rule compile_macs2_summary_html:
 	threads:
 		lambda wildcards: min(
 			len(df[df['target'] == wildcards.target]),
-			max_threads
+			workflow.cores
 		)
 	resources:
 		mem_mb = 8192

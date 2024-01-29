@@ -1,6 +1,5 @@
 ```{r get-params}
 target <- params$target
-threads <- as.integer(params$threads)
 min_prop <- params$min_prop
 ```
 
@@ -34,7 +33,7 @@ theme_set(
       plot.title = element_text(hjust = 0.5)
     )
 )
-register(MulticoreParam(workers = threads))
+register(MulticoreParam())
 source(here::here("workflow/scripts/custom_functions.R"))
 ```
 

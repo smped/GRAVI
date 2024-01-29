@@ -49,7 +49,7 @@ rule create_differential_signal_rmd:
 					)
 				]
 			),
-			max_threads
+			workflow.cores
 		),
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_signal.log"
@@ -193,7 +193,7 @@ rule compile_differential_signal_html:
 					)
 				]
 			),
-			max_threads
+			workflow.cores
 		)
 	resources:
 		mem_mb = 65536,

@@ -1,12 +1,9 @@
 
 args <- commandArgs(TRUE)
 target <- args[[1]]
-cores <- as.numeric(args[[2]])
-min_prop <- as.numeric(args[[3]])
-rmd <- args[[4]]
-## I can't understand why args[[2]] is always 1
-## The rules show the correct number
-cat(args)
+min_prop <- as.numeric(args[[2]])
+rmd <- args[[3]]
+cat(args, "\n")
 
 library(tidyverse)
 library(glue)
@@ -20,7 +17,6 @@ glue(
 	link-citations: true
 	params:
 	    target: \"{{target}}\"
-	    threads: {{cores}}
 	    min_prop: {{min_prop}}
 	---
 
