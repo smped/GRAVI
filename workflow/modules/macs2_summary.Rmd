@@ -1,6 +1,7 @@
 ```{r get-params}
 target <- params$target
 min_prop <- params$min_prop
+threads <- parallel::detectCores() - 1
 ```
 
 
@@ -33,7 +34,7 @@ theme_set(
       plot.title = element_text(hjust = 0.5)
     )
 )
-register(MulticoreParam())
+register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
 ```
 
@@ -41,6 +42,13 @@ source(here::here("workflow/scripts/custom_functions.R"))
 config <- read_yaml(
   here::here("config", "config.yml")
 )
+macs2_fdr <- config$macs2$default$fdr
+if (target %in% names(config$macs2)) macs2_fdr <- config$macs2[[target]]$fdr
+outlier_thresh <- config$macs2_qc$default$outlier_threshold
+if (target %in% names(config$macs2_qc)) 
+  outlier_thresh <- config$macs2_qc[[target]]$outlier_threshold
+
+
 fdr_alpha <- config$comparisons$fdr
 extra_params <- read_yaml(here::here("config", "params.yml"))
 bam_path <- here::here(config$paths$bam)
@@ -64,6 +72,14 @@ if (!is.null(config$comparisons$contrasts)) {
     intersect(samples$treat) %>% 
     unique()
 }
+rep_col <- setdiff(
+  colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
+)
+samples <- samples %>%
+  mutate(
+    treat = factor(treat, levels = treat_levels)
+  ) %>% 
+  dplyr::filter(treat %in% treat_levels)
 stopifnot(nrow(samples) > 0)
 ```
 
@@ -87,12 +103,10 @@ if (!is.null(config$external$features)) {
     mcols(external_features), function(x) all(is.na(x)), logical(1)
   )
   mcols(external_features) <- mcols(external_features)[keep_cols]
-  feature_colours <- colours$features %>% setNames(str_sep_to_title(names(.)))
   has_features <- TRUE
 }
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
-region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
 if (length(rna_path) > 0) {
@@ -174,7 +188,7 @@ This section provides a simple series of visualisations to enable detection of a
 
 - Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak` [@Zhang18798982]
 - GC Content: Most variation in GC-content should have been identified prior to performing alignments, using common tools such as [FastQC](https://github.com/s-andrews/FastQC), MultiQC [@EwelsMultiQC2016] or `ngsReports` [@WardNgsReports2019]. However, these plots may still be informative for detection of potential sequencing issues not previously addressed
-- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `peaks:qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r config$macs2_qc$default$outlier_threshold`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
+- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `peaks:qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r outlier_thresh`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
 - Cross Correlations: Shows the cross-correlation coefficients between read positions across a series of intervals [@LunSmythCsaw2014]. Weak cross-correlations can also indicate low-quality samples. These values are also used to estimate fragment length within each sample, as the peak value of the cross-correlations
 - Fraction Of Reads In Peaks (FRIP): This plot shows the proportion of the alignments which fall within peaks identified by `macs2 callpeak`, with the remainder of alignments being assumed to be background [@Landt01092012]. This can provide guidance as to the success of the IP protocol, and the common-use threshold of 1% is indicated as a horizontal line. This value is not enforced as a hard QC criteria, but may be used to manually exclude samples from the file `samples.tsv` of deemed to be appropriate.
 
@@ -182,14 +196,6 @@ This section provides a simple series of visualisations to enable detection of a
 ```{r macs2-logs-individual}
 emphasize.italics.rows(NULL)
 any_fail <- any(macs2_logs$qc == "fail")
-fdr_macs2 <- config$macs2$default$fdr
-if (!is.null(config$macs2$default$fdr)) {
-  fdr_macs2 <- config$macs2$default$fdr
-}
-thresh <- config$macs2_qc$default$outlier_threshold
-if (!is.null(config$macs2_qc[[target]]$outlier_threshold)) {
-  thresh <- config$macs2_qc[[target]]$outlier_threshold
-}
 if (any_fail) emphasize.italics.rows(which(macs2_logs$qc == "fail"))
 macs2_logs %>%
   dplyr::select(
@@ -204,14 +210,14 @@ macs2_logs %>%
     caption = glue(
       "*Summary of results for `macs2 callpeak` on individual {target} samples.",
       "Total peaks indicates the number retained after applying the FDR ", 
-      "threshold of {percent(fdr_macs2)} during the peak calling ", 
+      "threshold of {percent(macs2_fdr)} during the peak calling ", 
       "process.",
       ifelse(
         any_fail,
         glue(
           "Samples shown in italics were marked for exclusion from ",
           "downstream analysis as they identified a number of peaks beyond ",
-          "+/- {thresh}-fold the median number of ",
+          "+/- {outlier_thresh}-fold the median number of ",
           "peaks amongst all samples within the relevant treatment group.",
         ),
         glue(
@@ -240,23 +246,23 @@ macs2_logs %>%
 ```{r plot-macs2-libsize-individual, fig.height=6, fig.cap = glue("*Library sizes for each {target} sample. The horizontal line indicates the mean library size for each treatment group. Any samples marked for exclusion as described above will be indicated with an (F)*")}
 macs2_logs %>%
   ggplot(
-    aes(label, n_tags_treatment/1e6, fill = qc)
+    aes(label, n_tags_treatment, fill = qc)
   ) +
   geom_col(position = "dodge") +
   geom_hline(
     aes(yintercept = mn),
     data = . %>%
       group_by(treat) %>%
-      summarise(mn = mean(n_tags_treatment/1e6)),
+      summarise(mn = mean(n_tags_treatment)),
     linetype = 2,
     col = "grey"
   ) +
   facet_grid(~treat, scales = "free_x", space = "free_x") +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   scale_fill_manual(values = colours$qc) +
   labs(
     x = "Sample",
-    y = "Library Size (millions)",
+    y = "Library Size",
     fill = "QC"
   ) +
   ggtitle(
@@ -267,7 +273,7 @@ macs2_logs %>%
 
 ### Peaks Detected
 
-```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {fdr_macs2}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
+```{r plot-macs2-peaks-individual, fig.height=6, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {macs2_fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
 suppressWarnings(
   macs2_logs %>%
     ggplot(aes(label, total_peaks, fill = qc)) +
@@ -315,7 +321,7 @@ samples$sample %>%
   ggplot(aes(label, frip, fill = qc)) +
   geom_col() +
   geom_hline(yintercept = 0.01, colour = "grey", linetype = 2) +
-  facet_grid(~treat, scales = "free_x", space = "free") +
+  facet_grid(cols = vars(treat), scales = "free_x", space = "free") +
   scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
   scale_fill_manual(values = colours$qc) +
   labs(
@@ -332,7 +338,6 @@ macs2_path %>%
   file.path(target, glue("{target}_cross_correlations.tsv")) %>% 
   read_tsv() %>% 
   left_join(samples, by = "sample") %>% 
-  arrange(desc(treat), label) %>% 
   ggplot(aes(fl, correlation, colour = treat)) +
   geom_point(alpha = 0.1) +
   geom_smooth(se = FALSE, method = 'gam', formula = y ~ s(x, bs = "cs")) +
@@ -348,7 +353,7 @@ macs2_path %>%
       dplyr::filter(correlation == max(correlation), .by = sample),
     show.legend = FALSE, alpha = 0.7
   ) +
-  facet_grid(vars(treat), scales = "free", space = "free") +
+  facet_wrap(~label) +
   scale_colour_manual(values = colours$treat[treat_levels]) +
   scale_x_continuous(
     breaks = seq(0, 5*max(macs2_logs$fragment_length), by = 200)
@@ -449,14 +454,6 @@ valid_sets <- makeConsensus(individual_peaks) %>%
 ## Use upset_query objects to fill key intersections and sets
 ql <- samples$label %>% 
   lapply(
-    function(x) {
-      nm <- NULL
-      if (sum(df[[x]]) > 0) nm <- x
-      nm
-    }
-  ) %>% 
-  unlist() %>% 
-  lapply(
     function(x) upset_query(
       set = x, 
       fill = colours$treat[as.character(dplyr::filter(samples, label == x)$treat)]
@@ -494,7 +491,7 @@ individual_peaks %>%
       ) +
         scale_y_continuous(expand = expansion(c(0, 0.25)), label = comma) +
         theme(
-          panel.grid = element_blank(),
+          panel.grid = element_blank(), 
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill =  NA)
         )
@@ -506,9 +503,9 @@ individual_peaks %>%
           ylim = c(0, quantile(unlist(individual_peaks)$qValue, 0.99))
         ) +
         scale_y_continuous(expand = expansion(c(0, 0.05))) +
-        ylab(expr(paste("Macs2 ", q[min]))) +
+        ylab(expr(paste("Macs2 ", q[med]))) +
         theme(
-          panel.grid = element_blank(),
+          panel.grid = element_blank(), 
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill =  NA)
         )
@@ -520,14 +517,14 @@ individual_peaks %>%
           hjust = 1.1, stat = 'count', size = 3.5
         ) +
         scale_y_reverse(expand = expansion(c(0.3, 0)), label = comma) +
-        ylab(glue("Macs2 Peaks (FDR < {fdr_macs2})")) +
+        ylab(glue("Macs2 Peaks (FDR < {macs2_fdr})")) +
         theme(
-          panel.grid = element_blank(),
+          panel.grid = element_blank(), 
           axis.line = element_line(colour = "grey20"),
           panel.border = element_rect(colour = "grey20", fill =  NA)
         )
     ),
-    min_size = 10, n_intersections = 40, keep_empty_groups = TRUE
+    min_size = 10, n_intersections = 40
   ) +
   theme(
     panel.grid = element_blank(), 
@@ -564,7 +561,7 @@ which_py <- c(
   .[file.exists(.)] %>% 
   .[1]
 stopifnot(length(which_py) == 1)
-rep_colours <- hcl.colors(3, palette = "Zissou", rev = TRUE)
+rep_col <- hcl.colors(3, palette = "Zissou", rev = TRUE)
 htmltools::tagList(
   names(ranges_by_rep_treat) %>% 
     lapply(
@@ -594,7 +591,7 @@ htmltools::tagList(
             here::here("workflow", "scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' ", 
-            "-c1 '{rep_colours[[1]]}' -c2 '{rep_colours[[3]]}' ",
+            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
             "-o '{fig_out}'"
@@ -614,7 +611,7 @@ htmltools::tagList(
             "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
             "-a13 {a13} -a23 {a23} -a123 {a123} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' -s3 '{names(x)[[3]]}' ", 
-            "-c1 '{rep_colours[[1]]}' -c2 '{rep_colours[[2]]}' -c3 '{rep_colours[[3]]}' ",
+            "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[2]]}' -c3 '{rep_col[[3]]}' ",
             "-ht {knitr::opts_chunk$get('fig.height')} ", 
             "-w {knitr::opts_chunk$get('fig.width')} ", 
             "-o '{fig_out}'"
@@ -688,7 +685,7 @@ htmltools::tagList(
                     hjust = 1.1, stat = 'count', size = 4
                   ) +
                   scale_y_reverse(expand = expansion(c(0.2, 0)), label = comma) +
-                  ylab(glue("Macs2 Peaks (FDR < {fdr_macs2})")) +
+                  ylab(glue("Macs2 Peaks (FDR < {macs2_fdr})")) +
                   theme(
                     text = element_text(size = 14),
                     panel.grid = element_blank(), 
@@ -1124,11 +1121,11 @@ bwfl <- list2(
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
   GRangesList()
-feat_colours_hfgc <- colours$regions
+feature_colours <- colours$regions
 if (has_features) {
   feat_gr <- list(Regions = feat_gr)
   feat_gr$Features <- splitAsList(external_features, external_features$feature)
-  feat_colours_hfgc <- list(
+  feature_colours <- list(
     Regions = unlist(colours$regions),
     Features = unlist(colours$features)
   )
@@ -1182,17 +1179,18 @@ if (!is.null(config$external$coverage)) {
   )
 }
 line_col <- lapply(bwfl, function(x) colours$treat[names(x)])
-
-y_lim <- here::here(
-  "output", "macs2", target, "{treat_levels}_merged_treat_pileup.summary"
-) %>% 
-  glue() %>% 
-  lapply(read_tsv) %>% 
-  bind_rows() %>% 
-  pull(score) %>% 
-  max() %>% 
-  c(0) %>% 
-  sort()
+y_lim <- bwfl %>%
+  lapply(
+    function(x) {
+      gr <- unlist(grl_to_plot) %>% 
+        resize(width = 30 * width(.), fix = 'center')
+      x %>% 
+        lapply(import.bw, which = gr) %>%
+        lapply(function(rng) c(0, max(rng$score))) %>%
+        unlist() %>%
+        range()
+    }
+  )
 ```
 
 Coverage for a small set of highly ranked peaks are shown below.
@@ -1204,7 +1202,7 @@ htmltools::tagList(
   mclapply(
     seq_along(grl_to_plot),
     function(x) {
-      nm <- names(grl_to_plot[[x]])
+      nm <- names(grl_to_plot)[[x]]
       ## Export the figure
       fig_out <- file.path(
         fig_path,
@@ -1227,7 +1225,7 @@ htmltools::tagList(
       ## Generate the plot
       plotHFGC(
         grl_to_plot[[x]],
-        features = feat_gr, featcol = feat_colours_hfgc, featsize = 1 + has_features,
+        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
@@ -1265,7 +1263,7 @@ htmltools::tagList(
             glue(".")
           ),
           "
-          Y-axes for each coverage track are set to the maximum observed signal
+          Y-axes for each coverage track are set to the most highly ranked peak
           across all conditions.
           "
         )
