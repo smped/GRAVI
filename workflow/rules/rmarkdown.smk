@@ -13,8 +13,10 @@ rule create_site_yaml:
 		r = "workflow/scripts/create_site_yaml.R",
 	output: os.path.join(rmd_path, "_site.yml")
 	conda: "../envs/rmarkdown.yml"
-	retries: 100
 	threads: 1
+	resources:
+		mem_mb = 1024,
+		runtime = "5m",
 	log: log_path + "/rmarkdown/create_site_yaml.log"
 	shell:
 		"""
@@ -30,8 +32,10 @@ rule create_setup_chunk:
 	output:
 		rmd = "analysis/setup_chunk.Rmd"
 	conda: "../envs/rmarkdown.yml"
-	retries: 100
 	threads: 1
+	resources:
+		mem_mb = 1024,
+		runtime = "5m",
 	log: log_path + "/rmarkdown/create_setup_chunk.log"
 	shell:
 		"""
@@ -44,8 +48,10 @@ rule create_index_rmd:
 		rmd = os.path.join("workflow", "modules", "index.Rmd"),
 	output:
 		os.path.join(rmd_path, "index.Rmd")
-	retries: 100
 	threads: 1
+	resources:
+		mem_mb = 512,
+		runtime = "2m",
 	shell:
 		"""
 		cat {input.rmd} > {output}
@@ -62,6 +68,9 @@ rule compile_index_html:
 		html = "docs/index.html"
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	resources:
+		mem_mb = 1024,
+		runtime = "5m",	
 	log: log_path + "/rmarkdown/compile_index_html.log"
 	shell:
 		"""
@@ -83,7 +92,7 @@ rule create_macs2_summary_rmd:
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	resources:
 		mem_mb = 1024,
-		runtime = "2m"
+		runtime = "2m",
 	shell:
 		"""
 		## Create the generic markdown
