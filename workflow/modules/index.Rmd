@@ -121,15 +121,39 @@ txt <- ifelse(
 
 ### Peak Detection
 
-Macs2 callpeak settings were default with the following exceptions:
+Default Macs2 callpeak settings were:
 
-`r pander(config$peaks$macs2[!str_detect(names(config$peaks$macs2), "min_prop")])`
+`r pander(config$macs2$default)`
 
-Two additional QC settings were incorporated for peak filtering.
+```{r custom-macs2-peaks, echo=FALSE}
+custom_macs2 <- intersect(samples$target, names(config$macs2))
+txt <- ""
+if (length(custom_macs2)) txt <- "Non-default peak-calling settings were specified as:"
+```
 
-- For a sample to pass initial QC, the number of identified peaks needs to be &lt; `r config$peaks$qc$outlier_threshold`-fold (or &gt; 1/`r config$peaks$qc$outlier_threshold`-fold ) the median number of peaks identified in each specific treatment group.
-`r if (config$peaks$qc$allow_zero) "- Samples with zero peaks were permitted given the possibility of cytoplasmic sequestering of ChIP targets under some conditions"`
-- For a peak to be included in the set of treatment-specific "Treatment Peaks", it needs to overlap an identified peak in at least `r percent(config$peaks$qc$min_prop_reps)` of samples passing the above QC steps
+`r txt`
+
+`r if (length(custom_macs2)) pander(config$macs2[custom_macs2])`
+
+Default settings for peak QC were
+
+`r pander(config$macs2_qc$default)`
+
+Additional QC settings were incorporated for peak filtering.
+
+- For a sample to pass initial QC, the number of identified peaks needs to be &lt; `r config$macs2_qc$default$outlier_threshold`-fold (or &gt; 1/`r config$macs2_qc$default$outlier_threshold`-fold ) the median number of peaks identified in each specific treatment group.
+`r if (config$macs2_qc$default$allow_zero) "- Samples with zero peaks were permitted given the possibility of cytoplasmic sequestering of ChIP targets under some conditions"`
+- For a peak to be included in the set of treatment-specific "Treatment Peaks", it needs to overlap an identified peak in at least `r percent(config$macs2_qc$default$min_prop_reps)` of samples passing the above QC steps.
+
+```{r custom-macs2-qc, echo=FALSE}
+custom_macs2_qc <- intersect(samples$target, names(config$macs2_qc))
+txt <- ""
+if (length(custom_macs2_qc)) txt <- "Additional QC settings were specified as:"
+```
+
+`r txt`
+
+`r if (length(custom_macs2_qc)) pander(config$macs2_qc[custom_macs2])`
 
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
