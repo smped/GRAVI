@@ -1,9 +1,6 @@
 rule create_site_yaml:
 	input:
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		config_yaml = "config/config.yml",
 		rmd_yaml = "config/rmarkdown.yml",
 		r = "workflow/scripts/create_site_yaml.R",
@@ -20,10 +17,7 @@ rule create_site_yaml:
 
 rule create_setup_chunk:
 	input:
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		config = "config/rmarkdown.yml",
 		r = "workflow/scripts/create_setup_chunk.R"
 	output:
@@ -39,22 +33,19 @@ rule create_setup_chunk:
 
 rule create_index_rmd:
 	input:
-		os.path.join("workflow", "modules", "index.Rmd")
+		chk = ALL_CHECKS,
+		rmd = os.path.join("workflow", "modules", "index.Rmd"),
 	output:
 		os.path.join(rmd_path, "index.Rmd")
 	retries: 100
 	threads: 1
 	shell:
 		"""
-		cat {input} > {output}
+		cat {input.rmd} > {output}
 		"""
 
 rule compile_index_html:
 	input:
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
 		html = HTML_OUT,
 		rmd = os.path.join(rmd_path, "index.Rmd"),
 		setup = rules.create_setup_chunk.output,
@@ -72,10 +63,7 @@ rule compile_index_html:
 
 rule create_macs2_summary_rmd:
 	input:
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		module = "workflow/modules/macs2_summary.Rmd",
 		blacklist = blacklist,
 		r = "workflow/scripts/create_macs2_summary.R"
@@ -118,10 +106,6 @@ rule compile_macs2_summary_html:
 				"{{target}}_{treat}_merged_treat_pileup.bw"
 			),
 			treat = set(df[df.target == wildcards.target]['treat'])
-		),
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
 		),
 		config = "config/config.yml",
 		cors = os.path.join(

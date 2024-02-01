@@ -2,10 +2,7 @@ rule make_greylist:
 	input: 
 		bam = os.path.join(bam_path, "{ip_sample}.bam"),
 		bim = os.path.join(bam_path, "{ip_sample}.bam.bai"),
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		r = os.path.join("workflow", "scripts", "make_greylist.R"),
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds")
 	output:
@@ -26,10 +23,7 @@ rule make_greylist:
 
 rule create_differential_signal_rmd:
 	input:
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		db_mod = os.path.join(
 			"workflow", "modules", "differential_signal.Rmd"
 		),
@@ -77,10 +71,7 @@ rule count_windows:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		greylist = lambda wildcards: expand(
 			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
 			ip_sample = set(df['input'][df['target'] == wildcards.target])
@@ -119,10 +110,6 @@ rule count_windows:
 rule compile_differential_signal_html:
 	input:
 		annotations = ALL_RDS,
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
 		merged_macs2 = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}", "{{target}}_{pre}_merged_callpeak.log"

@@ -1,9 +1,6 @@
 rule create_pairwise_comparisons_rmd:
 	input:
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		module_pw = "workflow/modules/pairwise_comparison.Rmd",
 		r = "workflow/scripts/create_pairwise_comparison.R"
 	output:
@@ -44,10 +41,6 @@ rule compile_pairwise_comparisons_html:
 	input:
 		annotations = ALL_RDS,
 		blacklist = blacklist,
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
 		config = "config/config.yml",
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",
 		results_t1 = os.path.join(

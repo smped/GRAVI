@@ -88,10 +88,7 @@ rule macs2_qc:
             suffix = ['bam', 'bam.bai']
         ),
         blacklist = blacklist,
-        chk = expand(
-            os.path.join("output", "checks", "{f}.chk"),
-            f = ['r-packages', 'here']
-        ),
+        chk = ALL_CHECKS,
         indiv_macs2 = lambda wildcards: expand(
             os.path.join(macs2_path, "{sample}", "{sample}_{suffix}"),
             sample = set(df[df.target == wildcards.target]['sample']),

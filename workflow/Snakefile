@@ -143,6 +143,14 @@ db_method = config['comparisons']['method']
 #####################
 ALL_OUTPUTS = []
 
+############
+## Checks ##
+############
+ALL_CHECKS = expand(
+	os.path.join("output", "checks", "{f}.chk"),
+	f = ['here', 'r-packages']
+)
+
 #####################################
 ## Annotations Defined in worfklow ##
 #####################################

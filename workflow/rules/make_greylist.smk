@@ -2,10 +2,7 @@ rule make_greylist:
 	input: 
 		bam = os.path.join(bam_path, "Input", "{ip_sample}.bam"),
 		bai = os.path.join(bam_path, "Input", "{ip_sample}.bam.bai"),
-		chk = expand(
-			os.path.join("output", "checks", "{f}.chk"),
-			f = ['r-packages', 'here']
-		),
+		chk = ALL_CHECKS,
 		r = os.path.join("workflow", "scripts", "make_greylist.R"),
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds")
 	output:

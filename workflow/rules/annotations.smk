@@ -3,10 +3,7 @@ rule create_annotations:
         bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
         blacklist = blacklist,
         config = ancient(os.path.join("config", "config.yml")),
-        chk = expand(
-            os.path.join("output", "checks", "{f}.chk"),
-            f = ['r-packages', 'here']
-        ),
+        chk = ALL_CHECKS,
         gtf = gtf,
         r = os.path.join("workflow", "scripts", "create_annotations.R"),
         yaml = os.path.join("config", "params.yml")
@@ -34,10 +31,6 @@ rule create_annotations:
 rule compile_annotations_html:
     input:
         blacklist = blacklist,
-        chk = expand(
-            os.path.join("output", "checks", "{f}.chk"),
-            f = ['r-packages', 'here']
-        ),
         rmd = "workflow/modules/annotation_description.Rmd",
         rds = rules.create_annotations.output.rds,
         scripts = os.path.join("workflow", "scripts", "custom_functions.R"),

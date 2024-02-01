@@ -49,10 +49,7 @@ rule get_coverage_summary:
     input: 
         bw = rules.bedgraph_to_bigwig.output.bigwig,
         blacklist = blacklist,
-        chk = expand(
-            os.path.join("output", "checks", "{f}.chk"),
-            f = ['r-packages', 'here']
-        ),
+        chk = ALL_CHECKS
     output: os.path.join(macs2_path, "{path}", "{sample}_treat_pileup.summary")
     params:
         script = "workflow/scripts/get_bigwig_summary.R"
