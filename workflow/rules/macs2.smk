@@ -24,6 +24,7 @@ def get_input_bai_from_treat_and_target(wildcards):
         file = set(df[ind]['input'])
     )
 
+
 rule macs2_individual:
     input:
         bam = os.path.join(bam_path, "{sample}.bam"),

@@ -2,105 +2,77 @@ digraph snakemake_dag {
     graph[bgcolor=white, margin=0];
     node[shape=box, style=rounded, fontname=sans,                 fontsize=10, penwidth=2];
     edge[penwidth=2, color=grey];
-	0[label = "all", color = "0.11 0.6 0.85", style="rounded"];
-	1[label = "compile_annotations_html", color = "0.05 0.6 0.85", style="rounded"];
-	2[label = "check_r_packages", color = "0.13 0.6 0.85", style="rounded"];
-	3[label = "check_here_file", color = "0.21 0.6 0.85", style="rounded"];
-	4[label = "create_annotations", color = "0.64 0.6 0.85", style="rounded"];
-	5[label = "create_setup_chunk", color = "0.24 0.6 0.85", style="rounded"];
-	6[label = "create_site_yaml", color = "0.19 0.6 0.85", style="rounded"];
-	7[label = "compile_macs2_summary_html", color = "0.56 0.6 0.85", style="rounded"];
-	8[label = "index_bam", color = "0.45 0.6 0.85", style="rounded"];
-	9[label = "bedgraph_to_bigwig", color = "0.16 0.6 0.85", style="rounded"];
-	10[label = "sort_bedgraph", color = "0.37 0.6 0.85", style="rounded"];
-	11[label = "macs2_merged", color = "0.00 0.6 0.85", style="rounded"];
-	12[label = "macs2_qc", color = "0.03 0.6 0.85", style="rounded"];
+	0[label = "all", color = "0.35 0.6 0.85", style="rounded"];
+	1[label = "compile_annotations_html", color = "0.37 0.6 0.85", style="rounded"];
+	2[label = "create_annotations", color = "0.43 0.6 0.85", style="rounded"];
+	3[label = "check_here_file", color = "0.53 0.6 0.85", style="rounded"];
+	4[label = "check_r_packages", color = "0.11 0.6 0.85", style="rounded"];
+	5[label = "create_setup_chunk", color = "0.13 0.6 0.85", style="rounded"];
+	6[label = "create_site_yaml", color = "0.05 0.6 0.85", style="rounded"];
+	7[label = "compile_macs2_summary_html", color = "0.48 0.6 0.85", style="rounded"];
+	8[label = "index_bam", color = "0.08 0.6 0.85", style="rounded"];
+	9[label = "bedgraph_to_bigwig", color = "0.19 0.6 0.85", style="rounded"];
+	10[label = "sort_bedgraph", color = "0.27 0.6 0.85", style="rounded"];
+	11[label = "macs2_merged", color = "0.21 0.6 0.85", style="rounded"];
+	12[label = "macs2_qc", color = "0.00 0.6 0.85", style="rounded"];
 	13[label = "macs2_individual", color = "0.29 0.6 0.85", style="rounded"];
-	14[label = "create_macs2_summary_rmd", color = "0.27 0.6 0.85", style="rounded"];
-	15[label = "compile_differential_signal_html", color = "0.40 0.6 0.85", style="rounded"];
-	16[label = "create_differential_signal_rmd", color = "0.61 0.6 0.85", style="rounded"];
-	17[label = "count_windows", color = "0.53 0.6 0.85", style="rounded"];
-	18[label = "make_greylist", color = "0.59 0.6 0.85", style="rounded"];
-	19[label = "compile_index_html", color = "0.35 0.6 0.85", style="rounded"];
-	20[label = "create_index_rmd", color = "0.32 0.6 0.85", style="rounded"];
-	21[label = "macs2_bdgcmp", color = "0.08 0.6 0.85", style="rounded"];
+	14[label = "make_greylist", color = "0.64 0.6 0.85", style="rounded"];
+	15[label = "create_macs2_summary_rmd", color = "0.56 0.6 0.85", style="rounded"];
+	16[label = "compile_index_html", color = "0.03 0.6 0.85", style="rounded"];
+	17[label = "create_index_rmd", color = "0.32 0.6 0.85", style="rounded"];
+	18[label = "macs2_bdgcmp", color = "0.45 0.6 0.85", style="rounded"];
 	13 -> 0
-	19 -> 0
+	16 -> 0
 	11 -> 0
 	1 -> 0
 	7 -> 0
-	15 -> 0
 	9 -> 0
-	4 -> 0
-	3 -> 1
-	5 -> 1
-	2 -> 1
+	2 -> 0
 	6 -> 1
-	4 -> 1
-	2 -> 4
-	3 -> 4
-	2 -> 5
+	2 -> 1
+	5 -> 1
+	4 -> 2
+	3 -> 2
+	4 -> 5
 	3 -> 5
-	2 -> 6
+	4 -> 6
 	3 -> 6
-	14 -> 7
 	13 -> 7
-	8 -> 7
-	3 -> 7
-	11 -> 7
 	12 -> 7
-	1 -> 7
-	5 -> 7
-	2 -> 7
-	9 -> 7
+	11 -> 7
 	6 -> 7
-	4 -> 7
+	8 -> 7
+	5 -> 7
+	15 -> 7
+	1 -> 7
+	9 -> 7
+	2 -> 7
+	14 -> 7
 	10 -> 9
-	4 -> 9
-	21 -> 10
+	2 -> 9
 	13 -> 10
 	11 -> 10
-	12 -> 11
+	18 -> 10
 	8 -> 11
+	12 -> 11
 	13 -> 12
 	8 -> 12
+	4 -> 12
 	3 -> 12
 	2 -> 12
-	4 -> 12
 	8 -> 13
+	8 -> 14
 	2 -> 14
+	4 -> 14
 	3 -> 14
-	3 -> 15
-	11 -> 15
-	17 -> 15
-	12 -> 15
-	1 -> 15
-	7 -> 15
-	16 -> 15
-	5 -> 15
-	2 -> 15
-	9 -> 15
-	6 -> 15
 	4 -> 15
-	2 -> 16
-	3 -> 16
-	8 -> 17
+	3 -> 15
+	6 -> 16
+	17 -> 16
+	5 -> 16
+	1 -> 16
+	7 -> 16
+	4 -> 17
 	3 -> 17
-	12 -> 17
-	7 -> 17
-	18 -> 17
-	2 -> 17
-	2 -> 18
-	8 -> 18
-	3 -> 18
-	4 -> 18
-	20 -> 19
-	3 -> 19
-	5 -> 19
-	1 -> 19
-	7 -> 19
-	15 -> 19
-	2 -> 19
-	6 -> 19
-	11 -> 21
+	11 -> 18
 }            
