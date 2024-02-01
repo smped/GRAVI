@@ -1,3 +1,10 @@
+def get_greylist_from_target(wildcards):
+    ind = df.target == wildcards.target
+    return expand(
+        os.path.join(annotation_path, "{file}_greylist.bed"),
+        file = set(df[ind]['input'])
+    )
+
 rule create_site_yaml:
 	input:
 		chk = ALL_CHECKS,
@@ -111,6 +118,7 @@ rule compile_macs2_summary_html:
 		cors = os.path.join(
 			macs2_path, "{target}", "{target}_cross_correlations.tsv"
 		),
+		greylist = get_greylist_from_target,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{sample}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
