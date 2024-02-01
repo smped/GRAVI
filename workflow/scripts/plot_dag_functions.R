@@ -20,7 +20,7 @@
 #'
 #' @export
 add_input_node <- function(
-  x, node = "raw_data", ignore = "(get|build|make|install)", col = "#000000",
+  x, node = "raw_data", ignore = "(get|build|make|install|check)", col = "#000000",
   style = "rectangle"
 ){
 
@@ -34,7 +34,7 @@ add_input_node <- function(
   to_ignore <- str_subset(x[-1], ignore)
   to_ignore <- str_replace_all(to_ignore, "\\t([0-9]*).label.+", "\\1")
   no_parent <- setdiff(all_id, c(has_parent, to_ignore))
-  if (length(no_parent) == 0){
+  if (length(no_parent) == 0) {
     warning(
       "All specified nodes have parents. The original graph will be returned"
     )
@@ -50,7 +50,7 @@ add_input_node <- function(
   if (!grepl("^#[0-9A-F]{6}", col)) stop("Invalid colour specification")
 
   ## Find the position to insert the node (i.e. last in the dot file)
-  new_id <- as.character(max(as.numeric(all_id)) +1)
+  new_id <- as.character(max(as.numeric(all_id)) + 1)
   new_text <- c(
     "\t", new_id,
     "[label = \"", node,

@@ -47,14 +47,14 @@ Treatment groups and targets are specified using `config/config.yml`.
 
 ## Workflow
 
-```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Summary of processing workflow. The primary data pipeline producing key outputs is shown in red, preparatory steps are shown in blue whilst steps involved in the collation of final output are in green.*"}
+```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Summary of processing workflow. The primary data pipeline producing key outputs is shown in red, preparatory checks are shown in green whilst steps involved in the collation of final output are in blue.*"}
 here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
-  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "(download|define|macs2|create|install|update)") %>%
-  change_node_colour("(index|macs2|annotations|bedgraph|compile|greylist|coverage)", "red") %>%
-  change_node_colour("(create|build|update)", "forestgreen") %>%
-  change_node_colour("(download|write|copy|install)", "blue") %>%
+  add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "check") %>%
+  change_node_colour("(index|macs2|bedgraph|sort|make|greylist)", "red") %>%
+  change_node_colour("check", "forestgreen") %>%
+  change_node_colour("(create|compile)", "blue") %>%
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
   str_replace_all("fontsize=[0-9]+", "fontsize=16") %>%
