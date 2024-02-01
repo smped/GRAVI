@@ -81,6 +81,7 @@ samples <- samples %>%
   ) %>% 
   dplyr::filter(treat %in% treat_levels)
 stopifnot(nrow(samples) > 0)
+ip <- unique(samples$input)
 ```
 
 
@@ -88,7 +89,22 @@ stopifnot(nrow(samples) > 0)
 ## Seqinfo
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
 ## Blacklist
-blacklist <- import.bed(here::here(config$external$blacklist), seqinfo = sq)
+blacklist <- importPeaks(
+  here::here(config$external$blacklist), type = "bed", seqinfo = sq
+) %>% 
+  unlist() %>% 
+  remove_names()
+## Greylist
+greylist <- importPeaks(
+  here::here("output", "annotations", glue("{ip}_greylist.bed")),
+  type = "bed", seqinfo = sq
+) %>% 
+  unlist() %>% 
+  remove_names()
+exclude_ranges <- c(blacklist, greylist) %>% 
+  GenomicRanges::reduce() %>% 
+  sort()
+
 ## Gene Annotations
 gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
 gtf_transcript <- read_rds(file.path(annotation_path, "gtf_transcript.rds"))
@@ -153,7 +169,7 @@ bfl <- bam_path %>%
 individual_peaks <- file.path(
   macs2_path, samples$sample, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%
-  importPeaks(seqinfo = sq, blacklist = blacklist) %>%
+  importPeaks(seqinfo = sq, blacklist = exclude_ranges) %>%
   endoapply(names_to_column, var = "sample") %>% 
   endoapply(mutate, sample = str_remove(sample, "_peak_[0-9]+$")) %>% 
   endoapply(
@@ -767,7 +783,7 @@ treatment_peaks <- treat_levels %>%
     function(x) {
       gr <- macs2_path %>%
         file.path(target, glue("{target}_{x}_merged_peaks.narrowPeak")) %>%
-        importPeaks(seqinfo = sq, blacklist = blacklist, centre = TRUE) %>% 
+        importPeaks(seqinfo = sq, blacklist = exclude_ranges, centre = TRUE) %>% 
         unlist()
       k <- dplyr::filter(n_reps, treat == x)$n * min_prop
       if (k > 0) {
