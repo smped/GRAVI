@@ -27,9 +27,19 @@ if (length(not_installed)) {
 ## Check the updated list
 all_inst <- rownames(installed.packages())
 not_installable <- setdiff(all_reqd, all_inst)
-if (length(not_installable)) 
+if (length(not_installable))
 	stop("unable to install:\n", paste(not_installable, collapse = "\n"))
 message("All required packages have been installed")
+
+## Set the minimum version for extraChIPs
+updateEC <- packageVersion("extraChIPs") >= "1.7.1"
+if (updateEC) {
+  message("Updating extraChIPs to a suitable version")
+  BiocManager::install(
+    "smped/extraChIPs", ref = "devel", update = FALSE, force = FALSE
+  )
+  stopifnot(packageVersion("extraChIPs") >= "1.7.1")
+}
 
 message("Writing check file")
 d <- here::here("output/checks")
