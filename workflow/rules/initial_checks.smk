@@ -7,9 +7,9 @@ rule check_r_packages:
         runtime = "30m",
         mem_mb = 4096,
     log: os.path.join(log_path, "checks", "check_r_packages")
-    shell:
+    script:
         """
-        Rscript --vanilla {input} {output} &>> {log}
+        {input.r}
         """
         
 rule check_here_file:

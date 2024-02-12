@@ -32,14 +32,13 @@ library(yaml)
 library(Rsamtools)
 library(extraChIPs)
 
-args <- commandArgs(TRUE)
 config <- read_yaml(here::here("config", "config.yml"))
 params <- read_yaml(here::here("config", "params.yml"))
 samples <- here::here(config$samples$file) %>%
   read_tsv()
 
 #### Paths ####
-annotation_path <- here::here(args[[1]])
+annotation_path <- snakemake@params[["annot_path"]]
 if (!dir.exists(annotation_path)) dir.create(annotation_path, recursive = TRUE)
 all_out <- list(
   chrom_sizes = file.path(annotation_path, "chrom.sizes"),

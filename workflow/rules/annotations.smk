@@ -23,9 +23,9 @@ rule create_annotations:
     resources:
         mem_mb = 16384	
     log: log_path + "/scripts/create_annotations.log"
-    shell:
+    script:
         """
-        Rscript --vanilla {input.r} {params.annot_path} &>> {log}
+        {input.r}
         """
 
 rule compile_annotations_html:
