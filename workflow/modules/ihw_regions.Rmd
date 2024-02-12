@@ -1,12 +1,13 @@
 ```{r ihw-all, echo = TRUE}
+library(IHW)
 ihw_all <- gene_regions %>% 
   .[names(.) != "tss"] %>% 
   lapply(
-    function(x) propOverlap(merged_results, x)
+    function(x) propOverlap(results, x)
   ) %>% 
   as_tibble() %>% 
   mutate(
-    range = as.character(merged_results), id = seq_along(range)
+    range = as.character(results), id = seq_along(range)
   ) %>% 
   pivot_longer(
     cols = any_of(names(gene_regions)),
@@ -22,30 +23,22 @@ ihw_all <- gene_regions %>%
   ) %>% 
   arrange(id) %>% 
   .[["region"]]
-merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
-ihw_proceed <- length(levels(merged_results$ihw_covariate)) > 1
+results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
+ihw_proceed <- length(levels(results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
 ihw_cols <- colours$regions
 ihw <- NULL
 if (ihw_proceed) {
   ihw <- ihw(
-    pvalues = merged_results$P.Value,
-    covariates = merged_results$ihw_covariate,
+    pvalues = results$PValue,
+    covariates = results$ihw_covariate,
     alpha <- fdr_alpha,
     covariate_type = "nominal"
   )
-  merged_results <- mutate(merged_results, fdr_ihw = adj_pvalues(ihw))
+  results <- mutate(results, fdr_ihw = adj_pvalues(ihw))
 } 
-merged_results <- merged_results %>% 
-  mutate(
-    status = case_when(
-      !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
-      !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
-    ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) %>% 
-      droplevels()
-  )
-lblr <- as_labeller(c(regions, "Other" = "Other"))
+results <- addDiffStatus(results, sig_col = fdr_column, alpha = fdr_alpha)
+lblr <- c(regions, "Other" = "Other")
 ```
 
 
@@ -66,7 +59,7 @@ ihw %>%
   as.data.frame() %>% 
   mutate(
     fdr = p.adjust(pvalue, "fdr"),
-    status = case_when(
+    ihw_status = case_when(
       fdr < fdr_alpha & adj_pvalue > fdr_alpha ~ "Lost",
       fdr < fdr_alpha & adj_pvalue < fdr_alpha ~ "Retained",
       fdr > fdr_alpha & adj_pvalue < fdr_alpha ~ "Gained",
@@ -77,15 +70,13 @@ ihw %>%
       )
   ) %>% 
   as_tibble() %>% 
-  group_by(covariate, status) %>% 
-  tally() %>% 
-  ungroup() %>% 
-  complete(status = status, covariate = covariate, fill = list(n = 0)) %>% 
+  summarise(n = dplyr::n(), .by = all_of(c("covariate", "ihw_status"))) %>%  
+  complete(ihw_status = ihw_status, covariate = covariate, fill = list(n = 0)) %>% 
   pivot_wider(
-    names_from = status, values_from = n, values_fill = 0
+    names_from = ihw_status, values_from = n, values_fill = 0
   ) %>% 
   mutate(
-    covariate = unlist(lblr(covariate)),
+    covariate = fct_relabel(covariate, \(x) lblr[x]),
     `Nett Change` = Gained - Lost
   ) %>% 
   bind_rows(
@@ -120,19 +111,14 @@ ihw %>%
 ```{r ihw-partitions-raw, echo = TRUE, fig.height=6, fig.cap = "*Breakdown of all windows which overlapped the regions previously defined. Any partitions with fewer than 1000 windows (indicated as the blue horizontal line) were combined into the next smallest partition consecutively, until all partitions contained > 1000 windows.*"}
 tibble(ihw = ihw_all) %>% 
   mutate(
-    ihw_label = regions[as.character(ihw)] %>% 
-      fct_infreq()
+    ihw_label = lblr[as.character(ihw)] %>% fct_infreq()
   ) %>% 
-  ggplot(
-    aes(ihw_label, fill = ihw)
-  ) +
+  ggplot(aes(ihw_label, fill = ihw)) +
   geom_bar() +
   geom_hline(yintercept = 1e3, colour = "blue") +
   geom_text(
     aes(y = n + 0.025*max(n), label = comma(n, 1)),
-    data = . %>%
-      group_by(ihw_label, ihw) %>%
-      summarise(n = dplyr::n(), .groups = "drop") 
+    data = . %>% summarise(n = dplyr::n(), .by = all_of(c("ihw_label", "ihw"))) 
   ) +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   scale_fill_manual(values = ihw_cols) +
@@ -142,49 +128,48 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, echo = TRUE, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
+```{r plot-ihw-pvals, echo = TRUE, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each parition is given within each panel.*"}
 y <- ggplot_build(
-  tibble(P.Value = merged_results$P.Value,) %>% 
-    ggplot(aes(P.Value, stat(density))) + 
+  tibble(PValue = results$PValue,) %>% 
+    ggplot(aes(PValue, stat(density))) + 
     geom_histogram(bins = 100) 
 ) %>% .[["data"]] %>% 
   .[[1]] %>% 
   .[["y"]] %>% 
   max()
-merged_results %>% 
-  select(P.Value, ihw_covariate) %>% 
+results %>% 
+  select(PValue, ihw_covariate) %>% 
   mcols() %>% 
   as_tibble() %>% 
-  ggplot(aes(P.Value, stat(density))) +
+  ggplot(aes(PValue, stat(density))) +
   geom_histogram(fill = "grey", colour = "black", bins = 100) +
   geom_text(
     aes(0.8, y, label = lab),
     data = . %>% 
-      group_by(ihw_covariate) %>% 
-      summarise(n = dplyr::n(), .groups = "drop") %>% 
+      summarise(n = dplyr::n(), .by = ihw_covariate) %>% 
       mutate(
         lab = glue("N = {comma(n, 1)}"),
         y = y
       )
   ) +
-  facet_wrap(~ihw_covariate, ncol = 3, labeller = lblr) +
+  facet_wrap(~ihw_covariate, ncol = 3, labeller = as_labeller(lblr)) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
   labs(x = "P Value", y = "Density")
 ```
 
 `r ifelse(ihw_proceed, "### IHW Weights", "")`
 
-```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
+```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
 plot(ihw) +
   geom_hline(yintercept = 1) +
-  facet_wrap(~group, labeller =lblr) +
+  facet_wrap(~group, labeller = as_labeller(lblr)) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
   labs(x = "Fold", y = "Weight", fill = "Fold")
 ```
 
 `r ifelse(ihw_proceed, "### FDR Comparison", "")`
 
-```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
+```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
 ihw %>%
   as.data.frame() %>% 
   ggplot(
@@ -201,13 +186,13 @@ ihw %>%
   ) +
   geom_vline(
     aes(xintercept = -log10(pvalue)),
-    data =. %>% 
+    data = . %>% 
       dplyr::filter(p.adjust(pvalue, "fdr") < fdr_alpha) %>% 
       dplyr::filter(pvalue == max(pvalue)) %>% 
       dplyr::select(-group),
     linetype = 2, colour = "blue"
   ) +
-  facet_wrap(~group, scales = "free", labeller = lblr) +
+  facet_wrap(~group, scales = "free", labeller = as_labeller(lblr)) +
   coord_cartesian(xlim = c(0, 5), ylim = c(0, 5)) +
   labs(
     x = expression(-log[10](p)),

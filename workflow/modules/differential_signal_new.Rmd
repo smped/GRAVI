@@ -20,15 +20,15 @@ The basic approach will be:
     + Passed tests will permit all normalisation methods
 3. Perform DSA
 
-```{r set-params, eval = FALSE, echo = FALSE}
+```{r set-params, eval = interactive(), echo = FALSE}
 params <- list(
   threads = 4,
-  target = "H3K27ac", 
+  target = "ERa", 
   treat_levels = c("E2", "E2DHT"), 
-  windows = "sliding",
-  window_size = 180,
-  method = "lt",
-  norm = "sq",
+  windows = "fixed",
+  window_size = 400,
+  method = "qlf",
+  norm = "TMM",
   pair_col = NULL,
   fdr_alpha = 0.05,
   fc = 1.2,
@@ -182,7 +182,11 @@ direction_colours <- colours$direction %>%
   .[names(.) %in% c("Increased", "Decreased", "Unchanged", "Ambiguous")]
 treat_colours <- colours$treat[treat_levels]
 fig_dev <- knitr::opts_chunk$get("dev")
-fig_type <- fig_dev[[1]]
+if (!interactive()) {
+  fig_type <- fig_dev[[1]]
+} else {
+  fig_type <- "png"
+}
 if (is.null(fig_type)) stop("Couldn't detect figure type")
 fig_fun <- match.fun(fig_type)
 if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
@@ -577,7 +581,8 @@ if (win_type == "sliding") {
 } else {
   results <- rowRanges(fit) %>% addDiffStatus(alpha = fdr_alpha)
 }
-n_sig <- sum(results$FDR < fdr_alpha)
+fdr_column <- "FDR"
+n_sig <- sum(mcols(results)[[fdr_column]] < fdr_alpha)
 ```
 
 `r txt`
@@ -787,7 +792,7 @@ div(class = "table",
 
 ```{r tab-res-by-region}
 df <- results %>% 
-  select(status, FDR, region) %>% 
+  select(status, !!sym(fdr_column), region) %>% 
   as_tibble() %>% 
   group_by(region, status) %>% 
   summarise(n = dplyr::n(), .groups = "drop") %>% 
@@ -835,7 +840,7 @@ div(class = "table",
 
 ```{r tab-res-by-feature, echo = has_features, eval = has_features}
 df <- results %>% 
-  select(status, FDR, feature) %>% 
+  select(status, !!sym(fdr_column), feature) %>% 
   as_tibble() %>% 
   group_by(feature, status) %>% 
   tally() %>% 
@@ -910,10 +915,10 @@ cp <- htmltools::em(
 fs <- 12
 tbl <- results %>%
   mutate(w = width) %>% 
-  arrange(FDR) %>% 
+  arrange(!!sym(fdr_column)) %>% 
   plyranges::slice(seq_len(show_n)) %>% 
   plyranges::select(
-    w, starts_with("log"), FDR, 
+    w, starts_with("log"), !!sym(fdr_column), 
     Region = region, any_of("feature"), Genes = gene_name
   ) %>% 
   as_tibble() %>% 
@@ -925,7 +930,7 @@ tbl <- results %>%
     showPageSizeOptions = TRUE,
     pageSizeOptions = c(10, 20, 50, show_n), defaultPageSize = 10,
     borderless  = TRUE,
-    columns = list(
+    columns = list2(
       Range = colDef(
         minWidth = 10 * fs,
         cell = function(value) {
@@ -961,7 +966,8 @@ tbl <- results %>%
         },
         maxWidth = 5.5 * fs
       ),
-      FDR = colDef(
+      "{fdr_column}" := colDef(
+        name = "FDR",
         cell = function(value) {
           fmt <- ifelse(value < 0.01, "%.2e", "%.3f")
           sprintf(fmt, value)
@@ -1001,7 +1007,7 @@ bwfl <- file.path(
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- results %>% 
-  filter(FDR < fdr_alpha) %>%
+  filter(!!sym(fdr_column) < fdr_alpha) %>%
   splitAsList(f = .$status) %>% 
   .[vapply(., length, integer(1)) > 0] 
 if (win_type == "sliding") {
@@ -1081,7 +1087,7 @@ results %>%
   geom_label_repel(
     aes(y = logFC, label = annot, colour = status),
     data = . %>%
-      dplyr::filter(FDR < fdr_alpha) %>% 
+      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
       arrange(desc(abs(logFC))) %>% 
       dplyr::slice(1:2, .by = status) %>% 
       mutate(
@@ -1116,7 +1122,7 @@ results %>%
     aes(label = annot, colour = status),
     data = . %>%
       arrange(PValue) %>%
-      dplyr::filter(FDR < fdr_alpha) %>% 
+      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
       droplevels() %>% 
       dplyr::slice(1:2, .by = status) %>% 
       mutate(
@@ -1251,7 +1257,7 @@ results %>%
 
 ```{r plot-db-regions, eval = n_sig > 0, echo = n_sig > 0, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all genomic regions.*")}
 results %>% 
-  dplyr::filter(FDR < fdr_alpha) %>%
+  dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
   as_tibble() %>% 
   dplyr::rename("{target}" := status, Region = region) %>% 
   droplevels() %>% 
@@ -1284,7 +1290,7 @@ results %>%
 
 ```{r plot-db-features, eval = has_features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all external features.*")}
 results %>% 
-  dplyr::filter(FDR < fdr_alpha) %>%
+  dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
   as_tibble() %>% 
   dplyr::rename("{target}" := status, Feature = feature) %>% 
   plotSplitDonut(
@@ -1319,13 +1325,13 @@ trans_models <- file.path(annotation_path, "trans_models.rds") %>%
 grl_to_plot <- GRangesList(
   
   top_inc_by_fdr = results %>% 
-    filter(logFC > 0, FDR < fdr_alpha) %>% 
+    filter(logFC > 0, !!sym(fdr_column) < fdr_alpha) %>% 
     arrange(PValue) %>% 
     .[min(1, length(.))],
   top_inc_by_lfc = filter(results, logFC == max(logFC)),
   
   top_dec_by_fdr = results %>% 
-    filter(logFC < 0, FDR < fdr_alpha) %>% 
+    filter(logFC < 0, !!sym(fdr_column) < fdr_alpha) %>% 
     arrange(PValue) %>% 
     .[min(1, length(.))],
   top_dec_by_lfc = filter(results, logFC == min(logFC))
@@ -1481,7 +1487,7 @@ makeCaption <- function(.gr) {
     !str_detect(.gr$feature, "^[AEIOU]") ~ paste("a", .gr$feature)
   )
   gn <- unlist(.gr$gene_name)
-  fdr <- .gr$FDR
+  fdr <- mcols(.gr)[[fdr_column]]
   fdr <- ifelse(
     fdr < 0.001, sprintf('%.2e', fdr), sprintf('%.3f', fdr)
   )
@@ -2403,7 +2409,7 @@ results %>%
   unnest(all_of("gene_id")) %>%
   mutate(gene_name = id2gene[gene_id]) %>% 
   dplyr::select(
-    gene_id, gene_name, range, logCPM, logFC, PValue, FDR, 
+    gene_id, gene_name, range, logCPM, logFC, PValue, !!sym(fdr_column), 
     status, any_of(c("region", "feature")), macs2_peak = overlaps_ref,
   ) %>% 
   mutate(

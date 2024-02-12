@@ -158,8 +158,8 @@ gene_regions <- defineRegions(
 )
 
 
-write_rds(gene_regions, all_out$gene_regions, compress = "gz")
 cat("Exporting gene_regions...\n")
+write_rds(gene_regions, all_out$gene_regions, compress = "gz")
 all_exist <- vapply(all_out, file.exists, logical(1))
 if (!all(all_exist)) {
   nm <- names(all_exist)[!all_exist]

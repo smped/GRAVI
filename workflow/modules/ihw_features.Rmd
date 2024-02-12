@@ -1,5 +1,5 @@
-
 ```{r ihw-all}
+library(IHW)
 ihw_all <- external_features %>% 
   split(f = .$feature) %>% 
   c(
@@ -8,11 +8,11 @@ ihw_all <- external_features %>%
     )
   ) %>% 
   lapply(
-    function(x) propOverlap(merged_results, x)
+    function(x) propOverlap(results, x)
   ) %>% 
   as_tibble() %>% 
   mutate(
-    range = as.character(merged_results), id = seq_along(range)
+    range = as.character(results), id = seq_along(range)
   ) %>% 
   pivot_longer(
     cols = c(all_of(unique(external_features$feature)), "no_feature"),
@@ -28,28 +28,20 @@ ihw_all <- external_features %>%
   ) %>% 
   arrange(id) %>% 
   .[["feature"]]
-merged_results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
-ihw_proceed <- length(levels(merged_results$ihw_covariate)) > 1
+results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
+ihw_proceed <- length(levels(results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
 ihw_cols <- colours$features
 if (ihw_proceed) {
   ihw <- ihw(
-    pvalues = merged_results$P.Value,
-    covariates = merged_results$ihw_covariate,
+    pvalues = results$PValue,
+    covariates = results$ihw_covariate,
     alpha <- fdr_alpha,
     covariate_type = "nominal"
   )
-  merged_results <- mutate(merged_results, fdr_ihw = adj_pvalues(ihw))
+  results <- mutate(results, fdr_ihw = adj_pvalues(ihw))
 } 
-merged_results <- merged_results %>% 
-  mutate(
-    status = case_when(
-      !!sym(fdr_column) < fdr_alpha ~ as.character(direction),
-      !!sym(fdr_column) >= fdr_alpha ~ "Unchanged"
-    ) %>% 
-      factor(levels = c(levels(direction), "Unchanged")) %>% 
-      droplevels()
-  )
+results <- addDiffStatus(results, sig_col = fdr_column, alpha = fdr_alpha)
 ```
 
 Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential signal, by features provided in `r basename(config$external$features)`, and estimate weights to apply to each p-value as a divisor.
@@ -69,7 +61,7 @@ ihw %>%
   as.data.frame() %>% 
   mutate(
     fdr = p.adjust(pvalue, "fdr"),
-    status = case_when(
+    ihw_status = case_when(
       fdr < fdr_alpha & adj_pvalue > fdr_alpha ~ "Lost",
       fdr < fdr_alpha & adj_pvalue < fdr_alpha ~ "Retained",
       fdr > fdr_alpha & adj_pvalue < fdr_alpha ~ "Gained",
@@ -80,12 +72,10 @@ ihw %>%
       )
   ) %>% 
   as_tibble() %>% 
-  group_by(covariate, status) %>% 
-  tally() %>% 
-  ungroup() %>% 
-  complete(status = status, covariate = covariate, fill = list(n = 0)) %>% 
+  summarise(n = dplyr::n(), .by = all_of(c("covariate", "ihw_status"))) %>% 
+  complete(ihw_status = ihw_status, covariate = covariate, fill = list(n = 0)) %>% 
   pivot_wider(
-    names_from = status, values_from = n, values_fill = 0
+    names_from = ihw_status, values_from = n, values_fill = 0
   ) %>% 
   mutate(
     `Nett Change` = Gained - Lost
@@ -152,23 +142,23 @@ tibble(ihw = ihw_all) %>%
 
 ### P-Value Distributions
 
-```{r plot-ihw-pvals, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
+```{r plot-ihw-pvals, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = "*P-Value distributions within all final data partitions. The size of each partition is given within each panel.*"}
 y <- ggplot_build(
-  tibble(P.Value = merged_results$P.Value,) %>% 
-    ggplot(aes(P.Value, stat(density))) + 
+  tibble(PValue = results$PValue,) %>% 
+    ggplot(aes(PValue, stat(density))) + 
     geom_histogram(bins = 100) 
 ) %>% .[["data"]] %>% 
   .[[1]] %>% 
   .[["y"]] %>% 
   max()
-merged_results %>% 
-  select(P.Value, ihw_covariate) %>% 
+results %>% 
+  select(PValue, ihw_covariate) %>% 
   mcols() %>% 
   as_tibble() %>% 
   mutate(
     label = fct_relabel(ihw_covariate, str_sep_to_title)
   ) %>% 
-  ggplot(aes(P.Value, stat(density))) +
+  ggplot(aes(PValue, stat(density))) +
   geom_histogram(fill = "grey", colour = "black", bins = 100) +
   geom_text(
     aes(0.8, y, label = lab),
@@ -187,7 +177,7 @@ merged_results %>%
 
 `r ifelse(ihw_proceed, "### IHW Weights", "")`
 
-```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
+```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
 plot(ihw) +
   geom_hline(yintercept = 1) +
   facet_wrap(~group, labeller = as_labeller(str_sep_to_title)) +
@@ -197,7 +187,7 @@ plot(ihw) +
 
 `r ifelse(ihw_proceed, "### FDR Comparison", "")`
 
-```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(merged_results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
+```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
 ihw %>%
   as.data.frame() %>% 
   ggplot(
@@ -214,7 +204,7 @@ ihw %>%
   ) +
   geom_vline(
     aes(xintercept = -log10(pvalue)),
-    data =. %>% 
+    data = . %>% 
       dplyr::filter(p.adjust(pvalue, "fdr") < fdr_alpha) %>% 
       dplyr::filter(pvalue == max(pvalue)) %>% 
       dplyr::select(-group),
