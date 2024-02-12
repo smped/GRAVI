@@ -993,7 +993,7 @@ div(class = "table",
 ### Summary Plots {.tabset}
 
 ```{r make-heatmaps}
-profile_width <- ifelse(target == "H3K27ac", 1e4, 5e3)
+profile_width <- ifelse(str_to_lower(target) == "h3k27ac", 1e4, 5e3)
 n_bins <- 100
 bwfl <- file.path(
   macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
