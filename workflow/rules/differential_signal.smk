@@ -1,28 +1,15 @@
 rule create_differential_signal_rmd:
 	input:
 		chk = ALL_CHECKS,
-		db_mod = os.path.join(
-			"workflow", "modules", "differential_signal.Rmd"
-		),
-		r = "workflow/scripts/create_differential_rmd.R"
+		module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
+		r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
 	output: 
 		rmd = os.path.join(
 			rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
 		)
-	params:
-		threads = lambda wildcards: min(
-			len(
-				df[
-					(df['target'] == wildcards.target) &
-					(
-						(df['treat'] == wildcards.ref) |
-						(df['treat'] == wildcards.treat)
-					)
-				]
-			),
-			workflow.cores
-		),
 	conda: "../envs/rmarkdown.yml"
+	params:
+		win_type = "fixed" # Add the rest really soon!!!
 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_signal.log"
 	threads: 1
 	shell:
@@ -33,11 +20,10 @@ rule create_differential_signal_rmd:
 			{wildcards.target} \
 			{wildcards.ref} \
 			{wildcards.treat} \
-			{params.threads} \
 			{output.rmd} &>> {log}
 
 		## Add the remainder of the module as literal text
-		cat {input.db_mod} >> {output.rmd}
+		cat {input.module} >> {output.rmd}
 		"""
 
 rule count_windows:
@@ -53,26 +39,34 @@ rule count_windows:
 			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
 			ip_sample = set(df['input'][df['target'] == wildcards.target])
 		),
+		logs = lambda wildcards: expand(
+			os.path.join(
+				macs2_path, "{{target}}", 
+				"{{target}}_{treat_levels}_merged_callpeak.log"
+			),
+			treat_levels = set(df['treat'][df['target'] == wildcards.target])
+		),
 		peaks = os.path.join(
-			macs2_path, "{target}", "{target}_union_peaks.bed"
+			macs2_path, "{target}", "{target}_treatment_peaks.rds"
 		),
 		samples = os.path.join(
 			macs2_path, "{target}", "{target}_qc_samples.tsv"
 		),
-		r = os.path.join("workflow", "scripts", "make_filtered_counts.R")
+		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+		r = os.path.join("workflow", "scripts", "make_counts.R")
 	output:
-		rds = expand(
-			os.path.join(
-				"differential_signal", "{{target}}", "{{target}}_{file}.rds"
-			),
-			file = ['window_counts', 'filtered_counts']
-		)
+		rds = os.path.join("data", "counts", "{target}_counts.rds")
 	conda: "../envs/rmarkdown.yml"
 	log: log_path + "/diferential_signal/{target}_count_windows.log"
 	threads:
 		lambda wildcards: min(
-			len(df[(df['target'] == wildcards.target)]), max_threads
+			len(df[(df['target'] == wildcards.target)]), workflow.cores
 		)
+	params:
+		win_type = "fixed", # Tidy these later
+		win_size = 400,
+		win_step = 0,
+		filter_q = 1
 	resources:
 		runtime = "2h",
 		mem_mb = 32768
@@ -80,8 +74,13 @@ rule count_windows:
 		"""
 		Rscript --vanilla \
 		  {input.r} \
+		  {threads} \
 		  {wildcards.target} \
-		  {threads} &>> {log}
+		  {output.rds} \
+		  {params.win_type} \
+		  {params.win_size} \
+		  {params.win_step} \
+		  {params.filter_q} &>> {log}
 		"""
 
 rule compile_differential_signal_html:

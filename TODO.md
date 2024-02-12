@@ -2,31 +2,37 @@
 
 - [ ] Update all Rmd for RELEASE 3.18
     - [x] annotations
-    - [ ] macs2
+    - [x] macs2
     - [ ] differential signal
     - [ ] pairwise comparisons
 - [x] Update r environment for RELEASE 3.18
 - [x] Change terminology from differential binding to differential signal
-- [ ] Check for compatibility with extraChIPs >= v1.6
-- [ ] Redefine all config settings to have a default, with optional overwrite using the target type
-- [ ] Add required column to samples.tsv to indicate signal type. This should be restricted to the values ['TF', "H3K27ac'] with the intent of adding 'ATAC' later. Or maybe this is easier just using the above TODO point.
-  - This may require removing the 'differential_h3k27ac' module
+- [ ] Check for compatibility with extraChIPs >= v1.7.1
+  - [x] macs2
+  - [ ] differential signal
+  - [ ] pairwise comparisons
 - [ ] Checks for input file consistency/structure
 - [ ] Shift `cowplot` to `patchwork`
 
 ## Differential Signal
 
-- [ ] Restrict methods to:
-  1. Sliding Windows with SQN (quantro not essential)
-  2. Sliding Windows with TMM/RLE (after quantro)
-  3. Fixed width using TMM/RLE (after quantro)
+- [x] Restrict methods to:
+    1. Sliding Windows with SQN (quantro not essential)
+    2. Sliding Windows with TMM/RLE (after quantro)
+    3. Fixed width using TMM/RLE (after quantro)
+- [x] Update main differential signal module
+- [x] Update IHW
+- [ ] Update RNA-Seq module
+- [ ] Rewrite script/rules for creating diff_signal Rmds with updated params
+- [ ] Redefine config settings to have a default, with optional overwrite using the target 
 
-This should require writing a DiffSig module for sliding and another for fixed
 
 ## Features (Unlikely)
 
 - [ ] Add 3-way comparisons
-- [ ] Incorporate motif detection
+- [ ] Additional modules
+  - [ ] ROSE
+  - [ ] Incorporate motif detection
 
 ## Bugs
 

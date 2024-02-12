@@ -76,7 +76,8 @@ wildcard_constraints:
 	target = "(" + '|'.join(targets) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
-	ref = "(" + '|'.join(treats[:-1]) + ")"
+	ref = "(" + '|'.join(treats) + ")"
+
 
 #######################
 ## Update parameters ##
@@ -182,6 +183,19 @@ HTML_OUT.extend(
 		target = targets
 	)
 )
+
+## Try bringing in diffsignal again
+COUNTS = expand(
+	os.path.join("data", "counts", "{target}_counts.rds"),
+	target = targets
+)
+ALL_OUTPUTS.extend(COUNTS)
+RMD = expand(
+	os.path.join(rmd_path, "{cont}_differential_signal.Rmd"),
+	cont = make_contrasts(config['comparisons']['contrasts'])
+)
+ALL_OUTPUTS.extend(RMD)
+
 
 # Differential Signal
 # HTML_OUT.extend(
