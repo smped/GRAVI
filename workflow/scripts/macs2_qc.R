@@ -13,6 +13,16 @@
 #' Additionally, the cross-correlation between reads is calculated with a tsv
 #' generated for later inclusion in differential_signal and macs2_summary
 #' workflows
+#' 
+#' Handle any conda weirdness
+conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
+if (conda_pre != "") {
+  conda_lib_path <- file.path(conda_pre, "lib", "R", "library")
+  if (!dir.exists(conda_lib_path)) conda_lib_path <- NULL
+  prev_paths <- .libPaths()
+  paths_to_set <- unique(c(conda_lib_path, prev_paths))
+  .libPaths(paths_to_set)
+}
 
 args <- commandArgs(TRUE)
 target <- args[[1]]
