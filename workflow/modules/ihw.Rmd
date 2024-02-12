@@ -1,37 +1,69 @@
-```{r ihw-all}
+```{r ihw-setup}
 library(IHW)
-ihw_all <- external_features %>% 
-  split(f = .$feature) %>% 
-  c(
-    list(
-      no_feature = setdiff(GRanges(sq), external_features)
-    )
+if (ihw_method == "regions") {
+  ## Load the regions required as a GRanges pbject & set key values
+  ihw_gr <- unlist(gene_regions[names(gene_regions) != "tss"])
+  ihw_var <- "region"
+  fillScale <- scale_fill_manual(
+    values = c(region_colours, "Other" = colours$direction[["unchanged"]])
+  )
+  desc_ihw <- "regions defined during annotation setup."
+}
+if (ihw_method == "targets") {
+  ## Similarly for targets
+  other_targets <- here::here(config$samples$file) %>% 
+    read_tsv() %>% 
+    pull("target") %>% 
+    unique() %>% 
+    setdiff(target)
+  ihw_gr <- here::here(
+    dirname(macs2_path),
+    map_chr(other_targets, \(x) file.path(x, glue("{x}_union_peaks.bed")))
   ) %>% 
-  lapply(
-    function(x) propOverlap(results, x)
-  ) %>% 
-  as_tibble() %>% 
-  mutate(
-    range = as.character(results), id = seq_along(range)
-  ) %>% 
-  pivot_longer(
-    cols = c(all_of(unique(external_features$feature)), "no_feature"),
-    names_to = "feature",
-    values_to = "prop"
-  ) %>% 
-  group_by(id, range) %>% 
-  dplyr::filter(prop == max(prop)) %>% 
-  ungroup() %>% 
-  distinct(id, range, .keep_all = TRUE) %>% 
-  mutate(
-    feature = factor(feature, levels = names(colours$features))
-  ) %>% 
-  arrange(id) %>% 
-  .[["feature"]]
-results$ihw_covariate <- fct_lump_min(ihw_all, min = 1e3)
+    importPeaks(type = "bed", seqinfo = sq) %>% 
+    setNames(other_targets) %>% 
+    unlist() %>% 
+    names_to_column("target")
+  ihw_var <- "target"
+  fillScale <- scale_fill_brewer(palette = "Dark2")
+  desc_ihw <- glue(
+    "overlap with peaks from ",
+    glue_collapse(other_targets, last = " or "),
+    "irrespective of which treatment the peak my have been primarily detected in."
+  )
+}
+if (ihw_method == "features") {
+  ## Or finally for features
+  ihw_gr <- external_features
+  ihw_var <- "feature"
+  fillScale <- scale_fill_manual(
+    values = c(colours$features, "Other" = colours$direction[["unchanged"]])
+  )
+  desc_ihw <- glue(
+    "overlaps with any features provided in ",
+    glue_collapse(unlist(config$external$features), last = " or "),
+    "."
+  )
+}
+results$ihw_covariate <- bestOverlap(
+  results, ihw_gr, var = ihw_var, missing = "None"
+) %>% 
+  fct_infreq() %>% 
+  fct_lump_min(min = 1e3)
+## Check the merging by fct_lump_min has left all groups > 1e3
+if (any(fct_count(results$ihw_covariate)$n < 1e3)) {
+  lv_to_drop <- fct_count(results$ihw_covariate) %>%
+    dplyr::filter(f != "Other") %>%
+    dplyr::filter(n == min(n)) %>% 
+    pull("f") %>% 
+    as.character() %>% 
+    c("Other")
+  results$ihw_covariate <- results$ihw_covariate %>% 
+    fct_other(drop = lv_to_drop, other_level = "Other")
+}
 ihw_proceed <- length(levels(results$ihw_covariate)) > 1
 if (ihw_proceed)  fdr_column <- "fdr_ihw"
-ihw_cols <- colours$features
+ihw <- NULL
 if (ihw_proceed) {
   ihw <- ihw(
     pvalues = results$PValue,
@@ -44,13 +76,10 @@ if (ihw_proceed) {
 results <- addDiffStatus(results, sig_col = fdr_column, alpha = fdr_alpha)
 ```
 
-Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential signal, by features provided in `r basename(config$external$features)`, and estimate weights to apply to each p-value as a divisor.
-This allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
+Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] was then used to partition the raw p-values for `r target` differential signal by `r desc_ihw`.
+These partitions were used to estimate weights to apply to each p-value as a divisor, and allows recalculation of the FDR using *weighted p-values* instead of *raw p-values*.
 In order for IHW to be a viable strategy, partitions should be greater than 1000.
-The provided features were used as initial partitions, merging the smallest groups below this size until all partitions were of a suitable size.
-
-Windows were classified as overlapping a feature if any section of the window overlapped the feature.
-Where multiple overlapping features were found, the feature with the *largest* overlap was selected.
+The provided ranges were used as initial partitions, merging the smallest groups below this size until all partitions contained at least 1000 p-values.
 
 `r if (!ihw_proceed) "Only one partition > 1000 was able to be formed and IHW was not executed."`
 
@@ -77,9 +106,7 @@ ihw %>%
   pivot_wider(
     names_from = ihw_status, values_from = n, values_fill = 0
   ) %>% 
-  mutate(
-    `Nett Change` = Gained - Lost
-  ) %>% 
+  mutate(`Nett Change` = Gained - Lost) %>% 
   bind_rows(
     summarise_if(., is.numeric, sum)
   ) %>% 
@@ -97,12 +124,13 @@ ihw %>%
     justify = "lrrrrrr",
     caption = paste(
       "*Summary of changes introduced by IHW for windows considered as",
-      paste0("showing differential ", target, "signal."),
+      paste0("showing differential ", target, " signal."),
       "This corresponds to a nett change of", 
         dplyr::slice(., nrow(.)) %>% 
-        mutate(p = `Nett Change` / (Significant - `Nett Change`)) %>% 
-        .[["p"]] %>% 
-        percent(0.1),
+        mutate(
+          p = percent(`Nett Change` / (Significant - `Nett Change`), 0.1)
+        ) %>% 
+        .[["p"]],
       "from the initial list.*"
     ),
     emphasize.strong.rows = nrow(.)
@@ -110,28 +138,21 @@ ihw %>%
 ```
 
 
-
 ### Initial Group Sizes
 
-```{r ihw-partitions-raw, fig.height=6, fig.cap = "*Breakdown of all windows which overlapped the features provided. Any window with no defined feature overlap was simply assigned as 'No Feature'. Any partitions with fewer than 1000 windows (indicated as the blue horizontal line) were combined into the next smallest partition consecutively, until all partitions contained > 1000 windows.*"}
-tibble(ihw = ihw_all) %>% 
-  mutate(
-    ihw_label = fct_relabel(ihw, str_sep_to_title) %>% 
-      fct_infreq()
-  ) %>% 
-  ggplot(
-    aes(ihw_label, fill = ihw)
-  ) +
+```{r ihw-partitions-raw, fig.height=6, fig.cap = glue("*Breakdown of all ranges which overlapped the {ihw_var}s provided. Any range without an overlapping range was simply assigned as 'None'. Partitions with fewer than 1000 p-values (indicated as the blue horizontal line) were combined into the next smallest partition consecutively as 'Other', until all partitions contained > 1000 values*")}
+results %>% 
+  as_tibble() %>% 
+  ggplot(aes(ihw_covariate, fill = ihw_covariate)) +
   geom_bar() +
   geom_hline(yintercept = 1e3, colour = "blue") +
   geom_text(
     aes(y = n + 0.025*max(n), label = comma(n, 1)),
-    data = . %>%
-      group_by(ihw_label, ihw) %>%
-      summarise(n = dplyr::n(), .groups = "drop") 
+    data = . %>% summarise(n = dplyr::n(), .by = ihw_covariate) 
   ) +
+  scale_x_discrete(labels = label_wrap(25)) +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values = ihw_cols) +
+  fillScale +
   labs(
     x = str_to_title(ihw_method), y = "Total"
   ) +
@@ -139,6 +160,7 @@ tibble(ihw = ihw_all) %>%
     legend.position = "none"
   )
 ```
+
 
 ### P-Value Distributions
 
@@ -155,24 +177,20 @@ results %>%
   select(PValue, ihw_covariate) %>% 
   mcols() %>% 
   as_tibble() %>% 
-  mutate(
-    label = fct_relabel(ihw_covariate, str_sep_to_title)
-  ) %>% 
   ggplot(aes(PValue, stat(density))) +
-  geom_histogram(fill = "grey", colour = "black", bins = 100) +
+  geom_histogram(aes(fill = ihw_covariate), colour = "black", bins = 100) +
   geom_text(
     aes(0.8, y, label = lab),
     data = . %>% 
-      group_by(label) %>% 
-      summarise(n = dplyr::n(), .groups = "drop") %>% 
+      summarise(n = dplyr::n(), .by = ihw_covariate) %>% 
       mutate(
-        lab = glue("N = {comma(n, 1)}"),
-        y = y
+        lab = glue("N = {comma(n, 1)}"), y = y
       )
   ) +
-  facet_wrap(~label, ncol = 3) +
+  fillScale +
+  facet_wrap(~ihw_covariate) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  labs(x = "P Value", y = "Density")
+  labs(x = "P Value", y = "Density", fill = str_to_title(ihw_var))
 ```
 
 `r ifelse(ihw_proceed, "### IHW Weights", "")`
@@ -180,14 +198,15 @@ results %>%
 ```{r plot-ihw-weights, eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = "*Weights applied to p-values within each partition. 'Folds' represent random sub-partitions within each larger partition generated as part of the IHW process.*"}
 plot(ihw) +
   geom_hline(yintercept = 1) +
-  facet_wrap(~group, labeller = as_labeller(str_sep_to_title)) +
+  facet_wrap(~group) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_fill_brewer(palette = "Set2") +
   labs(x = "Fold", y = "Weight", fill = "Fold")
 ```
 
 `r ifelse(ihw_proceed, "### FDR Comparison", "")`
 
-```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
+```{r plot-fdr-comparison, dev = 'png', eval = ihw_proceed, echo = ihw_proceed, fig.height= 2 + 2 * ceiling(length(levels(results$ihw_covariate)) / 3), fig.cap = glue("*Comparison of raw and weighted p-values for each partition. Blue dashed lines indicate FDR = {fdr_alpha} for each set of p-values. Those in the lower-right quadrant would no longer be considered significant after IHW, whilst those in the upper-left quadrant would only be considered as newly significant after the IHW process. Those in the upper-right quadrant would be considered as significant regardless of the methodology.*")}
 ihw %>%
   as.data.frame() %>% 
   ggplot(
@@ -210,8 +229,9 @@ ihw %>%
       dplyr::select(-group),
     linetype = 2, colour = "blue"
   ) +
-  facet_wrap(~group, scales = "free", labeller = as_labeller(str_sep_to_title)) +
+  facet_wrap(~group, scales = "free") +
   coord_cartesian(xlim = c(0, 5), ylim = c(0, 5)) +
+  scale_colour_brewer(palette = "Set2") +
   labs(
     x = expression(-log[10](p)),
     y = expression(-log[10](p[IHW])),

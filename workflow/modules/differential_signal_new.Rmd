@@ -7,32 +7,32 @@ this script.
 Permitted DSA methods are:
 
 1. Fixed-Width Windows
-    + All edgeR normalisation & either QL or LT
++ All edgeR normalisation & either QL or LT
 2. Sliding Windows
-    + All edgeR normalisation & either QL or LT
-    + SQ Normalisation & LT
++ All edgeR normalisation & either QL or LT
++ SQ Normalisation & LT
 
 The basic approach will be:
 
 1. Load counts
 2. Perform a quantro test
-    + Failed tests will only permit "none" (QL/LT) or SQ (FW-LT) normalisation
-    + Passed tests will permit all normalisation methods
++ Failed tests will only permit "none" (QL/LT) or SQ (FW-LT) normalisation
++ Passed tests will permit all normalisation methods
 3. Perform DSA
 
 ```{r set-params, eval = interactive(), echo = FALSE}
 params <- list(
   threads = 4,
-  target = "ERa", 
+  target = "H3K27ac", 
   treat_levels = c("E2", "E2DHT"), 
-  windows = "fixed",
-  window_size = 400,
+  windows = "sliding",
+  window_size = 180,
   method = "qlf",
   norm = "TMM",
   pair_col = NULL,
   fdr_alpha = 0.05,
   fc = 1.2,
-  ihw = "none"
+  ihw = "regions"
 )
 ```
 
@@ -80,25 +80,24 @@ library(rtracklayer)
 library(ggrepel)
 library(rlang)
 library(parallel)
+library(goseq)
+library(magrittr)
+library(msigdbr)
+library(tidygraph)
+library(ggraph)
+library(doParallel)
 # library(BiocParallel)
 # library(GenomeInfoDb)
 # library(Rsamtools)
 # library(ngsReports)
-# library(magrittr)
 # library(statmod)
-# library(IHW)
-# library(ggside)
-# library(msigdbr)
-# library(goseq)
-# library(tidygraph)
-# library(ggraph)
 # library(metap)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
 theme_set(
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5))
+    theme(plot.title = element_text(hjust = 0.5))
 )
 # register(MulticoreParam(workers = threads))
 source(here::here("workflow", "scripts", "custom_functions.R"))
@@ -140,16 +139,14 @@ if (!is.null(config$external$features)) {
   external_features <- suppressWarnings(
     import.gff(here::here(config$external$features), genome = sq)
   )
-  keep_cols <- !vapply(
-    mcols(external_features), function(x) all(is.na(x)), logical(1)
-  )
+  keep_cols <- !map_lgl(mcols(external_features), \(x) all(is.na(x)))
   mcols(external_features) <- mcols(external_features)[keep_cols]
 }
 has_features <- length(external_features) > 0
 
 gene_regions <- file.path(annotation_path, "gene_regions.rds") %>% 
   read_rds()
-regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
+regions <- map_chr(gene_regions, \(x) unique(x$region))
 
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
@@ -208,7 +205,7 @@ if (length(hic_path) > 0)
       as.matrix() %>% 
       apply(
         MARGIN = 1, 
-        function(x) {
+        \(x) {
           x <- sort(factor(x, levels = regions))
           paste(as.character(x), collapse = " - ")
         }
@@ -220,10 +217,10 @@ if (length(hic_path) > 0)
         y = GRangesList(lapply(gene_regions, granges)),
         character(length(hic))
       ) %>% 
-      apply(MARGIN = 2, function(x) regions[x]) %>% 
+      apply(MARGIN = 2, \(x) regions[x]) %>% 
       apply(
         MARGIN = 1, 
-        function(x) {
+        \(x) {
           x <- sort(factor(x, levels = regions))
           paste(as.character(x), collapse = " - ")
         }
@@ -238,7 +235,7 @@ if (length(hic_path) > 0)
         as.matrix() %>% 
         apply(
           MARGIN = 1, 
-          function(x) {
+          \(x) {
             x <- sort(factor(x, levels = names(feature_colours)))
             paste(as.character(x), collapse = " - ")
           }
@@ -246,14 +243,14 @@ if (length(hic_path) > 0)
         unique()
       hic$features <- vapply(
         anchors(hic),
-        function(x) bestOverlap(
+        \(x) bestOverlap(
           x, external_features, var = "feature", missing = "no_feature"
         ),
         character(length(hic))
       )  %>% 
         apply(
           MARGIN = 1, 
-          function(x) {
+          \(x) {
             x <- sort(factor(x, levels = names(feature_colours)))
             paste(as.character(x), collapse = " - ")
           }
@@ -384,6 +381,7 @@ n_max <- min(5e5, nrow(counts))
 ### Normalisation Checks
 
 ```{r qtest}
+registerDoParallel(threads)
 qtest <- quantro(assay(counts, "counts"), counts$treat, B = 1e3)
 quantro_p <- c(
   perm = quantroPvalPerm(qtest),
@@ -471,16 +469,16 @@ a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 ```{r plot-qsmooth-rle, eval = norm == "sq", echo = norm == "sq", fig.height = 6, fig.cap = glue("*RLE plot showing logCPM values before and after SQ normalisation. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
 a <- counts %>% 
   plotAssayRle(
-  "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
-) +
+    "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
+  ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
   scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
 b <- counts %>% 
   plotAssayRle(
-  "qsmooth", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
-) +
+    "qsmooth", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
+  ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
   scale_fill_manual(values = treat_colours) +
@@ -493,8 +491,8 @@ a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 ```{r plot-rle, eval = norm != "sq", echo = norm != "sq", dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
 counts %>% 
   plotAssayRle(
-  "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
-) +
+    "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
+  ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
   scale_fill_manual(values = treat_colours) +
@@ -555,7 +553,7 @@ if (!is.null(pair_col) & method == "lt") {
     object = assay(counts, assay_name)[ind, ],
     design = X,
     block = block
-  )$consensus.correlation # This will be ignore in ... if block = NULL
+  )$consensus.correlation # This will be ignored in '...' if block = NULL
   txt <- glue(
     "During model fitting, data were nested within {{pair_col}} as a potential source of correlation. ",
     "The estimated correlation within replicate samples was $\\hat{\\rho} = {{round(paired_cors, 3)}}$",
@@ -587,13 +585,11 @@ n_sig <- sum(mcols(results)[[fdr_column]] < fdr_alpha)
 
 `r txt`
 
-# MODIFY IHW MODULES FIRST (using full data)
-
 ### Independent Hypothesis Weighting {.tabset}
 
 `r ifelse(ihw_method == "none", "No independent Hypothesis Weighting was specified", "")`
 
-```{r ihw, eval = ihw_method != "none", echo = TRUE, child = here::here(glue("workflow/modules/ihw_{ihw_method}.Rmd"))}
+```{r ihw, eval = ihw_method != "none", echo = TRUE, child = here::here(glue("workflow/modules/ihw.Rmd"))}
 ```
 
 
@@ -668,59 +664,59 @@ tbl_cols <- list(
     footer = htmltools::tags$b("Total"), minWidth = 200
   ),
   Up = colDef(
-    cell = function(value) comma(value, 1),
-    style = function(value) {
+    cell = \(value) comma(value, 1),
+    style = \(value) {
       normalized <- value / (n_windows - n_unch)
       color <- up_col(normalized)
       list(background = color)
     },
-    footer = function(values) htmltools::tags$b(comma(sum(values)))
+    footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   Down = colDef(
-    cell = function(value) comma(value, 1),
-    style = function(value) {
+    cell = \(value) comma(value, 1),
+    style = \(value) {
       normalized <- value / (n_windows - n_unch)
       color <- down_col(normalized)
       list(background = color)
     },
-    footer = function(values) htmltools::tags$b(comma(sum(values)))
+    footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   Ambiguous = colDef(
-    cell = function(value) comma(value, 1),
-    style = function(value) {
+    cell = \(value) comma(value, 1),
+    style = \(value) {
       normalized <- value / (n_windows - n_unch)
       color <- unch_col(normalized)
       list(background = color)
     },
-    footer = function(values) htmltools::tags$b(comma(sum(values)))
+    footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   Unchanged = colDef(
-    cell = function(value) comma(value, 1),
-    style = function(value) {
+    cell = \(value) comma(value, 1),
+    style = \(value) {
       normalized <- value / n_windows
       color <- unch_col(normalized)
       list(background = color)
     },
-    footer = function(values) htmltools::tags$b(comma(sum(values)))
+    footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   `% Changed` = colDef(
-    cell = function(value) percent(value, 0.1),
-    style = function(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
+    cell = \(value) percent(value, 0.1),
+    style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
     align = "right",
     footer = htmltools::tags$b(
       percent(sum(1 - n_unch / n_windows), 0.1)
     )
   ),
   Total = colDef(
-    cell = function(value) comma(value, 1),
-    style = function(value) {
+    cell = \(value) comma(value, 1),
+    style = \(value) {
       bar_style(width = value / n_windows, fill = "#B3B3B3", align = "right")
     },
     align = "right",
-    footer = function(values) htmltools::tags$b(comma(sum(values)))
+    footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   `% Of All Windows` = colDef(
-    style = function(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
+    style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
     format = colFormat(digits = 2, percent = TRUE)
   )
 )
@@ -759,7 +755,7 @@ tbl <- results %>%
       ),
       `%` = colDef(
         name = "% Total Windows", format = colFormat(percent = TRUE, digits = 1),
-        style = function(value) bar_style(width = value, align = "right"),
+        style = \(value) bar_style(width = value, align = "right"),
         maxWidth = 150
       ),
       logCPM = colDef(
@@ -780,10 +776,10 @@ cp <- htmltools::em(
   )
 )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -824,15 +820,15 @@ tbl <- df %>%
   reactable(
     columns = tbl_cols[colnames(df)],
     defaultColDef = colDef(
-      footer = function(values) htmltools::tags$b(comma(sum(values)))
+      footer = \(values) htmltools::tags$b(comma(sum(values)))
     ),
     fullWidth = TRUE
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -871,14 +867,14 @@ tbl <- df %>%
   reactable(
     columns = tbl_cols[colnames(df)],
     defaultColDef = colDef(
-      footer = function(values) htmltools::tags$b(comma(sum(values)))
+      footer = \(values) htmltools::tags$b(comma(sum(values)))
     )
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -924,7 +920,7 @@ tbl <- results %>%
   as_tibble() %>% 
   dplyr::rename(Range = range, `Width (bp)` = w) %>% 
   rename_with(\(x) str_replace_all(x, "feature", "Feature")) %>% 
-  mutate(Genes = vapply(Genes, paste, character(1), collapse = "; ")) %>% 
+  mutate(Genes = map_chr(Genes, paste, collapse = "; ")) %>% 
   reactable(
     filterable = TRUE,
     showPageSizeOptions = TRUE,
@@ -933,12 +929,10 @@ tbl <- results %>%
     columns = list2(
       Range = colDef(
         minWidth = 10 * fs,
-        cell = function(value) {
-          str_replace_all(value, ":", ": ")
-        }
+        cell = \(value) str_replace_all(value, ":", ": ")
       ),
       `Width (bp)` = colDef(
-        style = function(value) {
+        style = \(value) {
           x <- value / scaling_vals$Width
           colour <- expr_col(x)
           list(
@@ -949,8 +943,8 @@ tbl <- results %>%
         maxWidth = 5 * fs
       ),
       logCPM = colDef(
-        cell = function(value) round(value, 2),
-        style = function(value) {
+        cell = \(value) round(value, 2),
+        style = \(value) {
           x <- (value - min(scaling_vals$logCPM)) / diff(scaling_vals$logCPM)
           colour = expr_col(x)
           list(background = colour)
@@ -958,8 +952,8 @@ tbl <- results %>%
         maxWidth = 5.5 * fs
       ),
       logFC = colDef(
-        cell = function(value) round(value, 2),
-        style = function(value) {
+        cell = \(value) round(value, 2),
+        style = \(value) {
           x <- (value - min(scaling_vals$logFC)) / diff(scaling_vals$logFC)
           colour <- lfc_col(x)
           list(background = colour)
@@ -968,11 +962,11 @@ tbl <- results %>%
       ),
       "{fdr_column}" := colDef(
         name = "FDR",
-        cell = function(value) {
+        cell = \(value) {
           fmt <- ifelse(value < 0.01, "%.2e", "%.3f")
           sprintf(fmt, value)
         },
-        style = function(value) {
+        style = \(value) {
           text_colour <- ifelse(value < fdr_alpha, "black", direction_colours[["Unchanged"]])
           list(color = text_colour, borderRight = "1px solid rgba(0, 0, 0, 0.1)")
         },
@@ -980,17 +974,17 @@ tbl <- results %>%
       ),
       Region = colDef(maxWidth = 150),
       Genes = colDef(
-        cell = function(value) with_tooltip(value, width = ifelse(has_features, 30, 60)),
+        cell = \(value) with_tooltip(value, width = ifelse(has_features, 30, 60)),
         minWidth = 11 * fs
       )
     ),
     theme = reactableTheme(style = list(fontSize = fs))
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -1002,20 +996,20 @@ div(class = "table",
 profile_width <- ifelse(target == "H3K27ac", 1e4, 5e3)
 n_bins <- 100
 bwfl <- file.path(
-    macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
-  ) %>% 
+  macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- results %>% 
   filter(!!sym(fdr_column) < fdr_alpha) %>%
   splitAsList(f = .$status) %>% 
-  .[vapply(., length, integer(1)) > 0] 
+  .[map_int(., length) > 0] 
 if (win_type == "sliding") {
   sig_ranges <- endoapply(sig_ranges, colToRanges, "keyval_range")
 } else {
   sig_ranges <- endoapply(sig_ranges, colToRanges, "centred_peak")
 }
-sig_profiles <- lapply(sig_ranges, function(x) NULL)
+sig_profiles <- lapply(sig_ranges, as.null)
 heat_max <- 1e4
 for (i in names(sig_profiles)) {
   ## Restrict to 20,000. Plots work poorly above this number.
@@ -1043,16 +1037,16 @@ if (length(sig_profiles) > 0) {
       mc.cores = max(1, length(sig_profiles))
     ) 
   fill_range <- profile_heatmaps %>% 
-    lapply(function(x) x$data[,"score"]) %>% 
+    lapply(\(x) x$data[,"score"]) %>% 
     unlist() %>%
     range()
   sidey_range <- profile_heatmaps %>% 
-    lapply(function(x) x$layers[[3]]$data$y) %>% 
+    lapply(\(x) x$layers[[3]]$data$y) %>% 
     unlist() %>% 
     range()
   profile_heatmaps <- profile_heatmaps %>% 
     lapply(
-      function(x) {
+      \(x) {
         suppressWarnings(
           x + 
             scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
@@ -1153,7 +1147,7 @@ results %>%
 htmltools::tagList(
   mclapply(
     seq_along(profile_heatmaps),
-    function(i) {
+    \(i) {
       ## Export the image
       nm <- str_to_lower(names(profile_heatmaps)[[i]])
       img_out <- file.path(
@@ -1341,7 +1335,7 @@ grl_to_plot <- GRangesList(
   .[!duplicated(.)] %>%
   splitAsList(names(.)) %>% 
   lapply(setNames, c()) %>% 
-  lapply(function(x) x[1]) %>%
+  lapply(\(x) x[1]) %>%
   GRangesList()
 ```
 
@@ -1359,7 +1353,7 @@ line_col <- list2("{target}" := treat_colours)
 ## Coverage annotations
 annot <- results %>% 
   splitAsList(.$status) %>% 
-  .[vapply(., length, integer(1)) > 0] %>% 
+  .[map_int(., length) > 0] %>% 
   endoapply(granges) %>% 
   list() %>% 
   setNames(target)
@@ -1371,7 +1365,7 @@ ind <- counts %>%
 max_ranges <- rowRanges(counts[ind])
 y_lim <- bwfl[[target]] %>%
   lapply(import.bw, which = max_ranges) %>%
-  lapply(function(x) c(0, max(x$score))) %>% 
+  lapply(\(x) c(0, max(x$score))) %>% 
   unlist() %>% 
   range() %>% 
   list() %>% 
@@ -1423,16 +1417,16 @@ if (has_rnaseq) {
 if (!is.null(config$external$coverage)) {
   ext_cov_path <- config$external$coverage %>% 
     lapply(unlist) %>% 
-    lapply(function(x) setNames(here::here(x), names(x)))
+    lapply(\(x) setNames(here::here(x), names(x)))
   bwfl <- c(
     bwfl[target],
-    lapply(ext_cov_path, function(x) BigWigFileList(x) %>% setNames(names(x)))
+    lapply(ext_cov_path, \(x) setNames(BigWigFileList(x), names(x)))
   )
   line_col <- c(
     line_col[target],
     ext_cov_path %>% 
       lapply(
-        function(x) {
+        \(x) {
           missing <- setdiff(names(x), names(colours$treat))
           cmn <- intersect(names(x), names(colours$treat))
           col <- setNames(character(length(names(x))), names(x))
@@ -1454,7 +1448,7 @@ if (!is.null(config$external$coverage)) {
     y_lim[target],
     bwfl[names(bwfl) != target] %>% 
       lapply(
-        function(x) {
+        \(x) {
           GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
             unlist() %>% 
             filter(score == max(score)) %>% 
@@ -1533,7 +1527,7 @@ makeCaption <- function(.gr) {
 htmltools::tagList(
   mclapply(
     seq_along(grl_to_plot),
-    function(i) {
+    \(i) {
       ## Export the image
       nm <- str_to_lower(names(grl_to_plot)[[i]])
       tag <- nm %>% 
@@ -1591,8 +1585,6 @@ htmltools::tagList(
 ```
 
 
-# RESUME FROM HERE
-
 ## Enrichment Testing 
 
 ```{r msigdb}
@@ -1602,7 +1594,16 @@ max_gs_size <- extra_params$enrichment$max_size
 if (is.null(max_gs_size) | is.na(max_gs_size)) max_gs_size <- Inf
 min_sig <- extra_params$enrichment$min_sig
 if (is.null(min_sig) | is.na(min_sig)) min_sig <- 1
-msigdb <- msigdbr(species = "Homo sapiens") %>% 
+sp <- case_when(
+  str_detect(config$genome$build, "GRCh|hg|CHM|T2T") ~ "Homo sapiens",
+  str_detect(config$genome$build, "GRCm|mm") ~ "Mus musculus",
+  str_detect(config$genome$build, "Dan|GRCz|z[0-9]") ~ "Danio rerio",
+  str_detect(config$genome$build, "mRat|Rnor") ~ "Rattus norvegicus",
+  str_detect(config$genome$build, "GRCg|Gallus") ~ "Gallus gallus",
+  TRUE ~ NA_character_
+)
+if (is.na(sp)) stop("Unsupported genome")
+msigdb <- msigdbr(species = sp) %>% 
   dplyr::filter(
     gs_cat %in% unlist(extra_params$enrichment$msigdb$gs_cat) |
       gs_subcat %in% unlist(extra_params$enrichment$msigdb$gs_subcat),
@@ -1612,10 +1613,9 @@ msigdb <- msigdbr(species = "Homo sapiens") %>%
   dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
   dplyr::filter(gene_id %in% gtf_gene$gene_id) %>% 
   mutate(gs_url = str_extract(gs_url, "^[^|]+")) %>% 
-  group_by(gs_name) %>% 
-  mutate(n = dplyr::n()) %>% 
-  ungroup() %>% 
-  dplyr::filter(n >= min_gs_size, n < max_gs_size) 
+  dplyr::filter(
+    dplyr::n() >= min_gs_size, dplyr::n() < max_gs_size, .by = gs_name
+  )
 gs_by_gsid <- msigdb %>% 
   split(.$gs_name) %>% 
   lapply(pull, "gene_id") %>% 
@@ -1635,18 +1635,16 @@ gs_url <- msigdb %>%
   ) %>% 
   with(setNames(gs_url, gs_name))
 
+## Set parameters for enabling networks
 min_network_size <- extra_params$networks$min_size
 if (is.null(min_network_size) | is.na(min_network_size))
   min_network_size <- 2
-
 max_network_size <- extra_params$networks$max_size
 if (is.null(max_network_size) | is.na(max_network_size))
   max_network_size <- Inf
-
 max_network_dist <- extra_params$networks$max_distance
 if (is.null(max_network_dist) | is.na(max_network_dist))
   max_network_dist <- 1
-
 net_layout <- extra_params$networks$layout
 enrich_alpha <- extra_params$enrichment$alpha
 adj_method <- match.arg(extra_params$enrichment$adj, p.adjust.methods)
@@ -1662,25 +1660,23 @@ adj_desc <- case_when(
   setNames(p.adjust.methods)
 mapped_ids <- results %>%
   as_tibble() %>% 
-  dplyr::select(status, gene_id) %>%
-  unnest(gene_id) %>%
-  group_by(gene_id) %>%
+  dplyr::select(status, starts_with("gene")) %>%
+  unnest(starts_with("gene")) %>%
   summarise(
-    up = any(status == "Up"), 
-    down = any(status == "Down"), 
+    increased = any(status == "Increased"), 
+    decreased = any(status == "Decreased"), 
     n_peaks = dplyr::n(),
-    .groups = "drop"
+    .by = starts_with("gene")
   )
 ```
 
-As an initial exploration, the retained windows were compared to pre-defined gene-sets.
-These were taken from the `MSigDB` database and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
+As an initial exploration, the ranges containing `r target` signal were compared to pre-defined gene-sets.
+These were taken from the `MSigDB` database for `r sp` and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
 
 ```{r tbl-msigdb}
 msigdb %>% 
   distinct(gs_cat, gs_subcat, gs_name) %>%
-  group_by(gs_cat, gs_subcat) %>% 
-  summarise(`Gene Sets` = dplyr::n(),.groups = "drop") %>% 
+  summarise(`Gene Sets` = dplyr::n(), .by = ends_with("cat")) %>% 
   dplyr::rename(Category = gs_cat, `Sub-Category` = gs_subcat) %>% 
   mutate(
     Description = case_when(
@@ -1710,17 +1706,17 @@ msigdb %>%
   )
 ```
 
-Retained windows were tested for enrichment of these gene-sets using:
+Ranges were tested for enrichment of these gene-sets using:
 
-1. Any window mapped to a gene from these gene-sets
-2. Any window with evidence of differential signal mapped to a gene from these gene-sets
+1. Any range mapped to a gene from these gene-sets
+2. Any range with evidence of differential signal mapped to a gene from these gene-sets
 
-In the first case, mapped genes were tested for enrichment against all annotated genes, or all detected genes if RNA-Seq data was provided.
-In the second case, i.e. Differential Signal Windows, the control set of genes were those mapped to a window (i.e. those test set from step 1).
+In the first case, mapped genes were tested for enrichment against *all annotated genes*, or all detected genes if RNA-Seq data was provided.
+In the second case, i.e. Differential Signal Windows, the control set of genes were those mapped to any range (i.e. those test set from step 1).
 All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
-After adjustment, any enriched gene-sets with fewer than `r min_sig` mapped genes were excluded as being uninformative.
+After p-value adjustment, any enriched gene-sets with fewer than `r min_sig` mapped genes were excluded as being uninformative.
 
-If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at `r max_network_size`.
+If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at `r max_network_size` for easier interpretability.
 The distances between gene-sets were calculated using the overlap coefficient (OC).
 Gene-sets with a large overlap will thus be given small distances and in the case of a complete overlap ($OC = 1$) the only most highly ranked gene-set was retained.
 Gene-set (i.e. node) pairs with a distance > `r max_network_dist` will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
@@ -1736,7 +1732,7 @@ pwf_mapped <- gtf_gene %>%
   dplyr::select(gene_id, w) %>% 
   arrange(desc(w)) %>% 
   distinct(gene_id, .keep_all = TRUE) %>% 
-  mutate(mapped = gene_id %in% unlist(results$gene_id)) %>% 
+  mutate(mapped = gene_id %in% mapped_ids$gene_id) %>% 
   with(
     nullp(
       structure(mapped, names = gene_id),
@@ -1750,7 +1746,8 @@ goseq_mapped <- tibble(
 )
 if (sum(pwf_mapped$DEgenes) > 0) {
   goseq_mapped <- goseq(
-    pwf_mapped, config$genome$build, gene2cat = gs_by_geneid
+    pwf_mapped, config$genome$build, gene2cat = gs_by_geneid,
+    method = "Wallenius"
   ) %>% 
     dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
     dplyr::select(-starts_with("under")) %>% 
@@ -1765,12 +1762,12 @@ tg_mapped <- make_tbl_graph(
   goseq_mapped, 
   gs = gs_by_gsid %>% 
     lapply(intersect, rownames(subset(pwf_mapped, DEgenes))) %>% 
-    .[vapply(., length, integer(1)) > 0]
+    .[map_int(., length) > 0]
 )
 plot_network_mapped <- length(tg_mapped) >= min_network_size
 ```
 
-`r ifelse(!any_goseq_mapped, "No enrichment was found amongst genes mapped to any window", "#### Results Table")`
+`r ifelse(!any_goseq_mapped, "No enrichment was found amongst genes mapped to any range with detected signal", "#### Results Table")`
 
 
 ```{r tbl-goseq-mapped, eval = any_goseq_mapped, echo = any_goseq_mapped}
@@ -1786,10 +1783,10 @@ cp <- htmltools::tags$caption(
     htmltools::em(
       glue(
         "
-         < {enrich_alpha}) amongst the merged windows with detectable {target} 
-        signal. Genes mapped to a merged window were compared to those not 
-        mapped to any merged windows. Gene width was used to capture any 
-        gene-level sampling bias.
+        < {enrich_alpha}) amongst the ranges with detectable {target} signal.
+        Genes mapped to a range with detected signal were compared to those not 
+        mapped to any merged windows. The length of each gene locus was used to 
+        capture any gene-level sampling bias.
         "
       )
     )
@@ -1805,7 +1802,7 @@ tbl <- goseq_mapped %>%
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = "; "),
+    gene_name = map_chr(gene_name, paste, collapse = "; "),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
@@ -1820,30 +1817,32 @@ tbl <- goseq_mapped %>%
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
-        cell = function(value) htmltools::tags$a(
+        cell = \(value) htmltools::tags$a(
           href = gs_url[[value]], 
           target = "_blank", 
-          str_replace_all(value, "_", " ")
+          value %>% 
+            str_replace_all("_", " ") %>% 
+            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
         ),
         html = TRUE
       ),
       Description = colDef(
         minWidth = 150,
-        cell = function(value) with_tooltip(value, width = 100)
+        cell = \(value) with_tooltip(value, width = 100)
       ),
       numDEInCat = colDef(name = "Total Mapped", maxWidth = 80),
       numInCat = colDef(
         name = "Gene Set Size",
         maxWidth = 80,
-        cell = function(value) comma(value, 1)
+        cell = \(value) comma(value, 1)
       ),
       "%" = colDef(
         name = "% Mapped",
-        cell = function(value) percent(value, 0.1),
+        cell = \(value) percent(value, 0.1),
         maxWidth = 80
       ),
       p = colDef(
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -1852,7 +1851,7 @@ tbl <- goseq_mapped %>%
       ),
       adj_p = colDef(
         name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -1860,16 +1859,16 @@ tbl <- goseq_mapped %>%
         maxWidth = 80
       ),
       "Mapped Genes" = colDef(
-        cell = function(value) with_tooltip(value, width = 100),
+        cell = \(value) with_tooltip(value, width = 100),
         minWidth = 150
       )
     )
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -1899,24 +1898,24 @@ tg_mapped %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none", edge_width = "none") +
+  guides(edge_alpha = "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
 
 
-### Windows With Differential `r target` Signal {.tabset}
+### Ranges With Differential `r target` Signal {.tabset}
 
 ```{r goseq-diff, fig.show='hide'}
 pwf_diff <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = up|down) 
+  mutate(diff = increased | decreased) 
 goseq_diff <- tibble(
   gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
 )
-if (sum(df$diff) > 0) {
-  goseq_diff <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
+if (sum(pwf_diff$diff) > 0) {
+  goseq_diff <- dplyr::select(pwf_diff, gene_id, DEgenes = diff) %>% 
     as.data.frame() %>% 
     column_to_rownames("gene_id") %>% 
     goseq_hyper(gene2cat = gs_by_geneid) %>% 
@@ -1927,8 +1926,8 @@ any_goseq_diff <- sum(goseq_diff$adj_p < enrich_alpha) > 0
 tg_diff <- make_tbl_graph(
   goseq_diff, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, subset(df, diff)$gene_id) %>%
-    .[vapply(., length, integer(1)) > 0]
+    lapply(intersect, subset(pwf_diff, diff)$gene_id) %>%
+    .[map_int(., length) > 0]
 )
 plot_network_diff <- length(tg_diff) >= min_network_size
 ```
@@ -1964,13 +1963,9 @@ tbl <- goseq_diff %>%
   left_join(
     distinct(msigdb, gs_name, gs_url, gs_description),
     by = "gs_name"
-  )%>% 
+  ) %>% 
   mutate(
-    gene_name = vapply(
-      DEgenes, 
-      function(x) paste(id2gene[x], collapse = "; "),
-      character(1)
-    ),
+    gene_name = map_chr(DEgenes,  \(x) paste(id2gene[x], collapse = "; ")),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
@@ -1984,30 +1979,32 @@ tbl <- goseq_diff %>%
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
-        cell = function(value) htmltools::tags$a(
+        cell = \(value) htmltools::tags$a(
           href = gs_url[[value]], 
           target = "_blank", 
-          str_replace_all(value, "_", " ")
+          value %>% 
+            str_replace_all("_", " ") %>% 
+            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
         ),
         html = TRUE
       ),
       Description = colDef(
         minWidth = 150,
-        cell = function(value) with_tooltip(value, width = 100)
+        cell = \(value) with_tooltip(value, width = 100)
       ),
       "%" = colDef(
         name = "% DB",
         maxWidth = 80,
-        cell = function(value) percent(value, 0.1)
+        cell = \(value) percent(value, 0.1)
       ),
       numDEInCat = colDef(name = "Total Mapped To DB", maxWidth = 80),
       numInCat = colDef(
         name = "Total Mapped",
         maxWidth = 80,
-        cell = function(value) comma(value, 1)
+        cell = \(value) comma(value, 1)
       ),
       p = colDef(
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -2016,7 +2013,7 @@ tbl <- goseq_diff %>%
       ),
       adj_p = colDef(
         name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -2024,16 +2021,16 @@ tbl <- goseq_diff %>%
         maxWidth = 70
       ),
       "Genes Mapped to DB Windows" = colDef(
-        cell = function(value) with_tooltip(value, width = 100),
+        cell = \(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
     )
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -2047,7 +2044,7 @@ tg_diff %>%
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
-    geom_node_text(
+  geom_node_text(
     aes(label = label),
     colour = "black", size = 3, 
     data = . %>%
@@ -2063,7 +2060,7 @@ tg_diff %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none", edge_width = "none") +
+  guides(edge_alpha = "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
@@ -2074,12 +2071,12 @@ tg_diff %>%
 pwf_up <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = up)
+  mutate(diff = increased)
 goseq_up <- tibble(
   gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
 )
-if (sum(df$diff) > 0) {
-  goseq_up <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
+if (sum(pwf_up$diff) > 0) {
+  goseq_up <- dplyr::select(pwf_up, gene_id, DEgenes = diff) %>% 
     as.data.frame() %>% 
     column_to_rownames("gene_id") %>% 
     goseq_hyper(gene2cat = gs_by_geneid) %>% 
@@ -2090,8 +2087,8 @@ any_goseq_up <- sum(goseq_up$adj_p < enrich_alpha) > 0
 tg_up <- make_tbl_graph(
   goseq_up, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, subset(df, diff)$gene_id) %>%
-    .[vapply(., length, integer(1)) > 0]
+    lapply(intersect, subset(pwf_up, diff)$gene_id) %>%
+    .[map_int(., length) > 0]
 )
 plot_network_up <- length(tg_up) >= min_network_size
 ```
@@ -2127,13 +2124,9 @@ tbl <- goseq_up %>%
   left_join(
     distinct(msigdb, gs_name, gs_url, gs_description),
     by = "gs_name"
-  )%>% 
+  ) %>% 
   mutate(
-    gene_name = vapply(
-      DEgenes, 
-      function(x) paste(id2gene[x], collapse = "; "),
-      character(1)
-    ),
+    gene_name = map_chr(DEgenes, \(x) paste(id2gene[x], collapse = "; ")),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
@@ -2147,30 +2140,32 @@ tbl <- goseq_up %>%
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
-        cell = function(value) htmltools::tags$a(
+        cell = \(value) htmltools::tags$a(
           href = gs_url[[value]], 
           target = "_blank", 
-          str_replace_all(value, "_", " ")
+          value %>% 
+            str_replace_all("_", " ") %>% 
+            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
         ),
         html = TRUE
       ),
       Description = colDef(
         minWidth = 150,
-        cell = function(value) with_tooltip(value, width = 100)
+        cell = \(value) with_tooltip(value, width = 100)
       ),
       "%" = colDef(
         name = "% Gained",
-        cell = function(value) percent(value, 0.1),
+        cell = \(value) percent(value, 0.1),
         maxWidth = 80
       ),
       numDEInCat = colDef(name = "Mapped to Increasing Windows", maxWidth = 80),
       numInCat = colDef(
         name = "Total Mapped",
         maxWidth = 80,
-        cell = function(value) comma(value, 1)
+        cell = \(value) comma(value, 1)
       ),
       p = colDef(
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -2179,7 +2174,7 @@ tbl <- goseq_up %>%
       ),
       adj_p = colDef(
         name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -2187,16 +2182,16 @@ tbl <- goseq_up %>%
         maxWidth = 70
       ),
       "Genes Mapped to Increasing Windows" = colDef(
-        cell = function(value) with_tooltip(value, width = 100),
+        cell = \(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
     )
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -2226,7 +2221,7 @@ tg_up %>%
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha= "none", edge_width = "none") +
+  guides(edge_alpha = "none", edge_width = "none") +
   labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
   theme_void() 
 ```
@@ -2238,12 +2233,12 @@ tg_up %>%
 pwf_down <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
   left_join(mapped_ids, by = "gene_id") %>% 
   dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = down)
+  mutate(diff = decreased)
 goseq_down <- tibble(
   gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
 )
-if (sum(df$diff) > 0) {
-  goseq_down <- dplyr::select(df, gene_id, DEgenes = diff) %>% 
+if (sum(pwf_down$diff) > 0) {
+  goseq_down <- dplyr::select(pwf_down, gene_id, DEgenes = diff) %>% 
     as.data.frame() %>% 
     column_to_rownames("gene_id") %>% 
     goseq_hyper(gene2cat = gs_by_geneid) %>% 
@@ -2254,8 +2249,8 @@ any_goseq_down <- sum(goseq_down$adj_p < enrich_alpha) > 0
 tg_down <- make_tbl_graph(
   goseq_down, 
   gs = gs_by_gsid %>% 
-    lapply(intersect, subset(df, diff)$gene_id) %>%
-    .[vapply(., length, integer(1)) > 0]
+    lapply(intersect, subset(pwf_down, diff)$gene_id) %>%
+    .[map_int(., length) > 0]
 )
 plot_network_down <- length(tg_down) >= min_network_size
 ```
@@ -2293,11 +2288,7 @@ tbl <- goseq_down %>%
     by = "gs_name"
   ) %>% 
   mutate(
-    gene_name = vapply(
-      DEgenes, 
-      function(x) paste(id2gene[x], collapse = "; "),
-      character(1)
-    ),
+    gene_name = map_chr(DEgenes, \(x) paste(id2gene[x], collapse = "; ")),
     `%` = numDEInCat / numInCat
   ) %>% 
   dplyr::select(
@@ -2311,30 +2302,32 @@ tbl <- goseq_down %>%
     columns = list(
       "Gene Set" = colDef(
         minWidth = 150,
-        cell = function(value) htmltools::tags$a(
+        cell = \(value) htmltools::tags$a(
           href = gs_url[[value]], 
           target = "_blank", 
-          str_replace_all(value, "_", " ")
+          value %>% 
+            str_replace_all("_", " ") %>% 
+            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
         ),
         html = TRUE
       ),
       Description = colDef(
         minWidth = 150,
-        cell = function(value) with_tooltip(value, width = 100)
+        cell = \(value) with_tooltip(value, width = 100)
       ),
       "%" = colDef(
         name = "% Decreased",
-        cell = function(value) percent(value, 0.1),
+        cell = \(value) percent(value, 0.1),
         maxWidth = 80
       ),
       numDEInCat = colDef(name = "Mapped to Decreasing Windows", maxWidth = 90),
       numInCat = colDef(
         name = "Total Mapped",
         maxWidth = 80,
-        cell = function(value) comma(value, 1)
+        cell = \(value) comma(value, 1)
       ),
       p = colDef(
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -2343,7 +2336,7 @@ tbl <- goseq_down %>%
       ),
       adj_p = colDef(
         name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) {
+        cell = \(value) {
           ifelse(
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
@@ -2351,16 +2344,16 @@ tbl <- goseq_down %>%
         maxWidth = 70
       ),
       "Genes Mapped to Decreasing Windows" = colDef(
-        cell = function(value) with_tooltip(value, width = 100),
+        cell = \(value) with_tooltip(value, width = 100),
         minWidth = 200
       )
     )
   )
 div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
+    div(class = "table-header",
+        div(class = "caption", cp),
+        tbl
+    )
 )
 ```
 
@@ -2374,7 +2367,7 @@ tg_down %>%
     aes(fill = -log10(pval), size = numDEInCat),
     shape = 21
   ) +
-    geom_node_text(
+  geom_node_text(
     aes(label = label),
     colour = "black", size = 3, 
     data = . %>%
@@ -2395,7 +2388,7 @@ tg_down %>%
   theme_void() 
 ```
 
-
+# CHECK RNASEQ MODULE
 
 ```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_differential.Rmd')}
 ```
@@ -2430,17 +2423,17 @@ file.create(all_out$de_genes)
 if (has_rnaseq) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
-if (sum(results$status == "Up") > 0) {
+if (sum(results$status == "Increased") > 0) {
   results %>% 
-    filter(status == "Up") %>% 
+    filter(status == "Increased") %>% 
     granges() %>% 
     export.bed(all_out$up_regions)
 }
 
 file.create(all_out$down_regions)
-if (sum(results$status == "Down") > 0) {
+if (sum(results$status == "Decreased") > 0) {
   results %>% 
-    filter(status == "Down") %>% 
+    filter(status == "Decreased") %>% 
     granges() %>% 
     export.bed(all_out$up_regions)
 }
@@ -2462,7 +2455,7 @@ list2(
   dplyr::select(-gene_id) %>% 
   chop(gene_name) %>% 
   mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = ": "),
+    gene_name = map_chr(gene_name, paste, collapse = ": "),
     `%` = numDEInCat / numInCat,
   ) %>% 
   dplyr::select(
@@ -2479,8 +2472,8 @@ list2(
 ) %>% 
   bind_rows(.id = "group") %>% 
   mutate(
-    genes = vapply(leadingEdge, paste, character(1), collapse = "; "),
-    leadingEdge = vapply(leadingEdge, paste, character(1), collapse = "; "),
+    genes = map_chr(leadingEdge, paste, collapse = "; "),
+    leadingEdge = map_chr(leadingEdge, paste, collapse = "; "),
   ) %>% 
   write_csv(all_out$rna_enrichment)
 ## Save key memory on the HDD
