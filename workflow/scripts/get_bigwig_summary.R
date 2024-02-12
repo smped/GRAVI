@@ -11,23 +11,15 @@ if (conda_pre != "") {
 library(tidyverse)
 library(rtracklayer)
 library(plyranges)
-library(yaml)
 library(extraChIPs)
 
-args <- commandArgs(TRUE)
-
-bw <- args[[1]]
-tsv <- args[[2]]
-stopifnot(file.exists(bw))
-
-config <- read_yaml(here::here("config", "config.yml"))
-sq <- read_rds(
-  here::here("output/annotations/seqinfo.rds")
-)
-blacklist <- import.bed(
-  here::here(config$external$blacklist),
-  seqinfo = sq
-)
+bw <- snakemake@input[["bw"]]
+tsv <- snakemake@output
+sq <- read_rds(snakemake@input[["sq"]])
+blacklist <- importPeaks(
+  snakemake@input[["blacklist"]], type = "bed", seqinfo = sq
+) %>% 
+  unlist()
 
 
 gr <- sq %>%

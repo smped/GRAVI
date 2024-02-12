@@ -11,10 +11,13 @@ if (conda_pre != "") {
 library(readr)
 library(GreyListChIP)
 
-args <- commandArgs(TRUE)
-bam <- args[[1]]
-sq <- read_rds(args[[2]])
-bed <- args[[3]]
+# args <- commandArgs(TRUE)
+# bam <- args[[1]]
+# sq <- read_rds(args[[2]])
+# bed <- args[[3]]
+bam <- snakemake@input[["bam"]]
+sq <- read_rds(snakemake@input[["seqinfo"]])
+bed <- snakemake@output[["bed"]]
 
 ## This is set for only a single input file
 gl <- new("GreyList", karyotype = sq)

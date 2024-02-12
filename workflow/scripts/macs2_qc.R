@@ -24,11 +24,11 @@ if (conda_pre != "") {
   .libPaths(paths_to_set)
 }
 
-args <- commandArgs(TRUE)
-target <- args[[1]]
-threads <- args[[2]]
-outlier_thresh <- as.numeric(args[[3]])
-allow_zero <- args[[4]] == "True"
+# args <- commandArgs(TRUE)
+# target <- args[[1]]
+# threads <- args[[2]]
+# outlier_thresh <- as.numeric(args[[3]])
+# allow_zero <- args[[4]] == "True"
 
 library(tidyverse)
 library(yaml)
@@ -41,11 +41,14 @@ library(Rsamtools)
 library(BiocParallel)
 library(csaw)
 
+target <- snakemake@wildcards[["target"]]
+threads <- snakemake@threads
+outlier_thresh <- as.numeric(snakemake@params[["outlier_threshold"]])
+## Might need to wrangle a logical value here
+allow_zero <- snakemake@params[["allow_zero"]]
 register(MulticoreParam(workers = threads))
 
-config <- read_yaml(
-  here::here("config", "config.yml")
-)
+config <- read_yaml(here::here("config", "config.yml"))
 samples <- here::here(config$samples$file) %>%
   read_tsv() %>%
   dplyr::filter(target == .GlobalEnv$target)
@@ -75,27 +78,26 @@ samples$treat <- factor(samples$treat, levels = treat_levels)
 ## QC ##
 ########
 
-annotation_path <- here::here("output", "annotations")
-macs2_path <- here::here("output", "macs2")
-if (!dir.exists(macs2_path)) dir.create(file.path(macs2_path, target))
+annotation_path <- snakemake@params[["annot_path"]]
+macs2_path <- snakemake@params[["macs2_path"]]
 
-sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-blacklist <- import.bed(
-  here::here(config$external$blacklist),
-  seqinfo = sq
+sq <- read_rds(snakemake@input[["seqinfo"]])
+blacklist <- importPeaks(
+  here::here(snakemake@input[["blacklist"]]), type = "bed", seqinfo = sq
 )
 
 message("Loading peaks")
-individual_peaks <- file.path(
-  macs2_path, samples$sample, glue("{samples$sample}_peaks.narrowPeak")
+individual_peaks <- here::here(
+  str_subset(snakemake@input[["indiv_macs2"]], "narrowPeak$")
 ) %>%
   importPeaks(seqinfo = sq, blacklist = blacklist) %>%
   GRangesList() %>%
   setNames(samples$sample)
 
 message("Loading macs2_logs")
-macs2_logs <- macs2_path %>%
-  file.path(samples$sample, glue("{samples$sample}_callpeak.log")) %>%
+macs2_logs <- here::here(
+  str_subset(snakemake@input[["indiv_macs2"]], "callpeak.log$")
+) %>% 
   importNgsLogs() %>%
   dplyr::select(
     -contains("file"), -outputs, -n_reads, -alt_fragment_length
@@ -129,15 +131,12 @@ message("Writing qc_samples")
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
   write_tsv(
-    file.path(macs2_path, target, glue("{target}_qc_samples.tsv"))
+    here::here(snakemake@output[["qc"]])
   )
 
 ##################
 ## Correlations ##
 ##################
-
-bam_path <- here::here(config$paths$bam)
-stopifnot(dir.exists(bam_path))
 bfl <- bam_path %>%
   file.path(glue("{samples$sample}.bam")) %>%
   c(
@@ -195,5 +194,7 @@ read_corrs <- bfl[samples$sample] %>%
   )
 write_tsv(
   read_corrs,
-  file.path(macs2_path, target, glue("{target}_cross_correlations.tsv"))
+  here::here(snakemake@output[["cors"]])
 )
+
+## Could probably add the actual peak merging here too!!!

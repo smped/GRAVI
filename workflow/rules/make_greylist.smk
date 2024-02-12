@@ -1,7 +1,7 @@
 rule make_greylist:
 	input: 
 		bam = os.path.join(bam_path, "{ip_sample}.bam"),
-		bim = os.path.join(bam_path, "{ip_sample}.bam.bai"),
+		bai = os.path.join(bam_path, "{ip_sample}.bam.bai"),
 		chk = ALL_CHECKS,
 		r = os.path.join("workflow", "scripts", "make_greylist.R"),
 		seqinfo = os.path.join(annotation_path, "seqinfo.rds")
@@ -12,11 +12,7 @@ rule make_greylist:
 	threads: 1
 	resources:
 		mem_mb = 16384
-	shell:
+	script:
 		"""
-		Rscript --vanilla \
-			{input.r} \
-			{input.bam} \
-			{input.seqinfo} \
-			{output.bed} &>> {log}
+		{input.r}
 		"""

@@ -49,20 +49,15 @@ rule get_coverage_summary:
     input: 
         bw = rules.bedgraph_to_bigwig.output.bigwig,
         blacklist = blacklist,
-        chk = ALL_CHECKS
+        chk = ALL_CHECKS,
+        sq = os.path.join(annotation_path, "seqinfo.rds")
     output: os.path.join(macs2_path, "{path}", "{sample}_treat_pileup.summary")
-    params:
-        script = "workflow/scripts/get_bigwig_summary.R"
     conda: "../envs/rmarkdown.yml"
     log: log_path + "/get_coverage_summary/{path}/{sample}.log"
     threads: 1
     resources:
         mem_mb = 16384
-    shell:
+    script:
         """
-        ## Create the summary tsv
-        Rscript --vanilla \
-            {params.script} \
-            {input.bw} \
-            {output} &>> {log}
+        workflow/scripts/get_bigwig_summary.R
         """
