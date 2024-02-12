@@ -24,6 +24,29 @@ macs2_qc:
     allow_zero: true
     min_prop_reps: 0.5 # Currently, this cannot be set within a given target
 
+## Set the defaults across all targets here and set any changes as desired
+## for any specific target
+differential_signal:
+  default:
+    window_type: "fixed"
+    window_size: 400 
+    window_step: 
+    filter_q: 
+    method: "qlf"
+    norm: "TMM"
+    fc: 1.2
+    fdr: 0.05
+    pair_column: 
+    contrasts:
+      - ["E2", "E2DHT"]
+    ihw: "targets"
+  H3K27ac:
+    window_type: "sliding"
+    window_size: 180
+    window_step: 60
+    filter_q: 0.7
+
+
 comparisons:
   windows:
     size: 120
