@@ -5,34 +5,29 @@ rule create_annotations:
         config = ancient(os.path.join("config", "config.yml")),
         chk = ALL_CHECKS,
         gtf = gtf,
-        r = os.path.join("workflow", "scripts", "create_annotations.R"),
-        yaml = os.path.join("config", "params.yml")
+        yaml = os.path.join("config", "params.yml"),
     output:
-        rds = expand(
-          os.path.join(annotation_path, "{file}.rds"),
-          file = [
-            'gene_regions', 'gtf_gene', 'gtf_transcript', 'gtf_exon', 'seqinfo',
-            'tss', 'trans_models'
-            ]
-        ),
+        exons = os.path.join(annotation_path, "gtf_exon.rds"),
+        genes = os.path.join(annotation_path, "gtf_gene.rds"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        transcripts = os.path.join(annotation_path, "gtf_transcript.rds"),
+        trans_models = os.path.join(annotation_path, "trans_models.rds"),
+        tss = os.path.join(annotation_path, "tss.rds"),
         chrom_sizes = chrom_sizes
-    params:
-        annot_path = annotation_path
     conda: "../envs/rmarkdown.yml"
     threads: 1
     resources:
         mem_mb = 16384	
     log: log_path + "/scripts/create_annotations.log"
     script:
-        """
-        {input.r}
-        """
+        "../scripts/create_annotations.R"
 
 rule compile_annotations_html:
     input:
         blacklist = blacklist,
         rmd = "workflow/modules/annotation_description.Rmd",
-        rds = rules.create_annotations.output.rds,
+        rds = rules.create_annotations.output,
         scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
         setup = rules.create_setup_chunk.output,
         site_yaml = rules.create_site_yaml.output,

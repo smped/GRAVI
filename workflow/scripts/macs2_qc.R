@@ -24,11 +24,9 @@ if (conda_pre != "") {
   .libPaths(paths_to_set)
 }
 
-# args <- commandArgs(TRUE)
-# target <- args[[1]]
-# threads <- args[[2]]
-# outlier_thresh <- as.numeric(args[[3]])
-# allow_zero <- args[[4]] == "True"
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log)
 
 library(tidyverse)
 library(yaml)
@@ -38,17 +36,19 @@ library(GenomicRanges)
 library(extraChIPs)
 library(rtracklayer)
 library(Rsamtools)
-library(BiocParallel)
+library(parallel)
 library(csaw)
 
-target <- snakemake@wildcards[["target"]]
-threads <- snakemake@threads
-outlier_thresh <- as.numeric(snakemake@params[["outlier_threshold"]])
+target <- slot(snakemake, "wildcards")[["target"]]
+threads <- slot(snakemake, "threads")
+all_params <- slot(snakemake, "params")
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+outlier_thresh <- as.numeric(all_params$outlier_threshold)
 ## Might need to wrangle a logical value here
-allow_zero <- snakemake@params[["allow_zero"]]
-register(MulticoreParam(workers = threads))
+allow_zero <- all_params[["allow_zero"]]
 
-config <- read_yaml(here::here("config", "config.yml"))
+config <- slot(snakemake, "config")
 samples <- here::here(config$samples$file) %>%
   read_tsv() %>%
   dplyr::filter(target == .GlobalEnv$target)
@@ -78,38 +78,27 @@ samples$treat <- factor(samples$treat, levels = treat_levels)
 ## QC ##
 ########
 
-annotation_path <- snakemake@params[["annot_path"]]
-macs2_path <- snakemake@params[["macs2_path"]]
-
-sq <- read_rds(snakemake@input[["seqinfo"]])
+sq <- read_rds(all_input$seqinfo)
 blacklist <- importPeaks(
-  here::here(snakemake@input[["blacklist"]]), type = "bed", seqinfo = sq
+  here::here(all_input$blacklist, type = "bed", seqinfo = sq)
 )
 
 message("Loading peaks")
-individual_peaks <- here::here(
-  str_subset(snakemake@input[["indiv_macs2"]], "narrowPeak$")
-) %>%
+individual_peaks <- all_input$peaks %>% 
+  here::here() %>% 
   importPeaks(seqinfo = sq, blacklist = blacklist) %>%
-  GRangesList() %>%
-  setNames(samples$sample)
+  setNames(str_remove_all(names(.), ".narrowPeak"))
 
 message("Loading macs2_logs")
-macs2_logs <- here::here(
-  str_subset(snakemake@input[["indiv_macs2"]], "callpeak.log$")
-) %>% 
+macs2_logs <- all_input$logs %>% 
+  here::here() %>% 
   importNgsLogs() %>%
   dplyr::select(
     -contains("file"), -outputs, -n_reads, -alt_fragment_length
   ) %>%
   left_join(samples, by = c("name" = "sample")) %>%
   mutate(
-    filtered_peaks = map_int(
-      name,
-      function(x) {
-        length(individual_peaks[[x]])
-      }
-    ),
+    filtered_peaks = map_int(name, \(x) length(individual_peaks[[x]])),
     prop_passed = filtered_peaks / paired_peaks
   ) %>%
   group_by(treat) %>%
@@ -130,25 +119,20 @@ macs2_logs <- here::here(
 message("Writing qc_samples")
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
-  write_tsv(
-    here::here(snakemake@output[["qc"]])
-  )
+  write_tsv(here::here(all_output$qc))
 
 ##################
 ## Correlations ##
 ##################
-bfl <- bam_path %>%
-  file.path(glue("{samples$sample}.bam")) %>%
-  c(
-    file.path(bam_path, glue("{unique(samples$input)}.bam"))
-  ) %>%
-  BamFileList() %>%
-  setNames(c(samples$sample, unique(samples$input)))
+all_bam <- c(all_input$bam, all_input$input_bam)
+bfl <- all_bam %>% 
+  BamFileList() %>% 
+  setNames(str_remove_all(basename(all_bam), ".bam$"))
 
 ## Check if there are any paired end reads
 ys <- 1000
 message("Checking for duplicates")
-anyDups <- bplapply(
+anyDups <- mclapply(
   bfl,
   function(x) {
     sbp <- ScanBamParam(
@@ -157,19 +141,19 @@ anyDups <- bplapply(
       what = "qname"
     )
     length(scanBam(x, param = sbp)[[1]]$qname)  > 0
-  }
+  }, mc.cores = threads
 ) %>%
   unlist()
   message("Checking for PE reads")
-anyPE <- bplapply(
+anyPE <- mclapply(
   bfl,
   function(x){
     yieldSize(x) <- ys
     open(x)
-    flag <- scanBam(x, param=ScanBamParam(what="flag"))[[1]]$flag
+    flag <- scanBam(x, param = ScanBamParam(what="flag"))[[1]]$flag
     close(x)
     any(bamFlagTest(flag, "isPaired"))
-  }
+  }, mc.cores = threads
 ) %>%
   unlist()
 
@@ -181,10 +165,9 @@ rp <- readParam(
   discard = blacklist,
 )
 message("Estimating correlations")
-read_corrs <- bfl[samples$sample] %>%
+read_corrs <- bfl[seq_along(all_input$bam)] %>%
   path %>%
-  # bplapply(correlateReads, param = rp, max.dist = 5*fl) %>%
-  lapply(correlateReads, param = rp, max.dist = 5*fl) %>%
+  mclapply(correlateReads, param = rp, max.dist = 5*fl, mc.cores = threads) %>%
   as_tibble() %>%
   mutate(fl = seq_len(nrow(.))) %>%
   pivot_longer(
@@ -192,9 +175,6 @@ read_corrs <- bfl[samples$sample] %>%
     names_to = "sample",
     values_to = "correlation"
   )
-write_tsv(
-  read_corrs,
-  here::here(snakemake@output[["cors"]])
-)
+write_tsv(read_corrs, here::here(all_output$cors))
 
 ## Could probably add the actual peak merging here too!!!

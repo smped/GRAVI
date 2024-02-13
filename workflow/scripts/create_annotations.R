@@ -23,6 +23,10 @@ if (conda_pre != "") {
   .libPaths(paths_to_set)
 }
 
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log)
+
 library(tidyverse)
 library(magrittr)
 library(rtracklayer)
@@ -32,31 +36,16 @@ library(yaml)
 library(Rsamtools)
 library(extraChIPs)
 
-config <- read_yaml(here::here("config", "config.yml"))
-params <- read_yaml(here::here("config", "params.yml"))
+config <- slot(snakemake, "config")
+params <- slot(snakemake, "input")[["yaml"]] %>% 
+  here::here() %>% 
+  read_yaml()
 samples <- here::here(config$samples$file) %>%
   read_tsv()
-
-#### Paths ####
-annotation_path <- snakemake@params[["annot_path"]]
-if (!dir.exists(annotation_path)) dir.create(annotation_path, recursive = TRUE)
-all_out <- list(
-  chrom_sizes = file.path(annotation_path, "chrom.sizes"),
-  gene_regions = file.path(annotation_path, "gene_regions.rds"),
-  gtf_gene = file.path(annotation_path, "gtf_gene.rds"),
-  gtf_trans = file.path(annotation_path, "gtf_transcript.rds"),
-  gtf_exon = file.path(annotation_path, "gtf_exon.rds"),
-  seqinfo = file.path(annotation_path, "seqinfo.rds"),
-  transcript_models = file.path(annotation_path, "trans_models.rds"),
-  tss = file.path(annotation_path, "tss.rds")
-)
+all_out <- slot(snakemake, "output")
 
 #### Seqinfo ####
-sq <- samples %>%
-  mutate(
-    path = here::here(config$paths$bam, glue("{sample}.bam"))
-  ) %>%
-  .[["path"]] %>%
+sq <- slot(snakemake, "input")[["bam"]]  %>% 
   BamFileList() %>%
   seqinfo() %>%
   sortSeqlevels() %>%
@@ -67,12 +56,13 @@ sq <- samples %>%
     genome = config$genome$build
   ) %>%
   as("Seqinfo")
-write_rds(sq, all_out$seqinfo)
+write_rds(sq, all_out$sq)
 cat("Seqinfo exported...\n")
 
 #### Check the blacklist for compatibility
-blacklist <- here::here(config$external$blacklist) %>%
-  import.bed()
+blacklist <- slot(snakemake, "input")[["blacklist"]] %>% 
+  here::here() %>%
+  importPeaks(type = "bed", seqinfo = sq)
 sq_has_chr <- any(grepl("chr", seqlevels(sq)))
 bl_has_chr <- any(grepl("chr", seqlevels(blacklist)))
 if (sq_has_chr != bl_has_chr)
@@ -88,11 +78,10 @@ sq %>%
 cat("chrom_sizes exported...\n")
 
 #### GTF ####
-gtf <- here::here(config$external$gtf)
+gtf <- here::here(slot(snakemake, "input")[["gtf"]])
 stopifnot(file.exists(gtf))
 reqd_cols <- c(
-  "type",
-  "gene_id", "gene_type", "gene_name",
+  "type", "gene_id", "gene_type", "gene_name",
   "transcript_id", "transcript_type", "transcript_name",
   "exon_id"
 )
@@ -113,7 +102,7 @@ all_gtf <- gtf %>%
   splitAsList(f = .$type)
 cat("GTF imported successfully...\n")
 
-if (all(vapply(all_gtf, length, integer(1)) == 0))
+if (all(map_int(all_gtf, length) == 0))
   stop(
     "No valid ranges found in the provided GTF.\nPlease check for compatible ",
     "chromosome identifiers"
@@ -122,9 +111,9 @@ seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
 
 cat("Exporting gene, transcript and exon-level objects\n")
-write_rds(all_gtf$gene, all_out$gtf_gene, compress = "gz")
-write_rds(all_gtf$transcript, all_out$gtf_trans, compress = "gz")
-write_rds(all_gtf$exon, all_out$gtf_exon, compress = "gz")
+write_rds(all_gtf$gene, all_out$genes, compress = "gz")
+write_rds(all_gtf$transcript, all_out$transcripts, compress = "gz")
+write_rds(all_gtf$exon, all_out$exons, compress = "gz")
 cat("All gtf_*.rds objects written successfully...\n")
 
 #### Transcript Models (Gviz) ####
@@ -133,7 +122,7 @@ trans_models <- all_gtf$exon %>%
     type, gene = gene_id, exon = exon_id, transcript = transcript_id,
     symbol = gene_name
   )
-write_rds(trans_models, all_out$transcript_models, compress = "gz")
+write_rds(trans_models, all_out$trans_models, compress = "gz")
 cat("trans_models.rds written successfully...\n")
 
 #### Optional RNA-Seq ####
@@ -168,10 +157,9 @@ gene_regions <- defineRegions(
   proximal = gr_params$intergenic
 )
 
-
 cat("Exporting gene_regions...\n")
-write_rds(gene_regions, all_out$gene_regions, compress = "gz")
-all_exist <- vapply(all_out, file.exists, logical(1))
+write_rds(gene_regions, all_out$regions, compress = "gz")
+all_exist <- map_lgl(all_out, file.exists)
 if (!all(all_exist)) {
   nm <- names(all_exist)[!all_exist]
   stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"))

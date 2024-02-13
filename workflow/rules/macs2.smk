@@ -84,24 +84,32 @@ rule macs2_individual:
 rule macs2_qc:
     input:
         bam = lambda wildcards: expand(
-            os.path.join(bam_path, "{sample}.{suffix}"),
+            os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['sample']),
-            suffix = ['bam', 'bam.bai']
+        ),
+        bai = lambda wildcards: expand(
+            os.path.join(bam_path, "{sample}.bam.bai"),
+            sample = set(df[df.target == wildcards.target]['sample']),
         ),
         blacklist = blacklist,
         chk = ALL_CHECKS,
-        indiv_macs2 = lambda wildcards: expand(
-            os.path.join(macs2_path, "{sample}", "{sample}_{suffix}"),
-            sample = set(df[df.target == wildcards.target]['sample']),
-            suffix = ['callpeak.log', 'peaks.narrowPeak']
-        ),
         input_bam = lambda wildcards: expand(
-            os.path.join(bam_path, "{sample}.{suffix}"),
+            os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['input']),
-            suffix = ['bam', 'bam.bai']
+        ),
+        input_bai = lambda wildcards: expand(
+            os.path.join(bam_path, "{sample}.bam.bai"),
+            sample = set(df[df.target == wildcards.target]['input']),
+        ),
+        logs = lambda wildcards: expand(
+            os.path.join(macs2_path, "{sample}", "{sample}_callpeak.log"),
+            sample = set(df[df.target == wildcards.target]['sample']),
+        ),
+        peaks = lambda wildcards: expand(
+            os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
+            sample = set(df[df.target == wildcards.target]['sample']),
         ),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
-        r = "workflow/scripts/macs2_qc.R"
     output:
         cors = os.path.join(
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
@@ -110,17 +118,13 @@ rule macs2_qc:
     params:
         outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold'],
         allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
-        annot_path = annotation_path,
-        macs2_path = macs2_path,
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
         mem_mb = 8192
     log: log_path + "/macs2_qc/{target}_macs2_qc.log"
     script:
-        """
-        {input.r}
-        """
+        "../scripts/macs2_qc.R"
 
 rule macs2_merged:
     input:
