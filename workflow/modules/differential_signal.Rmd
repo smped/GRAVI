@@ -23,10 +23,10 @@ The basic approach will be:
 ```{r set-params, eval = interactive(), echo = FALSE}
 params <- list(
   threads = 4,
-  target = "H3K27ac", 
+  target = "ERa", 
   treat_levels = c("E2", "E2DHT"), 
-  windows = "sliding",
-  window_size = 180,
+  windows = "fixed",
+  window_size = 400,
   method = "qlf",
   norm = "TMM",
   pair_col = NULL,

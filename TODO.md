@@ -44,6 +44,7 @@
 
 - Add `rGREAT` analysis as the default enrichment for all modules?
 - `IHW` is currently not installable using conda with Bioc 3.18. Checks for updates may be prudent
+- The package simplifyEnrichment also looks useful for comparing across targets. Examples here: https://jokergoo.github.io/rGREAT_suppl/compare_online_and_local.html
 
 ### Motifs & Enrichment Testing
 

@@ -8,14 +8,20 @@ if (conda_pre != "") {
   .libPaths(paths_to_set)
 }
 
-args <- commandArgs(TRUE)
-target <- args[[1]]
-min_prop <- as.numeric(args[[2]])
-rmd <- args[[3]]
-cat(args, "\n")
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log)
 
 library(tidyverse)
 library(glue)
+
+target <- slot(snakemake, "wildcards")[["target"]]
+mod <- slot(snakemake, "input")[["module"]]
+rmd <- slot(snakemake, "output")$rmd
+
+macs2_fdr <- slot(snakemake, "params")$macs2_fdr
+outlier_thresh <- slot(snakemake, "params")$outlier_thresh
+min_prop <- slot(snakemake, "params")$min_prop
 
 glue(
 	"
@@ -27,6 +33,8 @@ glue(
 	params:
 	    target: \"{{target}}\"
 	    min_prop: {{min_prop}}
+	    outlier_thresh: {{outlier_thresh}}
+	    macs2_fdr: {{macs2_fdr}}
 	---
 
 	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
@@ -37,3 +45,10 @@ glue(
 	.close = "}}"
 ) %>%
 	write_lines(rmd)
+
+cat("Written YAML header\nAppending Module\n")
+
+## Now add the rest of the module
+file.append(rmd, mod)
+
+cat("Done")

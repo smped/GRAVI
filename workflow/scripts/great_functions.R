@@ -1,28 +1,9 @@
-#' Additional functions for enabling a more tailored GREAT analysis
+#' Map standard msigdb categories to the format required for rGREAT
 #'
-#' The important functions are:
+#' @param x vector of categories to convert
+#' @param pre Prefix to add. See the vignette
 #'
-#'   - [x] Map msigdb IDs from one format to another
-#'       - [x] Also need to map genome builds (e.g. GRCh37 to hg19) from UCSC
-#'   2. Wrap the call across multiple gene-sets
-#'   3. Merge the outputs from a list-run
-#'
-#' The background ranges are set by default to be the entire genome, excluding
-#' gaps obtained from UCSC. These are provided as an RDS file by rGREAT so
-#' internet connectivity wont be a problem
-#'
-#' The call when merging will use this basic structure
-#'
-#' GreatObject(table = df, gr = gr_origin, n_total = n_total,
-#' gene_sets = gene_sets, gene_sets_name = gene_sets_name,
-#' extended_tss = extended_tss, n_gene_gr = n_gene_gr, background = background,
-#' background_type = background_type, param = param)
-#'
-#' All elements are identical with the exceptions of: table, gene_sets, gene_sets_name
-#'
-#' The package simplifyEnrichment also looks useful for comparing across targets
-#' examples here: https://jokergoo.github.io/rGREAT_suppl/compare_online_and_local.html
-#'
+#' @return Character vector
 #'
 map_great_cats <- function(x = NULL, pre = "msigdb:") {
   ## The gs_cat entries are complete compatible. Only the subcats need to be mapped
@@ -32,6 +13,9 @@ map_great_cats <- function(x = NULL, pre = "msigdb:") {
   sub_cats <- paste(sub_cats$gs_cat, sub_cats$gs_subcat, sep = ":")
   paste0(pre, c(cats, sub_cats))
 }
+#' Map common references to the options set by rGREAT
+#' @param x Genome. For example "GRCh37"
+#' @return The UCSC equivalent
 map_great_refs <- function(x = NULL){
   map <- c(
     hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
@@ -50,15 +34,14 @@ map_great_refs <- function(x = NULL){
 #' @param min_hits Remove gene sets with fewer than this number of hits. Gene
 #' sets are removed after adjusting p-values
 #' @param great_cores Passed to each gene-set level run of `great()`
-#' @param mc.cores Passed to mclapply
 multi_set_great <- function(
     gr, gene_sets, tss, min_gene_set_size = 5, max_gene_set_size = Inf,
     basal_upstream = 5000, basal_downstream = 1000, extension = 1e+06,
     background = NULL, exclude = "gap", great_cores = 1,
-    adj = p.adjust.methods, min_hits = 1, mc.cores = 1, verbose = TRUE
+    adj = p.adjust.methods, min_hits = 1, verbose = TRUE
 ){
   adj <- match.arg(adj)
-  gl <- mclapply(
+  gl <- lapply(
     gene_sets,
     \(x) {
       great(
@@ -68,7 +51,7 @@ multi_set_great <- function(
         background = background, exclude = exclude, cores = great_cores,
         verbose = verbose
       )
-    }, mc.cores = mc.cores
+    }
   )
 
   ## Base the output on the first element, then add the new objects
@@ -90,7 +73,7 @@ multi_set_great <- function(
   set_names <- as.character(unlist(gene_sets))
 
   # And return the merged object
-  new_obj$table <- tbl
+  new_obj$table <- as.data.frame(tbl)
   new_obj$gene_sets <- sets
   new_obj$gene_sets_name <- set_names
   do.call("GreatObject", new_obj)

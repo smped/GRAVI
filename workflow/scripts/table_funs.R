@@ -1,6 +1,16 @@
 #' A set of functions for decorating tables produced by `reactable`
 #' These define colours based on 'up', 'down' and unchanged status,
 #' as well as the values in the logFC and logCPM columns
+sprint_pval <- function(p) {
+  fmt <- ifelse(p < 0.01, "%.2e", "%.3f")
+  zero <- p == 0
+  p <- sprintf(fmt, p)
+  p[zero] <- "<2e-16"
+  p
+}
+comma_col <- colFormat(separators = TRUE, digits = 0)
+percent_col <- colFormat(percent = TRUE, digits = 2)
+
 up_col <- function(x) {
   if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(
@@ -31,7 +41,8 @@ expr_col <- function(x){
   if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(colorRamp(hcl.colors(9, "TealRose"))(x), maxColorValue = 255)
 }
-#' The following enable the addition of bars witihn cells and the use of tooltips
+
+#' The following enable the addition of bars within cells and the use of tooltips
 bar_style <- function(width = 1, fill = "#e6e6e6", height = "75%", align = c("left", "right"), color = NULL, fontSize = c()) {
   align <- match.arg(align)
   if (align == "left") {

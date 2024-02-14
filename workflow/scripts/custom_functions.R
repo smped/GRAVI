@@ -51,20 +51,26 @@ str_sep_to_title <- function(
 #'
 #' @param res data.frame with goseq results
 #' @param gs List of gene-sets with gene ids with each element. Names are gene-sets
+#' @param p_col Column name with (adjusted) p-values
 #' @param min_dist remove any edges with distances < min_dist
 #' @param alpha Threshold for filtering goseq results
 #' @param max_gs The maximum number of genesets to draw
 #'
 make_tbl_graph <- function(
-    res, gs, min_dist = max_network_dist, alpha = enrich_alpha,
+    res, gs, p_col = "adj_p", gs_col = "gs_name",
+    hit_col = "numDEInCat", size_col = "numInCat",
+    alpha = enrich_alpha,
+    min_dist = max_network_dist,
     max_gs = max_network_size
 ) {
-  res <- dplyr::filter(res, adj_p < alpha)
-  res <- arrange(res, adj_p)
+  p_col <- match.arg(p_col, colnames(res))
+  gs_col <- match.arg(gs_col, colnames(res))
+  res <- dplyr::filter(res, !!sym(p_col) < alpha)
+  res <- arrange(res, !!sym(p_col))
   ## If the gene sets are identical, retain the first (most-significant) only
-  gs <- gs[res$gs_name]
+  gs <- gs[res[[gs_col]]]
   nm <- gs %>%
-    vapply(paste, character(1), collapse = "; ") %>%
+    map_chr(paste, collapse = "; ") %>%
     .[!duplicated(.)] %>%
     names() %>%
     .[seq_len(min(c(length(.), max_gs)))]
@@ -85,7 +91,7 @@ make_tbl_graph <- function(
     t() %>%
     set_colnames(c("from", "to")) %>%
     as_tibble() %>%
-    mutate(d = unlist(d), oc = 1 -d) %>%
+    mutate(d = unlist(d), oc = 1 - d) %>%
     dplyr::filter(d <= max_network_dist)
   ## Subsume any with d == 0 into the more highly ranked
   ## This needs to happen sequentially
@@ -97,8 +103,8 @@ make_tbl_graph <- function(
   #   continue <- any(edges$d == 0)
   # }
   nodes <- tibble(label = setdiff(nm, omit)) %>%
-    left_join(res, by = c("label" = "gs_name")) %>%
-    mutate(prop = numDEInCat / numInCat)
+    left_join(res, by = c("label" = gs_col)) %>%
+    mutate(prop = !!sym(hit_col) / !!sym(size_col))
   node_ids <- setNames(seq_along(nodes$label), nodes$label)
   edges$from <- node_ids[edges$from]
   edges$to <- node_ids[edges$to]

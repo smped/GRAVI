@@ -81,30 +81,20 @@ rule create_macs2_summary_rmd:
 	input:
 		chk = ALL_CHECKS,
 		module = "workflow/modules/macs2_summary.Rmd",
-		blacklist = blacklist,
-		r = "workflow/scripts/create_macs2_summary.R"
 	output:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
 	params:
 		min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps'],
+		outlier_thresh = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold'],
+		macs2_fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
 	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
 	resources:
 		mem_mb = 1024,
 		runtime = "2m",
-	shell:
-		"""
-		## Create the generic markdown
-		Rscript --vanilla \
-			{input.r} \
-			{wildcards.target} \
-			{params.min_prop} \
-			{output.rmd} &>> {log}
-
-		## Add the module directly as literal code
-		cat {input.module} >> {output.rmd}
-		"""
+	script:
+		"../workflow/scripts/create_macs2_summary.R"
 
 
 rule compile_macs2_summary_html:
@@ -116,6 +106,7 @@ rule compile_macs2_summary_html:
 			suffix = ['bam', 'bam.bai']
 		),
 		blacklist = blacklist,
+		greylist = get_greylist_from_target,
 		bw = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}",
@@ -123,11 +114,9 @@ rule compile_macs2_summary_html:
 			),
 			treat = set(df[df.target == wildcards.target]['treat'])
 		),
-		config = "config/config.yml",
 		cors = os.path.join(
 			macs2_path, "{target}", "{target}_cross_correlations.tsv"
 		),
-		greylist = get_greylist_from_target,
 		indiv_macs2 = lambda wildcards: expand(
 			os.path.join(macs2_path, "{sample}", "{sample}_{suffix}"),
 			sample = set(df[df.target == wildcards.target]['sample']),
@@ -140,27 +129,24 @@ rule compile_macs2_summary_html:
 			treat = set(df[df.target == wildcards.target]['treat']),
 			suffix = ['callpeak.log', 'peaks.narrowPeak']
 		),
+		treat_peaks_rds = os.path.join(
+			macs2_path, "{target}", "{target}_treatment_peaks.rds"
+		),
+		union_peaks = os.path.join(
+			macs2_path, "{target}", "{target}_union_peaks.bed"
+		),
 		qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
-		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
-		venn_script = os.path.join("workflow", "scripts", "plot_venn.py"),
 		yaml = rules.create_site_yaml.output
 	output:
 		html = "docs/{target}_macs2_summary.html",
 		fig_path = directory(
 			os.path.join("docs", "{target}_macs2_summary_files", "figure-html")
 		),
-		peaks = expand(
-			os.path.join(macs2_path, "{{target}}", "{{target}}_{file}"),
-			file = ['union_peaks.bed', 'treatment_peaks.rds']
-		),
 		renv = temp(
 			os.path.join("output", "envs", "{target}_macs2_summary.RData")
 		),
-		venn = "docs/assets/{target}/{target}_common_peaks." + fig_type
-	params:
-		asset_path = os.path.join("docs", "assets", "{target}")
 	conda: "../envs/rmarkdown.yml"
 	threads:
 		lambda wildcards: min(

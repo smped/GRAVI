@@ -92,6 +92,10 @@ rule macs2_qc:
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
         blacklist = blacklist,
+        greylist = lambda wildcards: expand(
+            os.path.join(annotation_path, "{f}_greylist.bed"),
+            f = set(df[df.target == wildcards.target]['input'])
+        ),
         chk = ALL_CHECKS,
         input_bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
@@ -110,14 +114,22 @@ rule macs2_qc:
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
     output:
         cors = os.path.join(
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
-        qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv")
+        qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
+        treat_peaks_rds = os.path.join(
+            macs2_path, "{target}", "{target}_treatment_peaks.rds"
+        ),
+        union_peaks = os.path.join(
+            macs2_path, "{target}", "{target}_union_peaks.bed"
+        )
     params:
         outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold'],
         allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
+        min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps'],
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
