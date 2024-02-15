@@ -87,70 +87,58 @@ This `Seqinfo` object is added to all subsequent objects requiring information a
 
 ## Blacklisted Regions {.tabset}
 
-```{r blacklist}
-blacklist <- import.bed(here::here(config$external$blacklist), seqinfo = sq)
-```
-
 Blacklisted regions were supplied in the file `rconfig$external$blacklist`.
+In addition, grey-listed regions were derived from all the input samples, `r pander(unique(samples$input))`
 
-### Summary
-
-```{r tab-blacklist}
-blacklist %>% 
-  group_by(name) %>% 
-  summarise(
-    n = n(),
-    p = percent(sum(width) / sum(seqlengths(sq))),
-    kb = sum(width) / 1e3,
-    min = min(width) / 1e3,
-    median = median(width) / 1e3,
-    max = max(width) / 1e3
+```{r blacklist}
+ip <- unique(samples$input)
+bl <- unlist(config$external$blacklist)
+exclude_ranges <- bl %>% 
+  unlist() %>% 
+  here::here() %>% 
+  c(
+    file.path(annotation_path, glue("{ip}_greylist.bed.gz"))
   ) %>% 
-  as_tibble() %>% 
-  dplyr::rename_all(str_to_title) %>% 
-  dplyr::rename(
-    Type = Name, 
-    `Nbr Regions` = N,
-    `% Genome` = P, 
-    `Total (kb)` = Kb,
-    `Min (kb)` = Min,
-    `Median (kb)` = Median,
-    `Max (kb)` = Max
-  ) %>% 
-  pander(
-    caption = glue(
-      "*Summary of genomic regions provided in the blacklist. ",
-      "These regions will be excluded from all subsequent analyses.*"
-    ),
-    justify = "lrrrrrr"
-  )
+  importPeaks(type = "bed", seqinfo = sq) %>% 
+  setNames(c(basename(bl), ip))
 ```
 
-### Breakdown
+```{r plot-excluded-ranges, fig.width=7, fig.height=7, fig.cap = "Number of regions identified as blacklisted"}
+plotOverlaps(exclude_ranges, set_col = seq_along(exclude_ranges))
+```
 
-```{r plot-blacklist, fig.height = 7, fig.cap = "*Breakdown of blacklisted regions by chromosome*"}
-blacklist %>% 
+
+### Breakdown By Chromosome
+
+```{r plot-blacklist, fig.height = 7, fig.cap = "*Breakdown of blacklisted, greylisted and whitelisted, regions by chromosome. If multiple input samples were provided, greylisted regions will be variable across samples.*"}
+exclude_ranges %>% 
+  unlist() %>% 
+  names_to_column("source") %>% 
+  reduceMC() %>% 
+  mutate(
+    source = map_chr(
+      source, \(x) ifelse(any(basename(bl) %in% x), "blacklisted", "greylisted")
+    )
+  ) %>% 
   as_tibble(rangeAsChar = FALSE) %>%
-  group_by(seqnames) %>% 
-  summarise(blacklisted = sum(width)) %>% 
+  summarise(masked = sum(width), .by = c(seqnames, source)) %>% 
+  pivot_wider(names_from = "source", values_from = "masked", values_fill = 0) %>% 
   left_join(as_tibble(sq), by = "seqnames") %>% 
   mutate(
-    whitelisted = seqlengths - blacklisted,
+    whitelisted = seqlengths - blacklisted - greylisted,
     seqnames = factor(seqnames, levels = seqlevels(sq))
   ) %>% 
-  pivot_longer(
-    ends_with("listed"), names_to = "category", values_to = "bp"
-  ) %>% 
+  pivot_longer(ends_with("listed"), names_to = "category", values_to = "bp") %>% 
   ggplot(aes(fct_rev(seqnames), bp/1e6, fill = fct_rev(category))) +
-  geom_col() +
+  geom_col(colour = "black", linewidth = 0.2) +
   coord_flip() +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
   scale_fill_manual(
-    values = c(rgb(0.1, 0.3, 0.9), rgb(0.9, 0.2, 0.1))
+    values = c(
+      whitelisted = "lightblue", greylisted = "grey", blacklisted = "black"
+    )
   ) +
-  labs(
-    x = "Chromosome", y = "Length (Mb)", fill = "Status"
-  )
+  labs(x = "Chromosome", y = "Length (Mb)", fill = "Status")
 ```
 
 
