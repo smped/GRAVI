@@ -87,22 +87,6 @@ ip <- unique(samples$input)
 ```{r annotations}
 ## Seqinfo
 sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
-## Blacklist
-blacklist <- importPeaks(
-  here::here(config$external$blacklist), type = "bed", seqinfo = sq
-) %>% 
-  unlist() %>% 
-  unname()
-## Greylist
-greylist <- importPeaks(
-  here::here("output", "annotations", glue("{ip}_greylist.bed")),
-  type = "bed", seqinfo = sq
-) %>% 
-  unlist() %>% 
-  unname()
-exclude_ranges <- c(blacklist, greylist) %>% 
-  GenomicRanges::reduce() %>% 
-  sort()
 
 ## Gene Annotations
 gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
@@ -169,7 +153,7 @@ bfl <- bam_path %>%
 individual_peaks <- file.path(
   macs2_path, samples$sample, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%
-  importPeaks(seqinfo = sq, blacklist = exclude_ranges) %>%
+  importPeaks(seqinfo = sq) %>%
   endoapply(names_to_column, var = "sample") %>% 
   endoapply(mutate, sample = str_remove(sample, "_peak_[0-9]+$")) %>% 
   endoapply(
@@ -177,14 +161,17 @@ individual_peaks <- file.path(
     treat = left_join(tibble(sample = sample), samples, by = "sample")$treat
   ) %>% 
   setNames(samples$sample)
-treatment_peaks <- macs2_path %>% 
-  file.path(target, glue("{target}_treatment_peaks.rds")) %>% 
-  read_rds()
-union_peaks <- macs2_path %>% 
-  file.path(target, glue("{target}_union_peaks.bed")) %>% 
-  importPeaks(
-    type = "bed", blacklist = exclude_ranges, seqinfo = sq, setNames = FALSE
-  ) %>% 
+merged_peaks <- macs2_path %>% 
+  file.path(target, glue("{target}_{treat_levels}_merged_peaks.narrowPeak")) %>% 
+  importPeaks(seqinfo = sq) %>% 
+  setNames(treat_levels)
+filtered_peaks <- macs2_path %>% 
+  file.path(target, glue("{target}_{treat_levels}_filtered_peaks.narrowPeak")) %>% 
+  importPeaks(seqinfo = sq) %>% 
+  setNames(treat_levels)
+consensus_peaks <- macs2_path %>% 
+  file.path(target, glue("{target}_consensus_peaks.bed.gz")) %>% 
+  importPeaks(type = "bed", seqinfo = sq, setNames = FALSE) %>% 
   unlist() %>% 
   mutate(
     region = bestOverlap(., gene_regions) %>% 
@@ -192,8 +179,8 @@ union_peaks <- macs2_path %>%
       fct_relabel(\(x) regions[x])
   )
 if (has_features) {
-  union_peaks$Feature <- bestOverlap(
-    union_peaks, external_features, var = "feature", missing = "no_feature"
+  consensus_peaks$Feature <- bestOverlap(
+    consensus_peaks, external_features, var = "feature", missing = "no_feature"
   ) %>%
     factor(levels = names(colours$features)) %>%
     fct_relabel(str_sep_to_title)
@@ -278,9 +265,7 @@ macs2_logs %>%
 
 ```{r plot-macs2-libsize-individual, fig.height=6, fig.cap = glue("*Library sizes for each {target} sample. The horizontal line indicates the mean library size for each treatment group. Any samples marked for exclusion as described above will be indicated with an (F)*")}
 macs2_logs %>%
-  ggplot(
-    aes(label, n_tags_treatment, fill = qc)
-  ) +
+  ggplot(aes(label, n_tags_treatment, fill = qc)) +
   geom_col(position = "dodge") +
   geom_hline(
     aes(yintercept = mn),
@@ -294,13 +279,9 @@ macs2_logs %>%
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   scale_fill_manual(values = colours$qc) +
   labs(
-    x = "Sample",
-    y = "Library Size",
-    fill = "QC"
+    x = "Sample", y = "Library Size", fill = "QC"
   ) +
-  ggtitle(
-    glue("{target}: Library Sizes")
-  )
+  ggtitle(glue("{target}: Library Sizes"))
 ```
 
 
@@ -357,9 +338,7 @@ samples$sample %>%
   facet_grid(cols = vars(treat), scales = "free_x", space = "free") +
   scale_y_continuous(labels = percent, expand = expansion(c(0, 0.05))) +
   scale_fill_manual(values = colours$qc) +
-  labs(
-    x = "Sample", y = "Fraction of Reads In Peaks", fill = "QC"
-  ) +
+  labs(x = "Sample", y = "Fraction of Reads In Peaks", fill = "QC") +
   ggtitle(glue("{target}: Fraction Of Reads In Peaks"))
 ```
 
@@ -784,76 +763,23 @@ individual_peaks %>%
 ```
 
 
-### Treatment Peaks 
+### Filtered Peaks 
 
-```{r treatment-peaks, echo=FALSE, eval=FALSE}
-# treatment_peaks <- treat_levels %>%
-#   sapply(
-#     function(x) {
-#       gr <- macs2_path %>%
-#         file.path(target, glue("{target}_{x}_merged_peaks.narrowPeak")) %>%
-#         importPeaks(seqinfo = sq, blacklist = exclude_ranges, centre = TRUE) %>% 
-#         unlist()
-#       k <- dplyr::filter(n_reps, treat == x)$n * min_prop
-#       if (k > 0) {
-#         samp <- dplyr::filter(macs2_logs, treat == x, qc != "fail")$name
-#         gr$n_reps <- countOverlaps(gr, individual_peaks[samp]) 
-#         gr$keep <- gr$n_reps >= k
-#       } else {
-#         gr <- GRanges(seqinfo = sq)
-#       }
-#       gr
-#     },
-#     simplify = FALSE
-#   ) %>%
-#   GRangesList() 
-# union_peaks <- treatment_peaks %>% 
-#   endoapply(subset, keep) %>% 
-#   makeConsensus(
-#     var = c("score", "signalValue", "pValue", "qValue", "centre")
-#   ) %>% 
-#   mutate(
-#     score = vapply(score, median, numeric(1)),
-#     signalValue = vapply(signalValue, median, numeric(1)),
-#     pValue = vapply(pValue, median, numeric(1)),
-#     qValue = vapply(qValue, median, numeric(1)),
-#     centre = vapply(centre, median, numeric(1)),
-#     region = bestOverlap(
-#       ., 
-#       lapply(gene_regions, select, region) %>% 
-#         GRangesList() %>% 
-#         unlist(),
-#       var = "region"
-#     ) %>% 
-#       factor(levels = regions)
-#   ) 
-# if (has_features) {
-#   union_peaks$Feature <- bestOverlap(
-#     union_peaks, external_features, 
-#     var = "feature", missing = "no_feature"
-#   ) %>% 
-#     factor(levels = names(colours$features)) %>% 
-#     fct_relabel(str_sep_to_title)
-# }
-```
+A set of treatment-specific `r target` peaks was defined for each of `r pander(treat_levels)` by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
+Replicates which failed the previous QC steps were omitted during peak-calling.
 
-A set of treatment-specific `r target` peaks (i.e. *treatment peaks*) was defined for each condition by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
-Replicates which failed the previous QC steps are omitted from this step.
-Treatment peaks which overlapped a peak in more than `r percent(min_prop)` of the *individual replicates passing QC* in each treatment group, were retained.
+Peaks detected when merging samples, and which overlapped a peak in more than `r percent(min_prop)` of the *individual replicates passing QC* in each treatment group, were retained.
+Those additionally overlapping any black- or grey-listed regions were also removed as viable peaks.
 
 ```{r tab-treatment-peak}
-merged_peaks <- macs2_path %>%
-  file.path(target, glue("{target}_{treat_levels}_merged_peaks.narrowPeak")) %>% 
-  importPeaks() %>% 
-  setNames(treat_levels)
 treat_levels %>% 
   lapply(
     \(i) tibble(
       treat = i,
       detected_peaks = length(merged_peaks[[i]]),
-      retained = length(treatment_peaks[[i]]),
+      retained = length(filtered_peaks[[i]]),
       `% retained` = percent(retained / detected_peaks, 0.1),
-      median_width = median(width(treatment_peaks[[i]]))
+      median_width = median(width(filtered_peaks[[i]]))
     )
   ) %>% 
   bind_rows() %>% 
@@ -864,27 +790,29 @@ treat_levels %>%
   pander(
     justify = "lrrrr",
     caption = glue(
-      "Treatment peaks detected by merging samples within each treatment group.",
-      "Peaks were only retained if detected in at least",
-      "{percent(min_prop)} of the retained samples for each", "treatment group, as described above.",
+      "Treatment-specific peaks detected by merging samples within each",
+      "treatment group. Peaks were only retained if detected in at least",
+      "{percent(min_prop)} of the qc-passing samples for each treatment group,",
+      "as described above.",
       .sep = " "
     )
   )
 ```
 
 
-### Union Peaks {.tabset}
+### Consensus Peaks {.tabset}
 
-In addition to the treatment peaks, a set of `r comma(length(union_peaks))` treatment-agnostic `r target` **union peaks** were defined.
-Union ranges were the *union* of all overlapping ranges defined and retained in one or more sets of treatment peaks.
+After filtering peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
+These ranges represent the *union* of all overlapping ranges defined and retained within any treatment.
+
 Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *median* across all treatments.
 *Peak summits* were taken as the median position of all summits which comprise the union peak.
 
 #### `r ifelse(length(treat_levels) < 3, "Venn Diagram", "Upset Plot")`
 
-```{r plot-common-peaks, fig.cap = glue("*Number of {target} union peaks which overlap the treatment peaks defined within each condition.*")}
+```{r plot-common-peaks, fig.cap = glue("*Number of {target} consensus peaks which overlap the filtered peaks defined within each condition.*")}
 plotOverlaps(
-  treatment_peaks, 
+  filtered_peaks, 
   type = ifelse(length(treat_levels) > 2, "upset", "venn"),
   set_col = colours$treat[treat_levels]
 )
@@ -893,8 +821,8 @@ plotOverlaps(
 
 #### Distance to TSS 
 
-```{r plot-union-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the {target} union peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. {comma(sum(overlapsAny(union_peaks, tss)))} of the {comma(length(union_peaks))} {target} union peaks ({percent(mean(overlapsAny(union_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
-a <- union_peaks %>% 
+```{r plot-union-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of the {target} consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
+a <- consensus_peaks %>% 
   join_nearest(mutate(tss, tss = start)) %>% 
   mutate(d = start + width/2 - tss) %>% 
   as_tibble() %>% 
@@ -905,7 +833,7 @@ a <- union_peaks %>%
     x = "Distance Around Nearest TSS (kb)",
     y = "Density"
   )
-b <- union_peaks %>% 
+b <- consensus_peaks %>% 
   join_nearest(
     mutate(tss, tss = start)
   ) %>% 
@@ -936,8 +864,8 @@ a + b + plot_annotation(tag_levels = "A")
 
 #### Gene-Centric Regions
 
-```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} union peaks which overlap gene-centric features.*")}
-union_peaks %>% 
+```{r plot-region-overlap, fig.height=8, fig.width=8, fig.cap = glue("*Proportions of {target} consensus peaks which overlap gene-centric features.*")}
+consensus_peaks %>% 
   plotPie(
     fill = "region", total_size = 4,
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
@@ -951,8 +879,8 @@ union_peaks %>%
 
 `r ifelse(has_features, "#### External Features", "")`
 
-```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} union peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
-union_peaks %>% 
+```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height=8, fig.width=8, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
+consensus_peaks %>% 
   plotPie(
     fill = "Feature", total_size = 4,
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
@@ -966,8 +894,8 @@ union_peaks %>%
 
 `r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
 
-```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} union peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
-union_peaks %>% 
+```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
+consensus_peaks %>% 
   plotSplitDonut(
     inner = "Feature", outer = "region",
     inner_palette = colours$features %>% setNames(str_to_title(names(.))),
@@ -983,10 +911,11 @@ union_peaks %>%
 
 ```{r grl-to-plot}
 grl_to_plot <- GRangesList()
-grl_to_plot$union <- union_peaks[union_peaks$score == max(union_peaks$score)] %>% 
+grl_to_plot$consensus <- consensus_peaks %>% 
+  subset(score == max(score)) %>% 
   granges()
 for (i in treat_levels) {
-  grl_to_plot[[i]] <- treatment_peaks[[i]] %>% 
+  grl_to_plot[[i]] <- filtered_peaks[[i]] %>% 
     filter_by_non_overlaps(unlist(grl_to_plot)) %>% 
     subset(score == max(score)) %>% 
     granges() %>% 
@@ -1079,7 +1008,7 @@ y_lim <- bwfl %>%
 ```
 
 Coverage for a small set of highly ranked peaks are shown below.
-These are the most highly ranked Union Peak (by `score`) and the most highly ranked treatment peak for each of `r pander(treat_levels)` after incrementally stepping through and excluding any already selected peak.
+These are the most highly ranked Consensus Peak (by `score`) and the most highly ranked peak for each of `r pander(treat_levels)` after incrementally stepping through and excluding any already selected peak.
 
 
 ```{r plot-highly-ranked}
@@ -1232,8 +1161,8 @@ This gave a total of `r comma(length(ext_tss))` TSS regions were defined for ana
 ```{r run-great}
 great_res <- multi_set_great(
   set_genome_info(
-    union_peaks, 
-    genome = map_great_refs(genome(union_peaks)[[1]])
+    consensus_peaks, 
+    genome = map_great_refs(genome(consensus_peaks)[[1]])
   ), 
   gene_sets = great_cats, tss = ext_tss, 
   min_gene_set_size = extra_params$enrichment$min_size,
@@ -1242,7 +1171,7 @@ great_res <- multi_set_great(
   min_hits = extra_params$enrichment$min_sig,
   great_cores = threads, verbose = FALSE
 )
-ext_tss_ol <- subsetByOverlaps(ext_tss, union_peaks)
+ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
 great_df <- getEnrichmentTable(great_res) %>% 
   dplyr::select(-all_of(c("p_adjust", "p_value"))) %>% 
   as_tibble() %>% 
@@ -1376,59 +1305,17 @@ plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 ```
 
 
-## Data Export
 
-
-```{r export, results='hide'}
+```{r export, results='hide', echo=FALSE}
 all_out <- list(
-  union_peaks_bed = file.path(
-    macs2_path, target, glue("{target}_union_peaks.bed")
-  ),
-  treatment_peaks_rds = file.path(
-    macs2_path, target, glue("{target}_treatment_peaks.rds")),
   renv = file.path(
     here::here("output/envs"), glue("{target}_macs2_summary.RData")
   )
-) %>% 
-  c(
-    sapply(
-      names(treatment_peaks), 
-      function(x) {
-        file.path(
-          macs2_path, target, glue("{target}_{x}_treatment_peaks.bed")
-        )
-      },
-      simplify = FALSE
-    ) %>% 
-      setNames(
-        glue("{target}_{names(.)}_treatment_peaks_bed")
-      )
-  )
-export(union_peaks, all_out$union_peaks)
-treatment_peaks %>%
-  lapply(subset, keep) %>%
-  lapply(select, -keep) %>%
-  GRangesList() %>%
-  write_rds(all_out$treatment_peaks, compress = "gz")
-names(treatment_peaks) %>% 
-  lapply(
-    function(x) {
-      id <- glue("{target}_{x}_treatment_peaks_bed")
-      ## Create an empty file
-      file.create(all_out[[id]])
-      treatment_peaks[[x]] %>% 
-        subset(keep) %>% 
-        select(score, signalValue, pValue, qValue, peak) %>% 
-        export(all_out[[id]], format = "narrowPeak")
-    }
-  )
+) 
 if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
 
-During this workflow the following files were exported:
-
-`r pander(lapply(all_out, str_extract, pattern = "output.+"))`
 
 ## References
 

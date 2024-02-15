@@ -1,10 +1,8 @@
 rule create_annotations:
     input:
         bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
-        blacklist = blacklist,
         config = ancient(os.path.join("config", "config.yml")),
         chk = ALL_CHECKS,
-        gtf = gtf,
         yaml = os.path.join("config", "params.yml"),
     output:
         exons = os.path.join(annotation_path, "gtf_exon.rds"),
@@ -25,10 +23,8 @@ rule create_annotations:
 
 rule compile_annotations_html:
     input:
-        blacklist = blacklist,
         rmd = "workflow/modules/annotation_description.Rmd",
         rds = rules.create_annotations.output,
-        scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
         setup = rules.create_setup_chunk.output,
         site_yaml = rules.create_site_yaml.output,
         yaml = expand(

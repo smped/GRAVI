@@ -1,10 +1,3 @@
-def get_greylist_from_target(wildcards):
-    ind = df.target == wildcards.target
-    return expand(
-        os.path.join(annotation_path, "{file}_greylist.bed"),
-        file = set(df[ind]['input'])
-    )
-
 rule create_site_yaml:
 	input:
 		chk = ALL_CHECKS,
@@ -100,13 +93,6 @@ rule create_macs2_summary_rmd:
 rule compile_macs2_summary_html:
 	input:
 		annotations = ALL_RDS,
-		aln = lambda wildcards: expand(
-			os.path.join(bam_path, "{sample}.{suffix}"),
-			sample = set(df[df.target == wildcards.target]['sample']),
-			suffix = ['bam', 'bam.bai']
-		),
-		blacklist = blacklist,
-		greylist = get_greylist_from_target,
 		bw = lambda wildcards: expand(
 			os.path.join(
 				macs2_path, "{{target}}",
@@ -117,25 +103,13 @@ rule compile_macs2_summary_html:
 		cors = os.path.join(
 			macs2_path, "{target}", "{target}_cross_correlations.tsv"
 		),
-		indiv_macs2 = lambda wildcards: expand(
-			os.path.join(macs2_path, "{sample}", "{sample}_{suffix}"),
-			sample = set(df[df.target == wildcards.target]['sample']),
-			suffix = ['callpeak.log', 'peaks.narrowPeak']
+		consensus_peaks = os.path.join(
+			macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
 		),
-		merged_macs2 = lambda wildcards: expand(
-			os.path.join(
-				macs2_path, "{{target}}", "{{target}}_{treat}_merged_{suffix}"
-			),
-			treat = set(df[df.target == wildcards.target]['treat']),
-			suffix = ['callpeak.log', 'peaks.narrowPeak']
+		greylist = expand(
+			os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+			f = set(df['input'])
 		),
-		treat_peaks_rds = os.path.join(
-			macs2_path, "{target}", "{target}_treatment_peaks.rds"
-		),
-		union_peaks = os.path.join(
-			macs2_path, "{target}", "{target}_union_peaks.bed"
-		),
-		qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output

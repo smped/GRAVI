@@ -23,6 +23,16 @@ if (conda_pre != "") {
   paths_to_set <- unique(c(conda_lib_path, prev_paths))
   .libPaths(paths_to_set)
 }
+## A function for printing input
+cat_list <- function(x, slot = NULL, sep = "\n\t"){
+    nm <- setdiff(names(x), "")
+    invisible(
+        lapply(
+            nm,
+            \(i) cat("Received", slot, i, sep, paste0( x[[i]], "\n\t"), "\n")
+        )
+    )
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -43,30 +53,32 @@ library(plyranges)
 target <- slot(snakemake, "wildcards")[["target"]]
 threads <- slot(snakemake, "threads")
 ## Required elements are:
-## seqinfo, blackist, greylist, peaks, logs, bam, input_bam, gene_regions, colours
+## seqinfo, greylist, peaks, logs, bam, input_bam, gene_regions, colours
 all_input <- slot(snakemake, "input")
 ## Required elements are: qc, cors, treat_peaks_rds, treat_peaks_bed, union_peaks
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
+all_wildcards <- slot(snakemake, "wildcards")
+
+## Print values to the log
+cat_list(all_wildcards, "wildcards")
+cat_list(all_input, "input")
+cat_list(all_params, "params")
+cat_list(all_output, "output")
+
+## Stabilise paths for input/output
+all_input <- lapply(all_input, here::here)
+all_output <- lapply(all_output, here::here)
+
 outlier_thresh <- as.numeric(all_params$outlier_threshold)
 ## Might need to wrangle a logical value here
 allow_zero <- all_params[["allow_zero"]]
-min_prop <- all_params[["min_prop"]] # Not supplied yet!!!
-
-cat("Received all_input\n")
-lapply(all_input, cat)
-
-cat("Received all_params\n")
-lapply(all_params, cat)
-
-cat("Generating all_output\n")
-lapply(all_output, cat)
 
 cat("Defining samples...\n")
 config <- slot(snakemake, "config")
 samples <- here::here(config$samples$file) %>%
   read_tsv() %>%
-  dplyr::filter(target == slot(snakemake, "wildcards")[["target"]])
+  dplyr::filter(target == all_wildcards$target)
 treat_levels <- unique(samples$treat)
 if (!is.null(config$comparisons$contrasts)) {
   ## Ensure levels respect those provided in contrasts
@@ -95,27 +107,22 @@ samples$treat <- factor(samples$treat, levels = treat_levels)
 
 cat("Defining ranges to exclude...\n")
 sq <- read_rds(all_input$seqinfo)
-blacklist <- here::here(all_input$blacklist) %>%
-  importPeaks(type = "bed", seqinfo = sq) %>%
-  unlist() %>%
-  unname()
-greylist <- here::here(all_input$greylist) %>%
-  importPeaks(type = "bed", seqinfo = sq) %>%
-  unlist() %>%
-  GenomicRanges::reduce() %>%
-  unname()
-exclude_ranges <- c(blacklist, greylist) %>%
-  GenomicRanges::reduce()
+exclude_ranges <- all_config$external$blacklist %>%
+    unlist() %>%
+    here::here() %>%
+    c(all_input$greylist) %>%
+    importPeaks(type = "bed", seqinfo = sq) %>%
+    unlist() %>%
+    GenomicRanges::reduce() %>%
+    unname()
 
 cat("Loading peaks\n")
 individual_peaks <- all_input$peaks %>%
-  here::here() %>%
   importPeaks(seqinfo = sq, blacklist = exclude_ranges, centre = TRUE) %>%
   setNames(str_remove_all(names(.), "_peaks.narrowPeak"))
 
 cat("Loading macs2_logs\n")
 macs2_logs <- all_input$logs %>%
-  here::here() %>%
   importNgsLogs() %>%
   dplyr::select(
     -contains("file"), -outputs, -n_reads, -alt_fragment_length
@@ -200,70 +207,3 @@ read_corrs <- bfl[seq_along(all_input$bam)] %>%
     values_to = "correlation"
   )
 write_tsv(read_corrs, here::here(all_output$cors))
-
-######################################
-## Add the actual peak merging here ##
-######################################
-
-cat("Forming treatment_peaks\n")
-n_reps <- summarise(macs2_logs, n = sum(qc == "pass"), .by = treat)
-gene_regions <- read_rds(all_input$gene_regions)
-regions <- map_chr(gene_regions, \(x) x$region[[1]])
-has_features <- !is.null(config$external$features)
-treatment_peaks <- treat_levels %>%
-  lapply(
-    function(x) {
-      gr <- macs2_path %>%
-        file.path(target, glue("{target}_{x}_merged_peaks.narrowPeak")) %>%
-        importPeaks(seqinfo = sq, blacklist = exclude_ranges, centre = TRUE) %>%
-        unlist()
-      k <- dplyr::filter(n_reps, treat == x)$n * min_prop
-      if (k > 0) {
-        samp <- dplyr::filter(macs2_logs, treat == x, qc != "fail")$name
-        gr$n_reps <- countOverlaps(gr, individual_peaks[samp])
-        gr$keep <- gr$n_reps >= k
-      } else {
-        gr <- GRanges(seqinfo = sq)
-      }
-      gr
-    }
-  ) %>%
-  setNames(treat_levels) %>%
-  GRangesList()
-## Exports here are complicated.
-## 1. An rds with things how they are
-## 2. Individual bed files file.path(macs2_path, target, glue("{target}_{x}_treatment_peaks.bed"))
-write_rds(treatment_peaks, all_output$treat_peaks_rds)
-for (i in treat_levels) {
-  pattern <-  glue("{target}_{i}_treatment_peaks.bed$")
-  f <- str_subset(all_output$treat_peaks_bed, pattern)
-  export(treatment_peaks[[i]], f)
-}
-cat("All treatment peaks written to disk\n")
-
-
-## Now for the union peaks
-cat("Forming union_peaks\n")
-union_peaks <- treatment_peaks %>%
-  endoapply(subset, keep) %>%
-  makeConsensus(
-    var = c("score", "signalValue", "pValue", "qValue", "centre")
-  ) %>%
-  mutate(
-    score = map_dbl(score, median),
-    signalValue = map_dbl(signalValue, median),
-    pValue = map_dbl(pValue, median),
-    qValue = map_dbl(qValue, median),
-    centre = map_dbl(centre, median),
-    region = bestOverlap(
-      .,
-      lapply(gene_regions, select, region) %>%
-        GRangesList() %>%
-        unlist(),
-      var = "region"
-    ) %>%
-      factor(levels = regions)
-  )
-export(union_peaks, all_output$union_peaks)
-cat("Union peaks exprted\n")
-cat("Done\n")

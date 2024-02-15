@@ -33,10 +33,9 @@ rule count_windows:
 			sample = df['sample'][(df['target'] == wildcards.target)],
 			suffix = ['bam', 'bam.bai']
 		),
-		blacklist = blacklist,
 		chk = ALL_CHECKS,
 		greylist = lambda wildcards: expand(
-			os.path.join(annotation_path, "{ip_sample}_greylist.bed"),
+			os.path.join(annotation_path, "{ip_sample}_greylist.bed.gz"),
 			ip_sample = set(df['input'][df['target'] == wildcards.target])
 		),
 		logs = lambda wildcards: expand(
@@ -52,7 +51,7 @@ rule count_windows:
 		samples = os.path.join(
 			macs2_path, "{target}", "{target}_qc_samples.tsv"
 		),
-		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+		sq = os.path.join(annotation_path, "seqinfo.rds"),
 		r = os.path.join("workflow", "scripts", "make_counts.R")
 	output:
 		rds = os.path.join("data", "counts", "{target}_counts.rds")
@@ -110,7 +109,6 @@ rule compile_differential_signal_html:
 		samples = os.path.join(
 			macs2_path, "{target}", "{target}_qc_samples.tsv"
 		),
-		scripts = os.path.join("workflow", "scripts", "custom_functions.R"),
 		setup = rules.create_setup_chunk.output,
 		site_yaml = rules.create_site_yaml.output,
 		yml = expand(

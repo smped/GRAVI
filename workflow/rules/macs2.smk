@@ -53,7 +53,6 @@ rule macs2_individual:
     conda: "../envs/macs2.yml"
     params:
         outdir = os.path.join(macs2_path, "{sample}"),
-        prefix = "{sample}",
         gsize = lambda wildcards: macs2_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
         ]['gsize'],
@@ -75,7 +74,7 @@ rule macs2_individual:
             -g {params.gsize} \
             --keep-dup {params.keep_duplicates} \
             -q {params.fdr} \
-            -n {params.prefix} \
+            -n {wildcards.sample} \
             --bdg --SPMR \
             --outdir {params.outdir} 2> {log}
         cp {log} {output.log}
@@ -87,22 +86,12 @@ rule macs2_qc:
             os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
-        bai = lambda wildcards: expand(
-            os.path.join(bam_path, "{sample}.bam.bai"),
-            sample = set(df[df.target == wildcards.target]['sample']),
-        ),
-        blacklist = blacklist,
         greylist = lambda wildcards: expand(
-            os.path.join(annotation_path, "{f}_greylist.bed"),
+            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
             f = set(df[df.target == wildcards.target]['input'])
         ),
-        chk = ALL_CHECKS,
         input_bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
-            sample = set(df[df.target == wildcards.target]['input']),
-        ),
-        input_bai = lambda wildcards: expand(
-            os.path.join(bam_path, "{sample}.bam.bai"),
             sample = set(df[df.target == wildcards.target]['input']),
         ),
         logs = lambda wildcards: expand(
@@ -120,16 +109,9 @@ rule macs2_qc:
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
-        treat_peaks_rds = os.path.join(
-            macs2_path, "{target}", "{target}_treatment_peaks.rds"
-        ),
-        union_peaks = os.path.join(
-            macs2_path, "{target}", "{target}_union_peaks.bed"
-        )
     params:
         outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold'],
         allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
-        min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps'],
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
@@ -226,3 +208,59 @@ rule macs2_bdgcmp:
             -o {output} 2> {log}
         """		
         
+rule filter_merged_peaks:
+    input:
+        rep = lambda wildcards: expand(
+            os.path.join(macs2_path, "{f}", "{f}_peaks.narrowPeak"),
+            f = set(df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['sample'])
+        ),
+        merged = os.path.join(
+            macs2_path, "{target}", "{target}_{treat}_merged_peaks.narrowPeak"
+        ),
+        qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
+        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        greylist = lambda wildcards: expand(
+            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            f = set(df[df.target == wildcards.target]['input'])
+        ),
+    output:
+        peaks = os.path.join(
+            macs2_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
+        )
+    params:
+        min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps']
+    conda: "../envs/rmarkdown.yml"
+    threads: 1
+    log: os.path.join(log_path, "{target}_{treat}_filter_merged_peaks.log")
+    resources:
+        mem_mb = 4096,
+        runtime = "15m"
+    script:
+        "../scripts/filter_merged_peaks.R"
+
+rule make_consensus_peaks:
+    input:
+        peaks = lambda wildcards: expand(
+            os.path.join(
+                macs2_path, "{{target}}",
+                "{{target}}_{treat}_filtered_peaks.narrowPeak"
+            ),
+            treat = set(df[df.target == wildcards.target]['treat'])
+        ),
+        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        greylist = lambda wildcards: expand(
+            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            f = set(df[df.target == wildcards.target]['input'])
+        ),
+    output:
+        peaks = os.path.join(
+            macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
+        )
+    conda: "../envs/rmarkdown.yml"
+    threads: 1
+    log: os.path.join(log_path, "{target}_make_consensus_peaks.log")
+    resources:
+        mem_mb = 4096,
+        runtime = "10m"
+    script:
+        "../scripts/make_consensus_peaks.R"

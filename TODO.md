@@ -33,6 +33,7 @@
 - [ ] Additional modules
   - [ ] ROSE
   - [ ] Incorporate motif detection
+  - [ ] Nucleosome Free Regions
 
 ## Bugs
 

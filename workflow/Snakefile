@@ -189,12 +189,12 @@ COUNTS = expand(
 	os.path.join("data", "counts", "{target}_counts.rds"),
 	target = targets
 )
-ALL_OUTPUTS.extend(COUNTS)
+# ALL_OUTPUTS.extend(COUNTS)
 RMD = expand(
 	os.path.join(rmd_path, "{cont}_differential_signal.Rmd"),
 	cont = make_contrasts(config['comparisons']['contrasts'])
 )
-ALL_OUTPUTS.extend(RMD)
+# ALL_OUTPUTS.extend(RMD)
 
 
 # Differential Signal
@@ -217,13 +217,12 @@ if pairs:
 
 ALL_OUTPUTS.extend(HTML_OUT)
 ## Keep the final index separate for easiers passing to other rules
-ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
+# ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
 
 ## Peaks generated from the Rmd files
 CONS_PEAKS = expand(
-	os.path.join(macs2_path, "{target}", "{target}_{file}"),
+	os.path.join(macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"),
 	target = targets,
-	file = ['union_peaks.bed', 'treatment_peaks.rds']
 )
 ALL_OUTPUTS.extend(CONS_PEAKS)
 
@@ -231,18 +230,18 @@ ALL_OUTPUTS.extend(CONS_PEAKS)
 ###########################
 ## Peak Files from macs2 ##
 ###########################
-INDIV_PEAKS = expand(
-	os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
-	sample = samples
-)
-ALL_OUTPUTS.extend(INDIV_PEAKS)
-df['merged_pre'] = df[['target', 'treat']].agg('_'.join, axis = 1)
-merged_pre = set(df[['target', 'merged_pre']].agg('/'.join, axis = 1))
-MERGED_PEAKS = expand(
-	os.path.join(macs2_path, "{pre}_merged_peaks.narrowPeak"),
-	pre = merged_pre
-)
-ALL_OUTPUTS.extend(MERGED_PEAKS)
+# INDIV_PEAKS = expand(
+# 	os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
+# 	sample = samples
+# )
+# ALL_OUTPUTS.extend(INDIV_PEAKS)
+# df['merged_pre'] = df[['target', 'treat']].agg('_'.join, axis = 1)
+# merged_pre = set(df[['target', 'merged_pre']].agg('/'.join, axis = 1))
+# MERGED_PEAKS = expand(
+# 	os.path.join(macs2_path, "{pre}_merged_peaks.narrowPeak"),
+# 	pre = merged_pre
+# )
+# ALL_OUTPUTS.extend(MERGED_PEAKS)
 
 
 ##################
@@ -253,15 +252,15 @@ INDIV_BW = expand(
 	sample = samples
 )
 ALL_OUTPUTS.extend(INDIV_BW)
-MERGED_BW = expand(
-	os.path.join(macs2_path, "{path}_merged_treat_pileup.bw"),
-	path = merged_pre
-)
-ALL_OUTPUTS.extend(MERGED_BW)
-FE_BW = expand(
-	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
-)
-ALL_OUTPUTS.extend(FE_BW)
+# MERGED_BW = expand(
+# 	os.path.join(macs2_path, "{path}_merged_treat_pileup.bw"),
+# 	path = merged_pre
+# )
+# ALL_OUTPUTS.extend(MERGED_BW)
+# FE_BW = expand(
+# 	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
+# )
+# ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
     input:
@@ -274,5 +273,5 @@ include: "rules/macs2.smk"
 include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
 include: "rules/annotations.smk"
-include: "rules/differential_signal.smk"
-include: "rules/pairwise_comparisons.smk"
+# include: "rules/differential_signal.smk"
+# include: "rules/pairwise_comparisons.smk"

@@ -11,22 +11,44 @@
 #'
 #' Running this as a stand-alone script removes any dependency on config.yml
 #' which reduces the number of times it is re-run by snakemake
-#' 
-#' 
+#'
+#'
 #' Handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
 if (conda_pre != "") {
-  conda_lib_path <- file.path(conda_pre, "lib", "R", "library")
-  if (!dir.exists(conda_lib_path)) conda_lib_path <- NULL
-  prev_paths <- .libPaths()
-  paths_to_set <- unique(c(conda_lib_path, prev_paths))
-  .libPaths(paths_to_set)
+    conda_lib_path <- file.path(conda_pre, "lib", "R", "library")
+    if (!dir.exists(conda_lib_path)) conda_lib_path <- NULL
+    prev_paths <- .libPaths()
+    paths_to_set <- unique(c(conda_lib_path, prev_paths))
+    .libPaths(paths_to_set)
+}
+## A function for printing input
+cat_list <- function(x, slot = NULL, sep = "\n\t"){
+    nm <- setdiff(names(x), "")
+    invisible(
+        lapply(
+            nm,
+            \(i) cat("Received", slot, i, sep, paste0( x[[i]], "\n\t"), "\n")
+        )
+    )
 }
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log)
 
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+config <- slot(snakemake, "config")
+
+cat_list(all_input, "input")
+cat_list(all_output, "output")
+
+## Solidify file paths
+all_input <- lapply(all_input, here::here)
+all_output <- lapply(all_output, here::here)
+
+cat("Loading packages...\n")
 library(tidyverse)
 library(magrittr)
 library(rtracklayer)
@@ -35,17 +57,12 @@ library(plyranges)
 library(yaml)
 library(Rsamtools)
 library(extraChIPs)
-
-config <- slot(snakemake, "config")
-params <- slot(snakemake, "input")[["yaml"]] %>% 
-  here::here() %>% 
-  read_yaml()
+params <- read_yaml(all_input$yaml)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
-all_out <- slot(snakemake, "output")
 
 #### Seqinfo ####
-sq <- slot(snakemake, "input")[["bam"]]  %>% 
+sq <- all_input$bam %>%
   BamFileList() %>%
   seqinfo() %>%
   sortSeqlevels() %>%
@@ -56,13 +73,14 @@ sq <- slot(snakemake, "input")[["bam"]]  %>%
     genome = config$genome$build
   ) %>%
   as("Seqinfo")
-write_rds(sq, all_out$sq)
+write_rds(sq, all_output$sq)
 cat("Seqinfo exported...\n")
 
 #### Check the blacklist for compatibility
-blacklist <- slot(snakemake, "input")[["blacklist"]] %>% 
-  here::here() %>%
-  importPeaks(type = "bed", seqinfo = sq)
+blacklist <- config$external$blacklist %>%
+    unlist() %>%
+    here::here() %>%
+    importPeaks(type = "bed")
 sq_has_chr <- any(grepl("chr", seqlevels(sq)))
 bl_has_chr <- any(grepl("chr", seqlevels(blacklist)))
 if (sq_has_chr != bl_has_chr)
@@ -74,11 +92,11 @@ if (sq_has_chr != bl_has_chr)
 sq %>%
   as_tibble() %>%
   dplyr::select(seqnames, seqlengths) %>%
-  write_tsv(all_out$chrom_sizes, col_names = FALSE)
+  write_tsv(all_output$chrom_sizes, col_names = FALSE)
 cat("chrom_sizes exported...\n")
 
 #### GTF ####
-gtf <- here::here(slot(snakemake, "input")[["gtf"]])
+gtf <- here::here(config$external$gtf)
 stopifnot(file.exists(gtf))
 reqd_cols <- c(
   "type", "gene_id", "gene_type", "gene_name",
@@ -111,9 +129,9 @@ seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
 
 cat("Exporting gene, transcript and exon-level objects\n")
-write_rds(all_gtf$gene, all_out$genes, compress = "gz")
-write_rds(all_gtf$transcript, all_out$transcripts, compress = "gz")
-write_rds(all_gtf$exon, all_out$exons, compress = "gz")
+write_rds(all_gtf$gene, all_output$genes, compress = "gz")
+write_rds(all_gtf$transcript, all_output$transcripts, compress = "gz")
+write_rds(all_gtf$exon, all_output$exons, compress = "gz")
 cat("All gtf_*.rds objects written successfully...\n")
 
 #### Transcript Models (Gviz) ####
@@ -122,7 +140,7 @@ trans_models <- all_gtf$exon %>%
     type, gene = gene_id, exon = exon_id, transcript = transcript_id,
     symbol = gene_name
   )
-write_rds(trans_models, all_out$trans_models, compress = "gz")
+write_rds(trans_models, all_output$trans_models, compress = "gz")
 cat("trans_models.rds written successfully...\n")
 
 #### Optional RNA-Seq ####
@@ -145,7 +163,7 @@ tss <- all_gtf$transcript %>%
   reduceMC() %>%
   mutate(region = "TSS") %>%
   select(region, everything(), -type)
-write_rds(tss, all_out$tss, compress = "gz")
+write_rds(tss, all_output$tss, compress = "gz")
 cat("TSS regions exported...\n")
 
 #### Promoters ####
@@ -158,8 +176,8 @@ gene_regions <- defineRegions(
 )
 
 cat("Exporting gene_regions...\n")
-write_rds(gene_regions, all_out$regions, compress = "gz")
-all_exist <- map_lgl(all_out, file.exists)
+write_rds(gene_regions, all_output$regions, compress = "gz")
+all_exist <- map_lgl(all_output, file.exists)
 if (!all(all_exist)) {
   nm <- names(all_exist)[!all_exist]
   stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"))
