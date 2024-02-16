@@ -79,7 +79,7 @@ rule create_macs2_summary_rmd:
 	log: os.path.join(log_path, "macs2_summary", "create_{target}_macs2_summary.log")
 	resources:
 		mem_mb = 1024,
-		runtime = "2m",
+		runtime = "5m",
 	script:
 		"../scripts/create_macs2_summary.R"
 
@@ -100,10 +100,6 @@ rule compile_macs2_summary_html:
 		consensus_peaks = os.path.join(
 			macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
 		),
-		greylist = expand(
-			os.path.join(annotation_path, "{f}_greylist.bed.gz"),
-			f = set(df['input'])
-		),
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output
@@ -122,8 +118,9 @@ rule compile_macs2_summary_html:
 			workflow.cores
 		)
 	resources:
-		mem_mb = 8192
-	log: log_path + "/macs2_summary/compile_{target}_macs2_summary.log"
+		mem_mb = 8192,
+		runtime = "30m",
+	log: os.path.join(log_path + "/macs2_summary/compile_{target}_macs2_summary.log")
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

@@ -37,7 +37,6 @@ all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
 cat("Loading packages...\n")
-library(tidyverse)
 library(glue)
 
 target <- all_wildcards$target
@@ -45,7 +44,7 @@ macs2_fdr <- all_params$macs2_fdr
 outlier_thresh <- all_params$outlier_thresh
 min_prop <- all_params$min_prop
 
-glue(
+ln <- glue(
 	"
 	---
 	title: '{{target}}: MACS2 Summary'
@@ -65,8 +64,8 @@ glue(
 	",
 	.open = "{{",
 	.close = "}}"
-) %>%
-	write_lines(all_output$rmd)
+)
+readr::write_lines(ln, all_output$rmd)
 
 cat("Written YAML header\nAppending Module\n")
 
