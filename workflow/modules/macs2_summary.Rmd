@@ -33,6 +33,7 @@ library(rGREAT)
 library(ggraph)
 library(tidygraph)
 library(patchwork)
+library(msigdbr)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -1122,9 +1123,6 @@ As a brief overview of pathways and genes likely to be regulated by `r target`, 
 This approach takes a set of 'background' genomic ranges and assesses relative enrichment of matches to a given pathway amongst the provided peaks.
 For this specific anaysis, the background ranges were set to be the whole genome, excluding the ranges defined as gaps by UCSC.
 
-The pathways tested were `r pander(unname(unlist(extra_params$enrichment$msigdb)))` as defined by MSigDB v`r packageVersion("msigdbr")`.
-Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r extra_params$enrichment$adj`) below `r extra_params$enrichment$alpha`, using the results from the *hypergeometric test*, instead of the *binomial test*.
-
 
 ```{r setup-great}
 source(here::here("workflow", "scripts", "great_functions.R"))
@@ -1141,43 +1139,68 @@ if (is.null(max_network_dist) | is.na(max_network_dist))
 net_layout <- extra_params$networks$layout
 enrich_alpha <- extra_params$enrichment$alpha
 adj_method <- match.arg(extra_params$enrichment$adj, p.adjust.methods)
-great_cats <- map_great_cats(unlist(extra_params$enrichment$msigdb))
-stopifnot(length(great_cats) > 0)
+map_great_refs <- function(x = NULL){
+  map <- c(
+    hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
+    mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
+    rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
+    canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
+  )
+  x <- match.arg(tolower(x), names(map))
+  map[[x]]
+}
+ucsc_ref <- map_great_refs(config$genome$build)
+sp <- c(
+  hg19 = "Homo sapiens", hg38 = "Homo sapiens", mm10 = "Mus musculus",
+  mm39 = "Mus musculus", rn7 = "Rattus norvegicus", susScr11 = "Sus scrofa",
+  canFam5 = "Canis lupus familiaris", dm6 = "Drosophila melanogaster",
+  galGal6 = "Gallus gallus", panTro6 = "Pan troglodytes"
+)[[ucsc_ref]]
 ext_tss <- gtf_gene %>% 
   select(gene_id) %>% 
   extendTSS(
-    genome = map_great_refs(config$genome$build),
-    gene_id_type = 'ENSEMBL', 
+    genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
     basal_upstream = extra_params$gene_regions$promoters$upstream,
     basal_downstream = extra_params$gene_regions$promoters$downstream
   )
+ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
+msigdb <- msigdbr(sp) %>% 
+  dplyr::filter(
+    gs_cat %in% enrich_params$msigdb$gs_cat |
+      gs_subcat %in% enrich_params$msigdb$gs_subcat,
+    ensembl_gene %in% ext_tss$gene_id
+  )
+gs_list <- msigdb %>% 
+  split(.$gs_name) %>% 
+  lapply(pull, ensembl_gene) %>% 
+  .[map_int(., length) <= enrich_params$max_size] %>% 
+  .[map_int(., length) >= enrich_params$min_size] 
 ```
 
 Genes from the supplied GTF were used to define the TSS, giving only one TSS for each gene.
 Whilst unrealistic, this ensures model assumptions are not violated.
 This gave a total of `r comma(length(ext_tss))` TSS regions were defined for analysis.
 
+The `r length(gs_list)` pathways tested were `r pander(unname(unlist(extra_params$enrichment$msigdb)))` as defined by MSigDB v`r packageVersion("msigdbr")`.
+Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r extra_params$enrichment$adj`) below `r extra_params$enrichment$alpha`, using the `rGREAT` results from the *hyper-geometric test*, instead of the *binomial test*.
 
 ```{r run-great}
-great_res <- multi_set_great(
-  set_genome_info(
-    consensus_peaks, 
-    genome = map_great_refs(genome(consensus_peaks)[[1]])
+great_res <- great(
+    set_genome_info(
+    consensus_peaks, genome = map_great_refs(config$genome$build)
   ), 
-  gene_sets = great_cats, tss = ext_tss, 
-  min_gene_set_size = extra_params$enrichment$min_size,
-  max_gene_set_size = extra_params$enrichment$max_size,
-  adj = adj_method, 
-  min_hits = extra_params$enrichment$min_sig,
-  great_cores = threads, verbose = FALSE
+  gene_sets = gs_list, extended_tss = ext_tss, 
+  min_gene_set_size = enrich_params$min_size, 
+  cores = threads
 )
-ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
 great_df <- getEnrichmentTable(great_res) %>% 
-  dplyr::select(-all_of(c("p_adjust", "p_value"))) %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
   as_tibble() %>% 
+  arrange(p_value_hyper) %>% 
+  mutate(p_adjust_hyper = p.adjust(p_value_hyper, adj_method)) %>% 
   dplyr::filter(p_adjust_hyper < enrich_alpha) %>% 
   mutate(
-    gene_id  = slot(great_res, "gene_sets")[id],
+    gene_id  = gs_list[id],
     genes_with_hits = map_chr(
       gene_id,
       \(x) {
@@ -1194,7 +1217,7 @@ n_great <- nrow(great_df)
 ```{r tbl-great-res, eval = n_great > 0, echo = n_great > 0}
 tbl <- great_df %>% 
   dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
-  dplyr::select(id, fold_enrichment, p_adjust_hyper, everything()) %>% 
+  dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
   reactable(
     sortable = TRUE, filterable = TRUE,
     columns = list(
@@ -1205,7 +1228,7 @@ tbl <- great_df %>%
       ),
       genome_fraction = colDef(show = FALSE),
       observed_region_hits = colDef(show = FALSE),
-      fold_enrichment = colDef(
+      fold_enrichment_hyper = colDef(
         name = "Fold Enrichment", format = colFormat(digits = 3),
         filterable = FALSE, minWidth = 110
       ),
