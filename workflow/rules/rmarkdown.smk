@@ -112,13 +112,9 @@ rule compile_macs2_summary_html:
 			os.path.join("output", "envs", "{target}_macs2_summary.RData")
 		),
 	conda: "../envs/rmarkdown.yml"
-	threads:
-		lambda wildcards: min(
-			len(df[df['target'] == wildcards.target]),
-			workflow.cores
-		)
+	threads: 6
 	resources:
-		mem_mb = 8192,
+		mem_mb = 16384,
 		runtime = "30m",
 	log: os.path.join(log_path + "/macs2_summary/compile_{target}_macs2_summary.log")
 	shell:

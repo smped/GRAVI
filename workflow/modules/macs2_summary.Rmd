@@ -1262,13 +1262,11 @@ cp <- htmltools::em(
     "
   )
 )
-if (n_great) {
-  div(class = "table",
-      div(class = "table-header",
-          div(class = "caption", cp), tbl
-      )
-  )
-}
+div(class = "table",
+    div(class = "table-header",
+        div(class = "caption", cp), tbl
+    )
+)
 ```
 
 ```{r great-network, echo = n_great > min_network_size, eval = n_great > min_network_size, fig.cap = glue("*The most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
