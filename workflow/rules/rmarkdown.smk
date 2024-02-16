@@ -1,39 +1,33 @@
 rule create_site_yaml:
 	input:
 		chk = ALL_CHECKS,
-		config_yaml = "config/config.yml",
-		rmd_yaml = "config/rmarkdown.yml",
-		r = "workflow/scripts/create_site_yaml.R",
-	output: os.path.join(rmd_path, "_site.yml")
-	conda: "../envs/rmarkdown.yml"
+		yml = "config/rmarkdown.yml",
+	output: 
+	    yml = os.path.join(rmd_path, "_site.yml")
+	log: os.path.join(log_path, "scripts", "create_site_yaml.log")
 	threads: 1
 	resources:
 		mem_mb = 1024,
 		runtime = "5m",
-	log: log_path + "/rmarkdown/create_site_yaml.log"
-	shell:
-		"""
-		Rscript --vanilla {input.r} {output} &>> {log}
-		"""
+	conda: "../envs/rmarkdown.yml"
+	script:
+		"../scripts/create_site_yaml.R"
 
 
 rule create_setup_chunk:
 	input:
 		chk = ALL_CHECKS,
-		config = "config/rmarkdown.yml",
-		r = "workflow/scripts/create_setup_chunk.R"
+		yml = "config/rmarkdown.yml",
 	output:
 		rmd = "analysis/setup_chunk.Rmd"
-	conda: "../envs/rmarkdown.yml"
+	log: os.path.join(log_path, "scripts/create_setup_chunk.log")
 	threads: 1
 	resources:
 		mem_mb = 1024,
 		runtime = "5m",
-	log: log_path + "/rmarkdown/create_setup_chunk.log"
-	shell:
-		"""
-		Rscript --vanilla {input.r} {output.rmd} &>> {log}
-		"""
+	conda: "../envs/rmarkdown.yml"
+	script:
+		"../scripts/create_setup_chunk.R"
 
 rule create_index_rmd:
 	input:
@@ -64,7 +58,7 @@ rule compile_index_html:
 	resources:
 		mem_mb = 1024,
 		runtime = "5m",	
-	log: log_path + "/rmarkdown/compile_index_html.log"
+	log: os.path.join(log_path, "rmarkdown/compile_index_html.log")
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
@@ -82,12 +76,12 @@ rule create_macs2_summary_rmd:
 		macs2_fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
-	log: log_path + "/create_rmd/create_{target}_macs2_summary.log"
+	log: os.path.join(log_path, "macs2_summary", "create_{target}_macs2_summary.log")
 	resources:
 		mem_mb = 1024,
 		runtime = "2m",
 	script:
-		"../workflow/scripts/create_macs2_summary.R"
+		"../scripts/create_macs2_summary.R"
 
 
 rule compile_macs2_summary_html:
@@ -129,7 +123,7 @@ rule compile_macs2_summary_html:
 		)
 	resources:
 		mem_mb = 8192
-	log: log_path + "/macs2_summmary/compile_{target}_macs2_summary.log"
+	log: log_path + "/macs2_summary/compile_{target}_macs2_summary.log"
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

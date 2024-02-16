@@ -5,7 +5,6 @@ rule sort_bedgraph:
         temp(os.path.join(macs2_path, "{path}", "{f}.sorted.bdg"))
     log: log_path + "/sort_bedgraph/{path}/{f}.log"
     threads: 2
-    retries: 1
     resources:
         runtime = "1h",
         mem_mb = lambda wildcards, input, attempt: (input.size//1000000) * attempt * 8,
@@ -33,7 +32,6 @@ rule bedgraph_to_bigwig:
     conda: "../envs/bedgraph_to_bigwig.yml"
     log: log_path + "/bedgraph_to_bigwig/{path}/{f}.log"
     threads: 1
-    retries: 1
     resources:
         runtime = "2h",
         mem_mb = lambda wildcards, input, attempt: (input.size//1000000) * attempt * 8,
@@ -48,7 +46,6 @@ rule bedgraph_to_bigwig:
 rule get_coverage_summary:
     input: 
         bw = rules.bedgraph_to_bigwig.output.bigwig,
-        blacklist = blacklist,
         chk = ALL_CHECKS,
         sq = os.path.join(annotation_path, "seqinfo.rds")
     output: os.path.join(macs2_path, "{path}", "{sample}_treat_pileup.summary")
@@ -58,6 +55,4 @@ rule get_coverage_summary:
     resources:
         mem_mb = 16384
     script:
-        """
-        workflow/scripts/get_bigwig_summary.R
-        """
+        "../scripts/get_bigwig_summary.R"

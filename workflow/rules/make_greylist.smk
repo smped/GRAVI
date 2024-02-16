@@ -12,6 +12,4 @@ rule make_greylist:
 	resources:
 		mem_mb = 16384
 	script:
-		"""
-		../workflow/scripts/make_greylist.R
-		"""
+		"../scripts/make_greylist.R"

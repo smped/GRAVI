@@ -1,29 +1,3 @@
-def get_merged_bam_from_treat_and_target(wildcards):
-    ind = (df.treat == wildcards.treat) & (df.target == wildcards.target)
-    return expand(
-        os.path.join(bam_path, "{file}.bam"), file = set(df[ind]['sample'])
-    )
-
-def get_merged_bai_from_treat_and_target(wildcards):
-    ind = (df.treat == wildcards.treat) & (df.target == wildcards.target)
-    return expand(
-        os.path.join(bam_path, "{file}.bam.bai"), file = set(df[ind]['sample'])
-    )
-
-def get_input_bam_from_treat_and_target(wildcards):
-    ind = (df.treat == wildcards.treat) & (df.target == wildcards.target)
-    return expand(
-        os.path.join(bam_path, "{file}.bam"),
-        file = set(df[ind]['input'])
-    )
-
-def get_input_bai_from_treat_and_target(wildcards):
-    ind = (df.treat == wildcards.treat) & (df.target == wildcards.target)
-    return expand(
-        os.path.join(bam_path, "{file}.bam.bai"),
-        file = set(df[ind]['input'])
-    )
-
 
 rule macs2_individual:
     input:
@@ -49,7 +23,7 @@ rule macs2_individual:
                 suffix = ['_model.r', '_peaks.xls', '_control_lambda.bdg']
             )
         )
-    log: log_path + "/macs2_individual/{sample}.log"
+    log: os.path.join(log_path, "macs2_individual", "{sample}.log")
     conda: "../envs/macs2.yml"
     params:
         outdir = os.path.join(macs2_path, "{sample}"),
@@ -116,19 +90,34 @@ rule macs2_qc:
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
         mem_mb = 8192
-    log: log_path + "/macs2_qc/{target}_macs2_qc.log"
+    log: os.path.join(log_path, "macs2_qc", "{target}_macs2_qc.log")
     script:
         "../scripts/macs2_qc.R"
 
 rule macs2_merged:
     input:
-        bam = get_merged_bam_from_treat_and_target,
-        bai = get_merged_bai_from_treat_and_target,
-        control = get_input_bam_from_treat_and_target,
-        control_bai = get_input_bai_from_treat_and_target,
+        bam = lambda wildcards: expand(
+            os.path.join(bam_path, "{f}.bam"),
+            f = set(
+                df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['sample']
+            )
+        ),
+        bai = lambda wildcards: expand(
+            os.path.join(bam_path, "{f}.bam.bai"),
+            f = set(
+                df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['sample']
+            )
+        ),
+        input = lambda wildcards: expand(
+            os.path.join(bam_path, "{f}.{suffix}"),
+            f = set(
+                df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['input']
+            ),
+            suffix = ['bam', 'bam.bai']
+        ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv")
     output:
-        narrow_peaks = os.path.join(
+        peaks = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_merged_peaks.narrowPeak"
         ),
         summits = os.path.join(
@@ -145,7 +134,7 @@ rule macs2_merged:
         log = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_merged_callpeak.log"
         )
-    log: log_path + "/macs2_merged/{target}/{treat}_merged.log"
+    log: os.path.join(log_path, "macs2_merged", "{target}", "{treat}_merged.log")
     conda: "../envs/macs2.yml"
     params:
         bamdir = bam_path,
@@ -192,8 +181,7 @@ rule macs2_bdgcmp:
         temp(
             os.path.join(macs2_path, "{target}/{target}_{treat}_merged_FE.bdg"),
         )
-    log:
-        "workflow/logs/macs2_bdgcmp/{target}_{treat}_bdgcmp.log"
+    log: os.path.join(log_path, "macs2_bdgcmp", "{target}", "{target}_{treat}_bdgcmp.log")
     conda: "../envs/macs2.yml"
     threads: 1
     resources:
@@ -231,7 +219,7 @@ rule filter_merged_peaks:
         min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps']
     conda: "../envs/rmarkdown.yml"
     threads: 1
-    log: os.path.join(log_path, "{target}_{treat}_filter_merged_peaks.log")
+    log: os.path.join(log_path, "filter_merged_peaks", "{target}_{treat}.log")
     resources:
         mem_mb = 4096,
         runtime = "15m"
@@ -258,7 +246,7 @@ rule make_consensus_peaks:
         )
     conda: "../envs/rmarkdown.yml"
     threads: 1
-    log: os.path.join(log_path, "{target}_make_consensus_peaks.log")
+    log: os.path.join(log_path, "make_consensus_peaks", "{target}.log")
     resources:
         mem_mb = 4096,
         runtime = "10m"

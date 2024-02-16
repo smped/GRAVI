@@ -107,7 +107,7 @@ samples$treat <- factor(samples$treat, levels = treat_levels)
 
 cat("Defining ranges to exclude...\n")
 sq <- read_rds(all_input$seqinfo)
-exclude_ranges <- all_config$external$blacklist %>%
+exclude_ranges <- config$external$blacklist %>%
     unlist() %>%
     here::here() %>%
     c(all_input$greylist) %>%
@@ -193,12 +193,14 @@ rp <- readParam(
   pe = ifelse(any(anyPE), "both", "none"),
   dedup = any(anyDups),
   restrict = seqnames(sq)[1:5],
-  discard = blacklist,
+  discard = exclude_ranges,
 )
 cat("Estimating correlations...\n")
 read_corrs <- bfl[seq_along(all_input$bam)] %>%
   path %>%
-  mclapply(correlateReads, param = rp, max.dist = 5*fl, mc.cores = threads) %>%
+  mclapply(
+    correlateReads, param = rp, max.dist = 5*fl, mc.cores = threads
+  ) %>%
   as_tibble() %>%
   mutate(fl = seq_len(nrow(.))) %>%
   pivot_longer(
@@ -206,4 +208,5 @@ read_corrs <- bfl[seq_along(all_input$bam)] %>%
     names_to = "sample",
     values_to = "correlation"
   )
+cat("Exporting correlations\n")
 write_tsv(read_corrs, here::here(all_output$cors))

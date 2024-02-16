@@ -1251,7 +1251,7 @@ if (n_great) {
 }
 ```
 
-```{r great-network, echo = n_great > min_network_size, eval n_great > min_network_size, fig.cap = glue("*The most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
+```{r great-network, echo = n_great > min_network_size, eval = n_great > min_network_size, fig.cap = glue("*The most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
 tg_great <- make_tbl_graph(
   great_df, gs = great_df[["gene_id"]], 
   alpha = enrich_alpha, p_col = "p_adjust_hyper", gs_col = "id", 
@@ -1299,7 +1299,7 @@ if (length(tg_great) >= min_network_size) {
 ```
 
 
-```{r plot-highest-great, eval = n_great > 0, echo = n_great > 0, fig.cap = glue("*Distribution of {target} signal around TSS regions for {top_id}, which was the most highly enriched of the test gene sets.*)}
+```{r plot-highest-great, eval = n_great > 0, echo = n_great > 0, fig.cap = glue("*Distribution of {target} signal around TSS regions for {top_id}, which was the most highly enriched of the test gene sets.*")}
 top_id <- great_df$id[1]
 plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 ```

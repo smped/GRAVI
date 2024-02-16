@@ -1,7 +1,6 @@
 rule create_annotations:
     input:
         bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
-        config = ancient(os.path.join("config", "config.yml")),
         chk = ALL_CHECKS,
         yaml = os.path.join("config", "params.yml"),
     output:
