@@ -103,6 +103,8 @@ exclude_ranges <- bl %>%
   setNames(c(basename(bl), ip))
 ```
 
+### Similarity Between Black & Grey Lists
+
 ```{r plot-excluded-ranges, fig.width=7, fig.height=7, fig.cap = "Number of regions identified as blacklisted"}
 plotOverlaps(exclude_ranges, set_col = seq_along(exclude_ranges))
 ```
@@ -120,25 +122,34 @@ exclude_ranges %>%
       source, \(x) ifelse(any(basename(bl) %in% x), "blacklisted", "greylisted")
     )
   ) %>% 
-  as_tibble(rangeAsChar = FALSE) %>%
-  summarise(masked = sum(width), .by = c(seqnames, source)) %>% 
-  pivot_wider(names_from = "source", values_from = "masked", values_fill = 0) %>% 
-  left_join(as_tibble(sq), by = "seqnames") %>% 
-  mutate(
-    whitelisted = seqlengths - blacklisted - greylisted,
-    seqnames = factor(seqnames, levels = seqlevels(sq))
+  c(
+    setdiff(GRanges(sq), .) %>% mutate(source = "whitelisted")
   ) %>% 
-  pivot_longer(ends_with("listed"), names_to = "category", values_to = "bp") %>% 
-  ggplot(aes(fct_rev(seqnames), bp/1e6, fill = fct_rev(category))) +
-  geom_col(colour = "black", linewidth = 0.2) +
-  coord_flip() +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  sort() %>% 
+  select(source) %>% 
+  as_tibble(rangeAsChar = FALSE) %>% 
+  mutate(
+    seqnames = fct_rev(seqnames),
+    ymin = as.integer(seqnames) - 0.35, ymax = as.integer(seqnames) + 0.35,
+    source = str_to_title(source)
+  ) %>% 
+  ggplot(aes(fill = source)) +
+  geom_rect(
+    aes(xmin = start, xmax = end, ymin = ymin, ymax = ymax)
+  ) +
+  scale_x_continuous(expand = expansion(c(0.01, 0.01)), labels = comma_format(scale = 1e-6)) +
+  scale_y_continuous(
+    expand = expansion(c(0.02, 0.02)), labels = rev(seqnames(sq)), 
+    breaks = seq_along(seqnames(sq))
+  ) +
   scale_fill_manual(
     values = c(
-      whitelisted = "lightblue", greylisted = "grey", blacklisted = "black"
+      Whitelisted = "lightblue", Greylisted = "grey", Blacklisted = "black"
     )
   ) +
-  labs(x = "Chromosome", y = "Length (Mb)", fill = "Status")
+  labs(x = "Chromosome Position (MB)", fill = "Status") +
+  theme_classic() +
+  theme(legend.position = c(0.9, 0.15))
 ```
 
 
