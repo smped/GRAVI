@@ -94,7 +94,6 @@ In addition, grey-listed regions were derived from all the input samples, `r pan
 ip <- unique(samples$input)
 bl <- unlist(config$external$blacklist)
 exclude_ranges <- bl %>% 
-  unlist() %>% 
   here::here() %>% 
   c(
     file.path(annotation_path, glue("{ip}_greylist.bed.gz"))

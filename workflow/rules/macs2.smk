@@ -60,6 +60,8 @@ rule macs2_qc:
             os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
+        blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        checks = ALL_CHECKS,
         greylist = lambda wildcards: expand(
             os.path.join(annotation_path, "{f}_greylist.bed.gz"),
             f = set(df[df.target == wildcards.target]['input'])
@@ -134,7 +136,7 @@ rule macs2_merged:
         log = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_merged_callpeak.log"
         )
-    log: os.path.join(log_path, "macs2_merged", "{target}", "{treat}_merged.log")
+    log: os.path.join(log_path, "macs2_merged", "{target}_{treat}_merged.log")
     conda: "../envs/macs2.yml"
     params:
         bamdir = bam_path,
@@ -198,19 +200,20 @@ rule macs2_bdgcmp:
         
 rule filter_merged_peaks:
     input:
-        rep = lambda wildcards: expand(
-            os.path.join(macs2_path, "{f}", "{f}_peaks.narrowPeak"),
-            f = set(df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['sample'])
+        blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        greylist = lambda wildcards: expand(
+            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            f = set(df[df.target == wildcards.target]['input'])
         ),
         merged = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_merged_peaks.narrowPeak"
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
-        greylist = lambda wildcards: expand(
-            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
-            f = set(df[df.target == wildcards.target]['input'])
+        rep = lambda wildcards: expand(
+            os.path.join(macs2_path, "{f}", "{f}_peaks.narrowPeak"),
+            f = set(df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['sample'])
         ),
+        sq = os.path.join(annotation_path, "seqinfo.rds"),
     output:
         peaks = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
@@ -228,6 +231,11 @@ rule filter_merged_peaks:
 
 rule make_consensus_peaks:
     input:
+        blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        greylist = lambda wildcards: expand(
+            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            f = set(df[df.target == wildcards.target]['input'])
+        ),
         peaks = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}",
@@ -236,10 +244,6 @@ rule make_consensus_peaks:
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
-        greylist = lambda wildcards: expand(
-            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
-            f = set(df[df.target == wildcards.target]['input'])
-        ),
     output:
         peaks = os.path.join(
             macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"

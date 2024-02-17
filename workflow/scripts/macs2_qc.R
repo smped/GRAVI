@@ -107,14 +107,13 @@ samples$treat <- factor(samples$treat, levels = treat_levels)
 
 cat("Defining ranges to exclude...\n")
 sq <- read_rds(all_input$seqinfo)
-exclude_ranges <- config$external$blacklist %>%
-    unlist() %>%
-    here::here() %>%
-    c(all_input$greylist) %>%
-    importPeaks(type = "bed", seqinfo = sq) %>%
-    unlist() %>%
-    GenomicRanges::reduce() %>%
-    unname()
+bl <- read_rds(all_input$blacklist)
+exclude_ranges <- all_input$greylist %>%
+  unlist() %>% 
+  importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
+  unlist() %>%
+  c(bl) %>% 
+  GenomicRanges::reduce() 
 
 cat("Loading peaks\n")
 individual_peaks <- all_input$peaks %>%

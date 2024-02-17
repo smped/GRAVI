@@ -71,13 +71,13 @@ library(plyranges)
 
 cat("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
-exclude_ranges <- config$external$blacklist %>%
+bl <- read_rds(all_input$blacklist)
+exclude_ranges <- all_input$greylist %>%
+    unlist() %>% 
+    importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
     unlist() %>%
-    here::here() %>%
-    c(all_input$greylist) %>%
-    importPeaks(type = "bed", seqinfo = sq, setNames = FALSE) %>%
-    unlist() %>%
-    GenomicRanges::reduce()
+    c(bl) %>% 
+    GenomicRanges::reduce() 
 
 cat("Loading peaks...\n")
 cons_peaks <- all_input$peaks %>%

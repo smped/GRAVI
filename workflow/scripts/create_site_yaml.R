@@ -140,11 +140,11 @@ if (length(all_pairs) > 1) {
       html = paste(c1, c2, "pairwise_comparison.html", sep = "_"),
       across(
         all_of(c("c1", "c2")),
-        str_remove_all, "^[A-Za-z0-9]+_"
+        \(x) str_remove_all(x, "^[A-Za-z0-9]+_")
       ),
       across(
         all_of(c("c1", "c2")),
-        str_replace_all, pattern = "(.+)_(.+)", replacement = "\\2 Vs. \\1"
+        \(x) str_replace_all(x, pattern = "(.+)_(.+)", replacement = "\\2 Vs. \\1")
       )
     ) %>%
     unite(comps, c1, c2, sep = " / ") %>%

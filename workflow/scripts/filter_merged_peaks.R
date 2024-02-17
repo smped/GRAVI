@@ -52,25 +52,6 @@ all_params <- slot(snakemake, "params")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 
-## For testing
-# all_wildcards <- list(target = "AR", treat = "E2")
-# all_input <- list(
-#     rep = c(
-#         "../GRAVI_testing/output/macs2/SRR8315174/SRR8315174_peaks.narrowPeak",
-#         "../GRAVI_testing/output/macs2/SRR8315175/SRR8315175_peaks.narrowPeak",
-#         "../GRAVI_testing/output/macs2/SRR8315176/SRR8315176_peaks.narrowPeak"
-#     ),
-#     merged = "../GRAVI_testing/output/macs2/AR/AR_E2_merged_peaks.narrowPeak",
-#     qc = "../GRAVI_testing/output/macs2/AR/AR_qc_samples.tsv",
-#     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
-#     greylist = "../GRAVI_testing/output/annotations/SRR8315192_greylist.bed"
-# )
-# all_output <- list(
-#     peaks = "../GRAVI_testing/output/macs2/AR/AR_E2_filtered_peaks.narrowPeak"
-# )
-# all_params <- list(min_prop = 0.5)
-# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
-
 cat_list(all_wildcards, "wildcards", ":")
 cat_list(all_params, "params", ":")
 cat_list(all_input, "input")
@@ -97,12 +78,12 @@ mcols <- sapply(mcnames, \(x) numeric(), simplify = FALSE)
 mcols(filtered_peaks) <- DataFrame(mcols)
 if (n_rep > 0) {
     cat("Loading black/grey lists\n")
-    exclude_ranges <- config$external$blacklist %>%
-        unlist() %>%
-        c(all_input$greylist) %>%
+    bl <- read_rds(all_input$blacklist)
+    exclude_ranges <- all_input$greylist %>%
         importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
         unlist() %>%
-        GenomicRanges::reduce()
+        c(bl) %>% 
+        GenomicRanges::reduce() 
     cat("Loading merged peaks\n")
     merged_peaks <- all_input$merged %>%
         importPeaks(seqinfo = sq, setNames = FALSE, blacklist = exclude_ranges) %>%

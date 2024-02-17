@@ -74,6 +74,18 @@ sq <- all_input$bam %>%
 write_rds(sq, all_output$sq)
 cat("Seqinfo exported...\n")
 
+### Blacklist ###
+## Set all provided files into a single GRanges & export
+cat("Forming unified blacklist from all files...")
+bl <- config$external$blacklist %>% 
+  unlist() %>% 
+  here::here() %>% 
+  importPeaks(type = "bed", seqinfo = sq) %>% 
+  unlist() %>%
+  GenomicRanges::reduce() %>% 
+  sort()
+write_rds(bl, all_output$blacklist)
+cat("done")
 
 #### chrom_sizes ####
 ## For bedGraphToBigWig
@@ -84,7 +96,7 @@ sq %>%
 cat("chrom_sizes exported...\n")
 
 #### GTF ####
-gtf <- here::here(config$external$gtf)
+gtf <- here::here(config$external$gtf)[[1]]
 stopifnot(file.exists(gtf))
 reqd_cols <- c(
   "type", "gene_id", "gene_type", "gene_name",

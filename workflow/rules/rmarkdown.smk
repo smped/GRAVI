@@ -1,6 +1,7 @@
 rule create_site_yaml:
 	input:
-		chk = ALL_CHECKS,
+		here = rules.check_here_file.output,
+		packages = rules.check_r_packages.output,
 		yml = "config/rmarkdown.yml",
 	output: 
 	    yml = os.path.join(rmd_path, "_site.yml")
@@ -16,7 +17,8 @@ rule create_site_yaml:
 
 rule create_setup_chunk:
 	input:
-		chk = ALL_CHECKS,
+		here = rules.check_here_file.output,
+		packages = rules.check_r_packages.output,
 		yml = "config/rmarkdown.yml",
 	output:
 		rmd = "analysis/setup_chunk.Rmd"
@@ -31,7 +33,8 @@ rule create_setup_chunk:
 
 rule create_index_rmd:
 	input:
-		chk = ALL_CHECKS,
+		here = rules.check_here_file.output,
+		packages = rules.check_r_packages.output,
 		rmd = os.path.join("workflow", "modules", "index.Rmd"),
 	output:
 		os.path.join(rmd_path, "index.Rmd")
@@ -66,7 +69,8 @@ rule compile_index_html:
 
 rule create_macs2_summary_rmd:
 	input:
-		chk = ALL_CHECKS,
+		here = rules.check_here_file.output,
+		packages = rules.check_r_packages.output,
 		module = "workflow/modules/macs2_summary.Rmd",
 	output:
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
@@ -94,6 +98,7 @@ rule compile_macs2_summary_html:
 			),
 			treat = set(df[df.target == wildcards.target]['treat'])
 		),
+		external = rules.check_external_files.output,
 		cors = os.path.join(
 			macs2_path, "{target}", "{target}_cross_correlations.tsv"
 		),
@@ -119,7 +124,7 @@ rule compile_macs2_summary_html:
 	resources:
 		mem_mb = 16384,
 		runtime = "30m",
-	log: os.path.join(log_path + "/macs2_summary/compile_{target}_macs2_summary.log")
+	log: os.path.join(log_path, "macs2_summary", "compile_{target}_macs2_summary.log")
 	shell:
 		"""
 		R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

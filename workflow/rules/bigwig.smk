@@ -3,8 +3,10 @@ rule sort_bedgraph:
         os.path.join(macs2_path, "{path}", "{f}.bdg"),
     output:
         temp(os.path.join(macs2_path, "{path}", "{f}.sorted.bdg"))
-    log: log_path + "/sort_bedgraph/{path}/{f}.log"
+    log: os.path.join(log_path, "sort_bedgraph", "{path}", "{f}.log")
     threads: 2
+    params:
+        pattern = "$'^chr[0-9XY]+\\t'" # alt: "$'^[0-9XY]+\\t'"
     resources:
         runtime = "1h",
         mem_mb = lambda wildcards, input, attempt: (input.size//1000000) * attempt * 8,
@@ -18,7 +20,7 @@ rule sort_bedgraph:
           -S {resources.mem_mb}M \
           --parallel {threads} \
           {input} | \
-          egrep $'^chr[0-9XY]+\t' > {output}
+          egrep {params.pattern} > {output}
         echo -e "Finished sorting at $(date)" >> {log}
         """	
 
@@ -30,8 +32,9 @@ rule bedgraph_to_bigwig:
     output:
         bigwig = os.path.join(macs2_path, "{path}", "{f}.bw")
     conda: "../envs/bedgraph_to_bigwig.yml"
-    log: log_path + "/bedgraph_to_bigwig/{path}/{f}.log"
-    threads: 1
+    log: os.path.join(log_path, "bedgraph_to_bigwig", "{path}", "{f}.log")
+    # This gives ~1 thread per 500Mb & should track with mem_mb resources
+    threads: lambda wildcards, input: max(int(input.size//500000000), 1)
     resources:
         runtime = "2h",
         mem_mb = lambda wildcards, input, attempt: (input.size//1000000) * attempt * 8,
@@ -43,16 +46,16 @@ rule bedgraph_to_bigwig:
         echo -e "Finished conversion at $(date)" >> {log}
         """
 
-rule get_coverage_summary:
-    input: 
-        bw = rules.bedgraph_to_bigwig.output.bigwig,
-        chk = ALL_CHECKS,
-        sq = os.path.join(annotation_path, "seqinfo.rds")
-    output: os.path.join(macs2_path, "{path}", "{sample}_treat_pileup.summary")
-    conda: "../envs/rmarkdown.yml"
-    log: log_path + "/get_coverage_summary/{path}/{sample}.log"
-    threads: 1
-    resources:
-        mem_mb = 16384
-    script:
-        "../scripts/get_bigwig_summary.R"
+# rule get_coverage_summary:
+#     input: 
+#         bw = rules.bedgraph_to_bigwig.output.bigwig,
+#         chk = ALL_CHECKS,
+#         sq = os.path.join(annotation_path, "seqinfo.rds")
+#     output: os.path.join(macs2_path, "{path}", "{sample}_treat_pileup.summary")
+#     conda: "../envs/rmarkdown.yml"
+#     log: os.path.join(log_path, "get_coverage_summary", "{path}", "{sample}.log")
+#     threads: 1
+#     resources:
+#         mem_mb = 16384
+#     script:
+#         "../scripts/get_bigwig_summary.R"
