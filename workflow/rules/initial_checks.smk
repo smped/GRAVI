@@ -36,7 +36,7 @@ rule check_here_file:
 
 rule check_external_files:
     input: 
-        packages = rules.check_r_packages.output
+        packages = rules.check_r_packages.output,
         here = rules.check_here_file.output
     output: os.path.join("output", "checks", "external-files.chk")
     threads: 1
