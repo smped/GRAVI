@@ -809,7 +809,7 @@ Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calc
 
 #### `r ifelse(length(treat_levels) < 3, "Venn Diagram", "Upset Plot")`
 
-```{r plot-common-peaks, fig.cap = glue("*Number of {target} consensus peaks which overlap the filtered peaks defined within each condition.*")}
+```{r plot-common-peaks, fig.width=7, fig.height=7, fig.cap = glue("*Number of {target} consensus peaks which overlap the filtered peaks defined within each condition.*")}
 plotOverlaps(
   filtered_peaks, 
   type = ifelse(length(treat_levels) > 2, "upset", "venn"),
@@ -972,7 +972,14 @@ if (nrow(rnaseq)) {
       lapply(select, -status) %>%
       GRangesList()
     gene_col <- colours$direction %>%
-      setNames(str_to_title(names(.)))
+      c(
+        c(
+          up = colours$direction[["increased"]], 
+          down = colours$direction[["decreased"]]
+        )
+      ) %>% 
+      setNames(str_to_title(names(.))) 
+      
   }
 }
 ## External Coverage (Optional)
@@ -1195,16 +1202,12 @@ great_df <- getEnrichmentTable(great_res) %>%
   mutate(
     p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
     gene_id  = gs_list[id],
-    genes_with_hits = lapply(
+    genes_with_hits = map_chr(
       gene_id, 
       \(x) {
         ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        unname(id2gene[unique(ids)])
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
       }
-    ),
-    across(
-      all_of(c("gene_id", "genes_with_hits")),
-      \(x) paste(x, collapse = "; ")
     )
   )
 n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
@@ -1274,9 +1277,9 @@ div(class = "table",
 )
 ```
 
-```{r great-network, echo = n_great > min_network_size, eval = n_great > min_network_size, fig.cap = glue("*The most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
+```{r great-network, echo = n_great > min_network_size, eval = n_great > min_network_size, fig.cap = glue("*The {n_great} most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
 tg_great <- great_df %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
   make_tbl_graph(
     gs = great_df[["gene_id"]], 
     alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
@@ -1337,8 +1340,10 @@ all_out <- list(
   renv = file.path(
     here::here("output/envs"), glue("{target}_macs2_summary.RData")
   )
-) 
-write_tsv(great_df, all_out$great)
+)
+great_df %>% 
+  mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
+  write_tsv(all_out$great)
 if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
