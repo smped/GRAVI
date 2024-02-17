@@ -33,3 +33,17 @@ rule check_here_file:
           touch {output}
         fi
         """    
+
+rule check_external_files:
+    input: 
+        packages = rules.check_r_packages.output
+        here = rules.check_here_file.output
+    output: os.path.join("output", "checks", "external-files.chk")
+    threads: 1
+    resources:
+        runtime = "30m",
+        mem_mb = 8192,
+    log: os.path.join(log_path, "checks", "check_external_files.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/check_external_files.R"

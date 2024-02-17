@@ -39,9 +39,7 @@ panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
 theme_set(
   theme_bw() +
-    theme(
-      plot.title = element_text(hjust = 0.5)
-    )
+    theme(plot.title = element_text(hjust = 0.5))
 )
 register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
@@ -1194,25 +1192,29 @@ great_df <- getEnrichmentTable(great_res) %>%
   dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
   as_tibble() %>% 
   arrange(p_value_hyper) %>% 
-  mutate(p_adjust_hyper = p.adjust(p_value_hyper, adj_method)) %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
   mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
     gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id,
+    genes_with_hits = lapply(
+      gene_id, 
       \(x) {
         ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(sort(id2gene[unique(ids)]), collapse = "; ")
+        id2gene[unique(ids)]
       }
+    ),
+    across(
+      all_of(c("gene_id", "genes_with_hits")),
+      \(x) paste(x, collapse = "; ")
     )
   )
-n_great <- nrow(great_df)
+n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
 ```
 
 `r if (n_great == 0) "No enrichment of gene-sets was found"`
 
 ```{r tbl-great-res, eval = n_great > 0, echo = n_great > 0}
 tbl <- great_df %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
   dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
   dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
   reactable(
@@ -1270,12 +1272,14 @@ div(class = "table",
 ```
 
 ```{r great-network, echo = n_great > min_network_size, eval = n_great > min_network_size, fig.cap = glue("*The most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
-tg_great <- make_tbl_graph(
-  great_df, gs = great_df[["gene_id"]], 
-  alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
-  hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-  min_dist = max_network_dist, max_gs = max_network_size
-)
+tg_great <- great_df %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+  make_tbl_graph(
+    gs = great_df[["gene_id"]], 
+    alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = max_network_dist, max_gs = max_network_size
+  )
 if (length(tg_great) >= min_network_size) {
   tg_great %>% 
     mutate(
@@ -1326,14 +1330,19 @@ plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 
 ```{r export, results='hide', echo=FALSE}
 all_out <- list(
+  great = here::here(macs2_path, target, glue("{target}_great_results.tsv.gz")),
   renv = file.path(
     here::here("output/envs"), glue("{target}_macs2_summary.RData")
   )
 ) 
+write_tsv(great_df, all_out$great)
 if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
 
+Files exported during preparation of this document are:
+
+`r pander(all_out)`
 
 ## References
 

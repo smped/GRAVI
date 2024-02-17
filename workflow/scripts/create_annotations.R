@@ -7,8 +7,6 @@
 #' - TSS
 #' - Unique gene-centric regions
 #'
-#' The trimming of upstream promoter regions takes about 90min with 16 cores
-#'
 #' Running this as a stand-alone script removes any dependency on config.yml
 #' which reduces the number of times it is re-run by snakemake
 #'
@@ -76,16 +74,6 @@ sq <- all_input$bam %>%
 write_rds(sq, all_output$sq)
 cat("Seqinfo exported...\n")
 
-#### Check the blacklist for compatibility
-blacklist <- config$external$blacklist %>%
-    unlist() %>%
-    here::here() %>%
-    importPeaks(type = "bed")
-sq_has_chr <- any(grepl("chr", seqlevels(sq)))
-bl_has_chr <- any(grepl("chr", seqlevels(blacklist)))
-if (sq_has_chr != bl_has_chr)
-  stop("Chromosome identifiers do not match between the blacklist & alignments")
-
 
 #### chrom_sizes ####
 ## For bedGraphToBigWig
@@ -106,10 +94,10 @@ reqd_cols <- c(
 cat("Importing ", gtf, "\n")
 all_gtf <- gtf %>%
   import.gff(
-    which = GRanges(sq), # Should fail if incompatible
+    which = GRanges(sq), # THIS WILL FAIL if incompatible
     feature.type = c("gene", "transcript", "exon")
   ) %>%
-  select(all_of(reqd_cols)) %>% # Will abort if any are missing
+  select(all_of(reqd_cols)) %>% # WILL ABORT if any are missing
   mutate(
     gene_id = str_remove_all(gene_id, "\\..+$"),
     transcript_id = str_remove_all(transcript_id, "\\..+$"),
@@ -119,12 +107,6 @@ all_gtf <- gtf %>%
   subset(seqnames %in% seqlevels(sq)) %>%
   splitAsList(f = .$type)
 cat("GTF imported successfully...\n")
-
-if (all(map_int(all_gtf, length) == 0))
-  stop(
-    "No valid ranges found in the provided GTF.\nPlease check for compatible ",
-    "chromosome identifiers"
-    )
 seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
 
@@ -142,20 +124,6 @@ trans_models <- all_gtf$exon %>%
   )
 write_rds(trans_models, all_output$trans_models, compress = "gz")
 cat("trans_models.rds written successfully...\n")
-
-#### Optional RNA-Seq ####
-# rna_path <- here::here(config$external$rnaseq)
-# rnaseq <- tibble(gene_id = character())
-# if (length(rna_path) > 0) {
-#   stopifnot(file.exists(rna_path))
-#   if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
-#   if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
-#   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-#   cat("RNA-Seq imported. detected will be an informative column...\n")
-# }
-# tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
-# rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
-# rna_col <- c(tx_col, "gene_id")[[1]]
 
 #### TSS ####
 tss <- all_gtf$transcript %>%

@@ -111,6 +111,9 @@ rule compile_macs2_summary_html:
 		renv = temp(
 			os.path.join("output", "envs", "{target}_macs2_summary.RData")
 		),
+		great = os.path.join(
+			macs2_path, "{target}", "{target}_great_results.tsv.gz"
+		)
 	conda: "../envs/rmarkdown.yml"
 	threads: 6
 	resources:
