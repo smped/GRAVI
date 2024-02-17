@@ -163,7 +163,7 @@ ALL_RDS = expand(
 	os.path.join(annotation_path, "{file}.rds"),
 	file = [
 		'colours', 'gene_regions', 'seqinfo', 'trans_models','tss', 'gtf_gene',
-		'gtf_transcript', 'gtf_exon', 'blacklist'
+		'gtf_transcript', 'gtf_exon', 'blacklist', 'features'
 	]
 )
 ALL_OUTPUTS.extend(ALL_RDS)
@@ -230,37 +230,38 @@ ALL_OUTPUTS.extend(CONS_PEAKS)
 ###########################
 ## Peak Files from macs2 ##
 ###########################
-# INDIV_PEAKS = expand(
-# 	os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
-# 	sample = samples
-# )
-# ALL_OUTPUTS.extend(INDIV_PEAKS)
-# df['merged_pre'] = df[['target', 'treat']].agg('_'.join, axis = 1)
-# merged_pre = set(df[['target', 'merged_pre']].agg('/'.join, axis = 1))
-# MERGED_PEAKS = expand(
-# 	os.path.join(macs2_path, "{pre}_merged_peaks.narrowPeak"),
-# 	pre = merged_pre
-# )
-# ALL_OUTPUTS.extend(MERGED_PEAKS)
+INDIV_PEAKS = expand(
+	os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
+	sample = samples
+)
+ALL_OUTPUTS.extend(INDIV_PEAKS)
+df['merged_pre'] = df[['target', 'treat']].agg('_'.join, axis = 1)
+merged_pre = set(df[['target', 'merged_pre']].agg('/'.join, axis = 1))
+MERGED_PEAKS = expand(
+	os.path.join(macs2_path, "{pre}_merged_peaks.narrowPeak"),
+	pre = merged_pre
+)
+ALL_OUTPUTS.extend(MERGED_PEAKS)
 
 
 ##################
 ## BigWig Files ##
 ##################
-INDIV_BW = expand(
-	os.path.join(macs2_path, "{sample}", "{sample}_treat_pileup.bw"),
-	sample = samples
+# These aren't used anywhere in the workflow...
+# INDIV_BW = expand(
+# 	os.path.join(macs2_path, "{sample}", "{sample}_treat_pileup.bw"),
+# 	sample = samples
+# )
+# ALL_OUTPUTS.extend(INDIV_BW)
+MERGED_BW = expand(
+	os.path.join(macs2_path, "{path}_merged_treat_pileup.bw"),
+	path = merged_pre
 )
-ALL_OUTPUTS.extend(INDIV_BW)
-# MERGED_BW = expand(
-# 	os.path.join(macs2_path, "{path}_merged_treat_pileup.bw"),
-# 	path = merged_pre
-# )
-# ALL_OUTPUTS.extend(MERGED_BW)
-# FE_BW = expand(
-# 	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
-# )
-# ALL_OUTPUTS.extend(FE_BW)
+ALL_OUTPUTS.extend(MERGED_BW)
+FE_BW = expand(
+	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
+)
+ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
     input:

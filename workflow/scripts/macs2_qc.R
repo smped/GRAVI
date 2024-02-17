@@ -35,20 +35,10 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
 }
 
 log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
+cat("Setting stdout to ", log, "\n")
 sink(log)
 
-library(tidyverse)
-library(yaml)
-library(glue)
-library(ngsReports)
-library(GenomicRanges)
-library(extraChIPs)
-library(rtracklayer)
-library(Rsamtools)
-library(parallel)
-library(csaw)
-library(plyranges)
+cat("Starting at", format(Sys.time(), "%H:%M:%S %d %b %Y"), "\n")
 
 target <- slot(snakemake, "wildcards")[["target"]]
 threads <- slot(snakemake, "threads")
@@ -74,7 +64,22 @@ outlier_thresh <- as.numeric(all_params$outlier_threshold)
 ## Might need to wrangle a logical value here
 allow_zero <- all_params[["allow_zero"]]
 
-cat("Defining samples...\n")
+cat("Loading packages...")
+library(tidyverse)
+library(yaml)
+library(glue)
+library(ngsReports)
+library(GenomicRanges)
+library(extraChIPs)
+library(rtracklayer)
+library(Rsamtools)
+library(parallel)
+library(csaw)
+library(plyranges)
+cat("done\n")
+
+
+cat("Defining samples...")
 config <- slot(snakemake, "config")
 samples <- here::here(config$samples$file) %>%
   read_tsv() %>%
@@ -100,6 +105,7 @@ if (length(rep_col) > 0) {
     mutate(label = paste(treat, seq_along(treat), sep = "_"), .by = treat)
 }
 samples$treat <- factor(samples$treat, levels = treat_levels)
+cat("done\n")
 
 ########
 ## QC ##

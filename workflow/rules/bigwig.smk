@@ -34,7 +34,7 @@ rule bedgraph_to_bigwig:
     conda: "../envs/bedgraph_to_bigwig.yml"
     log: os.path.join(log_path, "bedgraph_to_bigwig", "{path}", "{f}.log")
     # This gives ~1 thread per 500Mb & should track with mem_mb resources
-    threads: lambda wildcards, input: max(int(input.size//500000000), 1)
+    threads: 8
     resources:
         runtime = "2h",
         mem_mb = lambda wildcards, input, attempt: (input.size//1000000) * attempt * 8,

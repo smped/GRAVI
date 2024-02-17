@@ -401,7 +401,7 @@ df %>%
 # External Features
 
 ```{r external-features}
-external_features <- file.path(annotation.path, "features.rds") %>% 
+external_features <- file.path(annotation_path, "features.rds") %>% 
   read_rds()
 has_features <- length(external_features) > 0
 ```
@@ -422,7 +422,7 @@ colours$features <- feat_col
 
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = FALSE, echo = FALSE, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions.*")}
+```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions.*")}
 external_features %>% 
   unlist() %>% 
   as_tibble() %>% 
@@ -451,10 +451,12 @@ cp <- em(
 )
 tbl <- external_features %>% 
   unlist() %>% 
+  mutate(w = width) %>%
   as_tibble() %>% 
+  dplyr::rename(width = w) %>%
   group_by(feature) %>% 
   summarise(
-    N = n(),
+    N = dplyr::n(),
     Width = sum(width/1e3),
     med = median(width/1e3),
     range = glue("[{round(min(width/1e3), 1)}, {round(max(width/1e3), 1)}]")

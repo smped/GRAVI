@@ -85,7 +85,7 @@ bl <- config$external$blacklist %>%
   GenomicRanges::reduce() %>%
   sort()
 write_rds(bl, all_output$blacklist)
-cat("done")
+cat("done\n")
 
 #### chrom_sizes ####
 ## For bedGraphToBigWig
@@ -157,12 +157,6 @@ gene_regions <- defineRegions(
 
 cat("Exporting gene_regions...\n")
 write_rds(gene_regions, all_output$regions, compress = "gz")
-all_exist <- map_lgl(all_output, file.exists)
-if (!all(all_exist)) {
-  nm <- names(all_exist)[!all_exist]
-  stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"))
-}
-cat("Data export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
 
 ### Features ###
 feat <- GRangesList()
@@ -175,13 +169,27 @@ if (!is.null(config$external$features)) {
   feat <- unlist(GRangesList(feat))
   seqlevels(feat) <- seqlevels(sq)
   seqinfo(feat) <- sq
+  cat("Finding overlap with gene regions...")
+  ol <- lapply(gene_regions, \(x) propOverlap(feat, x))
+  mcols(feat) <- cbind(mcols(feat), DataFrame(ol))
+  cat("done\n")
   feat <- splitAsList(feat, feat$feature)
   cat("Features have split into a GRangesList of length", length(feat), "\n")
-  cat("Features provided appear to be:", paste0("\n\t", names(feat)))
-  cat("Writing to", all_output$features)
+  cat("Features provided appear to be:", paste0("\n\t", names(feat)), "\n")
+  cat("Writing to", all_output$features, "...")
 } else {
-  cat("No features provided. Writing an empty object to", all_output$features)
+  cat(
+    "No features provided. Writing an empty object to", 
+    all_output$features, "..."
+  )
 }
 write_rds(feat, all_output$features)
-cat("Done")
+cat("done\n")
 
+## Now exit confirming everything
+all_exist <- map_lgl(all_output, file.exists)
+if (!all(all_exist)) {
+  nm <- names(all_exist)[!all_exist]
+  stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"), )
+}
+cat("Data export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))

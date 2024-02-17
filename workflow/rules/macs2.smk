@@ -91,7 +91,7 @@ rule macs2_qc:
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
-        mem_mb = 8192
+        mem_mb = 16384,
     log: os.path.join(log_path, "macs2_qc", "{target}_macs2_qc.log")
     script:
         "../scripts/macs2_qc.R"
