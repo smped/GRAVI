@@ -1199,7 +1199,7 @@ great_df <- getEnrichmentTable(great_res) %>%
       gene_id, 
       \(x) {
         ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        id2gene[unique(ids)]
+        unname(id2gene[unique(ids)])
       }
     ),
     across(
@@ -1215,6 +1215,7 @@ n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
 ```{r tbl-great-res, eval = n_great > 0, echo = n_great > 0}
 tbl <- great_df %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+  dplyr::slice(seq_len(100)) %>%
   dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
   dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
   reactable(
@@ -1260,7 +1261,9 @@ cp <- htmltools::em(
     "
     Enrichment results for regions showing consistently detecable signal for 
     {target} as considered significant when using rGREAT. Backround regions to
-    determine relative enrichment were taken as the entire genome.
+    determine relative enrichment were taken as the entire genome. In the case
+    of large numbers of significant gene-sets, results are limited to the 100 
+    most highly ranked.
     "
   )
 )
