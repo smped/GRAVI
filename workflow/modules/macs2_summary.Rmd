@@ -1099,11 +1099,7 @@ htmltools::tagList(
             paste0("-topranked"),
           class = "section level3",
           htmltools::h3(
-            ifelse(
-              nm == "union",
-              "Union Peaks",
-              paste("Treatment Peaks:", nm)
-            )
+            paste("Top Ranked", nm, "Peak")
           ),
           htmltools::div(
             class = "figure", style = "text-align: center",
