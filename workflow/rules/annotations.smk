@@ -6,6 +6,7 @@ rule create_annotations:
     output:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         exons = os.path.join(annotation_path, "gtf_exon.rds"),
+        features = os.path.join(annotation_path, "features.rds"),
         genes = os.path.join(annotation_path, "gtf_gene.rds"),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         sq = os.path.join(annotation_path, "seqinfo.rds"),

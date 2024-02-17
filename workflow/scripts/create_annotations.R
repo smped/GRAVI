@@ -77,12 +77,12 @@ cat("Seqinfo exported...\n")
 ### Blacklist ###
 ## Set all provided files into a single GRanges & export
 cat("Forming unified blacklist from all files...")
-bl <- config$external$blacklist %>% 
-  unlist() %>% 
-  here::here() %>% 
-  importPeaks(type = "bed", seqinfo = sq) %>% 
+bl <- config$external$blacklist %>%
   unlist() %>%
-  GenomicRanges::reduce() %>% 
+  here::here() %>%
+  importPeaks(type = "bed", seqinfo = sq) %>%
+  unlist() %>%
+  GenomicRanges::reduce() %>%
   sort()
 write_rds(bl, all_output$blacklist)
 cat("done")
@@ -163,4 +163,25 @@ if (!all(all_exist)) {
   stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"))
 }
 cat("Data export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
+
+### Features ###
+feat <- GRangesList()
+seqinfo(feat) <- sq
+if (!is.null(config$external$features)) {
+  fl <- unlist(config$external$features)
+  cat("Parsing features from", fl, "\n")
+  feat <- lapply(fl, import.gff, which = GRanges(sq))
+  feat <- lapply(feat, select, feature)
+  feat <- unlist(GRangesList(feat))
+  seqlevels(feat) <- seqlevels(sq)
+  seqinfo(feat) <- sq
+  feat <- splitAsList(feat, feat$feature)
+  cat("Features have split into a GRangesList of length", length(feat), "\n")
+  cat("Features provided appear to be:", paste0("\n\t", names(feat)))
+  cat("Writing to", all_output$features)
+} else {
+  cat("No features provided. Writing an empty object to", all_output$features)
+}
+write_rds(feat, all_output$features)
+cat("Done")
 

@@ -92,7 +92,7 @@ make_tbl_graph <- function(
     set_colnames(c("from", "to")) %>%
     as_tibble() %>%
     mutate(d = unlist(d), oc = 1 - d) %>%
-    dplyr::filter(d <= max_network_dist)
+    dplyr::filter(d <= min_dist)
   ## Subsume any with d == 0 into the more highly ranked
   ## This needs to happen sequentially
   omit <- c()
@@ -167,4 +167,15 @@ goseq_hyper <- function (pwf, gene2cat = NULL, cores = threads) {
   df <- arrange(df, pval)
   dplyr::select(df, gs_name, pval, everything())
 
+}
+#' Convert any supplied references to the UCSC format needed by rGREAT
+map_great_refs <- function(x = NULL){
+  map <- c(
+    hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
+    mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
+    rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
+    canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
+  )
+  x <- match.arg(tolower(x), names(map))
+  map[[x]]
 }

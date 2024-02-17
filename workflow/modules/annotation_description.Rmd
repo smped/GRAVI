@@ -401,31 +401,14 @@ df %>%
 # External Features
 
 ```{r external-features}
-feat_path <- here::here(config$external$features)
-external_features <- list(features = c())
-has_features <- FALSE
-if (length(feat_path) > 0) {
-  stopifnot(file.exists(feat_path))
-  external_features <- suppressWarnings(
-    import.gff(feat_path, genome = sq)
-  )
-  mcols(external_features) <- cbind(
-    mcols(external_features),
-    gene_regions %>% 
-      lapply(function(x) propOverlap(external_features, x)) %>% 
-      as("DataFrame")
-  )
-  keep_cols <- !vapply(
-    mcols(external_features), function(x) all(is.na(x)), logical(1)
-  )
-  mcols(external_features) <- mcols(external_features)[keep_cols]
-  has_features <- TRUE
-}
+external_features <- file.path(annotation.path, "features.rds") %>% 
+  read_rds()
+has_features <- length(external_features) > 0
 ```
 
 ```{r feat-col, eval = has_features, echo = has_features}
 feat_col <- colours$features
-feat_levels <- unique(external_features$feature)
+feat_levels <- names(external_features)
 missing_feat_col <- setdiff(feat_levels, names(feat_col))
 if (length(missing_feat_col) > 0) {
   if (!"no_feature" %in% feat_levels)
@@ -439,8 +422,9 @@ colours$features <- feat_col
 
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions.*")}
+```{r plot-feature-by-region, fig.height = 7, eval = FALSE, echo = FALSE, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions.*")}
 external_features %>% 
+  unlist() %>% 
   as_tibble() %>% 
   dplyr::select(range, feature, all_of(names(gene_regions))) %>% 
   pivot_longer(
@@ -466,6 +450,8 @@ cp <- em(
     )
 )
 tbl <- external_features %>% 
+  unlist() %>% 
+  as_tibble() %>% 
   group_by(feature) %>% 
   summarise(
     N = n(),
@@ -473,7 +459,6 @@ tbl <- external_features %>%
     med = median(width/1e3),
     range = glue("[{round(min(width/1e3), 1)}, {round(max(width/1e3), 1)}]")
   ) %>% 
-  as_tibble() %>% 
   mutate(
     guide = unlist(feat_col)[feature],
     feature = factor(feature, levels = names(feat_col)) %>%

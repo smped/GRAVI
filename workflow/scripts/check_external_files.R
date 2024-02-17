@@ -103,14 +103,14 @@ if (!is.null(all_external$rnaseq)) {
   cat("Checking RNA-Seq data...")
   stopifnot(length(all_external$rnaseq) == 1)
   stopifnot(file.exists(all_external$rnaseq))
-  if (str_detect(all_external$rnaseq, "tsv$")) 
+  if (str_detect(all_external$rnaseq, "tsv$"))
     rnaseq <- read_tsv(all_external$rnaseq)
-  if (str_detect(all_external$rnaseq, "csv$")) 
+  if (str_detect(all_external$rnaseq, "csv$"))
     rnaseq <- read_csv(all_external$rnaseq)
   if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
   cat("RNA-Seq imported and contains gene_ids...\n")
   shared_ids <- intersect(rnaseq$gene_id, gtf$gene_id)
-  if (length(shared_ids) == 0) 
+  if (length(shared_ids) == 0)
     stop("RNA-Seq gene ids do not mach those in the GTF")
   cat("done\n")
 } else {
@@ -128,11 +128,15 @@ if (!is.null(all_external$features)) {
   feat_gtf <- lapply(
     all_external$features, import.gff, which = GRanges(sq)[1:5]
   )
+  has_feat_col <- map_lgl(feat_gtf, \(x) "feature" %in% colnames(mcols(x)))
+  if (any(!has_feat_col))
+    stop("The required column 'feature' is missing from ", all_external$features[!has_feat_col])
+
   ## But to make sure
   empty_gtf <- map_lgl(feat_gtf, \(x) length(x) == 0)
   if (any(empty_gtf))
     stop(
-      "No features were found in\n\t", 
+      "No features were found in\n\t",
       paste(all_external$features[empty_gtf], "\n\t")
     )
     cat("done\n")

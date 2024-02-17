@@ -1,0 +1,371 @@
+---
+title: "Comparison of Targets"
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+---
+
+```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
+```
+
+
+```{r}
+library(tidyverse)
+library(yaml)
+library(glue)
+library(metap)
+library(extraChIPs)
+library(rGREAT)
+library(msigdbr)
+library(plyranges)
+library(reactable)
+library(htmltools)
+library(magrittr)
+library(tidygraph)
+library(ggraph)
+theme_set(
+  theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5))
+)
+source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/table_funs.R"))
+```
+
+```{r}
+config <- here::here("config", "config.yml") %>% read_yaml()
+enrich_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("enrichment")
+region_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("gene_regions")
+network_parans <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("networks")
+targets <- here::here(config$samples) %>% 
+  read_tsv() %>% 
+  pull("target") %>% 
+  unique()
+targets <- c("AR", "ER", "H3K27ac") # Temp fix
+macs2_path <- here::here("output", "macs2")
+samples <- file.path(macs2_path, targets, glue("{targets}_qc_samples.tsv")) %>% 
+  lapply(read_tsv) %>% 
+  bind_rows() %>% 
+  dplyr::filter(qc == "pass") %>% 
+  dplyr::select(-all_of("qc")) 
+targets <- unique(samples$target)
+n_targets <- length(targets)
+```
+
+```{r}
+annotation_path <- here::here("output", "annotations")
+sq <- file.path(annotation_path, "seqinfo.rds") %>% 
+  read_rds()
+gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
+id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
+gene_regions <- read_rds(here::here(annotation_path, "gene_regions.rds"))
+```
+
+
+# Introduction
+
+After performing individual analyses on the provided targets, this analysis performs a comparison of the regions with detected signal across all targets.
+Comparisons were performed in a treatment-agnostic manner, using the sets of consensus peaks defined across all conditions, making this approach an analysis of the larger universe of regulation and pathways present within the cell type of interest,
+
+# GREAT Meta-Analysis
+
+RUBBISH...
+
+```{r}
+great_list <- file.path(macs2_path, targets, glue("{targets}_great_results.tsv.gz")) %>% 
+  lapply(read_tsv) %>% 
+  setNames(targets)
+great_list %>% 
+  bind_rows(.id = "target") %>% 
+  dplyr::filter(!is.na(p_value_hyper)) %>% 
+  mutate(p_value_hyper = ifelse(p_value_hyper == 0, 2e-16, p_value_hyper)) %>% 
+  mutate(n = dplyr::n(), .by = all_of("id")) %>% 
+  dplyr::filter(n == n_targets) %>% 
+  arrange(desc(p_value_hyper)) %>% 
+  summarise(
+    all_hits = list(genes_with_hits),
+    all_ids = list(gene_id),
+    med_enrichment = median(fold_enrichment_hyper),
+    maxp = max(p_value_hyper),
+    meta_p = maximump(p_value_hyper)$p,
+    # meta_p = extraChIPs:::.ec_HMP(p_value_hyper, 1 / n),
+    # meta_p = wilkinsonp(p_value_hyper, n_targets - 1)$p,
+    .by = all_of(c("id"))
+  ) %>% 
+  mutate(
+    all_ids = lapply(
+      all_hits,
+      \(x) {
+        n <- length(x)
+        ids <- unlist(str_split(x, "; "))
+        unique(ids)
+      }
+    ),
+    all_hits = lapply(
+      all_hits,
+      \(x) {
+        n <- length(x)
+        ids <- unlist(str_split(x, "; "))
+        unique(ids[table(ids) == n])
+      }
+    ),
+    set_size = map_int(all_ids, length),
+    n_shared = map_int(all_hits, length)
+  ) %>% 
+  arrange(meta_p) %>% 
+  mutate(meta_p_adjust = p.adjust(meta_p, enrich_params$adj)) %>% 
+  dplyr::filter(meta_p_adjust < enrich_params$alpha) %>% 
+  print(n = 60)
+```
+
+# Peak Comparisons
+
+```{r}
+peaks <- here::here(macs2_path, targets, glue("{targets}_consensus_peaks.bed.gz")) %>% 
+  importPeaks(seqinfo = sq, type = "bed") %>% 
+  setNames(str_remove(names(.), "_consensus.+"))
+```
+
+```{r}
+plotOverlaps(peaks, type = "upset")
+```
+
+```{r}
+all_target_peaks <- peaks %>% 
+  makeConsensus(p = 1 - 1 / n_targets, method = "coverage") %>% 
+  filter(n == 3)
+```
+
+```{r}
+map_great_refs <- function(x = NULL){
+  map <- c(
+    hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
+    mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
+    rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
+    canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
+  )
+  x <- match.arg(tolower(x), names(map))
+  map[[x]]
+}
+ucsc_ref <- map_great_refs(config$genome$build)
+sp <- c(
+  hg19 = "Homo sapiens", hg38 = "Homo sapiens", mm10 = "Mus musculus",
+  mm39 = "Mus musculus", rn7 = "Rattus norvegicus", susScr11 = "Sus scrofa",
+  canFam5 = "Canis lupus familiaris", dm6 = "Drosophila melanogaster",
+  galGal6 = "Gallus gallus", panTro6 = "Pan troglodytes"
+)[[ucsc_ref]]
+msigdb <- msigdbr(sp) %>% 
+  dplyr::filter(
+    gs_cat %in% enrich_params$msigdb$gs_cat |
+      gs_subcat %in% enrich_params$msigdb$gs_subcat,
+    ensembl_gene %in% ext_tss$gene_id
+  )
+gs_list <- msigdb %>% 
+  split(.$gs_name) %>% 
+  lapply(pull, ensembl_gene) %>% 
+  .[map_int(., length) <= enrich_params$max_size] %>% 
+  .[map_int(., length) >= enrich_params$min_size] 
+ext_tss <- gtf_gene %>% 
+  select(gene_id) %>% 
+  extendTSS(
+    genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
+    basal_upstream = region_params$promoters$upstream,
+    basal_downstream = region_params$promoters$downstream
+  )
+ext_tss_ol <- subsetByOverlaps(ext_tss, all_target_peaks)
+great_res <- great(
+    set_genome_info(all_target_peaks, genome = ucsc_ref), 
+  gene_sets = gs_list, extended_tss = ext_tss, 
+  min_gene_set_size = enrich_params$min_size, 
+  cores = threads
+)
+great_df <- getEnrichmentTable(great_res) %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
+  as_tibble() %>% 
+  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+  arrange(p_value_hyper) %>% 
+  mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, enrich_params$adj),
+    gene_id  = gs_list[id],
+    genes_with_hits = map_chr(
+      gene_id, 
+      \(x) {
+        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
+      }
+    )
+  )
+n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
+```
+
+
+```{r}
+tbl <- great_df %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+  dplyr::slice(seq_len(100)) %>%
+  dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
+  dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
+  reactable(
+    sortable = TRUE, filterable = TRUE,
+    columns = list(
+      id = colDef(
+        name = "Gene Set",
+        cell = \(value) str_replace_all(value, "_", " "),
+        minWidth = 180
+      ),
+      genome_fraction = colDef(show = FALSE),
+      observed_region_hits = colDef(show = FALSE),
+      fold_enrichment_hyper = colDef(
+        name = "Fold Enrichment", format = colFormat(digits = 3),
+        filterable = FALSE, minWidth = 110
+      ),
+      p_adjust_hyper = colDef(
+        name = glue("P<sub>adj</sub> ({enrich_params$adj})"),
+        html = TRUE, filterable = FALSE,
+        cell = \(value) sprint_pval(value),
+        maxWidth = 110
+      ),
+      mean_tss_dist = colDef(
+        "Mean TSS Distance (kb)", 
+        cell = \(value) round(value / 1e3, 2),
+        filterable = FALSE
+      ),
+      observed_gene_hits = colDef(
+        "Gene Hits", maxWidth = 100, filterable = FALSE
+      ),
+      gene_set_size = colDef(
+        "Gene Set Size", maxWidth = 100, filterable = FALSE
+      ),
+      genes_with_hits = colDef(
+        name = "Genes",
+        cell = \(value) with_tooltip(value, width = 60),
+        minWidth = 200
+      )
+    )
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    Enrichment results for regions showing consistently detecable signal for 
+    {target} as considered significant when using rGREAT. Backround regions to
+    determine relative enrichment were taken as the entire genome. In the case
+    of large numbers of significant gene-sets, results are limited to the 100 
+    most highly ranked.
+    "
+  )
+)
+div(class = "table",
+    div(class = "table-header",
+        div(class = "caption", cp), tbl
+    )
+)
+```
+
+```{r}
+top_id <- great_df$id[1]
+plotRegionGeneAssociations(great_res, top_id, which = 2:3)
+```
+
+```{r}
+tg_great <- great_df %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
+  make_tbl_graph(
+    gs = great_df[["gene_id"]], 
+    alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = network_parans$max_distance, max_gs = network_parans$max_size
+  )
+if (length(tg_great) >= network_parans$min_size) {
+  tg_great %>% 
+    mutate(
+      ## The lowest p-value obtainable from pbinom is 1e-16
+      p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
+      prop = observed_gene_hits / gene_set_size 
+    ) %>% 
+    ggraph(layout = network_parans$layout, weights = oc) +
+    geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+    geom_node_point(
+      aes(
+        fill = -log10(p_value_hyper), size = observed_gene_hits, stroke = 1.5 * prop
+      ),
+      shape = 21
+    ) +
+    geom_node_text(
+      aes(label = label, alpha = prop),
+      colour = "black", size = 3, 
+      data = . %>%
+        mutate(
+          label = str_replace_all(label, "_", " ") %>% 
+            str_trunc(60) %>% 
+            str_wrap(width = 18)
+        ),
+      repel = TRUE, max.overlaps = max(10, round(length(tg_great) / 4, 0)),
+      bg.color = "white", bg.r = 0.1, 
+    ) +
+    scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+    scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+    scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+    scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+    scale_size_continuous(range = c(1, 10)) +
+    scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+    scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+    guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+    labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+    theme_void() 
+}
+```
+
+# RegioneR
+
+```{r}
+ptest <- permTest(
+  A = peaks$ER,
+  B = gene_regions$promoter,
+  ntimes = 1000,
+  randomize.function = circularRandomizeRegions,
+  evaluate.function = numOverlaps, count.once = TRUE,
+  genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
+)
+summary(ptest)
+plot(ptest)
+
+
+ 
+```
+
+
+```{r}
+feat <- here::here("data", "external", "enhancer_atlas_2.0_zr75.gtf.gz") %>% 
+  import.gff(which = GRanges(sq))
+seqinfo(feat) <- sq
+all_reg <- gene_regions %>% 
+  endoapply(granges) %>% 
+  c(GRangesList(enhancers = granges(feat))) %>% 
+  lapply(
+    \(x) {
+      permTest(
+        A = peaks$ER, B = x, ntimes = 1000,
+        randomize.function = circularRandomizeRegions,
+        evaluate.function = numOverlaps, count.once = TRUE,
+        genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
+      )
+    }
+  )
+
+
+ptest <- permTest(
+  A = peaks$AR,
+  B = feat,
+  ntimes = 1000,
+  randomize.function = circularRandomizeRegions,
+  evaluate.function = numOverlaps, count.once = TRUE,
+  genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
+)
+summary(ptest)
+plot(ptest)
+meanDistance(peaks$AR, peaks$ER)
+```
+

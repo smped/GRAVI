@@ -105,6 +105,7 @@ rule compile_macs2_summary_html:
 		consensus_peaks = os.path.join(
 			macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
 		),
+		rds = rules.create_annotations.output,
 		rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
 		setup = rules.create_setup_chunk.output,
 		yaml = rules.create_site_yaml.output
