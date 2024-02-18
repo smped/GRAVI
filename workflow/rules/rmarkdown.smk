@@ -80,6 +80,7 @@ rule create_macs2_summary_rmd:
 		macs2_fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
 	conda: "../envs/rmarkdown.yml"
 	threads: 1
+	retries: 1
 	log: os.path.join(log_path, "macs2_summary", "create_{target}_macs2_summary.log")
 	resources:
 		mem_mb = 1024,

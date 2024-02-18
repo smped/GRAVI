@@ -51,6 +51,8 @@ library(extraChIPs)
 library(plyranges)
 library(readr)
 library(yaml)
+library(GenomicRanges)
+library(S4Vectors)
 cat("done\n")
 
 map_great_refs <- function(x = NULL){
@@ -65,18 +67,23 @@ map_great_refs <- function(x = NULL){
 }
 ucsc_ref <- map_great_refs(config$genome$build)
 
-cat("Loading all regions...")
+cat("Loading all regions...\n")
 regions <- read_rds(all_input$regions)
+cat("Loading all features...\n")
 features <- read_rds(all_input$features)
-test_regions <- c(regions, features) %>% endoapply(granges)
+cat("Forming test_regions...\n")
+test_regions <- c(regions, features)
+cat("test_regions is a", is(test_regions)[[1]])
+test_regions <- endoapply(test_regions, granges)
+cat("Setting genome to be", ucsc_ref)
 sq <- seqinfo(regions)
 genome(sq) <- ucsc_ref
 seqinfo(test_regions) <- sq
 cat(" done\n")
 
 cat("Loading peaks from", all_input$peaks)
-peaks <- importPeaks(all_input$peaks, seqinfo = sq) %>%
-  unlist()
+peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
+peaks <- unlist(peaks)
 cat(" done\n")
 
 cat("Loading enrichment params from", all_input$params)
@@ -91,7 +98,7 @@ mlz <- multiLocalZscore(
   ranFUN = "resampleGenome",
   evFUN = "numOverlaps",
   window = 5e3,
-  ntimes = 5000,
+  ntimes = 500,
   adj_pv_method = enrich_params$adj,
   max_pv = 1,
   genome = ucsc_ref,

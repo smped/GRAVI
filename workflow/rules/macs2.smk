@@ -92,6 +92,7 @@ rule macs2_qc:
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
         mem_mb = 16384,
+    retries: 1
     log: os.path.join(log_path, "macs2_qc", "{target}_macs2_qc.log")
     script:
         "../scripts/macs2_qc.R"

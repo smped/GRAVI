@@ -132,14 +132,6 @@ if (!is.null(all_external$features)) {
   if (any(!has_feat_col))
     stop("The required column 'feature' is missing from ", all_external$features[!has_feat_col])
 
-  region_cols <- c(
-    "promoter", "upstream_promoter", "intron", "exon", "proximal_intergenic",
-    "distal_intergenic", "gene_body", "intergenic"
-  )
-  not_permitted <- intersect(region_cols, colnames(mcols(feat_gtf)))
-  if (length(not_permitted) > 0)
-        stop("Disallowed feature names:", paste0("\n\t", not_permitted))
-
   ## But to make sure
   empty_gtf <- map_lgl(feat_gtf, \(x) length(x) == 0)
   if (any(empty_gtf))
@@ -148,6 +140,22 @@ if (!is.null(all_external$features)) {
       paste(all_external$features[empty_gtf], "\n\t")
     )
     cat("done\n")
+
+  ## Check the features don't match the regions
+  region_cols <- c(
+    "promoter", "upstream_promoter", "intron", "exon", "proximal_intergenic",
+    "distal_intergenic", "gene_body", "intergenic"
+  )
+  invalid_types <- map_lgl(feat_gtf, \(x) any(region_cols %in% x$feature))
+  if (any(invalid_types))
+        stop(
+          "Disallowed feature types in:", 
+          all_external$features[invalid_types], 
+          "\n. Cannot contain the same names as the gene-regions (",
+          paste(region_cols, collapse = "/"), ")"
+        )
+
+
 } else {
   cat("No features provided\n")
 }

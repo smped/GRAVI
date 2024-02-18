@@ -1,11 +1,13 @@
 rule check_r_packages:
+    input: "../envs/rmarkdown.yml"
     output: os.path.join("output", "checks", "r-packages.chk")
     threads: 1
     resources:
         runtime = "30m",
-        mem_mb = 4096,
+        mem_mb = 2048,
     log: os.path.join(log_path, "checks", "check_r_packages.log")
     conda: "../envs/rmarkdown.yml"
+    localrule: True
     script:
         "../scripts/check_r_packages.R"
         
