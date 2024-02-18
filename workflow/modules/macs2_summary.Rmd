@@ -34,6 +34,7 @@ library(ggraph)
 library(tidygraph)
 library(patchwork)
 library(msigdbr)
+library(regioneReloaded)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -46,16 +47,21 @@ source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 ```
 
-```{r config-paths}
+```{r config-params-paths}
 config <- read_yaml(here::here("config", "config.yml"))
 fdr_alpha <- config$comparisons$fdr
-extra_params <- read_yaml(here::here("config", "params.yml"))
 bam_path <- here::here(config$paths$bam)
 macs2_path <- here::here("output", "macs2")
 annotation_path <- here::here("output", "annotations")
-colours <- file.path(annotation_path, "colours.rds") %>% 
-  read_rds() %>% 
-  lapply(unlist)
+region_params <-  here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("gene_regions")
+enrich_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("enrichment")
+network_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("networks")
 ```
 
 ```{r read-samples}
@@ -82,6 +88,21 @@ stopifnot(nrow(samples) > 0)
 ip <- unique(samples$input)
 ```
 
+```{r set-colours}
+## Set the colour palettes
+colours <- file.path(annotation_path, "colours.rds") %>% 
+  read_rds() %>% 
+  lapply(unlist)
+colours$direction <- c(
+  colours$direction, 
+  c(up = colours$direction[["increased"]], down = colours$direction[["decreased"]])
+)
+full_palette <- colours %>% 
+  .[setdiff(names(.), "heatmaps")] %>% 
+  unname() %>% 
+  unlist()
+```
+
 
 ```{r annotations}
 ## Seqinfo
@@ -95,7 +116,17 @@ gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 ## External features
 external_features <- read_rds(file.path(annotation_path, "features.rds"))
-has_features <- length(external_features) == 0
+has_features <- length(external_features) > 0
+## Combine features & regions for testing
+all_regions <- c(gene_regions, external_features) %>% 
+  endoapply(granges)
+region_colours <- c(colours$regions, colours$features) %>%
+    setNames(
+      case_when(
+        names(.) %in% names(regions) ~ regions[names(.)],
+        TRUE ~ str_sep_to_title(names(.))
+      )
+    )
 # RNA-Seq
 rna_path <- here::here(config$external$rnaseq)
 rnaseq <- tibble(gene_id = character())
@@ -542,10 +573,8 @@ ranges_by_rep_treat <- individual_peaks %>%
   lapply(mutate, detected = 1) %>% 
   lapply(left_join, dplyr::select(samples, sample, label), by = "sample") %>%
   lapply(dplyr::select, -sample) %>% 
-  lapply(function(x) {
-    split(x, x$label) %>% 
-      lapply(pull, "range")
-  }
+  lapply(
+    function(x) split(x, x$label) %>% lapply(pull, "range")
   )
 ## First find the python executable
 which_py <- c(
@@ -731,7 +760,7 @@ htmltools::tagList(
 
 ### Individual Peak Widths
 
-```{r plot-peak-width, fig.cap = glue("*Range of peak widths across all samples. The median value for all peaks ({median(width(unlist(individual_peaks)))}bp) is shown as the dashed horizontal line*")}
+```{r plot-peak-width, fig.cap = glue("*Range of peak widths across all samples. The median value for all peaks ({median(width(unlist(individual_peaks)))}bp) is shown as the dashed horizontal line. The y-axis is log-transformed.*")}
 individual_peaks %>% 
   width() %>% 
   as.list() %>% 
@@ -837,7 +866,7 @@ b <- consensus_peaks %>%
   ggplot(aes(abs(d) / 1e3, q)) +
   geom_line() +
   geom_vline(
-    xintercept = max(unlist(extra_params$gene_regions$promoters)) / 1e3, 
+    xintercept = max(unlist(region_params$promoters)) / 1e3, 
     linetype = 2, colour = "grey40"
   ) +
   coord_cartesian(xlim = c(0, 100)) +
@@ -861,9 +890,7 @@ consensus_peaks %>%
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
     cat_alpha = 0.9, cat_adj = 0.05, min_p = 0.025
   ) +
-  scale_fill_manual(
-    values = colours$regions %>% setNames(regions[names(.)])
-  ) +
+  scale_fill_manual(values = region_colours) +
   theme(legend.position = "none")
 ```
 
@@ -876,9 +903,7 @@ consensus_peaks %>%
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
     cat_alpha = 0.9, cat_adj = 0.05
   ) +
-  scale_fill_manual(
-    values = colours$features %>% setNames(str_sep_to_title(names(.)))
-  ) +
+  scale_fill_manual(values = region_colours) +
   theme(legend.position = "none")
 ```
 
@@ -888,8 +913,8 @@ consensus_peaks %>%
 consensus_peaks %>% 
   plotSplitDonut(
     inner = "Feature", outer = "region",
-    inner_palette = colours$features %>% setNames(str_to_title(names(.))),
-    outer_palette = colours$regions %>% setNames(regions[names(.)]),
+    inner_palette = region_colours,
+    outer_palette = region_colours,
     inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
     outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
     min_p = 0.03, outer_alpha = 0.8
@@ -1117,18 +1142,12 @@ For this specific anaysis, the background ranges were set to be the whole genome
 
 
 ```{r setup-great}
-## Set parameters for enabling networks
-min_network_size <- extra_params$networks$min_size
-if (is.null(min_network_size) | is.na(min_network_size))
-  min_network_size <- 2
-max_network_size <- extra_params$networks$max_size
-if (is.null(max_network_size) | is.na(max_network_size))
-  max_network_size <- Inf
-max_network_dist <- extra_params$networks$max_distance
-if (is.null(max_network_dist) | is.na(max_network_dist))
-  max_network_dist <- 1
-net_layout <- extra_params$networks$layout
-enrich_params <- extra_params$enrichment
+## Set parameters for enabling networks, handling possible NULLs
+min_network_size <- c(network_params$min_size, 2)[[1]]
+max_network_size <- c(network_params$max_size, Inf)[[1]]
+max_network_dist <- c(network_params$max_distance, 1)[[1]]
+net_layout <- c(network_params$layout, "fr")[[1]]
+## The parameters for enrichment
 adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
 ucsc_ref <- map_great_refs(config$genome$build)
 sp <- c(
@@ -1141,8 +1160,8 @@ ext_tss <- gtf_gene %>%
   select(gene_id) %>% 
   extendTSS(
     genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
-    basal_upstream = extra_params$gene_regions$promoters$upstream,
-    basal_downstream = extra_params$gene_regions$promoters$downstream
+    basal_upstream = region_params$promoters$upstream,
+    basal_downstream = region_params$promoters$downstream
   )
 ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
 msigdb <- msigdbr(sp) %>% 
@@ -1166,16 +1185,17 @@ The `r length(gs_list)` pathways tested were `r pander(unname(unlist(enrich_para
 Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r enrich_params$adj`) below `r enrich_params$alpha`, using the `rGREAT` results from the *hyper-geometric test*, instead of the *binomial test*.
 
 ```{r run-great}
-great_res <- great(
-    set_genome_info(consensus_peaks, genome = ucsc_ref), 
-  gene_sets = gs_list, extended_tss = ext_tss, 
-  min_gene_set_size = enrich_params$min_size, 
-  cores = threads
-)
+great_res <- consensus_peaks %>% 
+  set_genome_info(genome = ucsc_ref) %>% 
+  great(
+    gene_sets = gs_list, extended_tss = ext_tss, 
+    min_gene_set_size = enrich_params$min_size, 
+    cores = threads
+  )
 great_df <- getEnrichmentTable(great_res) %>% 
   dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
   as_tibble() %>% 
-  arrange(p_value_hyper) %>% 
+  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
   dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
   mutate(
     p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
@@ -1244,7 +1264,8 @@ cp <- htmltools::em(
     {target} as considered significant when using rGREAT. Backround regions to
     determine relative enrichment were taken as the entire genome. In the case
     of large numbers of significant gene-sets, results are limited to the 100 
-    most highly ranked.
+    most highly ranked. For gene-sets where rGREAT has returned a p-value of 
+    zero, the value <2e-16 is printed.
     "
   )
 )
@@ -1310,7 +1331,105 @@ top_id <- great_df$id[1]
 plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 ```
 
+## Region Analysis
 
+```{r}
+## This should be run in a separate script with many threads & lots of RAM
+mlz <- here::here(macs2_path, target, glue("{target}_regions_localz.rds")) %>% 
+  read_rds()
+```
+
+
+In addition to enrichment of pathways, the consesus peaks were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
+The package `regioneReloaded` [Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected relationship between a random region-set and the regions of interest.
+The observed relationship is then assessed to the expected relationship to return normalised Z-scores and p-values as a measure of an above (or below) expected relationship.
+The Z-score distributions are obtained by shifting the peaks using permutations, whilst holding the position of the regions-of-interest steady, and represent the relationship between observed overlaps and expected overlaps from permutations.
+
+The primary question assessed in this manner is the relationship between the set of consensus peaks, and the pre-defined gene-regions`r ifelse(has_features, ", along with any provided external features.", ".")`.
+By using a permutation-based strategy, regions of varying width, or covering varying proportions of the genome, are able to be analysed in an appropriate manner.
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+df <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
+  as_tibble() %>% 
+  mutate(
+    shift = slot(mlz, "multiLocalZscores")$shifts
+  ) %>% 
+  pivot_longer(
+    cols = all_of(names(all_regions)), names_to = "region", values_to = "Z"
+  ) %>% 
+  mutate(
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ str_sep_to_title(region)
+    ) %>% 
+      factor(names(region_colours)),
+    Z = Z / sqrt(length(consensus_peaks))
+  ) 
+heat_col <- c(
+  rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
+  RColorBrewer::brewer.pal(9, "YlOrRd")
+)
+df %>% 
+  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  geom_raster() +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(df$Z))
+  )
+```
+
+```{r}
+# setup a results table
+tbl <- slot(mlz, "multiLocalZscores")$resumeTab %>% 
+  as_tibble() %>% 
+  dplyr::rename(region = name) %>% 
+  mutate(
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ str_sep_to_title(region)
+    ) %>% 
+      factor(names(region_colours)),
+    prop = n_overlaps / length(consensus_peaks)
+  ) %>% 
+  dplyr::select(region, n_overlaps, prop, norm_zscore, adj.p_value) %>% 
+  arrange(desc(abs(norm_zscore))) %>% 
+  reactable(
+    columns = list(
+      region = colDef("Region"),
+      n_overlaps = colDef("Overlapping Peaks", format = comma_col),
+      prop = colDef("% Total Peaks", format = percent_col),
+      norm_zscore = colDef(
+        "Z<sub>norm</sub>", format = colFormat(digits = 3), html = TRUE
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{adj_method}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value)
+      )
+    )
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    Results for association between the {comma(length(consensus_peaks))} 
+    {target} consensus peaks and the pre-defined 
+    genomic regions{ifelse(has_features, 'and the supplied external features.', '.')}
+    "
+  )
+)
+div(class = "table",
+    div(class = "table-header",
+        div(class = "caption", cp), tbl
+    )
+)
+```
+
+
+
+## Data Export
 
 ```{r export, results='hide', echo=FALSE}
 all_out <- list(

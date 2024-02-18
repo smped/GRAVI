@@ -132,6 +132,14 @@ if (!is.null(all_external$features)) {
   if (any(!has_feat_col))
     stop("The required column 'feature' is missing from ", all_external$features[!has_feat_col])
 
+  region_cols <- c(
+    "promoter", "upstream_promoter", "intron", "exon", "proximal_intergenic",
+    "distal_intergenic", "gene_body", "intergenic"
+  )
+  not_permitted <- intersect(region_cols, colnames(mcols(feat_gtf)))
+  if (length(not_permitted) > 0)
+        stop("Disallowed feature names:", paste0("\n\t", not_permitted))
+
   ## But to make sure
   empty_gtf <- map_lgl(feat_gtf, \(x) length(x) == 0)
   if (any(empty_gtf))

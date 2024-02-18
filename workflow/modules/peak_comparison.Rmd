@@ -21,6 +21,8 @@ library(htmltools)
 library(magrittr)
 library(tidygraph)
 library(ggraph)
+library(regioneR)
+library(scales)
 theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
@@ -62,7 +64,20 @@ sq <- file.path(annotation_path, "seqinfo.rds") %>%
 gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
 id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
 gene_regions <- read_rds(here::here(annotation_path, "gene_regions.rds"))
+external_features <- read_rds("output/annotations/features.rds")
+all_feat <- c(gene_regions, external_features) %>% 
+  endoapply(granges)
+all_feat_labs <- c(
+  map_chr(gene_regions, \(x) x$region[[1]]),
+  map_chr(external_features, \(x) str_sep_to_title(x$feature[[1]]))
+)
 ```
+
+```{r}
+colours <- file.path(annotation_path, "colours.rds") %>% 
+  read_rds()
+```
+
 
 
 # Introduction
@@ -134,22 +149,13 @@ plotOverlaps(peaks, type = "upset")
 ```
 
 ```{r}
+## NB: for n = 2, this will be the union peaks
 all_target_peaks <- peaks %>% 
   makeConsensus(p = 1 - 1 / n_targets, method = "coverage") %>% 
   filter(n == 3)
 ```
 
 ```{r}
-map_great_refs <- function(x = NULL){
-  map <- c(
-    hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
-    mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
-    rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
-    canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
-  )
-  x <- match.arg(tolower(x), names(map))
-  map[[x]]
-}
 ucsc_ref <- map_great_refs(config$genome$build)
 sp <- c(
   hg19 = "Homo sapiens", hg38 = "Homo sapiens", mm10 = "Mus musculus",
@@ -338,34 +344,387 @@ plot(ptest)
 
 
 ```{r}
-feat <- here::here("data", "external", "enhancer_atlas_2.0_zr75.gtf.gz") %>% 
-  import.gff(which = GRanges(sq))
-seqinfo(feat) <- sq
-all_reg <- gene_regions %>% 
+regions <- map_chr(gene_regions, \(x) x$region[[1]])
+all_feat <- c(gene_regions, external_features)
+all_reg <-  all_feat %>% 
   endoapply(granges) %>% 
-  c(GRangesList(enhancers = granges(feat))) %>% 
   lapply(
     \(x) {
       permTest(
-        A = peaks$ER, B = x, ntimes = 1000,
+        A = all_target_peaks, B = x, ntimes = 1000,
         randomize.function = circularRandomizeRegions,
         evaluate.function = numOverlaps, count.once = TRUE,
         genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
       )
     }
   )
+all_reg %>% 
+  lapply(pluck, "numOverlaps") %>% 
+  lapply(
+    \(x) as_tibble(x[c("zscore", "pval", "observed")]) %>% 
+      mutate(expected = mean(x$permuted))
+  ) %>% 
+  bind_rows(.id = "region") %>% 
+  mutate(
+    enrichment = log2(observed / expected),
+    adj_p = p.adjust(pval, "fdr"),
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~region
+    )
+  ) %>% 
+  dplyr::select(region, observed, expected, enrichment, everything()) %>% 
+  arrange(desc(abs(zscore)))
+## I think overlaps may be more informative
+all_reg_ol <- all_feat %>% 
+  endoapply(granges) %>% 
+  lapply(
+    \(x) {
+      overlapPermTest(
+        A = all_target_peaks, B = x, ntimes = 100,
+        count.once = TRUE,
+        genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
+      )
+    }
+  )
+all_reg_ol %>% 
+  lapply(pluck, "numOverlaps") %>% 
+  lapply(
+    \(x) as_tibble(x[c("zscore", "pval", "observed")]) %>% 
+      mutate(expected = mean(x$permuted))
+  ) %>% 
+  bind_rows(.id = "region") %>% 
+  mutate(
+    enrichment = log2(observed / expected),
+    adj_p = p.adjust(pval, "fdr"),
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~region
+    )
+  ) %>% 
+  dplyr::select(region, observed, expected, enrichment, everything()) %>% 
+  arrange(desc(abs(zscore)))
+# Not informative
+meanDistance(A = all_target_peaks, B = external_features$enhancer)
+# Also a bit meh
+plotRegions(peaks, chromosome = "chr21", regions.labels = names(peaks), start = 17250042, end = 24959603)
 
+```
 
-ptest <- permTest(
-  A = peaks$AR,
-  B = feat,
-  ntimes = 1000,
-  randomize.function = circularRandomizeRegions,
-  evaluate.function = numOverlaps, count.once = TRUE,
+Perhaps, determine combinations of peaks and test for associations or overlaps
+
+```{r}
+pt <- overlapPermTest(
+  A = peaks$AR, B = peaks$H3K27ac, ntimes = 1000, count.once = TRUE,
   genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
 )
-summary(ptest)
-plot(ptest)
-meanDistance(peaks$AR, peaks$ER)
+plot(pt)
+summary(pt)
+## And reversing it is the same.
+pt <- overlapPermTest(
+  A = peaks$AR, B = peaks$ER, ntimes = 1000, count.once = TRUE,
+  genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
+)
+plot(pt)
+summary(pt)
+lz <- localZScore(pt = pt, A = peaks$AR, B = peaks$ER, window = 5e3, step = 10)
+plot(lz)
 ```
+
+# RegioneReloaded
+
+```{r}
+library(regioneReloaded)
+```
+
+```{r}
+#########################################################################
+## A Good option for showing the relationship between multiple targets ##
+#########################################################################
+cpt <- crosswisePermTest(
+  peaks %>% set_genome_info(ucsc_ref), 
+  mc.cores = 4, 
+  sampling = FALSE,
+  ranFUN = "resampleGenome",
+  evFUN = "numOverlaps",
+  genome = ucsc_ref,
+  ntimes = 1000 ## Should be 5K on an HPC
+)
+heat_col <- c(
+  rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
+  RColorBrewer::brewer.pal(9, "YlOrRd")
+)
+df <- slot(cpt, "multiOverlaps") %>% 
+  bind_rows(.id = "Query") %>% 
+  dplyr::rename(Target = name) %>% 
+  mutate(
+    prop = n_overlaps / n_regionA,
+    adj.p_value = p.adjust(p_value, enrich_params$adj)
+  ) 
+df %>% 
+  dplyr::filter(Query != Target) %>%
+  ggplot(aes(Target, Query, fill = norm_zscore)) +
+  geom_raster() +
+  geom_label(
+    aes(label = prop),
+    data = . %>% 
+      mutate(
+        prop = percent(prop, 0.1),
+        prop = case_when(
+          adj.p_value < enrich_params$alpha ~ paste0(prop, "*"),
+          TRUE ~ prop
+        )
+      ),
+    fill = "white", alpha = 0.6
+  ) +
+  scale_x_discrete(expand = expansion(0, 0)) +
+  scale_y_discrete(expand = expansion(0, 0)) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(df$norm_zscore)),
+    name = expr(paste(Z[norm]))
+  ) +
+  theme(panel.grid = element_blank())
+
+#######################################
+## Check the distances between peaks ##
+#######################################
+mlz <- multiLocalZscore(
+  A = peaks$AR,
+  Blist = peaks[c("ER", "H3K27ac")],
+  ranFUN = "resampleGenome",
+  evFUN = "numOverlaps",
+  window = 5e3,
+  ntimes = 1000, # Ramp up to 5K for an HPC
+  adj_pv_method = enrich_params$adj,
+  max_pv = 1,
+  genome = ucsc_ref,
+  mc.cores = 4
+)
+
+
+#########################################################################
+## This looks useful for comparing a single RS against a set of RSs!!! ##
+#########################################################################
+mlz <- multiLocalZscore(
+  A = all_target_peaks,
+  Blist = all_feat,
+  ranFUN = "resampleGenome",
+  evFUN = "numOverlaps",
+  window = 5e3,
+  ntimes = 1000, # Ramp up to 5K for an HPC
+  adj_pv_method = enrich_params$adj,
+  max_pv = 1,
+  genome = ucsc_ref,
+  mc.cores = 4
+)
+mlz %>% 
+  makeLZMatrix() %>% 
+  plotLocalZScoreMatrix(maxVal = "max") +
+  scale_x_continuous(expand = rep_len(0, 4)) +
+  scale_y_discrete(
+    expand = rep_len(0, 4), 
+    labels = \(x) str_wrap(all_feat_labs[x], 20)
+  ) 
+# Constructing manually
+df <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
+  as_tibble() %>% 
+  mutate(
+    shift = slot(mlz, "multiLocalZscores")$shifts
+  ) %>% 
+  pivot_longer(
+    cols = all_of(names(all_feat)), names_to = "feature", values_to = "Z"
+  ) %>% 
+  mutate(
+    feature = all_feat_labs[feature] %>% 
+      factor(levels = all_feat_labs),
+    Z = Z / sqrt(length(all_target_peaks))
+  ) 
+df %>% 
+  ggplot(aes(shift, feature, fill = Z)) +
+  geom_raster() +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4)) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(df$Z))
+  )
+## Now we can step through the peaks & match the other two
+mlz_list <- names(peaks) %>% 
+  lapply(
+    \(i) {
+      multiLocalZscore(
+        A = peaks[[i]],
+        Blist = peaks[setdiff(names(peaks), i)],
+        ranFUN = "resampleGenome",
+        evFUN = "numOverlaps",
+        window = 5e3,
+        ntimes = 500, # Ramp up to 5K for an HPC
+        adj_pv_method = enrich_params$adj,
+        max_pv = 1,
+        genome = ucsc_ref,
+        mc.cores = 4
+      )
+    }
+  ) %>% 
+  setNames(names(peaks))
+df <- mlz_list %>% 
+  lapply(
+    function(x) {
+      mlz <- slot(x, "multiLocalZscores")
+      tbl <- as_tibble(mlz$shifed_ZSs)
+      tbl$shift <- mlz$shifts
+      tbl
+    }
+  ) %>% 
+  bind_rows(.id = "Query") %>% 
+  pivot_longer(
+    cols = all_of(names(peaks)), names_to = "Target", values_to = "Z"
+  ) %>% 
+  dplyr::filter(!is.na(Z)) %>% 
+  mutate(
+    Z = Z / sqrt(map_int(peaks, length)[Query]),
+    Target = factor(Target, levels = names(peaks)) %>% fct_rev(),
+    Query = factor(Query, levels = names(peaks)) %>% fct_rev()
+  )
+df %>% 
+  arrange(desc(Z)) %>%
+  mutate(
+    Query = fct_inorder(Query),
+    Target = fct_inorder(Target)
+  ) %>%
+  ggplot(aes(shift, Z, colour = Target)) +
+  geom_line() +
+  facet_wrap(~Query) +
+  scale_x_continuous(
+    labels = \(x) x * 1e-3, name = "Shift (kb)"
+  ) +
+  scale_y_continuous(
+    expand = expansion(c(0, 0.05)), name = expr(paste(Z[norm]))
+  ) +
+  scale_color_brewer(palette = "Set1") 
+## Form a table
+mlz_list %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(pluck, "resumeTab") %>% 
+  bind_rows(.id = "Query") %>% 
+  dplyr::rename(Target = name) %>% 
+  mutate(
+    prop = n_overlaps / map_int(peaks, length)[Query]
+  ) %>% 
+  dplyr::select(Query, Target, n_overlaps, prop, norm_zscore, adj.p_value) %>% 
+  arrange(desc(abs(norm_zscore))) # Pipe into reactable...
+
+
+
+multiLocalZscore(
+  A = all_target_peaks,
+  Blist = all_feat,
+  ranFUN = "resampleGenome",
+  evFUN = "numOverlaps",
+  window = 5e3,
+  ntimes = 1000, # Ramp up to 5K for an HPC
+  adj_pv_method = enrich_params$adj,
+  max_pv = 1,
+  genome = ucsc_ref,
+  mc.cores = 4
+)
+
+all_feat_colours <- colours[c("regions", "features")] %>% 
+  lapply(unlist) %>% 
+  unname() %>% 
+  unlist()
+rs_to_plot <- subset(
+  slot(mlz, "multiLocalZscores")$resumeTab, 
+  abs(norm_zscore) > 1
+)$name
+mlz %>% 
+  makeLZMatrix() %>% 
+  plotSingleLZ(
+    RS = rs_to_plot,smoothing = TRUE
+  ) +
+  scale_fill_manual(values = all_feat_colours) +
+  scale_colour_manual(values = "black") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank()
+  )
+
+
+crossMat <- makeCrosswiseMatrix(cpt, pvcut = 1)
+plotCrosswiseMatrix(crossMat) +
+  scale_x_discrete(expand = expansion(0, 0), name = NULL) +
+  scale_y_discrete(expand = expansion(0, 0), name = NULL) +
+  labs(fill = expr(paste(Z[norm]))) +
+  theme(
+    plot.title = element_blank(),
+    plot.subtitle = element_blank(),
+    plot.caption = element_blank()
+  )
+```
+
+
+```{r}
+## Try a single RS against a multi-RS set
+cpt_feat <- crosswisePermTest(
+  A = list(`Shared Peaks` = set_genome_info(all_target_peaks, ucsc_ref)), # List...
+  B = all_feat %>% set_genome_info(ucsc_ref), 
+  mc.cores = 4, 
+  sampling = FALSE,
+  ranFUN = "resampleGenome",
+  evFUN = "numOverlaps",
+  genome = ucsc_ref,
+  ntimes = 1000 # Set to 5K for HPC
+)
+## How do these p-values compare to the ones from Z-scores?
+slot(cpt_feat, "multiOverlaps")[["Shared Peaks"]]
+slot(mlz, "multiLocalZscores")$resumeTab
+## This fails!!!
+cpt_feat %>% 
+  makeCrosswiseMatrix() %>% 
+  plotCrosswiseMatrix() +
+  scale_x_discrete(
+    expand = expansion(0, 0), name = NULL,
+    labels = \(x) str_wrap(str_sep_to_title(x), 20)
+  ) +
+  scale_y_discrete(expand = expansion(0, 0), name = NULL) +
+  labs(fill = expr(paste(Z[norm]))) +
+  theme(
+    plot.title = element_blank(),
+    plot.subtitle = element_blank(),
+    plot.caption = element_blank(),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
+    axis.text.y = element_text(angle = 0, hjust = 1, size = 10)
+  ) 
+slot(cpt_feat, "multiOverlaps") %>% 
+  bind_rows(.id = "Query") %>% 
+  dplyr::rename(Target = "name") %>% 
+  mutate(
+    Target = factor(Target, levels = names(all_feat)),
+    prop = n_overlaps / n_regionA
+  ) %>% 
+  ggplot(aes(Target, Query, fill = norm_zscore)) +
+  geom_raster() +
+  geom_label(aes(label = percent(prop, 0.1))) +
+  scale_x_discrete(expand = rep_len(0, 4)) +
+  scale_y_discrete(expand = rep_len(0, 4)) +
+  scale_fill_gradientn(
+    colours = heat_col, 
+    limits = c(-1.05, 1.05) * max(abs(slot(cpt_feat, "multiOverlaps")[[1]]$norm_zscore))
+  )
+## Or is it just easier:
+slot(mlz, "multiLocalZscores")$resumeTab %>% 
+  as_tibble() %>% 
+  mutate(
+    prop = n_overlaps / length(all_target_peaks),
+    name = all_feat_labs[name]
+  ) %>% 
+  dplyr::select(
+    name, n_overlaps, prop, norm_zscore, adj.p_value
+  )
+```
+
+
 
