@@ -1333,7 +1333,7 @@ plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 
 ## Region Analysis
 
-```{r}
+```{r load-localz}
 ## This should be run in a separate script with many threads & lots of RAM
 mlz <- here::here(macs2_path, target, glue("{target}_regions_localz.rds")) %>% 
   read_rds()
@@ -1382,7 +1382,7 @@ df %>%
   )
 ```
 
-```{r}
+```{r tbl-regioner}
 # setup a results table
 tbl <- slot(mlz, "multiLocalZscores")$resumeTab %>% 
   as_tibble() %>% 
