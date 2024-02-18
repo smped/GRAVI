@@ -72,7 +72,7 @@ map <- c(
   rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
   canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
 )
-bld <- match.arg(tolower(x), names(map))
+bld <- match.arg(tolower(config$genome$build), names(map))
 ucsc_ref <- map[[bld]]
 
 cat("Loading all regions...\n")
@@ -99,7 +99,7 @@ cat(" done\n")
 
 threads <- slot(snakemake, "threads")[[1]] - 1
 cat("Starting at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
-cat("Running multiLocalZscore with", threads, "threads...")
+cat("Running multiLocalZscore with", threads, "threads...\n")
 mlz <- multiLocalZscore(
   A = peaks, Blist = test_regions,
   ranFUN = "resampleGenome",
@@ -113,6 +113,6 @@ mlz <- multiLocalZscore(
 )
 cat("Finished at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
 
-cat("Writing to", all_output)
+cat("Writing to", all_output, "\n")
 write_rds(mlz, all_output, compress = "gz")
 cat("done\n")

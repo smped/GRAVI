@@ -53,11 +53,6 @@ bld <- match.arg(tolower(config$genome$build), names(map))
 ucsc_build <- map[[bld]]
 sp <- map_sp[[ucsc_build]]
 pkg <- paste(c("BSgenome", sp, "UCSC", ucsc_build), collapse = ".")
-if (!pkg %in% all_inst) {
-  cat("Installing", pkg)
-  BiocManager::install(pkg, update = FALSE, force = FALSE)
-  cat("done\n")
-}
 all_reqd <- c(all_reqd, pkg)
 
 ## Any missing packages

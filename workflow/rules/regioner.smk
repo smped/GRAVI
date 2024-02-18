@@ -1,5 +1,6 @@
 rule regioner_localz_regions:
 	input:
+		checks = ALL_CHECKS,
 		regions = os.path.join(annotation_path, "gene_regions.rds"),
 		features = os.path.join(annotation_path, "features.rds"),
 		peaks = os.path.join(
