@@ -34,13 +34,39 @@ all_reqd <- sort(
   )
 )
 
+## Check the BSgenome.<sp>.UCSC.<build> package, required for regioneR
+## This can also be used for spitting out motifs as .fa files for MEME
+map <- c(
+  hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
+  mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
+  rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6",
+  # rhemac10 = "rheMac10", canfam5 = "canFam5", # Not available as a BSgenome
+  susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
+)
+map_sp <- c(
+  hg19 = "Hsapiens", hg38 = "Hsapiens", mm10 = "Mmusculus", mm39 = "Mmusculus",
+  rn7 = "Rnorvegicus", galGal6 = "Ggallus", susScr11 = "Sscrofa",
+  panTro6 = "Ptroglodytes", dm6 = "Dmelanogaster"
+)
+config <- slot(snakemake, "config")
+bld <- match.arg(tolower(config$genome$build), names(map))
+ucsc_build <- map[[bld]]
+sp <- map_sp[[ucsc_build]]
+pkg <- paste(c("BSgenome", sp, "UCSC", ucsc_build), collapse = ".")
+if (!pkg %in% all_inst) {
+  cat("Installing", pkg)
+  BiocManager::install(pkg, update = FALSE, force = FALSE)
+  cat("done\n")
+}
+all_reqd <- c(all_reqd, pkg)
+
 ## Any missing packages
 not_installed <- setdiff(all_reqd, all_inst)
 cat(length(all_reqd), " packages are required\n")
 cat(length(not_installed), " package(s) not found\n")
 if (length(not_installed)) {
 	cat(
-    "Attempting to install:\n", 
+    "Attempting to install:\n",
     paste(not_installed, collapse = "\n"), "\n"
   )
 	BiocManager::install(not_installed, update = FALSE, force = FALSE)

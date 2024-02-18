@@ -24,6 +24,16 @@ log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log)
 
+## Manual lists for testing. Will be overwritten by snakemake objects...
+# config <- yaml::read_yaml("config/config.yml")
+# all_input <- list(
+#   regions = "output/annotations/gene_regions.rds",
+#   features = "output/annotations/features.rds",
+#   peaks = "output/macs2/AR/AR_consensus_peaks.bed.gz",
+#   params = "config/params.yml"
+# )
+# all_output <- "output/macs2/AR/AR_regions_localz.rds"
+
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")$rds
@@ -32,7 +42,7 @@ cat("Output will be written to ", all_output, "\n")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
-all_output <- lapply(all_output, here::here)
+all_output <- here::here(all_output)
 
 ## Required input files are the gene-regions and eternal-features, as well as
 ## a set of peaks to be compared against these regions.
@@ -55,17 +65,15 @@ library(GenomicRanges)
 library(S4Vectors)
 cat("done\n")
 
-map_great_refs <- function(x = NULL){
-  map <- c(
-    hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
-    mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
-    rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
-    canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
-  )
-  x <- match.arg(tolower(x), names(map))
-  map[[x]]
-}
-ucsc_ref <- map_great_refs(config$genome$build)
+
+map <- c(
+  hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
+  mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
+  rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
+  canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
+)
+bld <- match.arg(tolower(x), names(map))
+ucsc_ref <- map[[bld]]
 
 cat("Loading all regions...\n")
 regions <- read_rds(all_input$regions)
@@ -73,7 +81,6 @@ cat("Loading all features...\n")
 features <- read_rds(all_input$features)
 cat("Forming test_regions...\n")
 test_regions <- c(regions, features)
-cat("test_regions is a", is(test_regions)[[1]])
 test_regions <- endoapply(test_regions, granges)
 cat("Setting genome to be", ucsc_ref)
 sq <- seqinfo(regions)
@@ -98,7 +105,7 @@ mlz <- multiLocalZscore(
   ranFUN = "resampleGenome",
   evFUN = "numOverlaps",
   window = 5e3,
-  ntimes = 500,
+  ntimes = 5000,
   adj_pv_method = enrich_params$adj,
   max_pv = 1,
   genome = ucsc_ref,
