@@ -1,4 +1,3 @@
-
 rule make_consensus_peaks:
     input:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
@@ -33,17 +32,17 @@ rule make_shared_consensus_peaks:
             os.path.join(
                 macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
             ),
-            target = [targets]
+            target = targets
         ),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
     output:
         peaks = os.path.join(
             macs2_path, "shared", "shared_consensus_peaks.bed.gz"
-        )
+        ),
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_peaks", "shared.log")
-        resources:
+    resources:
         mem_mb = 4096,
         runtime = "10m"
     script:

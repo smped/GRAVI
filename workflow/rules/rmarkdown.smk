@@ -2,6 +2,7 @@ rule create_site_yaml:
     input:
         here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
+        script = os.path.join("workflow", "scripts", "create_site_yaml.R"),
         yml = "config/rmarkdown.yml",
     output: 
         yml = os.path.join(rmd_path, "_site.yml")
@@ -147,8 +148,8 @@ rule compile_peak_comparison_rmd:
         ),
         rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
     output:
-        rmd = os.path.join(rmd_path, "peak_comparison.Rmd")
-        html = os.path.join("docs", "{target}_macs2_summary.html"),
+        rmd = os.path.join(rmd_path, "peak_comparison.Rmd"),
+        html = os.path.join("docs", "peak_comparison.html"),
     conda: "../envs/rmarkdown.yml"
     threads: 6    
     resources:

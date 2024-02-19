@@ -7,7 +7,7 @@ date: "`r format(Sys.Date(), '%d %B, %Y')`"
 ```
 
 
-```{r}
+```{r packages}
 library(tidyverse)
 library(yaml)
 library(glue)
@@ -52,11 +52,6 @@ targets <- here::here(config$samples) %>%
   pull("target") %>% 
   unique()
 threads <- detectCores() - 1
-##############################################
-## TO BE FIXED
-targets <- c("AR", "ER", "H3K27ac") # Temp fix
-threads <- 4
-##############################################
 macs2_path <- here::here("output", "macs2")
 samples <- file.path(macs2_path, targets, glue("{targets}_qc_samples.tsv")) %>% 
   lapply(read_tsv) %>% 
@@ -75,7 +70,8 @@ gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
 id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
 tss <- read_rds(file.path(annotation_path, "tss.rds"))
 gene_regions <- read_rds(here::here(annotation_path, "gene_regions.rds"))
-external_features <- read_rds("output/annotations/features.rds")
+external_features <- here::here(annotation_path, "features.rds") %>%
+  read_rds()
 all_feat <- c(gene_regions, external_features) %>% 
   endoapply(granges)
 all_feat_labs <- c(
@@ -222,7 +218,6 @@ gs_list <- msigdb %>%
   lapply(pull, ensembl_gene) %>% 
   .[map_int(., length) <= enrich_params$max_size] %>% 
   .[map_int(., length) >= enrich_params$min_size] 
-
 great_res <- great(
   set_genome_info(shared_peaks, genome = ucsc_ref), 
   gene_sets = gs_list, 
