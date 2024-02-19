@@ -22,7 +22,7 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
 ## Manual lists for testing. Will be overwritten by snakemake objects...
 # config <- yaml::read_yaml("config/config.yml")
@@ -32,17 +32,23 @@ sink(log)
 #   peaks = "output/macs2/AR/AR_consensus_peaks.bed.gz",
 #   params = "config/params.yml"
 # )
-# all_output <- "output/macs2/AR/AR_regions_localz.rds"
+# all_output <- list(rds = "output/macs2/AR/AR_regions_localz.rds")
+# all_params <- list(ntimes = 200)
+# all_wildcards <- list(target = "AR")
 
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")$rds
+all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
+all_wildcards <- slot(snakemake, "wildcards")
 cat_list(all_input, "input")
-cat("Output will be written to ", all_output, "\n")
+cat_list(all_output, "output")
+cat_list(all_params, "params")
+cat_list(all_wildcards, "wildcards")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
-all_output <- here::here(all_output)
+all_output <- lapply(all_output, here::here)
 
 ## Required input files are the gene-regions and eternal-features, as well as
 ## a set of peaks to be compared against these regions.
@@ -61,8 +67,7 @@ library(extraChIPs)
 library(plyranges)
 library(readr)
 library(yaml)
-library(GenomicRanges)
-library(S4Vectors)
+library(rlang)
 cat("done\n")
 
 
@@ -105,7 +110,7 @@ mlz <- multiLocalZscore(
   ranFUN = "resampleGenome",
   evFUN = "numOverlaps",
   window = 5e3,
-  ntimes = 5000,
+  ntimes = all_params$ntimes,
   adj_pv_method = enrich_params$adj,
   max_pv = 1,
   genome = ucsc_ref,
@@ -113,6 +118,7 @@ mlz <- multiLocalZscore(
 )
 cat("Finished at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
 
-cat("Writing to", all_output, "\n")
-write_rds(mlz, all_output, compress = "gz")
+
+cat("Writing to", all_output$rds, "\n")
+write_rds(mlz, all_output$rds, compress = "gz")
 cat("done\n")

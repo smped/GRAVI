@@ -9,6 +9,8 @@ rule regioner_localz_regions:
 		params = os.path.join("config", "params.yml"),
 	output:
 		rds = os.path.join(macs2_path, "{target}", "{target}_regions_localz.rds")
+	params:
+		ntimes = 5000, # Maybe source from elsewhere later?
 	threads: 8
 	resources:
 		mem_mb = 32768,

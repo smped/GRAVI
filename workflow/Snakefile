@@ -72,8 +72,10 @@ inputs = list(set(df['input']))
 pairs = False
 
 ## Note that the last level in treats can never be the reference level
+wc_targets = targets.copy()
+wc_targets.extend(['shared'])
 wildcard_constraints:
-	target = "(" + '|'.join(targets) + ")",
+	target = "(" + '|'.join(wc_targets) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
@@ -183,6 +185,9 @@ HTML_OUT.extend(
 		target = targets
 	)
 )
+if len(targets) > 1:
+	HTML_OUT.extend(os.path.join("docs", "peak_comparison.html"))
+	
 
 ## Try bringing in diffsignal again
 COUNTS = expand(
@@ -271,6 +276,7 @@ include: "rules/initial_checks.smk"
 include: "rules/samtools.smk"
 include: "rules/rmarkdown.smk"
 include: "rules/macs2.smk"
+include: "rules/consensus_peaks.smk"
 include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
 include: "rules/annotations.smk"

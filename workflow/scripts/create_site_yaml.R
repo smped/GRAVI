@@ -177,6 +177,10 @@ if (length(all_pairs) > 1) {
 }
 
 cat("Finalising yaml structure...\n")
+shared <- NULL
+if (length(all_targets) > 1) {
+  shared <- list(list(text = "All Targets", href = "peak_comparison.html"))
+}
 site_yaml <- rmd$rmarkdown_site
 site_yaml$navbar$left <- list(
   ## This first item shouldn't change
@@ -187,7 +191,7 @@ site_yaml$navbar$left <- list(
   ),
   ## MACS2 Results
   list(
-    text = "MACS2 Peak Calling",
+    text = "Peak Calling",
     menu = lapply(
       all_targets,
       function(x) {
@@ -195,7 +199,8 @@ site_yaml$navbar$left <- list(
           text = x, href = glue("{x}_macs2_summary.html")
         )
       }
-    )
+    ) %>% 
+    c(shared)
   ),
 
   ## Differential TF Signal

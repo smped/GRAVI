@@ -847,7 +847,7 @@ a <- consensus_peaks %>%
   as_tibble() %>% 
   ggplot(aes(d / 1e3)) +
   geom_density() +
-  coord_cartesian(xlim = c(-100, 100)) +
+  coord_cartesian(xlim = c(-50, 50)) +
   labs(
     x = "Distance Around Nearest TSS (kb)",
     y = "Density"
@@ -869,7 +869,7 @@ b <- consensus_peaks %>%
     xintercept = max(unlist(region_params$promoters)) / 1e3, 
     linetype = 2, colour = "grey40"
   ) +
-  coord_cartesian(xlim = c(0, 100)) +
+  coord_cartesian(xlim = c(0, 50)) +
   labs(
     x = "Absolute Distance to Nearest TSS (kb)",
     y = "Percentile"
@@ -1340,13 +1340,12 @@ mlz <- here::here(macs2_path, target, glue("{target}_regions_localz.rds")) %>%
 ```
 
 
-In addition to enrichment of pathways, the consesus peaks were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
-The package `regioneReloaded` [Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected relationship between a random region-set and the regions of interest.
-The observed relationship is then assessed to the expected relationship to return normalised Z-scores and p-values as a measure of an above (or below) expected relationship.
-The Z-score distributions are obtained by shifting the peaks using permutations, whilst holding the position of the regions-of-interest steady, and represent the relationship between observed overlaps and expected overlaps from permutations.
+In addition to enrichment of pathways, the consensus peaks were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
+The package `regioneReloaded` [@Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected overlap between a random region-set and the regions of interest.
+This effectively defines a viable H~0~ against which the observed number of overlaps can be tested.
+Using the Central Limit Theorem, the *normalised Z-scores* returned can be expected to to follow an approximate $\mathcal{N}(0,1)$ distribution, and these are used to regenerate adjusted p-values, as a more conservative alternative to those returned by the package.
 
-The primary question assessed in this manner is the relationship between the set of consensus peaks, and the pre-defined gene-regions`r ifelse(has_features, ", along with any provided external features.", ".")`.
-By using a permutation-based strategy, regions of varying width, or covering varying proportions of the genome, are able to be analysed in an appropriate manner.
+In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
 
 ```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
 df <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
@@ -1384,29 +1383,44 @@ df %>%
 
 ```{r tbl-regioner}
 # setup a results table
-tbl <- slot(mlz, "multiLocalZscores")$resumeTab %>% 
+tbl <- slot(mlz, "multiLocalZscores")$resumeTab %>%
   as_tibble() %>% 
   dplyr::rename(region = name) %>% 
+  mutate(
+    p_value = 1 - pchisq(norm_zscore^2, 1),
+    adj.p_value = p.adjust(p_value, enrich_params$adj)
+  ) %>% 
   mutate(
     region = case_when(
       region %in% names(regions) ~ regions[region],
       TRUE ~ str_sep_to_title(region)
     ) %>% 
       factor(names(region_colours)),
+    enrichment = log2(n_overlaps / mean_perm_test),
     prop = n_overlaps / length(consensus_peaks)
   ) %>% 
-  dplyr::select(region, n_overlaps, prop, norm_zscore, adj.p_value) %>% 
+  dplyr::select(
+    region, mean_perm_test, n_overlaps, prop, enrichment,
+    norm_zscore, adj.p_value
+  ) %>% 
   arrange(desc(abs(norm_zscore))) %>% 
   reactable(
     columns = list(
-      region = colDef("Region"),
+      region = colDef("Region", minWidth = 150),
+      mean_perm_test = colDef("Expected Overlaps", format = comma_col),
       n_overlaps = colDef("Overlapping Peaks", format = comma_col),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE,
+        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+      ),
       prop = colDef("% Total Peaks", format = percent_col),
       norm_zscore = colDef(
-        "Z<sub>norm</sub>", format = colFormat(digits = 3), html = TRUE
+        "Z", format = colFormat(digits = 3),
+        style = \(value) list(color = ifelse(value > 0, "black", "red"))
       ),
       adj.p_value = colDef(
-        glue("p<sub>{adj_method}</sub>"), html = TRUE,
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
         cell = \(value) sprint_pval(value)
       )
     )
@@ -1416,7 +1430,10 @@ cp <- htmltools::em(
     "
     Results for association between the {comma(length(consensus_peaks))} 
     {target} consensus peaks and the pre-defined 
-    genomic regions{ifelse(has_features, 'and the supplied external features.', '.')}
+    genomic regions{ifelse(has_features, 'and the supplied external features.', '.')}.
+    Expected overlaps are those obtained through random resampling of the genome
+    to match the consensus peaks. Enrichment is given taking log2 of 
+    the ratio between observed and expected overlapping peaks.
     "
   )
 )
@@ -1426,7 +1443,6 @@ div(class = "table",
     )
 )
 ```
-
 
 
 ## Data Export

@@ -36,11 +36,6 @@ log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log)
 
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-config <- slot(snakemake, "config")
-all_wildcards <- slot(snakemake, "wildcards")
-
 ## For testing
 # all_input <- list(
 #     peaks = c(
@@ -55,6 +50,11 @@ all_wildcards <- slot(snakemake, "wildcards")
 # )
 # all_wildcards <- list(target = "AR")
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+config <- slot(snakemake, "config")
+all_wildcards <- slot(snakemake, "wildcards")
 
 cat_list(all_input, "input")
 cat_list(all_wildcards, "wildcards", ":")
@@ -73,11 +73,11 @@ cat("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
 bl <- read_rds(all_input$blacklist)
 exclude_ranges <- all_input$greylist %>%
-    unlist() %>% 
+    unlist() %>%
     importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
     unlist() %>%
-    c(bl) %>% 
-    GenomicRanges::reduce() 
+    c(bl) %>%
+    GenomicRanges::reduce()
 
 cat("Loading peaks...\n")
 cons_peaks <- all_input$peaks %>%

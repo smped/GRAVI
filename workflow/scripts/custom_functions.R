@@ -145,7 +145,7 @@ goseq_hyper <- function (pwf, gene2cat = NULL, cores = threads) {
   n_genes <- length(mapped_genes)
 
   f <- lapply
-  if (cores > 1){
+  if (cores > 1) {
     f <- parallel::mclapply
     formals(f)$mc.cores <- cores
   }

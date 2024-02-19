@@ -116,7 +116,7 @@ rule compile_macs2_summary_html:
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
     output:
-        html = "docs/{target}_macs2_summary.html",
+        html = os.path.join("docs", "{target}_macs2_summary.html"),
         fig_path = directory(
             os.path.join("docs", "{target}_macs2_summary_files", "figure-html")
         ),
@@ -135,4 +135,28 @@ rule compile_macs2_summary_html:
     shell:
         """
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
+        """
+
+rule compile_peak_comparison_rmd:
+    input: 
+        peaks = os.path.join(
+            macs2_path, "shared", "shared_consensus_peaks.bed.gz"
+        ),
+        localz = os.path.join(
+            macs2_path, "shared",  "shared_regions_localz.rds"
+        ),
+        rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
+    output:
+        rmd = os.path.join(rmd_path, "peak_comparison.Rmd")
+        html = os.path.join("docs", "{target}_macs2_summary.html"),
+    conda: "../envs/rmarkdown.yml"
+    threads: 6    
+    resources:
+        mem_mb = 16384,
+        runtime = "30m",
+    log: os.path.join(log_path, "peak_comparison", "compile_peak_comparison.log")
+    shell:
+        """
+        cp {input.rmd} {output.rmd}
+        R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
         """

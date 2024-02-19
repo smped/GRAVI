@@ -23,15 +23,20 @@ library(tidygraph)
 library(ggraph)
 library(regioneR)
 library(scales)
+library(pander)
+library(parallel)
+library(patchwork)
+library(regioneReloaded)
 theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
 )
+panderOptions("big.mark", ",")
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 ```
 
-```{r}
+```{r target-config}
 config <- here::here("config", "config.yml") %>% read_yaml()
 enrich_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
@@ -39,14 +44,19 @@ enrich_params <- here::here("config", "params.yml") %>%
 region_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("gene_regions")
-network_parans <- here::here("config", "params.yml") %>% 
+network_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("networks")
 targets <- here::here(config$samples) %>% 
   read_tsv() %>% 
   pull("target") %>% 
   unique()
+threads <- detectCores() - 1
+##############################################
+## TO BE FIXED
 targets <- c("AR", "ER", "H3K27ac") # Temp fix
+threads <- 4
+##############################################
 macs2_path <- here::here("output", "macs2")
 samples <- file.path(macs2_path, targets, glue("{targets}_qc_samples.tsv")) %>% 
   lapply(read_tsv) %>% 
@@ -57,12 +67,13 @@ targets <- unique(samples$target)
 n_targets <- length(targets)
 ```
 
-```{r}
+```{r annotations}
 annotation_path <- here::here("output", "annotations")
 sq <- file.path(annotation_path, "seqinfo.rds") %>% 
   read_rds()
 gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
 id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
+tss <- read_rds(file.path(annotation_path, "tss.rds"))
 gene_regions <- read_rds(here::here(annotation_path, "gene_regions.rds"))
 external_features <- read_rds("output/annotations/features.rds")
 all_feat <- c(gene_regions, external_features) %>% 
@@ -71,91 +82,120 @@ all_feat_labs <- c(
   map_chr(gene_regions, \(x) x$region[[1]]),
   map_chr(external_features, \(x) str_sep_to_title(x$feature[[1]]))
 )
-```
-
-```{r}
 colours <- file.path(annotation_path, "colours.rds") %>% 
   read_rds()
+target_colours <- RColorBrewer::brewer.pal(length(targets) + 1, "Set1") %>% 
+  setNames(c(targets, "Shared"))
 ```
 
 
 
-# Introduction
+## Introduction
 
 After performing individual analyses on the provided targets, this analysis performs a comparison of the regions with detected signal across all targets.
 Comparisons were performed in a treatment-agnostic manner, using the sets of consensus peaks defined across all conditions, making this approach an analysis of the larger universe of regulation and pathways present within the cell type of interest,
 
-# GREAT Meta-Analysis
 
-RUBBISH...
+## Peak Comparisons {.tabset}
 
-```{r}
-great_list <- file.path(macs2_path, targets, glue("{targets}_great_results.tsv.gz")) %>% 
-  lapply(read_tsv) %>% 
-  setNames(targets)
-great_list %>% 
-  bind_rows(.id = "target") %>% 
-  dplyr::filter(!is.na(p_value_hyper)) %>% 
-  mutate(p_value_hyper = ifelse(p_value_hyper == 0, 2e-16, p_value_hyper)) %>% 
-  mutate(n = dplyr::n(), .by = all_of("id")) %>% 
-  dplyr::filter(n == n_targets) %>% 
-  arrange(desc(p_value_hyper)) %>% 
-  summarise(
-    all_hits = list(genes_with_hits),
-    all_ids = list(gene_id),
-    med_enrichment = median(fold_enrichment_hyper),
-    maxp = max(p_value_hyper),
-    meta_p = maximump(p_value_hyper)$p,
-    # meta_p = extraChIPs:::.ec_HMP(p_value_hyper, 1 / n),
-    # meta_p = wilkinsonp(p_value_hyper, n_targets - 1)$p,
-    .by = all_of(c("id"))
-  ) %>% 
-  mutate(
-    all_ids = lapply(
-      all_hits,
-      \(x) {
-        n <- length(x)
-        ids <- unlist(str_split(x, "; "))
-        unique(ids)
-      }
-    ),
-    all_hits = lapply(
-      all_hits,
-      \(x) {
-        n <- length(x)
-        ids <- unlist(str_split(x, "; "))
-        unique(ids[table(ids) == n])
-      }
-    ),
-    set_size = map_int(all_ids, length),
-    n_shared = map_int(all_hits, length)
-  ) %>% 
-  arrange(meta_p) %>% 
-  mutate(meta_p_adjust = p.adjust(meta_p, enrich_params$adj)) %>% 
-  dplyr::filter(meta_p_adjust < enrich_params$alpha) %>% 
-  print(n = 60)
-```
-
-# Peak Comparisons
-
-```{r}
-peaks <- here::here(macs2_path, targets, glue("{targets}_consensus_peaks.bed.gz")) %>% 
+```{r load-peaks}
+consensus_peaks <- file.path(
+  macs2_path, targets, glue("{targets}_consensus_peaks.bed.gz")
+) %>% 
   importPeaks(seqinfo = sq, type = "bed") %>% 
   setNames(str_remove(names(.), "_consensus.+"))
-```
-
-```{r}
-plotOverlaps(peaks, type = "upset")
-```
-
-```{r}
 ## NB: for n = 2, this will be the union peaks
-all_target_peaks <- peaks %>% 
-  makeConsensus(p = 1 - 1 / n_targets, method = "coverage") %>% 
-  filter(n == 3)
+shared_peaks <- file.path(macs2_path, "shared", "shared_consensus_peaks.bed.gz") %>% 
+  importPeaks(seqinfo = sq, type = "bed") %>% 
+  setNames(str_remove(names(.), "_consensus.+")) %>% 
+  unlist() %>% 
+  unname() %>% 
+  granges()
 ```
 
-```{r}
+Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of common regions found.
+Given that `r n_targets` were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across all targets, but where signal was detected in at least `r n_targets - 1` targets.
+This ensures any individual targets with broader peaks do not lead to unrealistically broad common regions.
+
+### Overlapping Regions
+
+```{r plot-overlaps, fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
+plotOverlaps(consensus_peaks, type = "upset", set_col = target_colours)
+```
+
+### Peak Widths
+
+```{r boxplot-widths, fig.cap = glue("*Peak widths within each target showing the total number of peaks within each target*")}
+consensus_peaks %>% 
+  lapply(width) %>% 
+  lapply(enframe, name = NULL, value = "width") %>% 
+  bind_rows(.id = "target") %>%
+  ggplot(aes(target, width, fill = target)) +
+  geom_boxplot() +
+  geom_label(
+    aes(label = label),
+    data = . %>% 
+      summarise(n = dplyr::n(), width = min(width), .by = target) %>% 
+      mutate(label = comma(n), width = min(width)),
+    fill = "white", alpha = 0.7
+  ) +
+  scale_fill_manual(values = target_colours) +
+  scale_y_log10(labels = comma, name = "Peak Width") +
+  labs(x = "Target", fill = "Target")
+```
+
+### Distance to TSS 
+
+```{r plot-shared-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Shared peaks were removed from each set of consensus peaks to highlight any potential differences, and so that each peak is only included in one category.")}
+df <- consensus_peaks %>% 
+  endoapply(filter_by_non_overlaps, shared_peaks) %>% 
+  c(GRangesList(Shared = shared_peaks)) %>% 
+  endoapply(granges) %>% 
+  lapply(
+    \(x){
+      join_nearest(x, mutate(tss, tss = start)) %>% 
+        mutate(d = start + width/2 - tss) %>% 
+        as_tibble()     
+    }
+  ) %>% 
+  bind_rows(.id = "target") %>% 
+  arrange(abs(d)) %>% 
+  mutate(
+    q = seq_along(d) / dplyr::n(), .by = all_of("target")
+  )
+A <- df %>% 
+  ggplot(aes(d / 1e3, colour = target)) +
+  geom_density() +
+  coord_cartesian(xlim = c(-50, 50)) +
+  scale_colour_manual(values = target_colours) +
+  labs(
+    x = "Distance To Nearest TSS (kb)",
+    y = "Density"
+  ) + 
+  theme(legend.position = "none")
+B <- df %>% 
+  ggplot(aes(abs(d) / 1e3, q, colour = target)) +
+  geom_line() +
+  geom_vline(
+    xintercept = max(unlist(region_params$promoters)) / 1e3, 
+    linetype = 2, colour = "grey40"
+  ) +
+  coord_cartesian(xlim = c(0, 50)) +
+  labs(
+    x = "Absolute Distance to Nearest TSS (kb)",
+    y = "Percentile", colour = "Target"
+  ) +
+  scale_colour_manual(values = target_colours) +
+  scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
+  scale_x_continuous(breaks = seq(0, 100, by = 20))
+A + B + plot_annotation(tag_levels = "A")
+```
+
+
+
+## GREAT Enrichment  {.tabset}
+
+```{r setup-great}
 ucsc_ref <- map_great_refs(config$genome$build)
 sp <- c(
   hg19 = "Homo sapiens", hg38 = "Homo sapiens", mm10 = "Mus musculus",
@@ -163,6 +203,14 @@ sp <- c(
   canFam5 = "Canis lupus familiaris", dm6 = "Drosophila melanogaster",
   galGal6 = "Gallus gallus", panTro6 = "Pan troglodytes"
 )[[ucsc_ref]]
+ext_tss <- gtf_gene %>% 
+  select(gene_id) %>% 
+  extendTSS(
+    genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
+    basal_upstream = region_params$promoters$upstream,
+    basal_downstream = region_params$promoters$downstream
+  ) 
+ext_tss_ol <- subsetByOverlaps(ext_tss, shared_peaks)
 msigdb <- msigdbr(sp) %>% 
   dplyr::filter(
     gs_cat %in% enrich_params$msigdb$gs_cat |
@@ -174,17 +222,11 @@ gs_list <- msigdb %>%
   lapply(pull, ensembl_gene) %>% 
   .[map_int(., length) <= enrich_params$max_size] %>% 
   .[map_int(., length) >= enrich_params$min_size] 
-ext_tss <- gtf_gene %>% 
-  select(gene_id) %>% 
-  extendTSS(
-    genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
-    basal_upstream = region_params$promoters$upstream,
-    basal_downstream = region_params$promoters$downstream
-  )
-ext_tss_ol <- subsetByOverlaps(ext_tss, all_target_peaks)
+
 great_res <- great(
-    set_genome_info(all_target_peaks, genome = ucsc_ref), 
-  gene_sets = gs_list, extended_tss = ext_tss, 
+  set_genome_info(shared_peaks, genome = ucsc_ref), 
+  gene_sets = gs_list, 
+  extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
   min_gene_set_size = enrich_params$min_size, 
   cores = threads
 )
@@ -207,8 +249,12 @@ great_df <- getEnrichmentTable(great_res) %>%
 n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
 ```
 
+In keeping with the analysis of each individual set of peaks, the `r comma(length(shared_peaks))`regions where all targets were detectable were analysed using `rRGEAT` [@Gu2023-rp] and identical parameterisation.
+This gives clear insight into which pathways are likely to be regulated by all targets *acting in concert*, with `r n_great` gene-sets being considered as enriched within these shared regions.
 
-```{r}
+### GREAT Results Table
+
+```{r tbl-great-res}
 tbl <- great_df %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
@@ -254,13 +300,12 @@ tbl <- great_df %>%
   )
 cp <- htmltools::em(
   glue(
-    "
-    Enrichment results for regions showing consistently detecable signal for 
-    {target} as considered significant when using rGREAT. Backround regions to
-    determine relative enrichment were taken as the entire genome. In the case
-    of large numbers of significant gene-sets, results are limited to the 100 
-    most highly ranked.
-    "
+    "Enrichment results for regions showing consistently detectable signal for all of ",
+    glue_collapse(targets, sep = ", ", last = " and "),
+    " as considered significant when using rGREAT. ", 
+    "Backround regions to determine relative enrichment were taken as the entire genome. ",
+    "In the case of large numbers of significant gene-sets, results are limited to the 100 most highly ranked. ",
+    "The genes listed are those associated with the set of shared regions."
   )
 )
 div(class = "table",
@@ -270,28 +315,25 @@ div(class = "table",
 )
 ```
 
-```{r}
-top_id <- great_df$id[1]
-plotRegionGeneAssociations(great_res, top_id, which = 2:3)
-```
+`r if (n_great >= network_params$min_size) "### Enrichment Network"`
 
-```{r}
+```{r great-network, echo = n_great >= network_params$min_size, eval = n_great >= network_params$min_size, fig.cap = glue("*The {n_great} most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {network_params$max_size} gene sets*")}
 tg_great <- great_df %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
   make_tbl_graph(
     gs = great_df[["gene_id"]], 
     alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
     hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-    min_dist = network_parans$max_distance, max_gs = network_parans$max_size
+    min_dist = network_params$max_distance, max_gs = network_params$max_size
   )
-if (length(tg_great) >= network_parans$min_size) {
+if (length(tg_great) >= network_params$min_size) {
   tg_great %>% 
     mutate(
       ## The lowest p-value obtainable from pbinom is 1e-16
       p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
       prop = observed_gene_hits / gene_set_size 
     ) %>% 
-    ggraph(layout = network_parans$layout, weights = oc) +
+    ggraph(layout = network_params$layout, weights = oc) +
     geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
     geom_node_point(
       aes(
@@ -324,145 +366,136 @@ if (length(tg_great) >= network_parans$min_size) {
 }
 ```
 
-# RegioneR
+### TSS Distribution
 
-```{r}
-ptest <- permTest(
-  A = peaks$ER,
-  B = gene_regions$promoter,
-  ntimes = 1000,
-  randomize.function = circularRandomizeRegions,
-  evaluate.function = numOverlaps, count.once = TRUE,
-  genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
-)
-summary(ptest)
-plot(ptest)
-
-
- 
+```{r plot-top-great, fig.height=6, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
+top_id <- great_df$id[1]
+plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 ```
 
 
 ```{r}
-regions <- map_chr(gene_regions, \(x) x$region[[1]])
-all_feat <- c(gene_regions, external_features)
-all_reg <-  all_feat %>% 
-  endoapply(granges) %>% 
+knitr::opts_chunk$set(eval = FALSE, echo = FALSE)
+```
+
+
+## Region Comparisons
+
+The package 
+
+
+```{r}
+## Now we can step through the peaks & match the other two
+mlz_list <- names(consensus_peaks) %>% 
   lapply(
-    \(x) {
-      permTest(
-        A = all_target_peaks, B = x, ntimes = 1000,
-        randomize.function = circularRandomizeRegions,
-        evaluate.function = numOverlaps, count.once = TRUE,
-        genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
+    \(i) {
+      multiLocalZscore(
+        A = consensus_peaks[[i]],
+        Blist = consensus_peaks[setdiff(names(consensus_peaks), i)],
+        ranFUN = "resampleGenome",
+        evFUN = "numOverlaps",
+        window = 5e3,
+        ntimes = 500, # Ramp up to 5K for an HPC
+        adj_pv_method = enrich_params$adj,
+        max_pv = 1,
+        genome = ucsc_ref,
+        mc.cores = threads
       )
     }
-  )
-all_reg %>% 
-  lapply(pluck, "numOverlaps") %>% 
-  lapply(
-    \(x) as_tibble(x[c("zscore", "pval", "observed")]) %>% 
-      mutate(expected = mean(x$permuted))
   ) %>% 
-  bind_rows(.id = "region") %>% 
-  mutate(
-    enrichment = log2(observed / expected),
-    adj_p = p.adjust(pval, "fdr"),
-    region = case_when(
-      region %in% names(regions) ~ regions[region],
-      TRUE ~region
-    )
-  ) %>% 
-  dplyr::select(region, observed, expected, enrichment, everything()) %>% 
-  arrange(desc(abs(zscore)))
-## I think overlaps may be more informative
-all_reg_ol <- all_feat %>% 
-  endoapply(granges) %>% 
+  setNames(names(consensus_peaks))
+dist_df <- mlz_list %>% 
   lapply(
-    \(x) {
-      overlapPermTest(
-        A = all_target_peaks, B = x, ntimes = 100,
-        count.once = TRUE,
-        genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
-      )
+    function(x) {
+      mlz <- slot(x, "multiLocalZscores")
+      tbl <- as_tibble(mlz$shifed_ZSs)
+      tbl$shift <- mlz$shifts
+      tbl
     }
-  )
-all_reg_ol %>% 
-  lapply(pluck, "numOverlaps") %>% 
-  lapply(
-    \(x) as_tibble(x[c("zscore", "pval", "observed")]) %>% 
-      mutate(expected = mean(x$permuted))
   ) %>% 
-  bind_rows(.id = "region") %>% 
+  bind_rows(.id = "Query") %>% 
+  pivot_longer(
+    cols = all_of(names(consensus_peaks)), names_to = "Target", values_to = "Z"
+  ) %>% 
+  dplyr::filter(!is.na(Z)) %>% 
   mutate(
-    enrichment = log2(observed / expected),
-    adj_p = p.adjust(pval, "fdr"),
-    region = case_when(
-      region %in% names(regions) ~ regions[region],
-      TRUE ~region
-    )
-  ) %>% 
-  dplyr::select(region, observed, expected, enrichment, everything()) %>% 
-  arrange(desc(abs(zscore)))
-# Not informative
-meanDistance(A = all_target_peaks, B = external_features$enhancer)
-# Also a bit meh
-plotRegions(peaks, chromosome = "chr21", regions.labels = names(peaks), start = 17250042, end = 24959603)
-
-```
-
-Perhaps, determine combinations of peaks and test for associations or overlaps
-
-```{r}
-pt <- overlapPermTest(
-  A = peaks$AR, B = peaks$H3K27ac, ntimes = 1000, count.once = TRUE,
-  genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
-)
-plot(pt)
-summary(pt)
-## And reversing it is the same.
-pt <- overlapPermTest(
-  A = peaks$AR, B = peaks$ER, ntimes = 1000, count.once = TRUE,
-  genome = ucsc_ref, mc.set.seed = FALSE, mc.cores = 4
-)
-plot(pt)
-summary(pt)
-lz <- localZScore(pt = pt, A = peaks$AR, B = peaks$ER, window = 5e3, step = 10)
-plot(lz)
-```
-
-# RegioneReloaded
-
-```{r}
-library(regioneReloaded)
-```
-
-```{r}
-#########################################################################
-## A Good option for showing the relationship between multiple targets ##
-#########################################################################
-cpt <- crosswisePermTest(
-  peaks %>% set_genome_info(ucsc_ref), 
-  mc.cores = 4, 
-  sampling = FALSE,
-  ranFUN = "resampleGenome",
-  evFUN = "numOverlaps",
-  genome = ucsc_ref,
-  ntimes = 1000 ## Should be 5K on an HPC
-)
-heat_col <- c(
-  rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
-  RColorBrewer::brewer.pal(9, "YlOrRd")
-)
-df <- slot(cpt, "multiOverlaps") %>% 
+    Z = Z / sqrt(map_int(consensus_peaks, length)[Query]),
+    Target = factor(Target, levels = names(consensus_peaks)) %>% fct_rev(),
+    Query = factor(Query, levels = names(consensus_peaks)) %>% fct_rev()
+  )
+dist_df %>% 
+  arrange(desc(Z)) %>%
+  mutate(
+    Query = fct_inorder(Query),
+    Target = fct_inorder(Target)
+  ) %>%
+  ggplot(aes(shift, Z, colour = Target)) +
+  geom_line() +
+  facet_wrap(~Query) +
+  scale_x_continuous(
+    labels = \(x) x * 1e-3, name = "Shift (kb)"
+  ) +
+  scale_y_continuous(
+    expand = expansion(c(0, 0.05)), name = expr(paste(Z[norm]))
+  ) +
+  scale_color_brewer(palette = "Set1") 
+## Form a table
+res_df <- mlz_list %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(pluck, "resumeTab") %>% 
   bind_rows(.id = "Query") %>% 
   dplyr::rename(Target = name) %>% 
   mutate(
-    prop = n_overlaps / n_regionA,
+    n_regionA = map_int(consensus_peaks, length)[Query],
+    n_regionB = map_int(consensus_peaks, length)[Target],
+    prop = n_overlaps / map_int(consensus_peaks, length)[Query],
+    enrichment = log2(n_overlaps / mean_perm_test),
+    p_value = 1 - pchisq(norm_zscore^2, 1),
     adj.p_value = p.adjust(p_value, enrich_params$adj)
   ) 
-df %>% 
-  dplyr::filter(Query != Target) %>%
+res_df %>%
+  dplyr::select(
+    Query, Target, n_regionA, n_regionB, prop, n_overlaps, mean_perm_test, 
+    enrichment, norm_zscore, adj.p_value
+  ) %>% 
+  reactable(
+    columns = list(
+      Query = colDef(maxWidth = 85),
+      Target = colDef(maxWidth = 85),
+      n_regionA = colDef("Query Regions", format = comma_col),
+      n_regionB = colDef("Target Regions", format = comma_col),
+      prop = colDef("% Query", format = colFormat(percent = TRUE, digits = 1)),
+      n_overlaps = colDef("Overlaps", format = comma_col),
+      mean_perm_test = colDef("Expected", format = comma_col),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE,
+        style = \(value) {
+          text_colour = ifelse(value < 0, colours$direction[["decreaeds"]], "black")
+          list(color = text_colour)
+        }
+      ),
+      norm_zscore = colDef(
+        "Z", format = colFormat(digits = 2),
+        style = \(value) {
+          text_colour = ifelse(value < 0, colours$direction[["decreaeds"]], "black")
+          list(color = text_colour)
+        }
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value),
+        style = \(value) {
+          text_colour = ifelse(
+            value < enrich_params$alpha, "black", colours$direction[["unchanged"]]
+          )
+          list(color = text_colour)
+        }
+      )
+    )
+  )
+
+res_df %>% 
   ggplot(aes(Target, Query, fill = norm_zscore)) +
   geom_raster() +
   geom_label(
@@ -481,203 +514,37 @@ df %>%
   scale_y_discrete(expand = expansion(0, 0)) +
   scale_fill_gradientn(
     colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(df$norm_zscore)),
+    limits = c(-1.05, 1.05) * max(abs(res_df$norm_zscore)),
     name = expr(paste(Z[norm]))
   ) +
   theme(panel.grid = element_blank())
 
-#######################################
-## Check the distances between peaks ##
-#######################################
-mlz <- multiLocalZscore(
-  A = peaks$AR,
-  Blist = peaks[c("ER", "H3K27ac")],
-  ranFUN = "resampleGenome",
-  evFUN = "numOverlaps",
-  window = 5e3,
-  ntimes = 1000, # Ramp up to 5K for an HPC
-  adj_pv_method = enrich_params$adj,
-  max_pv = 1,
-  genome = ucsc_ref,
-  mc.cores = 4
-)
-
-
-#########################################################################
-## This looks useful for comparing a single RS against a set of RSs!!! ##
-#########################################################################
-mlz <- multiLocalZscore(
-  A = all_target_peaks,
-  Blist = all_feat,
-  ranFUN = "resampleGenome",
-  evFUN = "numOverlaps",
-  window = 5e3,
-  ntimes = 1000, # Ramp up to 5K for an HPC
-  adj_pv_method = enrich_params$adj,
-  max_pv = 1,
-  genome = ucsc_ref,
-  mc.cores = 4
-)
-mlz %>% 
-  makeLZMatrix() %>% 
-  plotLocalZScoreMatrix(maxVal = "max") +
-  scale_x_continuous(expand = rep_len(0, 4)) +
-  scale_y_discrete(
-    expand = rep_len(0, 4), 
-    labels = \(x) str_wrap(all_feat_labs[x], 20)
-  ) 
-# Constructing manually
-df <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
-  as_tibble() %>% 
-  mutate(
-    shift = slot(mlz, "multiLocalZscores")$shifts
-  ) %>% 
-  pivot_longer(
-    cols = all_of(names(all_feat)), names_to = "feature", values_to = "Z"
-  ) %>% 
-  mutate(
-    feature = all_feat_labs[feature] %>% 
-      factor(levels = all_feat_labs),
-    Z = Z / sqrt(length(all_target_peaks))
-  ) 
-df %>% 
-  ggplot(aes(shift, feature, fill = Z)) +
-  geom_raster() +
-  scale_x_continuous(
-    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
-  ) +
-  scale_y_discrete(expand = rep_len(0, 4)) +
-  scale_fill_gradientn(
-    colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(df$Z))
-  )
-## Now we can step through the peaks & match the other two
-mlz_list <- names(peaks) %>% 
-  lapply(
-    \(i) {
-      multiLocalZscore(
-        A = peaks[[i]],
-        Blist = peaks[setdiff(names(peaks), i)],
-        ranFUN = "resampleGenome",
-        evFUN = "numOverlaps",
-        window = 5e3,
-        ntimes = 500, # Ramp up to 5K for an HPC
-        adj_pv_method = enrich_params$adj,
-        max_pv = 1,
-        genome = ucsc_ref,
-        mc.cores = 4
-      )
-    }
-  ) %>% 
-  setNames(names(peaks))
-df <- mlz_list %>% 
-  lapply(
-    function(x) {
-      mlz <- slot(x, "multiLocalZscores")
-      tbl <- as_tibble(mlz$shifed_ZSs)
-      tbl$shift <- mlz$shifts
-      tbl
-    }
-  ) %>% 
-  bind_rows(.id = "Query") %>% 
-  pivot_longer(
-    cols = all_of(names(peaks)), names_to = "Target", values_to = "Z"
-  ) %>% 
-  dplyr::filter(!is.na(Z)) %>% 
-  mutate(
-    Z = Z / sqrt(map_int(peaks, length)[Query]),
-    Target = factor(Target, levels = names(peaks)) %>% fct_rev(),
-    Query = factor(Query, levels = names(peaks)) %>% fct_rev()
-  )
-df %>% 
-  arrange(desc(Z)) %>%
-  mutate(
-    Query = fct_inorder(Query),
-    Target = fct_inorder(Target)
-  ) %>%
-  ggplot(aes(shift, Z, colour = Target)) +
-  geom_line() +
-  facet_wrap(~Query) +
-  scale_x_continuous(
-    labels = \(x) x * 1e-3, name = "Shift (kb)"
-  ) +
-  scale_y_continuous(
-    expand = expansion(c(0, 0.05)), name = expr(paste(Z[norm]))
-  ) +
-  scale_color_brewer(palette = "Set1") 
-## Form a table
-mlz_list %>% 
-  lapply(slot, "multiLocalZscores") %>% 
-  lapply(pluck, "resumeTab") %>% 
-  bind_rows(.id = "Query") %>% 
-  dplyr::rename(Target = name) %>% 
-  mutate(
-    prop = n_overlaps / map_int(peaks, length)[Query]
-  ) %>% 
-  dplyr::select(Query, Target, n_overlaps, prop, norm_zscore, adj.p_value) %>% 
-  arrange(desc(abs(norm_zscore))) # Pipe into reactable...
-
-
-
-multiLocalZscore(
-  A = all_target_peaks,
-  Blist = all_feat,
-  ranFUN = "resampleGenome",
-  evFUN = "numOverlaps",
-  window = 5e3,
-  ntimes = 1000, # Ramp up to 5K for an HPC
-  adj_pv_method = enrich_params$adj,
-  max_pv = 1,
-  genome = ucsc_ref,
-  mc.cores = 4
-)
-
-all_feat_colours <- colours[c("regions", "features")] %>% 
-  lapply(unlist) %>% 
-  unname() %>% 
-  unlist()
-rs_to_plot <- subset(
-  slot(mlz, "multiLocalZscores")$resumeTab, 
-  abs(norm_zscore) > 1
-)$name
-mlz %>% 
-  makeLZMatrix() %>% 
-  plotSingleLZ(
-    RS = rs_to_plot,smoothing = TRUE
-  ) +
-  scale_fill_manual(values = all_feat_colours) +
-  scale_colour_manual(values = "black") +
-  theme(
-    panel.grid = element_blank(),
-    panel.background = element_blank()
-  )
-
-
-crossMat <- makeCrosswiseMatrix(cpt, pvcut = 1)
-plotCrosswiseMatrix(crossMat) +
-  scale_x_discrete(expand = expansion(0, 0), name = NULL) +
-  scale_y_discrete(expand = expansion(0, 0), name = NULL) +
-  labs(fill = expr(paste(Z[norm]))) +
-  theme(
-    plot.title = element_blank(),
-    plot.subtitle = element_blank(),
-    plot.caption = element_blank()
-  )
 ```
+
+
+Next is to compare the shared peaks against the set of regions in exactly the same way as for each individual set of peaks.
+
+- Create the set of shared peaks using a new rule
+- Run the regioner analysis on this set of peaks
+- These can also be used to generate sequences for motif enrichment
+
+
 
 
 ```{r}
 ## Try a single RS against a multi-RS set
 cpt_feat <- crosswisePermTest(
-  A = list(`Shared Peaks` = set_genome_info(all_target_peaks, ucsc_ref)), # List...
+  A = list(`Shared Peaks` = set_genome_info(shared_peaks, ucsc_ref)), # List...
   B = all_feat %>% set_genome_info(ucsc_ref), 
-  mc.cores = 4, 
+  mc.cores = threads, 
   sampling = FALSE,
   ranFUN = "resampleGenome",
   evFUN = "numOverlaps",
   genome = ucsc_ref,
   ntimes = 1000 # Set to 5K for HPC
 )
+
+
 ## How do these p-values compare to the ones from Z-scores?
 slot(cpt_feat, "multiOverlaps")[["Shared Peaks"]]
 slot(mlz, "multiLocalZscores")$resumeTab
@@ -718,7 +585,7 @@ slot(cpt_feat, "multiOverlaps") %>%
 slot(mlz, "multiLocalZscores")$resumeTab %>% 
   as_tibble() %>% 
   mutate(
-    prop = n_overlaps / length(all_target_peaks),
+    prop = n_overlaps / length(shared_peaks),
     name = all_feat_labs[name]
   ) %>% 
   dplyr::select(
