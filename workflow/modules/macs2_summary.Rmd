@@ -1337,18 +1337,23 @@ plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 ## This should be run in a separate script with many threads & lots of RAM
 mlz <- here::here(macs2_path, target, glue("{target}_regions_localz.rds")) %>% 
   read_rds()
-```
-
-
-In addition to enrichment of pathways, the consensus peaks were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
-The package `regioneReloaded` [@Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected overlap between a random region-set and the regions of interest.
-This effectively defines a viable H~0~ against which the observed number of overlaps can be tested.
-Using the Central Limit Theorem, the *normalised Z-scores* returned can be expected to to follow an approximate $\mathcal{N}(0,1)$ distribution, and these are used to regenerate adjusted p-values, as a more conservative alternative to those returned by the package.
-
-In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
-
-```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
-df <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
+localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
+  as_tibble() %>% 
+  dplyr::rename(region = name) %>% 
+  mutate(
+    p_value = 1 - pchisq(norm_zscore^2, 1),
+    adj.p_value = p.adjust(p_value, enrich_params$adj)
+  ) %>% 
+  mutate(
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ str_sep_to_title(region)
+    ) %>% 
+      factor(names(region_colours)),
+    enrichment = log2(n_overlaps / mean_perm_test),
+    prop = n_overlaps / length(consensus_peaks)
+  ) 
+shifted_z <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
   as_tibble() %>% 
   mutate(
     shift = slot(mlz, "multiLocalZscores")$shifts
@@ -1368,7 +1373,18 @@ heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
   RColorBrewer::brewer.pal(9, "YlOrRd")
 )
-df %>% 
+```
+
+
+In addition to enrichment of pathways, the consensus peaks were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
+The package `regioneReloaded` [@Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected overlap between a random region-set and the regions of interest.
+This effectively defines a viable H~0~ against which the observed number of overlaps can be tested.
+Using the Central Limit Theorem, the *normalised Z-scores* returned can be expected to to follow an approximate $\mathcal{N}(0,1)$ distribution, and these are used to regenerate adjusted p-values, as a more conservative alternative to those returned by the package.
+
+In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
   ggplot(aes(shift, fct_rev(region), fill = Z)) +
   geom_raster() +
   scale_x_continuous(
@@ -1377,28 +1393,12 @@ df %>%
   scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
   scale_fill_gradientn(
     colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(df$Z))
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
   )
 ```
 
 ```{r tbl-regioner}
-# setup a results table
-tbl <- slot(mlz, "multiLocalZscores")$resumeTab %>%
-  as_tibble() %>% 
-  dplyr::rename(region = name) %>% 
-  mutate(
-    p_value = 1 - pchisq(norm_zscore^2, 1),
-    adj.p_value = p.adjust(p_value, enrich_params$adj)
-  ) %>% 
-  mutate(
-    region = case_when(
-      region %in% names(regions) ~ regions[region],
-      TRUE ~ str_sep_to_title(region)
-    ) %>% 
-      factor(names(region_colours)),
-    enrichment = log2(n_overlaps / mean_perm_test),
-    prop = n_overlaps / length(consensus_peaks)
-  ) %>% 
+tbl <- localz_df %>% 
   dplyr::select(
     region, mean_perm_test, n_overlaps, prop, enrichment,
     norm_zscore, adj.p_value
@@ -1449,7 +1449,12 @@ div(class = "table",
 
 ```{r export, results='hide', echo=FALSE}
 all_out <- list(
-  great = here::here(macs2_path, target, glue("{target}_great_results.tsv.gz")),
+  great = here::here(
+    "output", "results", target, glue("{target}_great_results.tsv.gz")
+  ),
+  localz = here::here(
+    "output", "results", target, glue("{target}_localz.tsv")
+  ),
   renv = file.path(
     here::here("output/envs"), glue("{target}_macs2_summary.RData")
   )
@@ -1457,6 +1462,7 @@ all_out <- list(
 great_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
   write_tsv(all_out$great)
+write_tsv(localz_df, all_out$localz)
 if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```

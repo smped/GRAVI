@@ -69,19 +69,35 @@ sq <- file.path(annotation_path, "seqinfo.rds") %>%
 gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
 id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
 tss <- read_rds(file.path(annotation_path, "tss.rds"))
-gene_regions <- read_rds(here::here(annotation_path, "gene_regions.rds"))
-external_features <- here::here(annotation_path, "features.rds") %>%
-  read_rds()
-all_feat <- c(gene_regions, external_features) %>% 
+## Gene Regions
+gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
+regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
+## External features
+external_features <- read_rds(file.path(annotation_path, "features.rds"))
+has_features <- length(external_features) > 0
+## Combine features & regions for testing
+all_regions <- c(gene_regions, external_features) %>% 
   endoapply(granges)
-all_feat_labs <- c(
+region_colours <- c(colours$regions, colours$features) %>%
+    setNames(
+      case_when(
+        names(.) %in% names(regions) ~ regions[names(.)],
+        TRUE ~ names(.)
+      )
+    )
+all_regions_labs <- c(
   map_chr(gene_regions, \(x) x$region[[1]]),
-  map_chr(external_features, \(x) str_sep_to_title(x$feature[[1]]))
+  map_chr(external_features, \(x) x$feature[[1]])
 )
 colours <- file.path(annotation_path, "colours.rds") %>% 
   read_rds()
 target_colours <- RColorBrewer::brewer.pal(length(targets) + 1, "Set1") %>% 
   setNames(c(targets, "Shared"))
+## For regioneR analysis
+heat_col <- c(
+  rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
+  RColorBrewer::brewer.pal(9, "YlOrRd")
+)
 ```
 
 
@@ -115,8 +131,11 @@ This ensures any individual targets with broader peaks do not lead to unrealisti
 
 ### Overlapping Regions
 
-```{r plot-overlaps, fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
-plotOverlaps(consensus_peaks, type = "upset", set_col = target_colours)
+```{r plot-overlaps, fig.height=6, fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
+plotType <- ifelse(length(consensus_peaks) > 2, "upset", "venn")
+plotOverlaps(
+  consensus_peaks, type = plotType, set_col = target_colours, exp_sets = 0.3
+)
 ```
 
 ### Peak Widths
@@ -189,7 +208,7 @@ A + B + plot_annotation(tag_levels = "A")
 
 
 
-## GREAT Enrichment  {.tabset}
+## GREAT Enrichment 
 
 ```{r setup-great}
 ucsc_ref <- map_great_refs(config$genome$build)
@@ -218,14 +237,29 @@ gs_list <- msigdb %>%
   lapply(pull, ensembl_gene) %>% 
   .[map_int(., length) <= enrich_params$max_size] %>% 
   .[map_int(., length) >= enrich_params$min_size] 
-great_res <- great(
+```
+
+
+In keeping with the analysis of each individual set of peaks, the `r comma(length(shared_peaks))`regions where all targets were detectable were analysed using `rRGEAT` [@Gu2023-rp] and identical parameterisation.
+This gives clear insight into which pathways are likely to be regulated by all targets *acting in concert*, with `r n_great` gene-sets being considered as enriched within these shared regions.
+
+As analysis using `rGREAT` determines enrichment in comparison to a set of background regions, two analyses were performed.
+The first uses the *entire genome* as the background ranges, whilst the second strategy uses the union of all ranges with detected signal in *any target* as the background.
+The latter approach effectively zooms in on the gene-sets specifically regulated by all targets acting in concert, out of the larger group of gene-sets regulated by *any* of the targets.
+The results will often be highly comparable, but can sometimes reveal interesting insights as to the underlying biology.
+
+
+### Genomic Background {.tabset}
+
+```{r great-genome-bg}
+great_res_genomic <- great(
   set_genome_info(shared_peaks, genome = ucsc_ref), 
   gene_sets = gs_list, 
   extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
   min_gene_set_size = enrich_params$min_size, 
   cores = threads
 )
-great_df <- getEnrichmentTable(great_res) %>% 
+great_df_genomic <- getEnrichmentTable(great_res_genomic) %>% 
   dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
   as_tibble() %>% 
   dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
@@ -241,16 +275,14 @@ great_df <- getEnrichmentTable(great_res) %>%
       }
     )
   )
-n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
+n_great_genomic <- sum(great_df_genomic$p_adjust_hyper < enrich_params$alpha)
 ```
 
-In keeping with the analysis of each individual set of peaks, the `r comma(length(shared_peaks))`regions where all targets were detectable were analysed using `rRGEAT` [@Gu2023-rp] and identical parameterisation.
-This gives clear insight into which pathways are likely to be regulated by all targets *acting in concert*, with `r n_great` gene-sets being considered as enriched within these shared regions.
 
-### GREAT Results Table
+#### GREAT Results Table
 
-```{r tbl-great-res}
-tbl <- great_df %>% 
+```{r tbl-great-res-genomic}
+tbl <- great_df_genomic %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
   dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
@@ -295,12 +327,15 @@ tbl <- great_df %>%
   )
 cp <- htmltools::em(
   glue(
-    "Enrichment results for regions showing consistently detectable signal for all of ",
-    glue_collapse(targets, sep = ", ", last = " and "),
-    " as considered significant when using rGREAT. ", 
+    "Gene-set enrichment results for regions showing consistently detectable ", 
+    "signal for all of ", glue_collapse(targets, sep = ", ", last = " and "),
+    " that were considered significantly enriched when using rGREAT. ", 
     "Backround regions to determine relative enrichment were taken as the entire genome. ",
+    comma(n_great_genomic), 
+    " gene-sets were considered as enriched relative to background. ",
     "In the case of large numbers of significant gene-sets, results are limited to the 100 most highly ranked. ",
-    "The genes listed are those associated with the set of shared regions."
+    "The genes listed are those associated with the set of shared regions, ",
+    "with the gene-set size reflecting the number associated with the background regions."
   )
 )
 div(class = "table",
@@ -310,10 +345,10 @@ div(class = "table",
 )
 ```
 
-`r if (n_great >= network_params$min_size) "### Enrichment Network"`
+`r if (n_great_genomic >= network_params$min_size) "#### Enrichment Network"`
 
-```{r great-network, echo = n_great >= network_params$min_size, eval = n_great >= network_params$min_size, fig.cap = glue("*The {n_great} most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {network_params$max_size} gene sets*")}
-tg_great <- great_df %>% 
+```{r great-network-genomic, echo = n_great_genomic >= network_params$min_size, eval = n_great_genomic >= network_params$min_size, fig.cap = glue("*The {n_great_genomic} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {network_params$max_size} gene sets*")}
+tg_great_genomic <- great_df_genomic %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
   make_tbl_graph(
     gs = great_df[["gene_id"]], 
@@ -321,8 +356,8 @@ tg_great <- great_df %>%
     hit_col = "observed_gene_hits", size_col = "gene_set_size", 
     min_dist = network_params$max_distance, max_gs = network_params$max_size
   )
-if (length(tg_great) >= network_params$min_size) {
-  tg_great %>% 
+if (length(tg_great_genomic) >= network_params$min_size) {
+  tg_great_genomic %>% 
     mutate(
       ## The lowest p-value obtainable from pbinom is 1e-16
       p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
@@ -345,7 +380,8 @@ if (length(tg_great) >= network_params$min_size) {
             str_trunc(60) %>% 
             str_wrap(width = 18)
         ),
-      repel = TRUE, max.overlaps = max(10, round(length(tg_great) / 4, 0)),
+      repel = TRUE, 
+      max.overlaps = max(10, round(length(tg_great_genomic) / 4, 0)),
       bg.color = "white", bg.r = 0.1, 
     ) +
     scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
@@ -361,44 +397,307 @@ if (length(tg_great) >= network_params$min_size) {
 }
 ```
 
-### TSS Distribution
+#### TSS Distribution
 
-```{r plot-top-great, fig.height=6, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
-top_id <- great_df$id[1]
-plotRegionGeneAssociations(great_res, top_id, which = 2:3)
+```{r plot-top-great-genomic, fig.height=6, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
+top_id <- great_df_genomic$id[1]
+plotRegionGeneAssociations(great_res_genomic, top_id, which = 2:3)
+```
+
+### Targets Background
+
+
+```{r great-targets-bg}
+bg <- consensus_peaks %>% 
+  unlist() %>% 
+  reduce() %>% 
+  set_genome_info(genome = ucsc_ref)
+great_res_targets <- great(
+  set_genome_info(shared_peaks, genome = ucsc_ref), 
+  gene_sets = gs_list, 
+  background = bg,
+  extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
+  min_gene_set_size = enrich_params$min_size, 
+  cores = threads
+)
+great_df_targets <- getEnrichmentTable(great_res_targets) %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
+  as_tibble() %>% 
+  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+  arrange(p_value_hyper) %>% 
+  mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, enrich_params$adj),
+    gene_id  = gs_list[id],
+    genes_with_hits = map_chr(
+      gene_id, 
+      \(x) {
+        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
+      }
+    )
+  )
+n_great_targets <- sum(great_df_targets$p_adjust_hyper < enrich_params$alpha)
 ```
 
 
-```{r}
-knitr::opts_chunk$set(eval = FALSE, echo = FALSE)
-```
+#### GREAT Results Table
 
-
-## Region Comparisons
-
-The package 
-
-
-```{r}
-## Now we can step through the peaks & match the other two
-mlz_list <- names(consensus_peaks) %>% 
-  lapply(
-    \(i) {
-      multiLocalZscore(
-        A = consensus_peaks[[i]],
-        Blist = consensus_peaks[setdiff(names(consensus_peaks), i)],
-        ranFUN = "resampleGenome",
-        evFUN = "numOverlaps",
-        window = 5e3,
-        ntimes = 500, # Ramp up to 5K for an HPC
-        adj_pv_method = enrich_params$adj,
-        max_pv = 1,
-        genome = ucsc_ref,
-        mc.cores = threads
+```{r tbl-great-res-targets}
+tbl <- great_df_targets %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+  dplyr::slice(seq_len(100)) %>%
+  dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
+  dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
+  reactable(
+    sortable = TRUE, filterable = TRUE,
+    columns = list(
+      id = colDef(
+        name = "Gene Set",
+        cell = \(value) str_replace_all(value, "_", " "),
+        minWidth = 180
+      ),
+      genome_fraction = colDef(show = FALSE),
+      observed_region_hits = colDef(show = FALSE),
+      fold_enrichment_hyper = colDef(
+        name = "Fold Enrichment", format = colFormat(digits = 3),
+        filterable = FALSE, minWidth = 110
+      ),
+      p_adjust_hyper = colDef(
+        name = glue("P<sub>adj</sub> ({enrich_params$adj})"),
+        html = TRUE, filterable = FALSE,
+        cell = \(value) sprint_pval(value),
+        maxWidth = 110
+      ),
+      mean_tss_dist = colDef(
+        "Mean TSS Distance (kb)", 
+        cell = \(value) round(value / 1e3, 2),
+        filterable = FALSE
+      ),
+      observed_gene_hits = colDef(
+        "Gene Hits", maxWidth = 100, filterable = FALSE
+      ),
+      gene_set_size = colDef(
+        "Gene Set Size", maxWidth = 100, filterable = FALSE
+      ),
+      genes_with_hits = colDef(
+        name = "Genes",
+        cell = \(value) with_tooltip(value, width = 60),
+        minWidth = 200
       )
+    )
+  )
+cp <- htmltools::em(
+  glue(
+    "Gene-set enrichment results for regions showing consistently detectable ", 
+    "signal for all of ", glue_collapse(targets, sep = ", ", last = " and "),
+    " that were considered significantly enriched when using rGREAT. ", 
+    "Backround regions to determine relative enrichment were taken as the entire genome. ",
+    comma(n_great_targets), 
+    " gene-sets were considered as enriched relative to background. ",
+    "In the case of large numbers of significant gene-sets, results are limited to the 100 most highly ranked. ",
+    "The genes listed are those associated with the set of shared regions, ",
+    "with the gene-set size reflecting the number associated with the background regions."
+  )
+)
+div(class = "table",
+    div(class = "table-header",
+        div(class = "caption", cp), tbl
+    )
+)
+```
+
+`r if (n_great_targets >= network_params$min_size) "#### Enrichment Network"`
+
+```{r great-network-targets, echo = n_great_targets >= network_params$min_size, eval = n_great_targets >= network_params$min_size, fig.cap = glue("*The {n_great_targets} most highly ranked gene sets from rGREAT analysis when using the combined peaks as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {network_params$max_size} gene sets*")}
+tg_great_targets <- great_df_targets %>% 
+  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
+  make_tbl_graph(
+    gs = great_df[["gene_id"]], 
+    alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = network_params$max_distance, max_gs = network_params$max_size
+  )
+if (length(tg_great_targets) >= network_params$min_size) {
+  tg_great_targets %>% 
+    mutate(
+      ## The lowest p-value obtainable from pbinom is 1e-16
+      p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
+      prop = observed_gene_hits / gene_set_size 
+    ) %>% 
+    ggraph(layout = network_params$layout, weights = oc) +
+    geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+    geom_node_point(
+      aes(
+        fill = -log10(p_value_hyper), size = observed_gene_hits, stroke = 1.5 * prop
+      ),
+      shape = 21
+    ) +
+    geom_node_text(
+      aes(label = label, alpha = prop),
+      colour = "black", size = 3, 
+      data = . %>%
+        mutate(
+          label = str_replace_all(label, "_", " ") %>% 
+            str_trunc(60) %>% 
+            str_wrap(width = 18)
+        ),
+      repel = TRUE, 
+      max.overlaps = max(10, round(length(tg_great_targets) / 4, 0)),
+      bg.color = "white", bg.r = 0.1, 
+    ) +
+    scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+    scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+    scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+    scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+    scale_size_continuous(range = c(1, 10)) +
+    scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+    scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+    guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+    labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+    theme_void() 
+}
+```
+
+## Regioner Analysis
+
+### Region Comparisons {.tabset}
+
+```{r load-regioner}
+localz_regions <- here::here(macs2_path, targets, glue("{targets}_regions_localz.rds")) %>% 
+  c(here::here(macs2_path, "shared", "shared_regions_localz.rds")) %>% 
+  setNames(c(targets, "shared")) %>% 
+  lapply(read_rds)
+localz_df <- localz_regions %>%
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(pluck, "resumeTab") %>% 
+  bind_rows(.id = "target") %>% 
+  as_tibble() %>% 
+  dplyr::rename(region = name) %>% 
+  mutate(
+    p_value = 1 - pchisq(norm_zscore^2, 1),
+    adj.p_value = p.adjust(p_value, enrich_params$adj),
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ region
+    ) %>% 
+      factor(names(region_colours)),
+    enrichment = log2(n_overlaps / mean_perm_test),
+    target_peaks = c(
+      map_int(consensus_peaks, length), shared = length(shared_peaks)
+    )[target],
+    prop = n_overlaps / target_peaks
+  ) %>% 
+  dplyr::select(
+    target, region, target_peaks, n_overlaps, prop, Z = norm_zscore, enrichment,
+    ends_with("p_value"), ends_with("perm_test")
+  )
+shifted_z <- localz_regions %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(
+    \(x) {
+      tbl <- as_tibble(x$shifed_ZSs)
+      tbl$shift <- x$shifts
+      tbl
     }
   ) %>% 
-  setNames(names(consensus_peaks))
+  bind_rows(.id = "target") %>% 
+  pivot_longer(
+    cols = all_of(names(all_regions)), names_to = "region", values_to = "Z"
+  ) %>% 
+  mutate(
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ region
+    ) %>% 
+      factor(names(region_colours)),
+    n = c(map_int(consensus_peaks, length), shared = length(shared_peaks))[target],
+    Z = Z / sqrt(n),
+    target = factor(target, levels = c("shared", targets))
+  ) 
+```
+
+The package `regionerReloaded` [@Malinverni2023-ee] was again used to compare the peaks sharing signal from all targets against the same set of genomic regions and features as analysed earlier.
+The following analysis includes the *shared-target peaks* as well as each target's set of peaks, as analysed in the individual summaries.
+This provides an excellent frame of reference for comparison between targets, and th nature of the shared-target peaks in this context.
+
+#### Combined Heatmap
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting  peaks for all targets and the set of shared peaks, within a $\\pm$ {slot(localz_regions[[1]], 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
+  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  geom_raster() +
+  facet_grid(cols = vars(target)) +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
+  )
+```
+
+#### Results Table
+
+```{r tbl-localz-regions}
+tbl <- localz_df %>% 
+  arrange(p_value) %>% 
+  dplyr::select(-sd_perm_test, -p_value) %>% 
+  dplyr::select(target, region, target_peaks, mean_perm_test, everything()) %>% 
+  reactable(
+    columns = list(
+      target = colDef("Target", filterable = TRUE),
+      region = colDef("Region", minWidth = 120, filterable = TRUE),
+      target_peaks = colDef("N Peaks", format = comma_col, maxWidth = 80),
+      mean_perm_test = colDef("Expected", format = comma_col),
+      n_overlaps = colDef("Observed", format = comma_col, maxWidth = 85),
+      prop = colDef("% Peaks", format = percent_col, maxWidth = 80),
+      Z = colDef(
+        format = colFormat(digits = 2), maxWidth = 80,
+        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+      ),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE, 
+        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value), maxWidth = 80,
+        style = \(value) list(
+          color = ifelse(
+            value < enrich_params$alpha, "black", colours$direction$unchanged
+          )
+        )
+      )
+    ),
+    columnGroups = list(
+      colGroup("Overlaps", columns = c("mean_perm_test", "n_overlaps", "prop"))
+    )
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    Results for association between the all peaks and the pre-defined 
+    genomic regions{ifelse(has_features, ', including the supplied external features.', '.')}.
+    Expected overlaps are those obtained through random resampling of the genome
+    to match the consensus peaks. Enrichment is given taking log2 of 
+    the ratio between observed and expected overlapping peaks.
+    "
+  )
+)
+div(class = "table",
+    div(class = "table-header",
+        div(class = "caption", cp), tbl
+    )
+)
+```
+
+### Comparison Between Peaks {.tabset}
+
+```{r load-localz-peaks}
+mlz_list <- here::here("output", "macs2", "shared", "all_consensus_localz.rds") %>% 
+  read_rds
 dist_df <- mlz_list %>% 
   lapply(
     function(x) {
@@ -418,24 +717,7 @@ dist_df <- mlz_list %>%
     Target = factor(Target, levels = names(consensus_peaks)) %>% fct_rev(),
     Query = factor(Query, levels = names(consensus_peaks)) %>% fct_rev()
   )
-dist_df %>% 
-  arrange(desc(Z)) %>%
-  mutate(
-    Query = fct_inorder(Query),
-    Target = fct_inorder(Target)
-  ) %>%
-  ggplot(aes(shift, Z, colour = Target)) +
-  geom_line() +
-  facet_wrap(~Query) +
-  scale_x_continuous(
-    labels = \(x) x * 1e-3, name = "Shift (kb)"
-  ) +
-  scale_y_continuous(
-    expand = expansion(c(0, 0.05)), name = expr(paste(Z[norm]))
-  ) +
-  scale_color_brewer(palette = "Set1") 
-## Form a table
-res_df <- mlz_list %>% 
+pairwise_df <- mlz_list %>% 
   lapply(slot, "multiLocalZscores") %>% 
   lapply(pluck, "resumeTab") %>% 
   bind_rows(.id = "Query") %>% 
@@ -448,50 +730,36 @@ res_df <- mlz_list %>%
     p_value = 1 - pchisq(norm_zscore^2, 1),
     adj.p_value = p.adjust(p_value, enrich_params$adj)
   ) 
-res_df %>%
-  dplyr::select(
-    Query, Target, n_regionA, n_regionB, prop, n_overlaps, mean_perm_test, 
-    enrichment, norm_zscore, adj.p_value
-  ) %>% 
-  reactable(
-    columns = list(
-      Query = colDef(maxWidth = 85),
-      Target = colDef(maxWidth = 85),
-      n_regionA = colDef("Query Regions", format = comma_col),
-      n_regionB = colDef("Target Regions", format = comma_col),
-      prop = colDef("% Query", format = colFormat(percent = TRUE, digits = 1)),
-      n_overlaps = colDef("Overlaps", format = comma_col),
-      mean_perm_test = colDef("Expected", format = comma_col),
-      enrichment = colDef(
-        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
-        html = TRUE,
-        style = \(value) {
-          text_colour = ifelse(value < 0, colours$direction[["decreaeds"]], "black")
-          list(color = text_colour)
-        }
-      ),
-      norm_zscore = colDef(
-        "Z", format = colFormat(digits = 2),
-        style = \(value) {
-          text_colour = ifelse(value < 0, colours$direction[["decreaeds"]], "black")
-          list(color = text_colour)
-        }
-      ),
-      adj.p_value = colDef(
-        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
-        cell = \(value) sprint_pval(value),
-        style = \(value) {
-          text_colour = ifelse(
-            value < enrich_params$alpha, "black", colours$direction[["unchanged"]]
-          )
-          list(color = text_colour)
-        }
-      )
-    )
-  )
+```
 
-res_df %>% 
-  ggplot(aes(Target, Query, fill = norm_zscore)) +
+The set of peaks derived from each target was also compared to each other to check for any relationship between their locations on the genome.
+Shifted Z-Scores indicate proximity and fine-grained relative binding patterns, with additional Z-scores derived from any enrichment of direct overlaps above the expected values used to determine the statistical significance of these overlaps compared to random expectations.
+
+#### Shifted Z-Scores
+
+```{r plot-shiftedz, fig.cap = "Distributions of shifted Z-scores for each target relative to other targets. Narrow peaks indicate close proximity of overlaps, whilst dips around zero indicate very close by not overlapping signal, as may be observed with histone marks and associated transcription factors."}
+dist_df %>% 
+  arrange(desc(Z)) %>%
+  mutate(
+    Query = fct_inorder(Query),
+    Target = fct_inorder(Target)
+  ) %>%
+  ggplot(aes(shift, Z, colour = Target)) +
+  geom_line() +
+  facet_wrap(~Query) +
+  scale_x_continuous(
+    labels = \(x) x * 1e-3, name = "Shift (kb)"
+  ) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_colour_manual(values = target_colours)
+```
+
+
+#### Overlap Heatmap
+
+```{r plot-overlap-heatmap, fig.cap = "Heatmap showing the strength of overlaps between each target and the alternative targets, here represented as the Query and Target respectively. Fill colours are derived from Z-scores and indicate the significance of overlaps, with asterisks indicating a formal result passing statistical significance as detailed in the reults table. The proportion of peaks from each query and alternative targets is also shown within each tile."}
+pairwise_df %>% 
+  ggplot(aes(Target, fct_rev(Query), fill = norm_zscore)) +
   geom_raster() +
   geom_label(
     aes(label = prop),
@@ -509,84 +777,127 @@ res_df %>%
   scale_y_discrete(expand = expansion(0, 0)) +
   scale_fill_gradientn(
     colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(res_df$norm_zscore)),
-    name = expr(paste(Z[norm]))
+    limits = c(-1.05, 1.05) * max(abs(pairwise_df$norm_zscore)),
   ) +
+  labs(y = "Query", fill = "Z") +
   theme(panel.grid = element_blank())
-
 ```
 
 
-Next is to compare the shared peaks against the set of regions in exactly the same way as for each individual set of peaks.
+#### Results Table
 
-- Create the set of shared peaks using a new rule
-- Run the regioner analysis on this set of peaks
-- These can also be used to generate sequences for motif enrichment
-
-
-
-
-```{r}
-## Try a single RS against a multi-RS set
-cpt_feat <- crosswisePermTest(
-  A = list(`Shared Peaks` = set_genome_info(shared_peaks, ucsc_ref)), # List...
-  B = all_feat %>% set_genome_info(ucsc_ref), 
-  mc.cores = threads, 
-  sampling = FALSE,
-  ranFUN = "resampleGenome",
-  evFUN = "numOverlaps",
-  genome = ucsc_ref,
-  ntimes = 1000 # Set to 5K for HPC
-)
-
-
-## How do these p-values compare to the ones from Z-scores?
-slot(cpt_feat, "multiOverlaps")[["Shared Peaks"]]
-slot(mlz, "multiLocalZscores")$resumeTab
-## This fails!!!
-cpt_feat %>% 
-  makeCrosswiseMatrix() %>% 
-  plotCrosswiseMatrix() +
-  scale_x_discrete(
-    expand = expansion(0, 0), name = NULL,
-    labels = \(x) str_wrap(str_sep_to_title(x), 20)
-  ) +
-  scale_y_discrete(expand = expansion(0, 0), name = NULL) +
-  labs(fill = expr(paste(Z[norm]))) +
-  theme(
-    plot.title = element_blank(),
-    plot.subtitle = element_blank(),
-    plot.caption = element_blank(),
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
-    axis.text.y = element_text(angle = 0, hjust = 1, size = 10)
-  ) 
-slot(cpt_feat, "multiOverlaps") %>% 
-  bind_rows(.id = "Query") %>% 
-  dplyr::rename(Target = "name") %>% 
-  mutate(
-    Target = factor(Target, levels = names(all_feat)),
-    prop = n_overlaps / n_regionA
-  ) %>% 
-  ggplot(aes(Target, Query, fill = norm_zscore)) +
-  geom_raster() +
-  geom_label(aes(label = percent(prop, 0.1))) +
-  scale_x_discrete(expand = rep_len(0, 4)) +
-  scale_y_discrete(expand = rep_len(0, 4)) +
-  scale_fill_gradientn(
-    colours = heat_col, 
-    limits = c(-1.05, 1.05) * max(abs(slot(cpt_feat, "multiOverlaps")[[1]]$norm_zscore))
-  )
-## Or is it just easier:
-slot(mlz, "multiLocalZscores")$resumeTab %>% 
-  as_tibble() %>% 
-  mutate(
-    prop = n_overlaps / length(shared_peaks),
-    name = all_feat_labs[name]
-  ) %>% 
+```{r pairwise-tbl}
+tbl <- pairwise_df %>%
   dplyr::select(
-    name, n_overlaps, prop, norm_zscore, adj.p_value
+    Query, Target, n_regionA, n_regionB, prop, n_overlaps, mean_perm_test, 
+    enrichment, norm_zscore, adj.p_value
+  ) %>% 
+  arrange(adj.p_value) %>% 
+  reactable(
+    columns = list(
+      Query = colDef(maxWidth = 85),
+      Target = colDef(maxWidth = 85),
+      n_regionA = colDef("Query", format = comma_col),
+      n_regionB = colDef("Target", format = comma_col),
+      prop = colDef("% Query", format = colFormat(percent = TRUE, digits = 1)),
+      n_overlaps = colDef("Observed", format = comma_col),
+      mean_perm_test = colDef("Expected", format = comma_col),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE,
+        style = \(value) {
+          text_colour = ifelse(value < 0, colours$direction$decreased, "black")
+          list(color = text_colour)
+        }
+      ),
+      norm_zscore = colDef(
+        "Z", format = colFormat(digits = 2),
+        style = \(value) {
+          text_colour = ifelse(value < 0, colours$direction$decreased, "black")
+          list(color = text_colour)
+        }
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value),
+        style = \(value) {
+          text_colour = ifelse(
+            value < enrich_params$alpha, "black", colours$direction[["unchanged"]]
+          )
+          list(color = text_colour)
+        }
+      )
+    ),
+    columnGroups = list(
+      colGroup(name = "Nbr. Regions", columns = str_subset(names(.), "n_reg")),
+      colGroup(
+        name = "Overlaps", columns = c("prop", "n_overlaps", "mean_perm_test")
+      )
+    )
   )
+cp <- htmltools::em(
+  glue(
+    "
+    Results showing significance of the overlap between peaks from each target 
+    and the other targets, defined in here as the Query and Target respectively. 
+    Expected values represent those estimated using permutations, with the log2 
+    ratio between the two values expressed as enrichment
+    "
+  )
+)
+div(class = "table",
+    div(class = "table-header",
+        div(class = "caption", cp), tbl
+    )
+)
 ```
 
 
+
+## Data Export 
+
+```{r all-out}
+all_out <- list(
+  great_genomic_bg = here::here(
+    "output", "results", "shared", "shared_great_results_genomic_bg.tsv.gz"
+  ),
+  great_targets_bg = here::here(
+    "output", "results", "shared", "shared_great_results_targets_bg.tsv.gz"
+  ),
+  localz_shared_regions = here::here(
+    "output", "results", "shared", "shared_regions_localz.tsv"
+  ),
+  localz_pairwise_targets = here::here(
+    "output", "results", "shared", "pairwise_localz.tsv"
+  )
+)
+great_df_genomic %>% 
+  mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
+  write_tsv(all_out$great_genomic_bg)
+great_df_targets %>% 
+  mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
+  write_tsv(all_out$great_targets_bg)
+localz_df %>% write_tsv(all_out$localz_shared_regions)
+pairwise_df %>% write_tsv(all_out$localz_pairwise_targets)
+```
+
+
+Files exported during preparation of this document are:
+
+`r pander(all_out)`
+
+## References
+
+<div id="refs"></div>
+
+<br>
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>
 

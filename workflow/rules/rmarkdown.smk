@@ -121,12 +121,15 @@ rule compile_macs2_summary_html:
         fig_path = directory(
             os.path.join("docs", "{target}_macs2_summary_files", "figure-html")
         ),
+        great = os.path.join(
+            "output", "results", "{target}", "{target}_great_results.tsv.gz"
+        ),
+        localz = os.path.join(
+            "output", "results", "{target}", "{target}_localz.tsv"
+        ),
         renv = temp(
             os.path.join("output", "envs", "{target}_macs2_summary.RData")
         ),
-        great = os.path.join(
-            macs2_path, "{target}", "{target}_great_results.tsv.gz"
-        )
     conda: "../envs/rmarkdown.yml"
     threads: 6
     resources:
@@ -151,6 +154,12 @@ rule compile_peak_comparison_rmd:
     output:
         rmd = os.path.join(rmd_path, "peak_comparison.Rmd"),
         html = os.path.join("docs", "peak_comparison.html"),
+        tsv = expand(
+            os.path.join("output", "results", "shared", "{f}"),
+            f = ['shared_great_results_genomic_bg.tsv.gz',
+            'shared_great_results_targets_bg.tsv.gz',
+            'shared_regions_localz.tsv', 'pairwise_localz.tsv']
+        )
     conda: "../envs/rmarkdown.yml"
     threads: 6    
     resources:
