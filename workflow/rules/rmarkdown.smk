@@ -143,8 +143,9 @@ rule compile_peak_comparison_rmd:
         peaks = os.path.join(
             macs2_path, "shared", "shared_consensus_peaks.bed.gz"
         ),
-        localz = os.path.join(
-            macs2_path, "shared",  "shared_regions_localz.rds"
+        localz = expand(
+            os.path.join(macs2_path, "shared",  "{f}_localz.rds"),
+            f = ['all_consensus', 'shared_regions']
         ),
         rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
     output:
