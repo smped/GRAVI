@@ -38,14 +38,6 @@ enrichment:
       - "CP:REACTOME"
       - "CP:WIKIPATHWAYS"
       - "TFT:GTRD"
-  motifdb:
-    ## Anything entered here will be passed to MotifDb to provide PWMs
-    data_source: 
-      - "HOCOMOCOv11-core-A"
-      - "HOCOMOCOv11-core-B"
-      - "HOCOMOCOv11-core-C"
-    organism: 
-      - "Hsapiens"
 
 ## Used for network plots
 networks:
@@ -53,3 +45,24 @@ networks:
   max_size: 80
   max_distance: 0.9
   layout: 'fr'
+
+motif_analysis:
+  motifdb:
+    ## Anything entered here will be passed to MotifDb to provide PWMs
+    data_source:
+      - "HOCOMOCOv11-core-A"
+      - "HOCOMOCOv11-core-B"
+      - "HOCOMOCOv11-core-C"
+    organism:
+      - "Hsapiens"
+    cluster_above: 0.9
+  analysis:
+    abs: true
+    adj: "fdr"
+    alpha: 0.05
+    binwidth: 10
+    peak_width: 400
+    ignore_below: 0.01
+    iterations: 100
+    model: "negbinom"
+
