@@ -13,6 +13,11 @@
   - [ ] pairwise comparisons
 - [ ] Checks for input file consistency/structure
 - [ ] Shift `cowplot` to `patchwork`
+- [ ] Motif Detection
+  - [ ] Macs2 Summary
+  - [ ] Shared Peaks
+  - [ ] Differential Signal
+  - [ ] Save Best matches as an rds to keep sequence information
 
 ## Differential Signal
 
@@ -32,7 +37,6 @@
 - [ ] Add 3-way comparisons
 - [ ] Additional modules
   - [ ] ROSE
-  - [ ] Incorporate motif detection
   - [ ] Nucleosome Free Regions
 
 ## Bugs

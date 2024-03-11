@@ -1519,28 +1519,35 @@ bm_pos <- motif_list %>%
 ```{r}
 res_pos %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  mutate(cluster = fct_inorder(as.character(cluster))) %>% 
+  dplyr::select(
+    cluster, contains("name"), ends_with("p"), start, end, centre, width,
+    contains("total"), matches_in_region, starts_with("e"), 
+  ) %>% 
   reactable(
-    groupBy = "cluster",
+    groupBy = "cluster", searchable = TRUE,showPageSizeOptions = TRUE,
     columns = list(
       cluster = colDef(maxWidth = 60),
-      name = colDef("Name", aggregate = "unique", maxWidth = 80, filterable = TRUE),
-      altname = colDef("Motif", aggregate = "unique", minWidth = 180, filterable = TRUE),
+      name = colDef("Name", aggregate = "unique", maxWidth = 80),
+      altname = colDef("Motif", aggregate = "unique", minWidth = 180),
       start = colDef("Start", aggregate = "min", maxWidth = 50),
       end = colDef("End", aggregate = "max", maxWidth = 50),
-      centre = colDef("Centre", aggregate = "median", maxWidth = 60),
-      width = colDef("Width", aggregate = "median", maxWidth = 50),
+      centre = colDef(
+        "Centre", aggregate = "median", maxWidth = 60, show = FALSE
+      ),
+      width = colDef("Width", aggregate = "median", maxWidth = 60),
       total_matches = colDef(
-        "Total Matches", aggregate = "max", maxWidth = 60, format = comma_col
+        "Total", aggregate = "max", maxWidth = 60, format = comma_col
       ),
       matches_in_region = colDef(
-        "Region Matches", aggregate = "max", maxWidth = 60
+        "Region", aggregate = "max", maxWidth = 60
       ),
       expected = colDef(
-        "Expected", aggregate = "max", maxWidth = 70, format = comma_col
+        "Expected", aggregate = "max", maxWidth = 75, format = comma_col
       ),
       enrichment = colDef(
         "Enrichment", aggregate = "max", format = colFormat(digits = 2),
-        maxWidth = 80
+        maxWidth = 90
       ),
       prop_total = colDef(
         "% In Region", aggregate = "max", format = percent_col, maxWidth = 60
@@ -1552,7 +1559,20 @@ res_pos %>%
         aggregate = "min"
       )
     ),
-    theme = reactableTheme(style = list(fontSize = 12))
+    columnGroups = list(
+      colGroup(
+        name = "Matches", 
+        columns = c(
+          "total_matches", "prop_total", "matches_in_region", "expected",
+          "enrichment"
+        )
+      ),
+      colGroup(
+        name = "Positional Bias", 
+        columns = c("start", "end", "centre", "width")
+      )
+    ),
+    theme = reactableTheme(style = list(fontSize = 14))
   )
 ```
 
