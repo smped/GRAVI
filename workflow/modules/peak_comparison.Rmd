@@ -71,13 +71,19 @@ id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
 tss <- read_rds(file.path(annotation_path, "tss.rds"))
 ## Gene Regions
 gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
-regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
+regions <- map_chr(gene_regions, \(x) unique(x$region)[[1]])
 ## External features
 external_features <- read_rds(file.path(annotation_path, "features.rds"))
 has_features <- length(external_features) > 0
 ## Combine features & regions for testing
 all_regions <- c(gene_regions, external_features) %>% 
   endoapply(granges)
+all_regions_labs <- c(
+  map_chr(gene_regions, \(x) x$region[[1]]),
+  map_chr(external_features, \(x) x$feature[[1]])
+)
+colours <- file.path(annotation_path, "colours.rds") %>% 
+  read_rds()
 region_colours <- c(colours$regions, colours$features) %>%
     setNames(
       case_when(
@@ -85,13 +91,7 @@ region_colours <- c(colours$regions, colours$features) %>%
         TRUE ~ names(.)
       )
     )
-all_regions_labs <- c(
-  map_chr(gene_regions, \(x) x$region[[1]]),
-  map_chr(external_features, \(x) x$feature[[1]])
-)
-colours <- file.path(annotation_path, "colours.rds") %>% 
-  read_rds()
-target_colours <- RColorBrewer::brewer.pal(length(targets) + 1, "Set1") %>% 
+target_colours <- RColorBrewer::brewer.pal(n_targets + 1, "Set1") %>% 
   setNames(c(targets, "Shared"))
 ## For regioneR analysis
 heat_col <- c(
