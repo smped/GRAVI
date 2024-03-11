@@ -1617,7 +1617,6 @@ great_df %>%
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
   write_tsv(all_out$great)
 write_tsv(localz_df, all_out$localz)
-if (!dir.exists(dirname(all_out$renv))) dir.create(dirname(all_out$renv))
 save.image(all_out$renv)
 ```
 

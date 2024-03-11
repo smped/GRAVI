@@ -193,7 +193,7 @@ cat("done\n")
 motif_params <- params$motif_analysis$motifdb
 cat("Converting to Universal Motif format\n")
 db <- convert_motifs(MotifDb) |> to_df()
-if (!is.null(motif_params$data_source))
+if (is.null(motif_params$data_source))
   stop("No data source provided for transription factors")
 db <- subset(db, dataSource %in% motif_params$data_source)
 if (!is.null(motif_params$organism))
