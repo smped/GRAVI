@@ -35,6 +35,8 @@ library(tidygraph)
 library(patchwork)
 library(msigdbr)
 library(regioneReloaded)
+library(universalmotif)
+library(motifTestR)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -45,10 +47,13 @@ theme_set(
 register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
+config <- read_yaml(here::here("config", "config.yml"))
+ucsc <- get_ucsc(config$genome$build)
+bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
+library(bs_pkg, character.only = TRUE)
 ```
 
 ```{r config-params-paths}
-config <- read_yaml(here::here("config", "config.yml"))
 fdr_alpha <- config$comparisons$fdr
 bam_path <- here::here(config$paths$bam)
 macs2_path <- here::here("output", "macs2")
@@ -62,6 +67,9 @@ enrich_params <- here::here("config", "params.yml") %>%
 network_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("networks")
+motif_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("motif_analysis")
 ```
 
 ```{r read-samples}
@@ -1442,6 +1450,152 @@ div(class = "table",
         div(class = "caption", cp), tbl
     )
 )
+```
+
+
+## Motif Analysis
+
+```{r load-motif-res}
+bs_genome <- get("bs_pkg")
+fw_peaks <- resize(
+  consensus_peaks, width = motif_params$analysis$peak_width, fix = "center"
+)
+genome(fw_peaks) <- ucsc$build
+fw_seq <- getSeq(bs_genome, fw_peaks)
+motif_adj <- match.arg(motif_params$analysis$adj, p.adjust.methods)
+motif_list <- file.path(annotation_path, "motif_list.rds") %>% 
+  read_rds() %>% 
+  to_df %>% 
+  as_tibble()
+res_pos <- file.path(
+  macs2_path, target, glue("{target}_motif_position.tsv.gz")
+) %>% 
+  read_tsv() %>% 
+  dplyr::select(-fdr) %>% 
+  mutate(adj_p = p.adjust(p, motif_adj))
+# res_enrich <- file.path(
+#   macs2_path, target, glue("{target}_motif_enrichment.tsv.gz")
+# ) %>% 
+#   read_tsv()
+```
+
+Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
+For this step peaks were set to a fixed width of `r motif_params$analysis$peak_width`bp, with sequences taken from these regions.
+
+### Motif Enrichment
+
+### Positional Bias
+
+Positional bias was tested using the packabe `motifTestR`, bin-sizes of `r motif_params$analysis$binwidth`bp and testing `r ifelse(motif_params$analysis$abs, "distance from sequence centres", "position either side of the sequence centres")`.
+Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_below)` of sequences were not tested for any positional bias.
+
+Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r sum(res_pos$adj_p < motif_params$analysis$alpha)` motifs were considered as showing any type of positional bias.
+
+```{r}
+top_pos <- res_pos %>% 
+  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(enrichment == max(enrichment), .by = cluster) %>% 
+  dplyr::slice(1:9) %>% 
+  dplyr::select(altname, name, cluster)
+clust_names <- res_pos %>% 
+  dplyr::filter(
+    adj_p < motif_params$analysis$alpha,
+    cluster %in% top_pos$cluster
+  ) %>% 
+  arrange(desc(enrichment)) %>% 
+  summarise(
+    altname = altname[[1]], .by = cluster,
+    name = paste(name, collapse = "/")
+  ) %>% 
+  mutate(name = setNames(name, altname)) %>% 
+  pull(name)
+bm_pos <- motif_list %>% 
+  dplyr::filter(altname %in% top_pos$altname) %>% 
+  to_list() %>% 
+  getPwmMatches(fw_seq, best_only = TRUE, mc.cores = threads) %>% 
+  .[top_pos$altname] 
+```
+
+```{r}
+res_pos %>% 
+  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  reactable(
+    groupBy = "cluster",
+    columns = list(
+      cluster = colDef(maxWidth = 60),
+      name = colDef("Name", aggregate = "unique", maxWidth = 80, filterable = TRUE),
+      altname = colDef("Motif", aggregate = "unique", minWidth = 180, filterable = TRUE),
+      start = colDef("Start", aggregate = "min", maxWidth = 50),
+      end = colDef("End", aggregate = "max", maxWidth = 50),
+      centre = colDef("Centre", aggregate = "median", maxWidth = 60),
+      width = colDef("Width", aggregate = "median", maxWidth = 50),
+      total_matches = colDef(
+        "Total Matches", aggregate = "max", maxWidth = 60, format = comma_col
+      ),
+      matches_in_region = colDef(
+        "Region Matches", aggregate = "max", maxWidth = 60
+      ),
+      expected = colDef(
+        "Expected", aggregate = "max", maxWidth = 70, format = comma_col
+      ),
+      enrichment = colDef(
+        "Enrichment", aggregate = "max", format = colFormat(digits = 2),
+        maxWidth = 80
+      ),
+      prop_total = colDef(
+        "% In Region", aggregate = "max", format = percent_col, maxWidth = 60
+      ),
+      p = colDef(show = FALSE),
+      adj_p = colDef(
+        glue("p<sub>{motif_adj}</sub>"), html = TRUE, maxWidth = 70,
+        cell = \(value) sprint_pval(value), format = colFormat(digits = 3),
+        aggregate = "min"
+      )
+    ),
+    theme = reactableTheme(style = list(fontSize = 12))
+  )
+```
+
+
+```{r}
+ plotMatchPos(
+  bm_pos, geom = "point", abs = motif_params$analysis$abs,
+  binwidth = 1#motif_params$analysis$binwidth
+) +
+  geom_smooth(se = FALSE, colour = "black", linewidth = 1/2) +
+  facet_wrap(~name) 
+```
+
+
+```{r}
+A <- plotMatchPos(
+  bm_pos, se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
+  binwidth = motif_params$analysis$binwidth / 2
+) +
+  labs(
+    x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
+  ) +
+  theme(legend.position = "none")
+B <- plotMatchPos(
+  bm_pos, type = "cdf", geom = "line", abs = motif_params$analysis$abs,
+  linewidth = 1 / 2, binwidth = 1
+) +
+  labs(x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster")
+A + B + plot_layout(guides = "collect") 
+```
+
+```{r}
+res_pos %>% 
+  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::slice(1:25) %>% 
+  dplyr::select(altname) %>% 
+  left_join(motif_list, by = "altname") %>% 
+  to_list() %>% 
+  getPwmMatches(fw_seq) %>% 
+  plotMatchPos(
+    abs = motif_params$analysis$abs, type = "heatmap", cluster = TRUE,
+    binwidth = floor(motif_params$analysis$binwidth / 2)
+  )
 ```
 
 
