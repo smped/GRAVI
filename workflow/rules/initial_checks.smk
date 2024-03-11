@@ -45,7 +45,7 @@ rule check_external_files:
         bai = expand(os.path.join(bam_path, "{bam}.bam.bai"), bam = samples),
         here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
-        script = "../scripts/check_external_files.R",
+        script = os.path.join("workflow", "scripts", "check_external_files.R"),
     output: os.path.join("output", "checks", "external-files.chk")
     threads: 1
     resources:

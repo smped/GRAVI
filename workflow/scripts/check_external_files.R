@@ -83,9 +83,7 @@ reqd_cols <- c(
 )
 cat("Importing ", all_external$gtf, "\n")
 gtf <- all_external$gtf %>%
-  import.gff(
-    which = GRanges(sq)[1], # THIS WILL FAIL if incompatible
-  ) %>%
+  import.gff(which = GRanges(sq)) %>% # THIS WILL FAIL if incompatible
   select(all_of(reqd_cols)) %>% # WILL ABORT if any are missing
   mutate(gene_id = str_remove_all(gene_id, "\\..+$")) %>%
   sort() %>%

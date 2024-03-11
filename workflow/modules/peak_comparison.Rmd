@@ -237,10 +237,34 @@ gs_list <- msigdb %>%
   lapply(pull, ensembl_gene) %>% 
   .[map_int(., length) <= enrich_params$max_size] %>% 
   .[map_int(., length) >= enrich_params$min_size] 
+great_res <- great(
+  set_genome_info(shared_peaks, genome = ucsc_ref), 
+  gene_sets = gs_list, 
+  extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
+  min_gene_set_size = enrich_params$min_size, 
+  cores = threads
+)
+great_df <- getEnrichmentTable(great_res) %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
+  as_tibble() %>% 
+  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+  arrange(p_value_hyper) %>% 
+  mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, enrich_params$adj),
+    gene_id  = gs_list[id],
+    genes_with_hits = map_chr(
+      gene_id, 
+      \(x) {
+        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
+      }
+    )
+  )
+n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
 ```
 
 
-In keeping with the analysis of each individual set of peaks, the `r comma(length(shared_peaks))`regions where all targets were detectable were analysed using `rRGEAT` [@Gu2023-rp] and identical parameterisation.
+In keeping with the analysis of each individual set of peaks, the `r comma(length(shared_peaks))` regions where all targets were detectable were analysed using `rGREAT` [@Gu2023-rp] and identical parameterisation.
 This gives clear insight into which pathways are likely to be regulated by all targets *acting in concert*, with `r n_great` gene-sets being considered as enriched within these shared regions.
 
 As analysis using `rGREAT` determines enrichment in comparison to a set of background regions, two analyses were performed.
