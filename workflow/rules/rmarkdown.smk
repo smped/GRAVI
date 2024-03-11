@@ -113,6 +113,12 @@ rule compile_macs2_summary_html:
         localz = os.path.join(
             macs2_path, "{target}", "{target}_regions_localz.rds"
         ),
+        motif_enrich = os.path.join(
+            macs2_path, "{target}", "{target}_motif_enrichment.tsv.gz"
+        ),
+        motif_pos = os.path.join(
+            macs2_path, "{target}", "{target}_motif_position.tsv.gz"
+        ),        
         rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
@@ -149,6 +155,12 @@ rule compile_peak_comparison_rmd:
         localz = expand(
             os.path.join(macs2_path, "shared",  "{f}_localz.rds"),
             f = ['all_consensus', 'shared_regions']
+        ),
+        motif_enrich = os.path.join(
+            macs2_path, "shared", "shared_motif_enrichment.tsv.gz"
+        ),
+        motif_pos = os.path.join(
+            macs2_path, "shared", "shared_motif_position.tsv.gz"
         ),
         rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
     output:

@@ -2,7 +2,7 @@ rule check_r_packages:
     input: 
         script = os.path.join("workflow", "scripts", "check_r_packages.R"),
         yml = os.path.join("workflow", "envs", "rmarkdown.yml"),
-    output: os.path.join("output", "checks", "r-packages.chk")
+    output: os.path.join(check_path, "r-packages.chk")
     threads: 1
     resources:
         runtime = "30m",
@@ -14,7 +14,7 @@ rule check_r_packages:
         "../scripts/check_r_packages.R"
         
 rule check_here_file:
-    output: os.path.join("output", "checks", "here.chk")
+    output: os.path.join(check_path, "here.chk")
     threads: 1
     localrule: True
     resources:
@@ -45,8 +45,8 @@ rule check_external_files:
         bai = expand(os.path.join(bam_path, "{bam}.bam.bai"), bam = samples),
         here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
-        script = os.path.join("workflow", "scripts", "check_external_files.R"),
-    output: os.path.join("output", "checks", "external-files.chk")
+        script = "../scripts/check_external_files.R",
+    output: os.path.join(check_path, "external-files.chk")
     threads: 1
     resources:
         runtime = "30m",

@@ -161,7 +161,7 @@ gene_regions <- defineRegions(
 cat("Exporting gene_regions...\n")
 write_rds(gene_regions, all_output$regions, compress = "gz")
 
-### Features ###
+#### Features ####
 feat <- GRangesList()
 seqinfo(feat) <- sq
 if (!is.null(config$external$features)) {
@@ -189,8 +189,8 @@ if (!is.null(config$external$features)) {
 write_rds(feat, all_output$features, compress = "gz")
 cat("done\n")
 
-### Motifs ###
-motif_params <- params$enrichment$motifdb
+#### Motifs ####
+motif_params <- params$motif_analysis$motifdb
 cat("Converting to Universal Motif format\n")
 db <- convert_motifs(MotifDb) |> to_df()
 if (is.null(motif_params$data_source))
@@ -204,7 +204,7 @@ cat("Calculating correlations between motifs...")
 cormat <- db |>
   to_list() |>
   compare_motifs(method = "PCC")
-cormat[cormat < 0.9] <- 0
+cormat[cormat < motif_params$cluster_above] <- 0
 cormat[is.na(cormat)] <- 0
 cat("done\n")
 cat("Clustering motifs...\n")

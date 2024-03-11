@@ -108,6 +108,7 @@ for i in targets:
 bam_path = config['paths']['bam']
 rmd_path = "analysis"
 annotation_path = os.path.join("output", "annotations")
+check_path =os.path.join("output", "checks")
 diff_path = os.path.join("output", "differential_signal")
 macs2_path = os.path.join("output", "macs2")
 log_path = os.path.join("workflow", "logs")
@@ -279,5 +280,6 @@ include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
 include: "rules/annotations.smk"
 include: "rules/regioner.smk"
+include: "rules/motif_analysis.smk"
 # include: "rules/differential_signal.smk"
 # include: "rules/pairwise_comparisons.smk"
