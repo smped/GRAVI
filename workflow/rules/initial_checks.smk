@@ -1,5 +1,6 @@
 rule check_r_packages:
     input: 
+        here = os.path.join(check_path, "here.chk"),
         script = os.path.join("workflow", "scripts", "check_r_packages.R"),
         yml = os.path.join("workflow", "envs", "rmarkdown.yml"),
     output: os.path.join(check_path, "r-packages.chk")
