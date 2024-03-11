@@ -14,6 +14,13 @@ sink(log)
 
 cat(.libPaths(),"\n")
 
+## Include motifTestR at the start as this cannot be installed using conda
+cat("Installing motifTestR...\n")
+BiocManager::install(
+  "smped/motifTestR", ref = "devel", update = FALSE, force = FALSE
+)
+cat("done")
+
 ## All installed packages
 all_inst <- rownames(installed.packages())
 stopifnot(length(system2('which', 'egrep', stdout = TRUE)) > 0)

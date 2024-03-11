@@ -6,6 +6,7 @@
 #' - GRanges for genes, transcripts & exons, taken directly from the gtf
 #' - TSS
 #' - Unique gene-centric regions
+#' - Motifs
 #'
 #' Running this as a stand-alone script removes any dependency on config.yml
 #' which reduces the number of times it is re-run by snakemake
@@ -55,6 +56,8 @@ library(plyranges)
 library(yaml)
 library(Rsamtools)
 library(extraChIPs)
+library(MotifDb)
+library(universalmotif)
 params <- read_yaml(all_input$yaml)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
@@ -179,12 +182,44 @@ if (!is.null(config$external$features)) {
   cat("Writing to", all_output$features, "...")
 } else {
   cat(
-    "No features provided. Writing an empty object to", 
+    "No features provided. Writing an empty object to",
     all_output$features, "..."
   )
 }
-write_rds(feat, all_output$features)
+write_rds(feat, all_output$features, compress = "gz")
 cat("done\n")
+
+### Motifs ###
+motif_params <- params$enrichment$motifdb
+cat("Converting to Universal Motif format\n")
+db <- convert_motifs(MotifDb) |> to_df()
+if (!is.null(motif_params$data_source))
+  stop("No data source provided for transription factors")
+db <- subset(db, dataSource %in% motif_params$data_source)
+if (!is.null(motif_params$organism))
+  db <- subset(db, organism %in% motif_params$organism)
+cat("Database has been subset to", nrow(db), "motifs\n")
+
+cat("Calculating correlations between motifs...")
+cormat <- db |>
+  to_list() |>
+  compare_motifs(method = "PCC")
+cormat[cormat < 0.9] <- 0
+cormat[is.na(cormat)] <- 0
+cat("done\n")
+cat("Clustering motifs...\n")
+cl <- as.dist(1 - cormat) %>%
+  hclust() %>%
+  cutree(h = 0.9)
+cat(max(cl), "clusters formed\n")
+
+cat("Exporting to:", all_output$motifs, "\n")
+db |>
+  mutate(cluster = cl[name]) |>
+  to_list() |>
+  write_rds(all_output$motifs, compress = "gz")
+cat("done\n")
+
 
 ## Now exit confirming everything
 all_exist <- map_lgl(all_output, file.exists)
