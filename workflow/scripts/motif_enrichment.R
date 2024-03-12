@@ -128,7 +128,8 @@ cat_time("done")
 motif_list <- read_rds(all_input$motifs)
 cat_time("Checking for low frequency matches")
 min_matches <- params$ignore_below * n_seq
-ignore <- countPwmMatches(motif_list, test_seq, mc.cores = threads) < min_matches
+counts <- countPwmMatches(motif_list, test_seq, mc.cores = threads) 
+ignore <- counts < min_matches
 cat_time(
   "Found", sum(ignore), "motifs with matches in <",
   percent(params$ignore_below), "of sequences"
@@ -145,8 +146,9 @@ cat_time("Testing for Positional Bias")
 pos_res <- testMotifPos(
   matches, binwidth = params$binwidth, abs = params$abs, mc.cores = threads
 )
+cat_time("done\n")
 gc()
-cat_time("done")
+
 cat_time("Writing", all_output$pos)
 pos_res |>
   as_tibble(rownames = "altname") |>
@@ -155,7 +157,7 @@ pos_res |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$pos)
 
-cat_time("Exporting matches")
+cat_time("Exporting matches to", all_output$matches)
 write_rds(matches, all_output$matches, compress = "gz")
 cat_time("Done")
 
@@ -167,8 +169,8 @@ rm_ranges <- makeRMRanges(
   split(peaks, peaks$region), gene_regions, exclude = exclude_ranges,
   n_iter = params$iterations, mc.cores = threads
 )
+cat_time("Sampled", comma(length(rm_ranges)), "RMRanges\n")
 gc()
-cat_time("Sampled", comma(length(rm_ranges)), "RMRanges")
 
 cat_time("Extracting RMSeq")
 rm_seq <- getSeq(bs_genome, rm_ranges)
@@ -176,8 +178,10 @@ mcols(rm_seq) <- mcols(rm_ranges)
 cat_time("done")
 
 cat_time("Testing for motif enrichment")
+ignore <- counts == 0
+cat_time("Testing", sum(!ignore), "motifs with non-zero matches")
 enrich_res <- testMotifEnrich(
-  motif_list, test_seq, rm_seq, model = params$model, mc.cores = threads
+  motif_list[!ignore], test_seq, rm_seq, model = params$model, mc.cores = threads
 )
 cat_time("Done")
 cat_time("Writing", all_output$enrich)
@@ -187,3 +191,4 @@ enrich_res |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(enrich_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$enrich)
+cat_time("Done")

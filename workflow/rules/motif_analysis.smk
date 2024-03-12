@@ -33,6 +33,7 @@ rule run_motif_analysis:
 		enrich = os.path.join(
 			macs2_path, "{i}", "{i}_motif_enrichment.tsv.gz"
 		),
+		matches = os.path.join(macs2_path, "{i}", "{i}_matches.rds"),
 		pos = os.path.join(
 			macs2_path, "{i}", "{i}_motif_position.tsv.gz"
 		),
