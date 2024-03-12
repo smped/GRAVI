@@ -1157,22 +1157,15 @@ max_network_dist <- c(network_params$max_distance, 1)[[1]]
 net_layout <- c(network_params$layout, "fr")[[1]]
 ## The parameters for enrichment
 adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
-ucsc_ref <- map_great_refs(config$genome$build)
-sp <- c(
-  hg19 = "Homo sapiens", hg38 = "Homo sapiens", mm10 = "Mus musculus",
-  mm39 = "Mus musculus", rn7 = "Rattus norvegicus", susScr11 = "Sus scrofa",
-  canFam5 = "Canis lupus familiaris", dm6 = "Drosophila melanogaster",
-  galGal6 = "Gallus gallus", panTro6 = "Pan troglodytes"
-)[[ucsc_ref]]
 ext_tss <- gtf_gene %>% 
   select(gene_id) %>% 
   extendTSS(
-    genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
+    genome = ucsc$build, gene_id_type = 'ENSEMBL', 
     basal_upstream = region_params$promoters$upstream,
     basal_downstream = region_params$promoters$downstream
   )
 ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
-msigdb <- msigdbr(sp) %>% 
+msigdb <- msigdbr(enrich_params$species) %>% 
   dplyr::filter(
     gs_cat %in% enrich_params$msigdb$gs_cat |
       gs_subcat %in% enrich_params$msigdb$gs_subcat,
@@ -1194,7 +1187,7 @@ Pathways will be considered as enriched relative to background if returned an ad
 
 ```{r run-great}
 great_res <- consensus_peaks %>% 
-  set_genome_info(genome = ucsc_ref) %>% 
+  set_genome_info(genome = ucsc$build) %>% 
   great(
     gene_sets = gs_list, extended_tss = ext_tss, 
     min_gene_set_size = enrich_params$min_size, 
@@ -1491,7 +1484,7 @@ Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_belo
 
 Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r sum(res_pos$adj_p < motif_params$analysis$alpha)` motifs were considered as showing any type of positional bias.
 
-```{r}
+```{r get-top-pos}
 top_pos <- res_pos %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::filter(enrichment == max(enrichment), .by = cluster) %>% 
@@ -1516,7 +1509,7 @@ bm_pos <- motif_list %>%
   .[top_pos$altname] 
 ```
 
-```{r}
+```{r tbl-res-pos}
 res_pos %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
@@ -1577,7 +1570,7 @@ res_pos %>%
 ```
 
 
-```{r}
+```{r, eval = FALSE}
  plotMatchPos(
   bm_pos, geom = "point", abs = motif_params$analysis$abs,
   binwidth = 1#motif_params$analysis$binwidth
@@ -1587,7 +1580,7 @@ res_pos %>%
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 A <- plotMatchPos(
   bm_pos, se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
   binwidth = motif_params$analysis$binwidth / 2
@@ -1604,7 +1597,7 @@ B <- plotMatchPos(
 A + B + plot_layout(guides = "collect") 
 ```
 
-```{r}
+```{r, eval = FALSE}
 res_pos %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:25) %>% 

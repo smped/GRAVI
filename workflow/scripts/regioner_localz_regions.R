@@ -19,6 +19,10 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
     )
   )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -61,50 +65,42 @@ all_output <- lapply(all_output, here::here)
 ## Required output files are:
 ## file.path(macs2_path, "{target}", "{target}_regions_localz.rds")
 
-cat("Loading packages...")
+cat_time("Loading packages...")
 library(regioneReloaded)
 library(extraChIPs)
 library(plyranges)
 library(readr)
 library(yaml)
 library(rlang)
-cat("done\n")
+cat_time("done")
 
+source(here::here("workflow/scripts/custom_functions.R"))
+ucsc <- get_ucsc(config$genome$build)
 
-map <- c(
-  hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
-  mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
-  rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
-  canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
-)
-bld <- match.arg(tolower(config$genome$build), names(map))
-ucsc_ref <- map[[bld]]
-
-cat("Loading all regions...\n")
+cat_time("Loading all regions...")
 regions <- read_rds(all_input$regions)
-cat("Loading all features...\n")
+cat_time("Loading all features...")
 features <- read_rds(all_input$features)
-cat("Forming test_regions...\n")
+cat_time("Forming test_regions...")
 test_regions <- c(regions, features)
 test_regions <- endoapply(test_regions, granges)
-cat("Setting genome to be", ucsc_ref)
+cat_time("Setting genome to be", ucsc$build)
 sq <- seqinfo(regions)
-genome(sq) <- ucsc_ref
+genome(sq) <- ucsc$build
 seqinfo(test_regions) <- sq
-cat(" done\n")
+cat_time(" done")
 
-cat("Loading peaks from", all_input$peaks)
+cat_time("Loading peaks from", all_input$peaks)
 peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
 peaks <- unlist(peaks)
-cat(" done\n")
+cat_time(" done")
 
-cat("Loading enrichment params from", all_input$params)
+cat_time("Loading enrichment params from", all_input$params)
 enrich_params <- read_yaml(all_input$params)$enrichment
-cat(" done\n")
+cat_time(" done")
 
 threads <- slot(snakemake, "threads")[[1]] - 1
-cat("Starting at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
-cat("Running multiLocalZscore with", threads, "threads...\n")
+cat_time("Running multiLocalZscore with", threads, "threads...")
 mlz <- multiLocalZscore(
   A = peaks, Blist = test_regions,
   ranFUN = "resampleGenome",
@@ -113,12 +109,12 @@ mlz <- multiLocalZscore(
   ntimes = all_params$ntimes,
   adj_pv_method = enrich_params$adj,
   max_pv = 1,
-  genome = ucsc_ref,
+  genome = ucsc$build,
   mc.cores = threads
 )
-cat("Finished at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
+cat_time("Done")
 
 
-cat("Writing to", all_output$rds, "\n")
+cat_time("Writing to", all_output$rds)
 write_rds(mlz, all_output$rds, compress = "gz")
-cat("done\n")
+cat_time("done")

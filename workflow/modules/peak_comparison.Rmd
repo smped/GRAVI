@@ -34,10 +34,13 @@ theme_set(
 panderOptions("big.mark", ",")
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
+config <- here::here("config", "config.yml") %>% read_yaml()
+ucsc <- get_ucsc(config$genome$build)
+bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
+library(bs_pkg, character.only = TRUE)
 ```
 
 ```{r target-config}
-config <- here::here("config", "config.yml") %>% read_yaml()
 enrich_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("enrichment")
@@ -211,22 +214,15 @@ A + B + plot_annotation(tag_levels = "A")
 ## GREAT Enrichment 
 
 ```{r setup-great}
-ucsc_ref <- map_great_refs(config$genome$build)
-sp <- c(
-  hg19 = "Homo sapiens", hg38 = "Homo sapiens", mm10 = "Mus musculus",
-  mm39 = "Mus musculus", rn7 = "Rattus norvegicus", susScr11 = "Sus scrofa",
-  canFam5 = "Canis lupus familiaris", dm6 = "Drosophila melanogaster",
-  galGal6 = "Gallus gallus", panTro6 = "Pan troglodytes"
-)[[ucsc_ref]]
 ext_tss <- gtf_gene %>% 
   select(gene_id) %>% 
   extendTSS(
-    genome = ucsc_ref, gene_id_type = 'ENSEMBL', 
+    genome = ucsc$build, gene_id_type = 'ENSEMBL', 
     basal_upstream = region_params$promoters$upstream,
     basal_downstream = region_params$promoters$downstream
   ) 
 ext_tss_ol <- subsetByOverlaps(ext_tss, shared_peaks)
-msigdb <- msigdbr(sp) %>% 
+msigdb <- msigdbr(enrich_params$species) %>% 
   dplyr::filter(
     gs_cat %in% enrich_params$msigdb$gs_cat |
       gs_subcat %in% enrich_params$msigdb$gs_subcat,
@@ -238,9 +234,9 @@ gs_list <- msigdb %>%
   .[map_int(., length) <= enrich_params$max_size] %>% 
   .[map_int(., length) >= enrich_params$min_size] 
 great_res <- great(
-  set_genome_info(shared_peaks, genome = ucsc_ref), 
+  set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
-  extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
+  extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
   min_gene_set_size = enrich_params$min_size, 
   cores = threads
 )
@@ -277,9 +273,9 @@ The results will often be highly comparable, but can sometimes reveal interestin
 
 ```{r great-genome-bg}
 great_res_genomic <- great(
-  set_genome_info(shared_peaks, genome = ucsc_ref), 
+  set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
-  extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
+  extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
   min_gene_set_size = enrich_params$min_size, 
   cores = threads
 )
@@ -435,12 +431,12 @@ plotRegionGeneAssociations(great_res_genomic, top_id, which = 2:3)
 bg <- consensus_peaks %>% 
   unlist() %>% 
   reduce() %>% 
-  set_genome_info(genome = ucsc_ref)
+  set_genome_info(genome = ucsc$build)
 great_res_targets <- great(
-  set_genome_info(shared_peaks, genome = ucsc_ref), 
+  set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
   background = bg,
-  extended_tss = set_genome_info(ext_tss, genome = ucsc_ref), 
+  extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
   min_gene_set_size = enrich_params$min_size, 
   cores = threads
 )

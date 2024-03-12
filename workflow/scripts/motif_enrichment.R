@@ -12,6 +12,7 @@
 #' Expected output is:
 #' - output/macs2/{target}/{target}_motif_enrichment.tsv.gz
 #' - output/macs2/{target}/{target}_motif_position.tsv.gz
+#' - output/macs2/{target}/{target}_matches.rds
 #'
 #' Required config parameters:
 #' - genome$build
@@ -67,7 +68,8 @@ sink(log)
 #
 # all_output <- list(
 #   enrich = "output/macs2/AR/AR_motif_enrichment.tsv.gz",
-#   pos = "output/macs2/AR/AR_motif_position.tsv.gz"
+#   pos = "output/macs2/AR/AR_motif_position.tsv.gz",
+#   matches = "output/macs2/AR/AR_matches.rds"
 # )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
@@ -152,6 +154,10 @@ pos_res |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(pos_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$pos)
+
+cat_time("Exporting matches")
+write_rds(matches, all_output$matches, compress = "gz")
+cat_time("Done")
 
 cat_time("Importing exclude_ranges")
 exclude_ranges <- read_rds(all_input$exclude_ranges)

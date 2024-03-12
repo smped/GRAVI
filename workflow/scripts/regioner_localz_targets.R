@@ -36,6 +36,10 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
     )
   )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -67,38 +71,31 @@ all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
 
-cat("Loading packages...")
+cat_time("Loading packages...")
 library(regioneReloaded)
 library(extraChIPs)
 library(plyranges)
 library(readr)
 library(yaml)
-cat("done\n")
+cat_time("done\n")
 
-cat("Determining the UCSC compatible reference.. ")
-map <- c(
-  hg19 = "hg19", hg38 = "hg38", grch37 = "hg19", grch38 = "hg38",
-  mm10 = "mm10", mm39 = "mm39", grcm38 = "mm10", grcm39 = "mm39",
-  rn7 = "rn7", mratbn7.2 = "rn7", galgal6 = "galGal6", rhemac10 = "rheMac10",
-  canfam5 = "canFam5", susscr11 = "susScr11", pantro6 = "panTro6", dm6 = "dm6"
-)
-bld <- match.arg(tolower(config$genome$build), names(map))
-ucsc_ref <- map[[bld]]
-cat("done\n")
+cat_time("Determining the UCSC compatible reference.. ")
+source(here::here("workflow/scripts/custom_functions.R"))
+ucsc <- get_ucsc(config$genome$build)
+cat_time("done\n")
 
-cat("Setting genome to be", ucsc_ref)
+cat_time("Setting genome to be", ucsc$build)
 sq <- read_rds(all_input$sq)
-genome(sq) <- ucsc_ref
-cat(" done\n")
+genome(sq) <- ucsc$build
+cat_time(" done\n")
 
-cat("Loading peaks from", paste("\n\t", all_input$peaks))
+cat_time("Loading peaks from", paste("\n\t", all_input$peaks))
 peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
 names(peaks) <- gsub("_consensus.+", "", names(peaks))
-cat(" done\n")
+cat_time(" done\n")
 
 threads <- slot(snakemake, "threads")[[1]] - 1
-cat("Starting at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
-cat("Running multiLocalZscore with", threads, "threads...\n")
+cat_time("Running multiLocalZscore with", threads, "threads...\n")
 mlz_list <- names(peaks) %>%
   lapply(
     \(i) {
@@ -110,15 +107,15 @@ mlz_list <- names(peaks) %>%
         window = 5e3,
         ntimes = all_params$ntimes,
         max_pv = 1,
-        genome = ucsc_ref,
+        genome = ucsc$build,
         mc.cores = threads
       )
     }
   ) %>%
   setNames(names(peaks))
-cat("Finished at", format(Sys.time(), "%H:%M:%S, %d %b %Y"), "\n")
+cat_time("Done")
 
 
-cat("Writing to", all_output$rds, "\n")
+cat_time("Writing to", all_output$rds, "\n")
 write_rds(mlz_list, all_output$rds, compress = "gz")
-cat("done\n")
+cat_time("done\n")
