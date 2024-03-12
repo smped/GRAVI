@@ -31,6 +31,11 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
         )
     )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%m-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
+
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -47,7 +52,7 @@ cat_list(all_output, "output")
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(tidyverse)
 library(magrittr)
 library(rtracklayer)
@@ -75,11 +80,11 @@ sq <- all_input$bam %>%
   ) %>%
   as("Seqinfo")
 write_rds(sq, all_output$sq)
-cat("Seqinfo exported...\n")
+cat_time("Seqinfo exported...\n")
 
 ### Blacklist ###
 ## Set all provided files into a single GRanges & export
-cat("Forming unified blacklist from all files...")
+cat_time("Forming unified blacklist from all files...")
 bl <- config$external$blacklist %>%
   unlist() %>%
   here::here() %>%
@@ -88,7 +93,7 @@ bl <- config$external$blacklist %>%
   GenomicRanges::reduce() %>%
   sort()
 write_rds(bl, all_output$blacklist)
-cat("done\n")
+cat_time("done\n")
 
 #### chrom_sizes ####
 ## For bedGraphToBigWig
@@ -96,7 +101,7 @@ sq %>%
   as_tibble() %>%
   dplyr::select(seqnames, seqlengths) %>%
   write_tsv(all_output$chrom_sizes, col_names = FALSE)
-cat("chrom_sizes exported...\n")
+cat_time("chrom_sizes exported...\n")
 
 #### GTF ####
 gtf <- here::here(config$external$gtf)[[1]]
@@ -106,7 +111,7 @@ reqd_cols <- c(
   "transcript_id", "transcript_type", "transcript_name",
   "exon_id"
 )
-cat("Importing ", gtf, "\n")
+cat_time("Importing ", gtf, "\n")
 all_gtf <- gtf %>%
   import.gff(
     which = GRanges(sq), # THIS WILL FAIL if incompatible
@@ -121,15 +126,15 @@ all_gtf <- gtf %>%
   sort() %>%
   subset(seqnames %in% seqlevels(sq)) %>%
   splitAsList(f = .$type)
-cat("GTF imported successfully...\n")
+cat_time("GTF imported successfully...\n")
 seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
 
-cat("Exporting gene, transcript and exon-level objects\n")
+cat_time("Exporting gene, transcript and exon-level objects\n")
 write_rds(all_gtf$gene, all_output$genes, compress = "gz")
 write_rds(all_gtf$transcript, all_output$transcripts, compress = "gz")
 write_rds(all_gtf$exon, all_output$exons, compress = "gz")
-cat("All gtf_*.rds objects written successfully...\n")
+cat_time("All gtf_*.rds objects written successfully...\n")
 
 #### Transcript Models (Gviz) ####
 trans_models <- all_gtf$exon %>%
@@ -138,7 +143,7 @@ trans_models <- all_gtf$exon %>%
     symbol = gene_name
   )
 write_rds(trans_models, all_output$trans_models, compress = "gz")
-cat("trans_models.rds written successfully...\n")
+cat_time("trans_models.rds written successfully...\n")
 
 #### TSS ####
 tss <- all_gtf$transcript %>%
@@ -147,10 +152,10 @@ tss <- all_gtf$transcript %>%
   mutate(region = "TSS") %>%
   select(region, everything(), -type)
 write_rds(tss, all_output$tss, compress = "gz")
-cat("TSS regions exported...\n")
+cat_time("TSS regions exported...\n")
 
 #### Promoters ####
-cat("Defining gene_regions...\n")
+cat_time("Defining gene_regions...\n")
 gr_params <- params$gene_regions
 gene_regions <- defineRegions(
   genes = all_gtf$gene, transcripts = all_gtf$transcript, exons = all_gtf$exon,
@@ -158,7 +163,7 @@ gene_regions <- defineRegions(
   proximal = gr_params$intergenic
 )
 
-cat("Exporting gene_regions...\n")
+cat_time("Exporting gene_regions...\n")
 write_rds(gene_regions, all_output$regions, compress = "gz")
 
 #### Features ####
@@ -166,59 +171,88 @@ feat <- GRangesList()
 seqinfo(feat) <- sq
 if (!is.null(config$external$features)) {
   fl <- unlist(config$external$features)
-  cat("Parsing features from", fl, "\n")
+  cat_time("Parsing features from", fl, "\n")
   feat <- lapply(fl, import.gff, which = GRanges(sq))
   feat <- lapply(feat, select, feature)
   feat <- unlist(GRangesList(feat))
   seqlevels(feat) <- seqlevels(sq)
   seqinfo(feat) <- sq
-  cat("Finding overlap with gene regions...")
+  cat_time("Finding overlap with gene regions...")
   ol <- lapply(gene_regions, \(x) propOverlap(feat, x))
   mcols(feat) <- cbind(mcols(feat), DataFrame(ol))
-  cat("done\n")
+  cat_time("done\n")
   feat <- splitAsList(feat, feat$feature)
-  cat("Features have split into a GRangesList of length", length(feat), "\n")
-  cat("Features provided appear to be:", paste0("\n\t", names(feat)), "\n")
-  cat("Writing to", all_output$features, "...")
+  cat_time("Features have split into a GRangesList of length", length(feat), "\n")
+  cat_time("Features provided appear to be:", paste0("\n\t", names(feat)), "\n")
+  cat_time("Writing to", all_output$features, "...")
 } else {
-  cat(
+  cat_time(
     "No features provided. Writing an empty object to",
     all_output$features, "..."
   )
 }
 write_rds(feat, all_output$features, compress = "gz")
-cat("done\n")
+cat_time("done\n")
 
 #### Motifs ####
 motif_params <- params$motif_analysis$motifdb
-cat("Converting to Universal Motif format\n")
+cat_time("Converting to Universal Motif format\n")
 db <- convert_motifs(MotifDb) |> to_df()
 if (is.null(motif_params$data_source))
   stop("No data source provided for transription factors")
 db <- subset(db, dataSource %in% motif_params$data_source)
 if (!is.null(motif_params$organism))
   db <- subset(db, organism %in% motif_params$organism)
-cat("Database has been subset to", nrow(db), "motifs\n")
+cat_time("Database has been subset to", nrow(db), "motifs\n")
 
-cat("Calculating correlations between motifs...")
+cat_time("Calculating correlations between motifs...")
 cormat <- db |>
   to_list() |>
-  compare_motifs(method = "PCC")
+  compare_motifs(method = "PCC", use.type = "ICM")
 cormat[cormat < motif_params$cluster_above] <- 0
 cormat[is.na(cormat)] <- 0
-cat("done\n")
-cat("Clustering motifs...\n")
+cat_time("done\n")
+cat_time("Clustering motifs...\n")
 cl <- as.dist(1 - cormat) %>%
   hclust() %>%
   cutree(h = 0.9)
-cat(max(cl), "clusters formed\n")
+cat_time(max(cl), "clusters formed\n")
 
-cat("Exporting to:", all_output$motifs, "\n")
+cat_time("Exporting to:", all_output$motifs, "\n")
 db |>
   mutate(cluster = cl[name]) |>
   to_list() |>
   write_rds(all_output$motifs, compress = "gz")
-cat("done\n")
+cat_time("done\n")
+
+cat_time("Creating IC Matrix Thumbnails")
+img_path <- here::here("docs", "assets", "motifs")
+if (!dir.exists(img_path)) dir.create(img_path, recursive = TRUE)
+db %>%
+  lapply(
+    \(x) {
+      w <- 30 * ncol(x)
+      nm <- slot(x, "altname")
+      png_out <- file.path(img_path, paste0(nm, ".png"))
+      png(png_out, height = 150, width = w)
+      p <- view_motifs(x) +
+        theme_minimal() +
+        theme(
+          legend.position = "none",
+          axis.title = element_blank(),
+          axis.text = element_blank(),
+          panel.grid = element_blank()
+        )
+      print(p)
+      dev.off()
+    }
+  )
+cat_time("Done")
+cat_time("Checking thumbnails")
+altnames <- vapply(db, \(x) slot(x, "altname"), character(1))
+all_thumbs <- file.path(img_path, paste0(altnames, ".png"))
+stopifnot(all(file.exists(all_thumbs)))
+cat_time("Done")
 
 
 ## Now exit confirming everything
@@ -227,4 +261,4 @@ if (!all(all_exist)) {
   nm <- names(all_exist)[!all_exist]
   stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"), )
 }
-cat("Data export completed at", format(Sys.time(), "%H:%M:%S, %d %b %Y\n"))
+cat_time("Data export completed")

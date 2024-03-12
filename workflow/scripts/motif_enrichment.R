@@ -155,10 +155,6 @@ pos_res |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$pos)
 
-cat_time("Exporting matches")
-write_rds(matches, all_output$matches, compress = "gz")
-cat_time("Done")
-
 cat_time("Importing exclude_ranges")
 exclude_ranges <- read_rds(all_input$exclude_ranges)
 
@@ -180,6 +176,7 @@ enrich_res <- testMotifEnrich(
   motif_list, test_seq, rm_seq, model = params$model, mc.cores = threads
 )
 cat_time("Done")
+
 cat_time("Writing", all_output$enrich)
 enrich_res |>
   as_tibble(rownames = "altname") |>
@@ -187,4 +184,13 @@ enrich_res |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(enrich_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$enrich)
+cat_time("Done")
+
+all_sig <- c(
+  rownames(subset(res_pos, fdr < params$alpha)),
+  rownames(subset(res_enrich, fdr < params$alpha))
+) |>
+  unique()
+cat_time("Exporting all", length(all_sig), "matches for significant TFBMs")
+write_rds(matches[all_sig], all_output$matches, compress = "gz")
 cat_time("Done")
