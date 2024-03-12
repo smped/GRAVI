@@ -128,7 +128,8 @@ cat_time("done")
 motif_list <- read_rds(all_input$motifs)
 cat_time("Checking for low frequency matches")
 min_matches <- params$ignore_below * n_seq
-ignore <- countPwmMatches(motif_list, test_seq, mc.cores = threads) < min_matches
+counts <- countPwmMatches(motif_list, test_seq, mc.cores = threads)
+ignore <- counts < min_matches
 cat_time(
   "Found", sum(ignore), "motifs with matches in <",
   percent(params$ignore_below), "of sequences"
@@ -145,8 +146,9 @@ cat_time("Testing for Positional Bias")
 pos_res <- testMotifPos(
   matches, binwidth = params$binwidth, abs = params$abs, mc.cores = threads
 )
+cat_time("done\n")
 gc()
-cat_time("done")
+
 cat_time("Writing", all_output$pos)
 pos_res |>
   as_tibble(rownames = "altname") |>
@@ -163,8 +165,8 @@ rm_ranges <- makeRMRanges(
   split(peaks, peaks$region), gene_regions, exclude = exclude_ranges,
   n_iter = params$iterations, mc.cores = threads
 )
+cat_time("Sampled", comma(length(rm_ranges)), "RMRanges\n")
 gc()
-cat_time("Sampled", comma(length(rm_ranges)), "RMRanges")
 
 cat_time("Extracting RMSeq")
 rm_seq <- getSeq(bs_genome, rm_ranges)
