@@ -158,6 +158,7 @@ pos_res |>
   write_tsv(all_output$pos)
 
 cat_time("Exporting matches to", all_output$matches)
+## Might need to restrict this to just the significant ones for size reasons
 write_rds(matches, all_output$matches, compress = "gz")
 cat_time("Done")
 
@@ -178,10 +179,10 @@ mcols(rm_seq) <- mcols(rm_ranges)
 cat_time("done")
 
 cat_time("Testing for motif enrichment")
-ignore <- counts == 0
-cat_time("Testing", sum(!ignore), "motifs with non-zero matches")
+# ignore <- counts == 0
+# cat_time("Testing", sum(!ignore), "motifs with non-zero matches")
 enrich_res <- testMotifEnrich(
-  motif_list[!ignore], test_seq, rm_seq, model = params$model, mc.cores = threads
+  motif_list, test_seq, rm_seq, model = params$model, mc.cores = threads
 )
 cat_time("Done")
 cat_time("Writing", all_output$enrich)
