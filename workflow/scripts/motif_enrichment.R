@@ -187,3 +187,4 @@ enrich_res |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(enrich_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$enrich)
+cat_time("Done")
