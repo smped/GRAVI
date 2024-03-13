@@ -189,8 +189,8 @@ enrich_res |>
 cat_time("Done")
 
 all_sig <- c(
-  rownames(subset(res_pos, fdr < params$alpha)),
-  rownames(subset(res_enrich, fdr < params$alpha))
+  rownames(subset(pos_res, fdr < params$alpha)),
+  rownames(subset(enrich_res, fdr < params$alpha))
 ) |>
   unique()
 cat_time("Exporting all", length(all_sig), "matches for significant TFBMs")

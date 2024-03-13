@@ -1488,18 +1488,18 @@ motif_list <- file.path(annotation_path, "motif_list.rds") %>%
   read_rds() %>% 
   to_df %>% 
   as_tibble()
-res_pos <- file.path(macs2_path, target, "{target}_motif_position.tsv.gz") %>% 
+pos_res <- file.path(macs2_path, target, "{target}_motif_position.tsv.gz") %>% 
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-res_enrich <- macs2_path %>% 
+enrich_res <- macs2_path %>% 
   file.path(target, "{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_enrich <- sum(res_enrich$adj_p < motif_params$analysis$alpha & res_enrich$Z > 0)
+n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha & enrich_res$Z > 0)
 matches <- file.path(macs2_path, target, "{target}_matches.rds") %>% 
   glue() %>% 
   read_rds()
@@ -1510,7 +1510,7 @@ For this step peaks were set to a fixed width of `r motif_params$analysis$peak_w
 
 ### Motif Enrichment {.tabset}
 
-A simple enrichment analysis was performed by selecting a set of `r comma(res_enrich$sequences[[1]] * res_enrich$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(res_enrich$sequences[[1]])` *test sequences*.
+A simple enrichment analysis was performed by selecting a set of `r comma(enrich_res$sequences[[1]] * enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(enrich_res$sequences[[1]])` *test sequences*.
 This gave a set of genomically matched control sequences to gauge enrichment by.
 Analysis was performed using the `motifTestR` package and the `r motif_params$analysis$model`.
 
@@ -1519,7 +1519,7 @@ Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) ar
 #### Enrichment Table
 
 ```{r tbl-res-enrich}
-tbl <- res_enrich %>% 
+tbl <- enrich_res %>% 
   arrange(p) %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha, Z > 0) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
@@ -1619,7 +1619,7 @@ div(class = "enriched-motifs",
 #### Comparison of Motif Co-Occurrence
 
 ```{r enrich-corrplot, fig.width=8, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
-top_enrich <- res_enrich %>%
+top_enrich <- enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:20) %>% 
   pull("altname")
@@ -1628,7 +1628,7 @@ matches[top_enrich] %>%
   bind_rows(.id = "altname") %>%
   distinct(altname, seq) %>% 
   left_join(
-    dplyr::select(res_enrich, altname, name), by = "altname"
+    dplyr::select(enrich_res, altname, name), by = "altname"
   ) %>% 
   mutate(detected = TRUE) %>% 
   dplyr::select(seq, name, detected) %>% 
@@ -1650,17 +1650,17 @@ matches[top_enrich] %>%
 Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$analysis$binwidth`bp and testing `r ifelse(motif_params$analysis$abs, "distance from sequence centres", "position either side of the sequence centres")`.
 Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_below)` of sequences were not tested for any positional bias.
 
-Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r sum(res_pos$adj_p < motif_params$analysis$alpha)` motifs were considered as showing any type of positional bias.
+Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r sum(pos_res$adj_p < motif_params$analysis$alpha)` motifs were considered as showing any type of positional bias.
 
 It should also be noted that this type of analysis is agnostic to the number of matches found for a TFBM, and only assesses any bias within the distribution of matches.
 
 ```{r get-top-pos}
-top_pos <- res_pos %>% 
+top_pos <- pos_res %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
   dplyr::slice(1:9) %>% 
   dplyr::select(altname, name, cluster)
-clust_names <- res_pos %>% 
+clust_names <- pos_res %>% 
   dplyr::filter(
     adj_p < motif_params$analysis$alpha,
     cluster %in% top_pos$cluster
@@ -1677,7 +1677,7 @@ clust_names <- res_pos %>%
 #### Results Table
 
 ```{r tbl-res-pos}
-tbl <- res_pos %>%
+tbl <- pos_res %>%
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
   dplyr::select(
@@ -1808,7 +1808,7 @@ tbl <- res_pos %>%
 cp <- htmltools::em(
   glue(
     "
-    All {sum(res_pos$adj_p < motif_params$analysis$alpha)} TFBMs found to show
+    All {sum(pos_res$adj_p < motif_params$analysis$alpha)} TFBMs found to show
     positional bias using an adjusted p-value ({motif_adj}) below
     {motif_params$analysis$alpha} as the criteria for significance. Highly 
     similar motifs were clustered during preparation and are grouped accordingly.
@@ -1862,7 +1862,7 @@ A + B + plot_layout(guides = "collect")
 ```
 
 ```{r heatmap-pos, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
-top_pos <- res_pos %>% 
+top_pos <- pos_res %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:25) %>% 
   pull(altname)
