@@ -45,8 +45,8 @@ all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
 
-cat_list(all_input, "input")
-cat_list(all_output, "output")
+cat_list(all_input, "input:")
+cat_list(all_output, "output:")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -228,7 +228,8 @@ cat_time("done\n")
 cat_time("Creating IC Matrix Thumbnails")
 img_path <- here::here("docs", "assets", "motifs")
 if (!dir.exists(img_path)) dir.create(img_path, recursive = TRUE)
-db %>%
+db |>
+  to_list() |>
   lapply(
     \(x) {
       w <- 30 * ncol(x)
@@ -249,8 +250,7 @@ db %>%
   )
 cat_time("Done")
 cat_time("Checking thumbnails")
-altnames <- vapply(db, \(x) slot(x, "altname"), character(1))
-all_thumbs <- file.path(img_path, paste0(altnames, ".png"))
+all_thumbs <- file.path(img_path, paste0(db$altname, ".png"))
 stopifnot(all(file.exists(all_thumbs)))
 cat_time("Done")
 
