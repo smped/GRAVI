@@ -34,6 +34,26 @@ rule create_setup_chunk:
     script:
         "../scripts/create_setup_chunk.R"
 
+## This rule is needed to enable building motif tables using
+## The png files with ICM content
+rule create_assets_symlink:
+    input: os.path.join("docs", "assets"),
+    output: directory(os.path.join("analysis", "assets"))
+    threads: 1
+    localrule: True	
+    resources:
+        mem_mb = 1024,
+        runtime = "1m",
+    params:
+        folder = os.path.join("docs", "assets")
+    shell:
+        """
+        if [[ ! -L {output} ]]; then
+            cd $(dirname {output})
+            ln -s {params.folder} $(basename {output})
+        fi
+        """
+
 rule create_index_rmd:
     input:
         here = rules.check_here_file.output,
@@ -96,6 +116,7 @@ rule create_macs2_summary_rmd:
 rule compile_macs2_summary_html:
     input:
         annotations = ALL_RDS,
+        assets = rules.create_assets_symlink.output,
         bw = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}",
@@ -149,11 +170,12 @@ rule compile_macs2_summary_html:
 
 rule compile_peak_comparison_rmd:
     input: 
+        assets = rules.create_assets_symlink.output,
         peaks = os.path.join(
             macs2_path, "shared", "shared_consensus_peaks.bed.gz"
         ),
         localz = expand(
-            os.path.join(macs2_path, "shared",  "{f}_localz.rds"),
+            os.path.join(macs2_path, "shared", "{f}_localz.rds"),
             f = ['all_consensus', 'shared_regions']
         ),
         motif_enrich = os.path.join(

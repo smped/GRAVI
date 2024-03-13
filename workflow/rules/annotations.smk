@@ -9,6 +9,7 @@ rule create_annotations:
         features = os.path.join(annotation_path, "features.rds"),
         genes = os.path.join(annotation_path, "gtf_gene.rds"),
         motifs = os.path.join(annotation_path, "motif_list.rds"),
+        motif_png = directory(os.path.join("docs", "assets")),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
         transcripts = os.path.join(annotation_path, "gtf_transcript.rds"),

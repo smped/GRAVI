@@ -1044,7 +1044,7 @@ These are the most highly ranked Consensus Peak (by `score`) and the most highly
 
 ```{r plot-highly-ranked}
 htmltools::tagList(
-  mclapply(
+  lapply(
     seq_along(grl_to_plot),
     function(x) {
       nm <- names(grl_to_plot)[[x]]
@@ -1135,8 +1135,7 @@ htmltools::tagList(
           )
         )
       )
-    },
-    mc.cores = min(length(grl_to_plot), threads)
+    }
   )
 )  
 ```
@@ -1516,9 +1515,9 @@ Analysis was performed using the `motifTestR` package and the `r motif_params$an
 
 Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) are shown in the results below, with `r n_enrich` of the `r comma(nrow(motif_list))` included motifs matching the criteria for being considered as enriched.
 
-#### Enrichment Table
+`r if (n_enrich > 0) "#### Enrichment Table"`
 
-```{r tbl-res-enrich}
+```{r tbl-res-enrich, eval = n_enrich > 0}
 tbl <- enrich_res %>% 
   arrange(p) %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha, Z > 0) %>% 
@@ -1616,9 +1615,9 @@ div(class = "enriched-motifs",
 )
 ```
 
-#### Comparison of Motif Co-Occurrence
+`r if (n_enrich > 0) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, fig.width=8, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
+```{r enrich-corrplot, eval = n_enrich > 0, fig.width=8, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
 top_enrich <- enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:20) %>% 
@@ -1647,36 +1646,41 @@ matches[top_enrich] %>%
 
 ### Positional Bias {.tabset}
 
+```{r get-top-pos}
+n_pos <- sum(pos_res$adj_p < motif_params$analysis$alpha)
+if (n_pos > 0) {
+  top_pos <- pos_res %>% 
+    dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+    dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
+    dplyr::slice(1:9) %>% 
+    dplyr::select(altname, name, cluster)
+  clust_names <- pos_res %>% 
+    dplyr::filter(
+      adj_p < motif_params$analysis$alpha,
+      cluster %in% top_pos$cluster
+    ) %>% 
+    arrange(desc(matches_in_region)) %>% 
+    summarise(
+      altname = altname[[1]], .by = cluster,
+      name = paste(name, collapse = "/")
+    ) %>% 
+    mutate(name = setNames(name, altname)) %>% 
+    pull(name)
+}
+```
+
 Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$analysis$binwidth`bp and testing `r ifelse(motif_params$analysis$abs, "distance from sequence centres", "position either side of the sequence centres")`.
 Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_below)` of sequences were not tested for any positional bias.
 
-Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r sum(pos_res$adj_p < motif_params$analysis$alpha)` motifs were considered as showing any type of positional bias.
+Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
 
 It should also be noted that this type of analysis is agnostic to the number of matches found for a TFBM, and only assesses any bias within the distribution of matches.
 
-```{r get-top-pos}
-top_pos <- pos_res %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
-  dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
-  dplyr::slice(1:9) %>% 
-  dplyr::select(altname, name, cluster)
-clust_names <- pos_res %>% 
-  dplyr::filter(
-    adj_p < motif_params$analysis$alpha,
-    cluster %in% top_pos$cluster
-  ) %>% 
-  arrange(desc(matches_in_region)) %>% 
-  summarise(
-    altname = altname[[1]], .by = cluster,
-    name = paste(name, collapse = "/")
-  ) %>% 
-  mutate(name = setNames(name, altname)) %>% 
-  pull(name)
-```
 
-#### Results Table
 
-```{r tbl-res-pos}
+`r if (n_pos > 0) "#### Results Table"`
+
+```{r tbl-res-pos, eval = n_pos > 0}
 tbl <- pos_res %>%
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
@@ -1825,9 +1829,9 @@ div(class = "positional-motifs",
 )
 ```
 
-### Total Matches
+`r if (n_pos > 0) "### Total Matches"`
 
-```{r plot-total-pos-matches, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
+```{r plot-total-pos-matches, eval = n_pos > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
 lb <- glue("{names(clust_names)}\n({clust_names})") %>% 
   setNames(names(clust_names))
 matches[top_pos$altname] %>% 
@@ -1841,8 +1845,9 @@ matches[top_pos$altname] %>%
   labs(x = "Dsitance From Sequence Centre", y = "Total Matches")
 ```
 
+`r if (n_pos > 0) "### Proportional Match Distributions"`
 
-```{r plot-smoothed-pos, fig.height=6, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
+```{r plot-smoothed-pos, eval = n_pos > 0, fig.height=6, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
 A <- matches[top_pos$altname] %>% 
   plotMatchPos(
     se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
@@ -1861,7 +1866,9 @@ B <- matches[top_pos$altname] %>%
 A + B + plot_layout(guides = "collect") 
 ```
 
-```{r heatmap-pos, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
+`r if (n_pos > 0) "### Match Heatmap"`
+
+```{r heatmap-pos, eval = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
 top_pos <- pos_res %>% 
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:25) %>% 
