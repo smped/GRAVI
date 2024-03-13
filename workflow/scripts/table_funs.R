@@ -11,6 +11,22 @@ sprint_pval <- function(p) {
 comma_col <- colFormat(separators = TRUE, digits = 0)
 percent_col <- colFormat(percent = TRUE, digits = 2)
 
+#' JavaScript functions for column filtering
+js_greater <- htmlwidgets::JS(
+  "function(rows, columnId, filterValue) {
+    return rows.filter(function(row) {
+      return row.values[columnId] >= filterValue
+    })
+  }"
+)
+js_less <- htmlwidgets::JS(
+  "function(rows, columnId, filterValue) {
+    return rows.filter(function(row) {
+      return row.values[columnId] <= filterValue
+    })
+  }"
+)
+
 up_col <- function(x) {
   if (is.na(x) | is.nan(x)) return("#ffffff")
   rgb(

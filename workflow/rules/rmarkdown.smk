@@ -4,11 +4,11 @@ rule create_site_yaml:
         packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "create_site_yaml.R"),
         yml = "config/rmarkdown.yml",
-    output: 
+    output:
         yml = os.path.join(rmd_path, "_site.yml")
     log: os.path.join(log_path, "scripts", "create_site_yaml.log")
     threads: 1
-    localrule: True	
+    localrule: True
     resources:
         mem_mb = 1024,
         runtime = "5m",
@@ -26,33 +26,13 @@ rule create_setup_chunk:
         rmd = "analysis/setup_chunk.Rmd"
     log: os.path.join(log_path, "scripts/create_setup_chunk.log")
     threads: 1
-    localrule: True	
+    localrule: True
     resources:
         mem_mb = 1024,
         runtime = "5m",
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/create_setup_chunk.R"
-
-## This rule is needed to enable building motif tables using
-## The png files with ICM content
-rule create_assets_symlink:
-    input: os.path.join("docs", "assets"),
-    output: directory(os.path.join("analysis", "assets"))
-    threads: 1
-    localrule: True	
-    resources:
-        mem_mb = 1024,
-        runtime = "1m",
-    params:
-        folder = os.path.join("docs", "assets")
-    shell:
-        """
-        if [[ ! -L {output} ]]; then
-            cd $(dirname {output})
-            ln -s {params.folder} $(basename {output})
-        fi
-        """
 
 rule create_index_rmd:
     input:
@@ -62,7 +42,7 @@ rule create_index_rmd:
     output:
         os.path.join(rmd_path, "index.Rmd")
     threads: 1
-    localrule: True	
+    localrule: True
     resources:
         mem_mb = 512,
         runtime = "2m",
@@ -84,7 +64,7 @@ rule compile_index_html:
     threads: 1
     resources:
         mem_mb = 1024,
-        runtime = "5m",	
+        runtime = "5m",
     log: os.path.join(log_path, "rmarkdown/compile_index_html.log")
     shell:
         """
@@ -116,7 +96,7 @@ rule create_macs2_summary_rmd:
 rule compile_macs2_summary_html:
     input:
         annotations = ALL_RDS,
-        assets = rules.create_assets_symlink.output,
+        assets = os.path.join("docs", "assets"),
         bw = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}",
@@ -139,7 +119,7 @@ rule compile_macs2_summary_html:
         ),
         motif_pos = os.path.join(
             macs2_path, "{target}", "{target}_motif_position.tsv.gz"
-        ),        
+        ),
         rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
@@ -169,8 +149,7 @@ rule compile_macs2_summary_html:
         """
 
 rule compile_peak_comparison_rmd:
-    input: 
-        assets = rules.create_assets_symlink.output,
+    input:
         peaks = os.path.join(
             macs2_path, "shared", "shared_consensus_peaks.bed.gz"
         ),
@@ -195,7 +174,7 @@ rule compile_peak_comparison_rmd:
             'shared_regions_localz.tsv', 'pairwise_localz.tsv']
         )
     conda: "../envs/rmarkdown.yml"
-    threads: 6    
+    threads: 6
     resources:
         mem_mb = 16384,
         runtime = "30m",
