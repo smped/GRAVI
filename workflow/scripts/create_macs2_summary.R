@@ -58,9 +58,6 @@ ln <- glue(
 	    macs2_fdr: {{macs2_fdr}}
 	---
 
-	```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
-	```
-
 	",
 	.open = "{{",
 	.close = "}}"

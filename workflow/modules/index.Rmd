@@ -52,9 +52,9 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
   add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "check") %>%
-  change_node_colour("(index|macs2|bedgraph|sort|make|greylist)", "red") %>%
+  change_node_colour("(index|macs2|bedgraph|filter|sort|peaks)", "red") %>%
+  change_node_colour("(create|compile|grey|qc|ranges|run|local)", "blue") %>%
   change_node_colour("check", "forestgreen") %>%
-  change_node_colour("(create|compile)", "blue") %>%
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
   str_replace_all("fontsize=[0-9]+", "fontsize=16") %>%
