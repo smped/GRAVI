@@ -33,12 +33,15 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
         )
     )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 cat("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
-cat("Starting at", format(Sys.time(), "%H:%M:%S %d %b %Y"), "\n")
 
 target <- slot(snakemake, "wildcards")[["target"]]
 threads <- slot(snakemake, "threads")
@@ -64,7 +67,7 @@ outlier_thresh <- as.numeric(all_params$outlier_threshold)
 ## Might need to wrangle a logical value here
 allow_zero <- all_params[["allow_zero"]]
 
-cat("Loading packages...")
+cat_time("Loading packages...")
 library(tidyverse)
 library(yaml)
 library(glue)
@@ -76,10 +79,10 @@ library(Rsamtools)
 library(parallel)
 library(csaw)
 library(plyranges)
-cat("done\n")
+cat_time("done\n")
 
 
-cat("Defining samples...")
+cat_time("Defining samples...")
 config <- slot(snakemake, "config")
 samples <- here::here(config$samples$file) %>%
   read_tsv() %>%
@@ -111,7 +114,7 @@ cat("done\n")
 ## QC ##
 ########
 
-cat("Defining ranges to exclude...\n")
+cat_time("Defining ranges to exclude...\n")
 sq <- read_rds(all_input$seqinfo)
 bl <- read_rds(all_input$blacklist)
 exclude_ranges <- all_input$greylist %>%
@@ -121,12 +124,12 @@ exclude_ranges <- all_input$greylist %>%
   c(bl) %>% 
   GenomicRanges::reduce() 
 
-cat("Loading peaks\n")
+cat_time("Loading peaks\n")
 individual_peaks <- all_input$peaks %>%
   importPeaks(seqinfo = sq, blacklist = exclude_ranges, centre = TRUE) %>%
   setNames(str_remove_all(names(.), "_peaks.narrowPeak"))
 
-cat("Loading macs2_logs\n")
+cat_time("Loading macs2_logs\n")
 macs2_logs <- all_input$logs %>%
   importNgsLogs() %>%
   dplyr::select(
@@ -152,7 +155,7 @@ macs2_logs <- all_input$logs %>%
   ) %>%
   ungroup()
 ## Now export for use in the merged peak calling
-cat("Writing qc_samples\n")
+cat_time("Writing qc_samples\n")
 macs2_logs %>%
   dplyr::select(sample = name, any_of(colnames(samples)), qc) %>%
   write_tsv(here::here(all_output$qc))
@@ -166,8 +169,8 @@ bfl <- all_bam %>%
   setNames(str_remove_all(basename(all_bam), ".bam$"))
 
 ## Check if there are any paired end reads
+cat_time("Checking for duplicates\n")
 ys <- 1000
-cat("Checking for duplicates\n")
 anyDups <- mclapply(
   bfl,
   function(x) {
@@ -180,7 +183,8 @@ anyDups <- mclapply(
   }, mc.cores = threads
 ) %>%
   unlist()
-cat("Checking for PE reads\n")
+
+cat_time("Checking for PE reads\n")
 anyPE <- mclapply(
   bfl,
   function(x){
@@ -193,6 +197,7 @@ anyPE <- mclapply(
 ) %>%
   unlist()
 
+cat_time("Estimating correlations...\n")
 fl <- max(macs2_logs$fragment_length)
 rp <- readParam(
   pe = ifelse(any(anyPE), "both", "none"),
@@ -200,7 +205,6 @@ rp <- readParam(
   restrict = seqnames(sq)[1:5],
   discard = exclude_ranges,
 )
-cat("Estimating correlations...\n")
 read_corrs <- bfl[seq_along(all_input$bam)] %>%
   path %>%
   mclapply(
@@ -213,5 +217,5 @@ read_corrs <- bfl[seq_along(all_input$bam)] %>%
     names_to = "sample",
     values_to = "correlation"
   )
-cat("Exporting correlations\n")
+cat_time("Exporting correlations\n")
 write_tsv(read_corrs, here::here(all_output$cors))

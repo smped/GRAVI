@@ -7,7 +7,7 @@
 ##
 ## Output will be
 ##
-## 1. output/macs2/shared/shared_consensus_peaks.bed.gz
+## 1. output/peak_analysis/shared/shared_consensus_peaks.bed.gz
 ##
 ## First handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
@@ -28,22 +28,26 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
     )
   )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
+cat("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
 
 ## For testing
 # all_input <- list(
 #   peaks = c(
-#     "../GRAVI_testing/output/macs2/AR/AR_consensus_peaks.bed.gz",
-#     "../GRAVI_testing/output/macs2/ER/ER_consensus_peaks.bed.gz",
-#     "../GRAVI_testing/output/macs2/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
+#     "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#     "../GRAVI_testing/output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
+#     "../GRAVI_testing/output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
 #   ),
 #   sq = "../GRAVI_testing/output/annotations/seqinfo.rds"
 # )
 # all_output <- list(
-#   peaks = "../GRAVI_testing/output/macs2/shared/shared_consensus_peaks.bed.gz"
+#   peaks = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.bed.gz"
 # )
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 
@@ -56,15 +60,15 @@ cat_list(all_output, "output")
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(extraChIPs)
 library(plyranges)
 library(tidyverse)
 
-cat("Loading seqinfo and defining ranges to exclude...\n")
+cat_time("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
 
-cat("Loading peaks...\n")
+cat_time("Loading peaks...\n")
 n_targets <- length(all_input$peaks)
 cons_peaks <- all_input$peaks %>%
   importPeaks(seqinfo = sq, type = "bed") %>%
@@ -73,6 +77,7 @@ cons_peaks <- all_input$peaks %>%
 shared_peaks <- cons_peaks %>%
   makeConsensus(p = 1 - 1 / n_targets, method = "coverage") %>%
   filter(n == n_targets)
-cat("Writing", length(shared_peaks), "peaks to", all_output$peaks, "\n")
+  
+cat_time("Writing", length(shared_peaks), "peaks to", all_output$peaks, "\n")
 write_bed(shared_peaks, all_output$peaks)
-cat("Done\n")
+cat_time("Done\n")

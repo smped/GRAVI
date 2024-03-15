@@ -20,7 +20,7 @@
 ##
 ## Output will be
 ##
-## 1. output/macs2/{target}/{target}_{treat}_filtered_peaks.narrowPeak
+## 1. output/peak_analysis/{target}/{target}_{treat}_filtered_peaks.narrowPeak
 ##
 ## First handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
@@ -41,9 +41,13 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
         )
     )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
+cat("Setting stdout to ", log, "\n")
 sink(log)
 
 config <- slot(snakemake, "config")
@@ -61,12 +65,12 @@ cat_list(all_output, "output")
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(tidyverse)
 library(extraChIPs)
 library(plyranges)
 
-cat("Loading seqinfo and sampes...\n")
+cat_time("Loading seqinfo and samples...\n")
 sq <- read_rds(all_input$sq)
 samples <- read_tsv(all_input$qc) %>%
     dplyr::filter(treat == all_wildcards$treat, qc == "pass")
@@ -77,23 +81,23 @@ mcnames <- c("score", "signalValue", "pValue", "qValue", "peak")
 mcols <- sapply(mcnames, \(x) numeric(), simplify = FALSE)
 mcols(filtered_peaks) <- DataFrame(mcols)
 if (n_rep > 0) {
-    cat("Loading black/grey lists\n")
+    cat_time("Loading black/grey lists\n")
     bl <- read_rds(all_input$blacklist)
     exclude_ranges <- all_input$greylist %>%
         importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
         unlist() %>%
         c(bl) %>% 
         GenomicRanges::reduce() 
-    cat("Loading merged peaks\n")
+    cat_time("Loading merged peaks\n")
     merged_peaks <- all_input$merged %>%
         importPeaks(seqinfo = sq, setNames = FALSE, blacklist = exclude_ranges) %>%
         unlist()
-    cat("Loading replicate peaks\n")
+    cat_time("Loading replicate peaks\n")
     rep_peaks <- importPeaks(rep_paths, seqinfo = sq)
     keep <- countOverlaps(merged_peaks, rep_peaks) > n_rep * all_params$min_prop
     filtered_peaks <- merged_peaks[keep]
 }
-cat("Exporting", length(filtered_peaks), "filtered_peaks\n")
+cat_time("Exporting", length(filtered_peaks), "filtered_peaks\n")
 write_narrowpeaks(filtered_peaks, all_output$peaks)
-cat("done\n")
+cat_time("done\n")
 

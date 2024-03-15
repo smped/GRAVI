@@ -33,10 +33,10 @@ sink(log, split = TRUE)
 # all_input <- list(
 #   regions = "output/annotations/gene_regions.rds",
 #   features = "output/annotations/features.rds",
-#   peaks = "output/macs2/AR/AR_consensus_peaks.bed.gz",
+#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
 #   params = "config/params.yml"
 # )
-# all_output <- list(rds = "output/macs2/AR/AR_regions_localz.rds")
+# all_output <- list(rds = "output/peak_analysis/AR/AR_regions_localz.rds")
 # all_params <- list(ntimes = 200)
 # all_wildcards <- list(target = "AR")
 

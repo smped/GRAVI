@@ -109,16 +109,16 @@ rule compile_macs2_summary_html:
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
         consensus_peaks = os.path.join(
-            macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
+            peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
         ),
         localz = os.path.join(
-            macs2_path, "{target}", "{target}_regions_localz.rds"
+            peak_path, "{target}", "{target}_regions_localz.rds"
         ),
         motif_enrich = os.path.join(
-            macs2_path, "{target}", "{target}_motif_enrichment.tsv.gz"
+            peak_path, "{target}", "{target}_motif_enrichment.tsv.gz"
         ),
         motif_pos = os.path.join(
-            macs2_path, "{target}", "{target}_motif_position.tsv.gz"
+            peak_path, "{target}", "{target}_motif_position.tsv.gz"
         ),
         rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
@@ -151,17 +151,17 @@ rule compile_macs2_summary_html:
 rule compile_peak_comparison_rmd:
     input:
         peaks = os.path.join(
-            macs2_path, "shared", "shared_consensus_peaks.bed.gz"
+            peak_path, "shared", "shared_consensus_peaks.bed.gz"
         ),
         localz = expand(
-            os.path.join(macs2_path, "shared", "{f}_localz.rds"),
+            os.path.join(peak_path, "shared", "{f}_localz.rds"),
             f = ['all_consensus', 'shared_regions']
         ),
         motif_enrich = os.path.join(
-            macs2_path, "shared", "shared_motif_enrichment.tsv.gz"
+            peak_path, "shared", "shared_motif_enrichment.tsv.gz"
         ),
         motif_pos = os.path.join(
-            macs2_path, "shared", "shared_motif_position.tsv.gz"
+            peak_path, "shared", "shared_motif_position.tsv.gz"
         ),
         rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
     output:

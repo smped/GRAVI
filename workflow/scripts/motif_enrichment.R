@@ -2,7 +2,7 @@
 #'
 #' Required input files is:
 #' - config/params.yml
-#' - output/macs2/{target}/{target}_consensus_peaks.bed.gz
+#' - output/peak_analysis/{target}/{target}_consensus_peaks.bed.gz
 #' - output/annotations/gene_regions.rds
 #' - output/annotations/motif_list.rds
 #' - output/annotations/exclude_ranges.rds
@@ -10,9 +10,9 @@
 #' - output/checks/r-packages.chk
 #'
 #' Expected output is:
-#' - output/macs2/{target}/{target}_motif_enrichment.tsv.gz
-#' - output/macs2/{target}/{target}_motif_position.tsv.gz
-#' - output/macs2/{target}/{target}_matches.rds
+#' - output/peak_analysis/{target}/{target}_motif_enrichment.tsv.gz
+#' - output/peak_analysis/{target}/{target}_motif_position.tsv.gz
+#' - output/peak_analysis/{target}/{target}_matches.rds
 #'
 #' Required config parameters:
 #' - genome$build
@@ -63,13 +63,13 @@ sink(log)
 #   motifs = "output/annotations/motif_list.rds",
 #   packages = "output/checks/r-packages.chk",
 #   params = "config/params.yml",
-#   peaks = "output/macs2/AR/AR_consensus_peaks.bed.gz"
+#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.bed.gz"
 # )
 #
 # all_output <- list(
-#   enrich = "output/macs2/AR/AR_motif_enrichment.tsv.gz",
-#   pos = "output/macs2/AR/AR_motif_position.tsv.gz",
-#   matches = "output/macs2/AR/AR_matches.rds"
+#   enrich = "output/peak_analysis/AR/AR_motif_enrichment.tsv.gz",
+#   pos = "output/peak_analysis/AR/AR_motif_position.tsv.gz",
+#   matches = "output/peak_analysis/AR/AR_matches.rds"
 # )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
@@ -104,11 +104,13 @@ cat_time("Reading params")
 params <- read_yaml(all_input$params)[["motif_analysis"]][["analysis"]]
 cat_list(params, "params", ":")
 
+cat_time("Readin gene_regions")
 gene_regions <- read_rds(all_input$gene_regions)
 sq <- seqinfo(gene_regions)
 ## Convert to the same as the BSgenome package
 genome(sq) <- ucsc$build
 seqinfo(gene_regions) <- sq
+
 cat_time("Reading Peaks...")
 peaks <- importPeaks(all_input$peaks, type = "bed", seqinfo = sq) |>
   unlist() |>

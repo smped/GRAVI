@@ -3,12 +3,10 @@ rule localz_regions:
 		checks = ALL_CHECKS,
 		regions = os.path.join(annotation_path, "gene_regions.rds"),
 		features = os.path.join(annotation_path, "features.rds"),
-		peaks = os.path.join(
-			macs2_path, "{path}_consensus_peaks.bed.gz"
-		),
+		peaks = os.path.join(peak_path, "{path}_consensus_peaks.bed.gz"),
 		params = os.path.join("config", "params.yml"),
 	output:
-		rds = os.path.join(macs2_path, "{path}_regions_localz.rds")
+		rds = os.path.join(peak_path, "{path}_regions_localz.rds")
 	params:
 		ntimes = 5000, # Maybe source from elsewhere later?
 	threads: 8
@@ -25,13 +23,13 @@ rule localz_targets:
 		checks = ALL_CHECKS,
 		peaks = expand(
 			os.path.join(
-				macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"
+				peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
 			),
 			target = targets
 		),
 		sq = os.path.join(annotation_path, "seqinfo.rds")
 	output:
-		rds = os.path.join(macs2_path, "shared", "all_consensus_localz.rds")
+		rds = os.path.join(peak_path, "shared", "all_consensus_localz.rds")
 	params:
 		ntimes = 5000, # Maybe source from elsewhere later?
 	threads: 8

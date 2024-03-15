@@ -3,14 +3,14 @@
 ##
 ## Required inputs are
 ##
-## 1. output/macs2/{target}/{target}_{treat}_filtered_peaks.narrowPeak
+## 1. output/peak_analysis/{target}/{target}_{treat}_filtered_peaks.narrowPeak
 ## 2. The greylist
 ## 3. The seqinfo object
 ##
 ##
 ## Output will be
 ##
-## 1. output/macs2/{target}/{target}_consensus_peaks.bed
+## 1. output/mapeak_analysiscs2/{target}/{target}_consensus_peaks.bed
 ##
 ## First handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
@@ -31,22 +31,26 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
         )
     )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
 ## For testing
 # all_input <- list(
 #     peaks = c(
-#         "../GRAVI_testing/output/macs2/AR/AR_E2DHT_filtered_peaks.narrowPeak",
-#         "../GRAVI_testing/output/macs2/AR/AR_E2_filtered_peaks.narrowPeak"
+#         "../GRAVI_testing/output/peak_analysis/AR/AR_E2DHT_filtered_peaks.narrowPeak",
+#         "../GRAVI_testing/output/peak_analysis/AR/AR_E2_filtered_peaks.narrowPeak"
 #     ),
 #     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
 #     greylist = "../GRAVI_testing/output/annotations/SRR8315192_greylist.bed.gz"
 # )
 # all_output <- list(
-#     peaks = "../GRAVI_testing/output/macs2/AR/AR_consensus_peaks.bed.gz"
+#     peaks = "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz"
 # )
 # all_wildcards <- list(target = "AR")
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
@@ -64,12 +68,12 @@ cat_list(all_output, "output")
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(tidyverse)
 library(extraChIPs)
 library(plyranges)
 
-cat("Loading seqinfo and defining ranges to exclude...\n")
+cat_time("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
 bl <- read_rds(all_input$blacklist)
 exclude_ranges <- all_input$greylist %>%
@@ -79,12 +83,13 @@ exclude_ranges <- all_input$greylist %>%
     c(bl) %>%
     GenomicRanges::reduce()
 
-cat("Loading peaks...\n")
+cat_time("Loading peaks...\n")
 cons_peaks <- all_input$peaks %>%
     importPeaks(seqinfo = sq, blacklist = exclude_ranges, nameRanges = FALSE) %>%
   makeConsensus(var = "score") %>%
   mutate(score = map_dbl(score, max)) %>%
   select(score)
-cat("Writing", length(cons_peaks), "peaks to", all_output$peaks, "\n")
+  
+cat_time("Writing", length(cons_peaks), "peaks to", all_output$peaks, "\n")
 write_bed(cons_peaks, all_output$peaks)
-cat("Done\n")
+cat_time("Done\n")

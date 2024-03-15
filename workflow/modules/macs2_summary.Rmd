@@ -63,6 +63,7 @@ library(bs_pkg, character.only = TRUE)
 fdr_alpha <- config$comparisons$fdr
 bam_path <- here::here(config$paths$bam)
 macs2_path <- here::here("output", "macs2")
+peak_path <- here::here("output", "peak_analysis", target)
 annotation_path <- here::here("output", "annotations")
 region_params <-  here::here("config", "params.yml") %>% 
   read_yaml() %>% 
@@ -203,12 +204,14 @@ merged_peaks <- macs2_path %>%
   file.path(target, glue("{target}_{treat_levels}_merged_peaks.narrowPeak")) %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
-filtered_peaks <- macs2_path %>% 
-  file.path(target, glue("{target}_{treat_levels}_filtered_peaks.narrowPeak")) %>% 
+filtered_peaks <- peak_path %>% 
+  file.path("{target}_{treat_levels}_filtered_peaks.narrowPeak") %>% 
+  glue() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
-consensus_peaks <- macs2_path %>% 
-  file.path(target, glue("{target}_consensus_peaks.bed.gz")) %>% 
+consensus_peaks <- peak_path %>% 
+  file.path("{target}_consensus_peaks.bed.gz") %>% 
+  glue() %>% 
   importPeaks(type = "bed", seqinfo = sq, setNames = FALSE) %>% 
   unlist() %>% 
   mutate(
@@ -1307,18 +1310,18 @@ cp <- htmltools::em(
 )
 tl <- tagList(
   tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('great-res-table', '{target}_great_res.csv')"
+    )
+  ),
+  tags$button(
     "Expand/Collapse All",
     onclick = "Reactable.toggleAllRowsExpanded('great-res-table')"
   ),
   tags$button(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('great-res-table', [])"
-  ),
-  tags$button(
-    tagList(fontawesome::fa("download"), "Download as CSV"),
-    onclick = glue(
-      "Reactable.downloadDataCSV('great-res-table', '{target}_great_res.csv')"
-    )
   ),
   tbl,
   cp
@@ -1389,7 +1392,9 @@ plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 
 ```{r load-localz}
 ## This should be run in a separate script with many threads & lots of RAM
-mlz <- here::here(macs2_path, target, glue("{target}_regions_localz.rds")) %>% 
+mlz <- peak_path %>% 
+  file.path("{target}_regions_localz.rds") %>% 
+  glue() %>% 
   read_rds()
 localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
   as_tibble() %>% 
@@ -1513,20 +1518,20 @@ motif_list <- file.path(annotation_path, "motif_list.rds") %>%
   read_rds() %>% 
   to_df %>% 
   as_tibble()
-pos_res <- file.path(macs2_path, target, "{target}_motif_position.tsv.gz") %>% 
+pos_res <- file.path(peak_path, "{target}_motif_position.tsv.gz") %>% 
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_pos <- sum(pos_res$adj_p < motif_params$analysis$alpha)
-enrich_res <- macs2_path %>% 
-  file.path(target, "{target}_motif_enrichment.tsv.gz") %>%
+enrich_res <- peak_path %>% 
+  file.path("{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha & enrich_res$Z > 0)
-matches <- file.path(macs2_path, target, "{target}_matches.rds") %>% 
+matches <- file.path(peak_path, "{target}_matches.rds") %>% 
   glue() %>% 
   read_rds()
 ```
@@ -1613,18 +1618,18 @@ cp <- htmltools::em(
 )
 tl <- tagList(
   tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('enrich-res-table', '{target}_enrich_res.csv')"
+    )
+  ),
+  tags$button(
     "Expand/Collapse All",
     onclick = "Reactable.toggleAllRowsExpanded('enrich-res-table')"
   ),
   tags$button(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-res-table', [])"
-  ),
-  tags$button(
-    tagList(fontawesome::fa("download"), "Download as CSV"),
-    onclick = glue(
-      "Reactable.downloadDataCSV('enrich-res-table', '{target}_enrich_res.csv')"
-    )
   ),
   tbl,
   cp
@@ -1793,18 +1798,18 @@ cp <- htmltools::em(
 )
 tl <- tagList(
   tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('pos-res-table', '{target}_position_res.csv')"
+    )
+  ),
+  tags$button(
     "Expand/Collapse All",
     onclick = "Reactable.toggleAllRowsExpanded('pos-res-table')"
   ),
   tags$button(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('pos-res-table', [])"
-  ),
-  tags$button(
-    tagList(fontawesome::fa("download"), "Download as CSV"),
-    onclick = glue(
-      "Reactable.downloadDataCSV('pos-res-table', '{target}_position_res.csv')"
-    )
   ),
   tbl,
   cp

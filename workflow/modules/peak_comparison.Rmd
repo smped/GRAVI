@@ -66,7 +66,9 @@ targets <- here::here(config$samples) %>%
   unique()
 threads <- detectCores() - 1
 macs2_path <- here::here("output", "macs2")
-samples <- file.path(macs2_path, targets, glue("{targets}_qc_samples.tsv")) %>% 
+peak_path <- here::here("output", "peak_analysis")
+samples <- file.path(macs2_path, targets, "{targets}_qc_samples.tsv") %>% 
+  glue() %>% 
   lapply(read_tsv) %>% 
   bind_rows() %>% 
   dplyr::filter(qc == "pass") %>% 
@@ -98,12 +100,12 @@ all_regions_labs <- c(
 colours <- file.path(annotation_path, "colours.rds") %>% 
   read_rds()
 region_colours <- c(colours$regions, colours$features) %>%
-    setNames(
-      case_when(
-        names(.) %in% names(regions) ~ regions[names(.)],
-        TRUE ~ names(.)
-      )
+  setNames(
+    case_when(
+      names(.) %in% names(regions) ~ regions[names(.)],
+      TRUE ~ names(.)
     )
+  )
 target_colours <- RColorBrewer::brewer.pal(n_targets , "Set1") %>% 
   setNames(targets) %>% 
   c(Shared = "black")
@@ -125,13 +127,13 @@ Comparisons were performed in a treatment-agnostic manner, using the sets of con
 ## Peak Comparisons {.tabset}
 
 ```{r load-peaks}
-consensus_peaks <- file.path(
-  macs2_path, targets, glue("{targets}_consensus_peaks.bed.gz")
-) %>% 
+consensus_peaks <- peak_path %>% 
+  file.path(targets, "{targets}_consensus_peaks.bed.gz") %>% 
+  glue() %>% 
   importPeaks(seqinfo = sq, type = "bed") %>% 
   setNames(str_remove(names(.), "_consensus.+"))
 ## NB: for n = 2, this will be the union peaks
-shared_peaks <- file.path(macs2_path, "shared", "shared_consensus_peaks.bed.gz") %>% 
+shared_peaks <- file.path(peak_path, "shared", "shared_consensus_peaks.bed.gz") %>% 
   importPeaks(seqinfo = sq, type = "bed") %>% 
   setNames(str_remove(names(.), "_consensus.+")) %>% 
   unlist() %>% 
@@ -244,6 +246,21 @@ gs_list <- msigdb %>%
   lapply(pull, ensembl_gene) %>% 
   .[map_int(., length) <= enrich_params$max_size] %>% 
   .[map_int(., length) >= enrich_params$min_size] 
+gs_url <- msigdb %>% 
+  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
+  mutate(
+    gs_url = case_when(
+      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
+      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
+      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
+        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
+      ),
+      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
+      TRUE ~ gs_url
+    ) %>% 
+      setNames(gs_name)
+  ) %>% 
+  pull(gs_url)
 great_res <- great(
   set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
@@ -322,39 +339,53 @@ tbl <- great_df_genomic %>%
     sortable = TRUE, filterable = TRUE,
     columns = list(
       id = colDef(
-        name = "Gene Set",
-        cell = \(value) str_replace_all(value, "_", " "),
-        minWidth = 180
+        name = "Gene Set", minWidth = 180,
+        cell = function(value) htmltools::tags$a(
+          href = gs_url[[value]], 
+          target = "_blank", 
+          str_replace_all(value, "_", " ")
+        ),
+        html = TRUE
       ),
       genome_fraction = colDef(show = FALSE),
       observed_region_hits = colDef(show = FALSE),
       fold_enrichment_hyper = colDef(
         name = "Fold Enrichment", format = colFormat(digits = 3),
-        filterable = FALSE, minWidth = 110
+        minWidth = 110, filterMethod = js_greater
       ),
       p_adjust_hyper = colDef(
         name = glue("P<sub>adj</sub> ({enrich_params$adj})"),
-        html = TRUE, filterable = FALSE,
+        html = TRUE, maxWidth = 110,
         cell = \(value) sprint_pval(value),
-        maxWidth = 110
+        filterMethod = js_less
       ),
       mean_tss_dist = colDef(
         "Mean TSS Distance (kb)", 
-        cell = \(value) round(value / 1e3, 2),
-        filterable = FALSE
+        cell = \(value) round(value / 1e3, 2), filterMethod = js_greater
       ),
       observed_gene_hits = colDef(
-        "Gene Hits", maxWidth = 100, filterable = FALSE
+        "Gene Hits", maxWidth = 100, filterMethod = js_greater
       ),
       gene_set_size = colDef(
-        "Gene Set Size", maxWidth = 100, filterable = FALSE
+        "Gene Set Size", maxWidth = 100, filterMethod = js_greater
       ),
       genes_with_hits = colDef(
         name = "Genes",
         cell = \(value) with_tooltip(value, width = 60),
         minWidth = 200
       )
-    )
+    ),
+    details =  function(index){
+      htmltools::div(
+        htmltools::tags$pre(
+          str_wrap(
+            paste(capture.output(great_df_genomic$genes_with_hits[index]), collapse = "\n"),
+            width = 120
+          )
+        )
+      )
+    },
+    elementId = "great-genomic-res-table"
   )
 cp <- htmltools::em(
   glue(
@@ -369,11 +400,29 @@ cp <- htmltools::em(
     "with the gene-set size reflecting the number associated with the background regions."
   )
 )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp), tbl
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('great-genomic-res-table', 'shared_great_genomic_res.csv')"
     )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('great-genomic-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('great-genomic-res-table', [])"
+  ),
+  tbl,
+  cp
 )
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 `r if (n_great_genomic >= network_params$min_size) "#### Enrichment Network"`
@@ -491,31 +540,31 @@ tbl <- great_df_targets %>%
       observed_region_hits = colDef(show = FALSE),
       fold_enrichment_hyper = colDef(
         name = "Fold Enrichment", format = colFormat(digits = 3),
-        filterable = FALSE, minWidth = 110
+        minWidth = 110, filterMethod = js_greater
       ),
       p_adjust_hyper = colDef(
         name = glue("P<sub>adj</sub> ({enrich_params$adj})"),
-        html = TRUE, filterable = FALSE,
+        html = TRUE, filterMethod = js_less,
         cell = \(value) sprint_pval(value),
         maxWidth = 110
       ),
       mean_tss_dist = colDef(
         "Mean TSS Distance (kb)", 
-        cell = \(value) round(value / 1e3, 2),
-        filterable = FALSE
+        cell = \(value) round(value / 1e3, 2), filterMethod = js_greater
       ),
       observed_gene_hits = colDef(
-        "Gene Hits", maxWidth = 100, filterable = FALSE
+        "Gene Hits", maxWidth = 100, filterMethod = js_greater
       ),
       gene_set_size = colDef(
-        "Gene Set Size", maxWidth = 100, filterable = FALSE
+        "Gene Set Size", maxWidth = 100, filterMethod = js_greater
       ),
       genes_with_hits = colDef(
         name = "Genes",
         cell = \(value) with_tooltip(value, width = 60),
         minWidth = 200
       )
-    )
+    ),
+    elementId = 'great-targets-res-table'
   )
 cp <- htmltools::em(
   glue(
@@ -530,11 +579,29 @@ cp <- htmltools::em(
     "with the gene-set size reflecting the number associated with the background regions."
   )
 )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp), tbl
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('great-targets-res-table', 'shared_great_targets_res.csv')"
     )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('great-targets-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('great-targets-res-table', [])"
+  ),
+  tbl,
+  cp
 )
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 `r if (n_great_targets >= network_params$min_size) "#### Enrichment Network"`
@@ -594,8 +661,10 @@ if (length(tg_great_targets) >= network_params$min_size) {
 ### Region Comparisons {.tabset}
 
 ```{r load-regioner}
-localz_regions <- here::here(macs2_path, targets, glue("{targets}_regions_localz.rds")) %>% 
-  c(here::here(macs2_path, "shared", "shared_regions_localz.rds")) %>% 
+localz_regions <- here::here(
+  peak_path, targets, glue("{targets}_regions_localz.rds")
+) %>% 
+  c(here::here(peak_path, "shared", "shared_regions_localz.rds")) %>% 
   setNames(c(targets, "shared")) %>% 
   lapply(read_rds)
 localz_df <- localz_regions %>%
@@ -928,17 +997,17 @@ motif_list <- file.path(annotation_path, "motif_list.rds") %>%
   read_rds() %>% 
   to_df %>% 
   as_tibble()
-pos_res <- here::here(macs2_path, "shared", "shared_motif_position.tsv.gz") %>% 
+pos_res <- here::here(peak_path, "shared", "shared_motif_position.tsv.gz") %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_pos <- sum(pos_res$adj_p < motif_params$analysis$alpha)
-enrich_res <-  here::here(macs2_path, "shared", "shared_motif_enrichment.tsv.gz") %>% 
+enrich_res <-  here::here(peak_path, "shared", "shared_motif_enrichment.tsv.gz") %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha)
-matches <- file.path(macs2_path, "shared", "shared_matches.rds") %>% 
+matches <- file.path(peak_path, "shared", "shared_matches.rds") %>% 
   read_rds()
 ```
 

@@ -49,13 +49,13 @@ sink(log, split = TRUE)
 # config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
 #   peaks = c(
-#             "output/macs2/AR/AR_consensus_peaks.bed.gz",
-#             "output/macs2/ER/ER_consensus_peaks.bed.gz",
-#             "output/macs2/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
+#             "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#             "output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
+#             "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
 #           ),
 #   sq = "output/annotations/seqinfo.rds"
 # )
-# all_output <- list(rds = "output/macs2/shared/all_consensus_localz.rds")
+# all_output <- list(rds = "output/peak_analysis/shared/all_consensus_localz.rds")
 # all_params <- list(ntimes = 200)
 
 config <- slot(snakemake, "config")

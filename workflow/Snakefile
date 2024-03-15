@@ -111,6 +111,7 @@ annotation_path = os.path.join("output", "annotations")
 check_path =os.path.join("output", "checks")
 diff_path = os.path.join("output", "differential_signal")
 macs2_path = os.path.join("output", "macs2")
+peak_path = os.path.join("output", "peak_analysis")
 log_path = os.path.join("workflow", "logs")
 
 
@@ -223,9 +224,9 @@ ALL_OUTPUTS.extend(HTML_OUT)
 ## Keep the final index separate for easiers passing to other rules
 # ALL_OUTPUTS.extend([os.path.join("docs", "index.html")])
 
-## Peaks generated from the Rmd files
+## Consensus Peaks
 CONS_PEAKS = expand(
-	os.path.join(macs2_path, "{target}", "{target}_consensus_peaks.bed.gz"),
+	os.path.join(peak_path, "{target}", "{target}_consensus_peaks.bed.gz"),
 	target = targets,
 )
 ALL_OUTPUTS.extend(CONS_PEAKS)
