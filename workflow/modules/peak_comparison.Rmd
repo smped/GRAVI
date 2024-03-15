@@ -27,6 +27,8 @@ library(pander)
 library(parallel)
 library(patchwork)
 library(regioneReloaded)
+library(universalmotif)
+library(corrplot)
 theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
@@ -47,9 +49,17 @@ enrich_params <- here::here("config", "params.yml") %>%
 region_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("gene_regions")
+motif_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("motif_analysis")
 network_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("networks")
+figure_params <- here::here("config", "rmarkdown.yml") %>%
+  read_yaml() %>% 
+  pluck("knitr_opts")
+fw <- figure_params$fig.width
+fh <- figure_params$fig.height
 targets <- here::here(config$samples) %>% 
   read_tsv() %>% 
   pull("target") %>% 
@@ -94,8 +104,9 @@ region_colours <- c(colours$regions, colours$features) %>%
         TRUE ~ names(.)
       )
     )
-target_colours <- RColorBrewer::brewer.pal(n_targets + 1, "Set1") %>% 
-  setNames(c(targets, "Shared"))
+target_colours <- RColorBrewer::brewer.pal(n_targets , "Set1") %>% 
+  setNames(targets) %>% 
+  c(Shared = "black")
 ## For regioneR analysis
 heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
@@ -134,8 +145,8 @@ This ensures any individual targets with broader peaks do not lead to unrealisti
 
 ### Overlapping Regions
 
-```{r plot-overlaps, fig.height=6, fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
-plotType <- ifelse(length(consensus_peaks) > 2, "upset", "venn")
+```{r plot-overlaps, fig.width = ifelse(n_targets > 2, fh, fw), fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
+plotType <- ifelse(n_targets > 2, "upset", "venn")
 plotOverlaps(
   consensus_peaks, type = plotType, set_col = target_colours, exp_sets = 0.3
 )
@@ -164,7 +175,7 @@ consensus_peaks %>%
 
 ### Distance to TSS 
 
-```{r plot-shared-dist-to-tss-hist, fig.height=6, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Shared peaks were removed from each set of consensus peaks to highlight any potential differences, and so that each peak is only included in one category.")}
+```{r plot-shared-dist-to-tss-hist, fig.height = 0.75 * fh, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Shared peaks were removed from each set of consensus peaks to highlight any potential differences, and so that each peak is only included in one category.")}
 df <- consensus_peaks %>% 
   endoapply(filter_by_non_overlaps, shared_peaks) %>% 
   c(GRangesList(Shared = shared_peaks)) %>% 
@@ -299,9 +310,9 @@ n_great_genomic <- sum(great_df_genomic$p_adjust_hyper < enrich_params$alpha)
 ```
 
 
-#### GREAT Results Table
+`r if (n_great_genomic > 0) "#### GREAT Results Table"`
 
-```{r tbl-great-res-genomic}
+```{r tbl-great-res-genomic, eval = n_great_genomic > 0, echo = n_great_genomic > 0}
 tbl <- great_df_genomic %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
@@ -417,9 +428,9 @@ if (length(tg_great_genomic) >= network_params$min_size) {
 }
 ```
 
-#### TSS Distribution
+`r if (n_great_genomic > 0 "#### TSS Distribution"`
 
-```{r plot-top-great-genomic, fig.height=6, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
+```{r plot-top-great-genomic, eval = n_great_genomic > 0, echo = n_great_genomic > 0, fig.height = 0.75 * fw, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
 top_id <- great_df_genomic$id[1]
 plotRegionGeneAssociations(great_res_genomic, top_id, which = 2:3)
 ```
@@ -460,9 +471,9 @@ n_great_targets <- sum(great_df_targets$p_adjust_hyper < enrich_params$alpha)
 ```
 
 
-#### GREAT Results Table
+`r if (n_great_targets > 0) "#### GREAT Results Table"`
 
-```{r tbl-great-res-targets}
+```{r tbl-great-res-targets, eval = n_great_targets > 0 , echo = n_great_targets > 0}
 tbl <- great_df_targets %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
@@ -665,21 +676,34 @@ tbl <- localz_df %>%
   dplyr::select(-sd_perm_test, -p_value) %>% 
   dplyr::select(target, region, target_peaks, mean_perm_test, everything()) %>% 
   reactable(
+    filterable = TRUE, showPageSizeOptions = TRUE,
     columns = list(
-      target = colDef("Target", filterable = TRUE),
-      region = colDef("Region", minWidth = 120, filterable = TRUE),
-      target_peaks = colDef("N Peaks", format = comma_col, maxWidth = 80),
-      mean_perm_test = colDef("Expected", format = comma_col),
-      n_overlaps = colDef("Observed", format = comma_col, maxWidth = 85),
-      prop = colDef("% Peaks", format = percent_col, maxWidth = 80),
+      target = colDef("Target"),
+      region = colDef("Region", minWidth = 120),
+      target_peaks = colDef(
+        "N Peaks", format = comma_col, maxWidth = 80, filterMethod = js_greater
+      ),
+      mean_perm_test = colDef(
+        "Expected", format = comma_col, filterMethod = js_greater
+      ),
+      n_overlaps = colDef(
+        "Observed", format = comma_col, maxWidth = 85,
+        filterMethod = js_greater
+      ),
+      prop = colDef(
+        "% Peaks", format = percent_col, maxWidth = 80, 
+        filterMethod = js_greater
+      ),
       Z = colDef(
         format = colFormat(digits = 2), maxWidth = 80,
-        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+        style = \(value) list(color = ifelse(value > 0, "black", "red")),
+        filterMethod = js_greater
       ),
       enrichment = colDef(
         "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
         html = TRUE, 
-        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+        style = \(value) list(color = ifelse(value > 0, "black", "red")),
+        filterMethod = js_greater
       ),
       adj.p_value = colDef(
         glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
@@ -688,12 +712,14 @@ tbl <- localz_df %>%
           color = ifelse(
             value < enrich_params$alpha, "black", colours$direction$unchanged
           )
-        )
+        ),
+        filterMethod = js_less
       )
     ),
     columnGroups = list(
       colGroup("Overlaps", columns = c("mean_perm_test", "n_overlaps", "prop"))
-    )
+    ),
+    elementId = "localz-res-table"
   )
 cp <- htmltools::em(
   glue(
@@ -706,11 +732,25 @@ cp <- htmltools::em(
     "
   )
 )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp), tbl
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('localz-res-table', 'shared_localz_res.csv')"
     )
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('localz-res-table', [])"
+  ),
+  tbl,
+  cp
 )
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 ### Comparison Between Peaks {.tabset}
@@ -853,7 +893,8 @@ tbl <- pairwise_df %>%
       colGroup(
         name = "Overlaps", columns = c("prop", "n_overlaps", "mean_perm_test")
       )
-    )
+    ),
+    elementId = 'pairwise-res-table'
   )
 cp <- htmltools::em(
   glue(
@@ -865,12 +906,386 @@ cp <- htmltools::em(
     "
   )
 )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp), tbl
-    )
-)
+tl <- tagList(tbl,cp)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
+
+## Motif Analysis
+
+```{r load-motif-res}
+bs_genome <- get(bs_pkg)
+fw_peaks <- resize(
+  consensus_peaks, width = motif_params$analysis$peak_width, fix = "center"
+)
+genome(fw_peaks) <- ucsc$build
+fw_seq <- getSeq(bs_genome, fw_peaks)
+motif_adj <- match.arg(motif_params$analysis$adj, p.adjust.methods)
+motif_list <- file.path(annotation_path, "motif_list.rds") %>% 
+  read_rds() %>% 
+  to_df %>% 
+  as_tibble()
+pos_res <- here::here(macs2_path, "shared", "shared_motif_position.tsv.gz") %>% 
+  read_tsv() %>% 
+  dplyr::select(-fdr) %>% 
+  mutate(adj_p = p.adjust(p, motif_adj))
+n_pos <- sum(pos_res$adj_p < motif_params$analysis$alpha)
+enrich_res <-  here::here(macs2_path, "shared", "shared_motif_enrichment.tsv.gz") %>% 
+  read_tsv() %>% 
+  dplyr::select(-fdr) %>% 
+  mutate(adj_p = p.adjust(p, motif_adj))
+n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha)
+matches <- file.path(macs2_path, "shared", "shared_matches.rds") %>% 
+  read_rds()
+```
+
+Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
+For this step peaks were set to a fixed width of `r motif_params$analysis$peak_width`bp, with sequences taken from these regions.
+
+### Motif Enrichment {.tabset}
+
+A simple enrichment analysis was performed by selecting a set of `r comma(enrich_res$sequences[[1]] * enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(enrich_res$sequences[[1]])` *test sequences*.
+This gave a set of genomically matched control sequences to gauge enrichment by.
+Analysis was performed using the `motifTestR` package and the `r motif_params$analysis$model`.
+
+Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) are shown in the results below, with `r n_enrich` of the `r comma(nrow(motif_list))` included motifs matching the criteria for being considered as enriched.
+
+`r if (n_enrich > 0) "#### Enrichment Table"`
+
+```{r tbl-res-enrich, eval = n_enrich > 0, echo = n_enrich > 0}
+tbl <- enrich_res %>%
+  arrange(p) %>% 
+  dplyr::filter(adj_p < motif_params$analysis$alpha, Z > 0) %>% 
+  mutate(cluster = fct_inorder(as.character(cluster))) %>% 
+  dplyr::select(
+    cluster, ends_with("name"), Z, p, adj_p, matches, expected, enrichment
+  ) %>% 
+  mutate(
+    PWM = here::here("docs", "assets", "motifs", glue("{altname}.png")),
+    PWM = lapply(PWM, knitr::image_uri)
+  ) %>% 
+  reactable(
+    groupBy = "cluster",
+    showPageSizeOptions = TRUE, filterable = TRUE,
+    theme = reactableTheme(style = list(fontSize = 12)),
+    defaultSorted = "adj_p", defaultSortOrder = "asc",
+    columns = list(
+      cluster = colDef("Cluster", maxWidth = 70),
+      altname = colDef(
+        "Motif", minWidth = 180, aggregate = "unique",
+        style = list(borderLeft = "1px solid rgba(0, 0, 0, 0.1)")
+      ),
+      name = colDef(
+        "Name", minWidth = 120, aggregate = "unique",
+        style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+      ),
+      matches = colDef(
+        "Total", maxWidth = 60, format = comma_col, aggregate = "max",
+        filterMethod = js_greater
+      ),
+      expected = colDef(
+        "Expected", maxWidth = 80, format = comma_col, aggregate = "max",
+        filterMethod = js_greater
+      ),
+      enrichment = colDef(
+        "Enrichment", maxWidth = 90, format = colFormat(digits = 3),
+        aggregate = "max", filterMethod = js_greater,
+        style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+      ),
+      Z = colDef(
+        maxWidth = 60, format = colFormat(digits = 2), aggregate = "max",
+        filterMethod = js_greater
+      ),
+      p = colDef(show = FALSE),
+      adj_p = colDef(
+        glue("p<sub>{motif_adj}</sub>"), html = TRUE, maxWidth = 70,
+        cell = \(value) sprint_pval(value), aggregate = "min",
+        format = colFormat(digits = 3), filterMethod = js_less
+      ),
+      PWM = colDef(
+        name = "IC Matrix", minWidth = 180, filterable = FALSE,
+        cell = function(value) tags$img(src = value, height = '80px')
+      )
+    ),
+    elementId = "enrich-res-table"
+  )
+cp <- htmltools::em(
+  glue(
+    "All {n_enrich} motifs considered as enriched relative to the background set
+    of sequences, using the {motif_params$analysis$model} model and an adjusted 
+    p-value ({motif_adj}) < {motif_params$analysis$alpha} as the criteria for 
+    significance. Motifs are grouped by clusters formed earlier, with all motifs
+    visible by clicking the arrow to the arbitrary cluster identifier. All 
+    columns are searchable and filterable."
+  )
+)
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('enrich-res-table', 'shared_enrich_res.csv')"
+    )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('enrich-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('enrich-res-table', [])"
+  ),
+  tbl,
+  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
+```
+
+`r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
+
+```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
+top_enrich <- enrich_res %>%
+  dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::slice(1:20) %>% 
+  pull("altname")
+matches[top_enrich] %>% 
+  lapply(\(x) tibble(seq = x$seq)) %>% 
+  bind_rows(.id = "altname") %>%
+  distinct(altname, seq) %>% 
+  left_join(
+    dplyr::select(enrich_res, altname, name), by = "altname"
+  ) %>% 
+  mutate(detected = TRUE) %>% 
+  dplyr::select(seq, name, detected) %>% 
+  pivot_wider(
+    names_from = "name", values_from = "detected", values_fill = FALSE
+  ) %>% 
+  dplyr::select(-seq) %>% 
+  cor(method = "spearman") %>% 
+  corrplot(
+    addCoefasPercent = TRUE, addCoef.col = "grey20", 
+    tl.cex = 0.75, number.cex = 0.8, order = "hclust"
+  )
+```
+
+
+### Positional Bias {.tabset}
+
+```{r get-top-pos, eval = n_pos > 0, echo = n_pos > 0}
+top_pos <- pos_res %>% 
+  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
+  dplyr::slice(1:9) %>% 
+  dplyr::select(altname, name, cluster)
+clust_names <- pos_res %>% 
+  dplyr::filter(
+    adj_p < motif_params$analysis$alpha,
+    cluster %in% top_pos$cluster
+  ) %>% 
+  arrange(desc(matches_in_region)) %>% 
+  summarise(
+    altname = altname[[1]], .by = cluster,
+    name = paste(name, collapse = "/")
+  ) %>% 
+  mutate(name = setNames(name, altname)) %>% 
+  pull(name)
+```
+
+Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$analysis$binwidth`bp and testing `r ifelse(motif_params$analysis$abs, "distance from sequence centres", "position either side of the sequence centres")`.
+Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_below)` of sequences were not tested for any positional bias.
+
+Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
+
+It should also be noted that this type of analysis is agnostic to the number of matches found for a TFBM, and only assesses any bias within the distribution of matches.
+
+`r if (n_pos > 0) "#### Results Table"`
+
+```{r tbl-res-pos, eval = n_pos > 0, echo = n_pos > 0}
+tbl <- pos_res %>%
+  dplyr::filter(adj_p < motif_params$analysis$alpha) %>%
+  mutate(cluster = fct_inorder(as.character(cluster))) %>% 
+  dplyr::select(
+    cluster, contains("name"), ends_with("p"), start, end, centre, width,
+    contains("total"), matches_in_region, starts_with("e"), 
+  ) %>% 
+  mutate(
+    PWM = here::here("docs", "assets", "motifs", glue("{altname}.png")),
+    PWM = lapply(PWM, knitr::image_uri)
+  ) %>% 
+  reactable(
+    groupBy = "cluster", showPageSizeOptions = TRUE, filterable = TRUE,
+    columns = list(
+      cluster = colDef(maxWidth = 60),
+      name = colDef("Name", aggregate = "unique", maxWidth = 80),
+      altname = colDef("Motif", aggregate = "unique", minWidth = 180),
+      start = colDef(
+        "Start", aggregate = "min", maxWidth = 50,
+        filterMethod = js_greater
+      ),
+      end = colDef(
+        "End", aggregate = "max", maxWidth = 50, 
+        filterMethod = js_greater
+      ),
+      centre = colDef(
+        "Centre", aggregate = "median", maxWidth = 60, show = FALSE
+      ),
+      width = colDef(
+        "Width", aggregate = "median", maxWidth = 60, 
+        filterMethod = js_less
+      ),
+      total_matches = colDef(
+        "Total", aggregate = "max", maxWidth = 60, format = comma_col,
+        filterMethod = js_greater
+      ),
+      matches_in_region = colDef(
+        "Region", aggregate = "max", maxWidth = 60, 
+        filterMethod = js_greater
+      ),
+      expected = colDef(
+        "Expected", aggregate = "max", maxWidth = 75, format = comma_col,
+        filterMethod = js_greater
+      ),
+      enrichment = colDef(
+        "Region Enrichment", aggregate = "max", format = colFormat(digits = 2),
+        maxWidth = 90, filterMethod = js_greater
+      ),
+      prop_total = colDef(
+        "% In Region", aggregate = "max", format = percent_col, maxWidth = 60,
+        filterMethod = js_greater
+      ),
+      p = colDef(show = FALSE),
+      adj_p = colDef(
+        glue("p<sub>{motif_adj}</sub>"), html = TRUE, maxWidth = 70,
+        cell = \(value) sprint_pval(value), format = colFormat(digits = 3),
+        aggregate = "min", filterMethod = js_less
+      ),
+      PWM = colDef(
+        name = "IC Matrix", minWidth = 180, filterable = FALSE,
+        cell = function(value) tags$img(src = value, height = '80px')
+      )
+    ),
+    columnGroups = list(
+      colGroup(
+        name = "Matches", 
+        columns = c(
+          "total_matches", "prop_total", "matches_in_region", "expected",
+          "enrichment"
+        )
+      ),
+      colGroup(
+        name = "Positional Bias",  
+        columns = c("start", "end", "centre", "width")
+      )
+    ),
+    defaultSorted = "adj_p", defaultSortOrder = "asc",
+    theme = reactableTheme(style = list(fontSize = 12)),
+    elementId = "pos-res-table"
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    All {sum(pos_res$adj_p < motif_params$analysis$alpha)} TFBMs found to show
+    positional bias using an adjusted p-value ({motif_adj}) below
+    {motif_params$analysis$alpha} as the criteria for significance. Highly 
+    similar motifs were clustered during preparation and are grouped accordingly.
+    Clicking the arrow next to the arbitrary cluster id will reveal full details
+    for all motifs within the cluster which were found to be significant, 
+    including the sequence logo showing information content (ICM).
+    "
+  )
+)
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('pos-res-table', 'shared_position_res.csv')"
+    )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('pos-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('pos-res-table', [])"
+  ),
+  tbl,
+  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
+```
+
+
+`r if (n_pos > 0) "#### Total Matches"`
+
+```{r plot-total-pos-matches, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
+lb <- glue("{names(clust_names)}\n({clust_names})") %>% 
+  setNames(names(clust_names))
+matches[top_pos$altname] %>% 
+  plotMatchPos(
+    geom = "point", abs = motif_params$analysis$abs, use_totals = TRUE,
+    binwidth = 1
+  ) +
+  geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
+  facet_wrap(~name, labeller = as_labeller(lb)) +
+  theme(legend.position = "none") +
+  labs(x = "Distance From Sequence Centre", y = "Total Matches")
+```
+
+`r if (n_pos > 0) "#### Proportional Match Distributions"`
+
+```{r plot-smoothed-pos, eval = n_pos > 0, echo = n_pos > 0, fig.height = 0.75 * fh, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
+A <- matches[top_pos$altname] %>% 
+  plotMatchPos(
+    se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
+    binwidth = motif_params$analysis$binwidth / 2
+  ) +
+  labs(
+    x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
+  ) +
+  scale_colour_brewer(palette = "Set1", labels = \(x) lb[x]) +
+  theme(legend.position = "none")
+B <- matches[top_pos$altname] %>% 
+  plotMatchPos(
+    type = "cdf", geom = "line", abs = motif_params$analysis$abs,
+    linewidth = 1 / 2, binwidth = 1
+  ) +
+  scale_colour_brewer(palette = "Set1", labels = \(x) lb[x]) +
+  labs(x = "Distance From Centre", y = "Proportion", colour = "Motifs")
+A + B + plot_layout(guides = "collect") +
+  theme(
+    legend.key.height = unit(0.05, "npc"),
+    legend.title = element_text(hjust = 0.5)
+  )
+```
+
+`r if (n_pos > 0) "#### Match Heatmap"`
+
+```{r heatmap-pos, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
+top_pos <- pos_res %>% 
+  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::slice(1:25) %>% 
+  pull(altname)
+matches[top_pos] %>% 
+  plotMatchPos(
+    abs = motif_params$analysis$abs, type = "heatmap", cluster = TRUE,
+    use_totals = TRUE,
+    # binwidth = floor(motif_params$analysis$binwidth / 2)
+    binwidth = motif_params$analysis$binwidth 
+  ) + labs(x = "Bin", fill = "Total\n Matches")
+```
+
+
 
 
 
