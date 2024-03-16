@@ -27,6 +27,7 @@ library(pander)
 library(parallel)
 library(patchwork)
 library(regioneReloaded)
+library(motifTestR)
 library(universalmotif)
 library(corrplot)
 theme_set(
@@ -37,6 +38,7 @@ panderOptions("big.mark", ",")
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 config <- here::here("config", "config.yml") %>% read_yaml()
+threads <- detectCores() - 1
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
 library(bs_pkg, character.only = TRUE)
@@ -64,10 +66,9 @@ targets <- here::here(config$samples) %>%
   read_tsv() %>% 
   pull("target") %>% 
   unique()
-threads <- detectCores() - 1
 macs2_path <- here::here("output", "macs2")
 peak_path <- here::here("output", "peak_analysis")
-samples <- file.path(macs2_path, targets, "{targets}_qc_samples.tsv") %>% 
+samples <- file.path(macs2_path, "{targets}", "{targets}_qc_samples.tsv") %>% 
   glue() %>% 
   lapply(read_tsv) %>% 
   bind_rows() %>% 
@@ -128,7 +129,7 @@ Comparisons were performed in a treatment-agnostic manner, using the sets of con
 
 ```{r load-peaks}
 consensus_peaks <- peak_path %>% 
-  file.path(targets, "{targets}_consensus_peaks.bed.gz") %>% 
+  file.path("{targets}", "{targets}_consensus_peaks.bed.gz") %>% 
   glue() %>% 
   importPeaks(seqinfo = sq, type = "bed") %>% 
   setNames(str_remove(names(.), "_consensus.+"))
@@ -477,7 +478,7 @@ if (length(tg_great_genomic) >= network_params$min_size) {
 }
 ```
 
-`r if (n_great_genomic > 0 "#### TSS Distribution"`
+`r if (n_great_genomic > 0) "#### TSS Distribution"`
 
 ```{r plot-top-great-genomic, eval = n_great_genomic > 0, echo = n_great_genomic > 0, fig.height = 0.75 * fw, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
 top_id <- great_df_genomic$id[1]
@@ -662,8 +663,9 @@ if (length(tg_great_targets) >= network_params$min_size) {
 
 ```{r load-regioner}
 localz_regions <- here::here(
-  peak_path, targets, glue("{targets}_regions_localz.rds")
+  peak_path, "{targets}", "{targets}_regions_localz.rds"
 ) %>% 
+  glue() %>%
   c(here::here(peak_path, "shared", "shared_regions_localz.rds")) %>% 
   setNames(c(targets, "shared")) %>% 
   lapply(read_rds)
@@ -825,7 +827,7 @@ if (interactive()) {
 ### Comparison Between Peaks {.tabset}
 
 ```{r load-localz-peaks}
-mlz_list <- here::here("output", "macs2", "shared", "all_consensus_localz.rds") %>% 
+mlz_list <- here::here(peak_path, "shared", "shared_targets_localz.rds") %>% 
   read_rds
 dist_df <- mlz_list %>% 
   lapply(
@@ -988,7 +990,7 @@ if (interactive()) {
 ```{r load-motif-res}
 bs_genome <- get(bs_pkg)
 fw_peaks <- resize(
-  consensus_peaks, width = motif_params$analysis$peak_width, fix = "center"
+  shared_peaks, width = motif_params$analysis$peak_width, fix = "center"
 )
 genome(fw_peaks) <- ucsc$build
 fw_seq <- getSeq(bs_genome, fw_peaks)
@@ -1007,8 +1009,6 @@ enrich_res <-  here::here(peak_path, "shared", "shared_motif_enrichment.tsv.gz")
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha)
-matches <- file.path(peak_path, "shared", "shared_matches.rds") %>% 
-  read_rds()
 ```
 
 Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
@@ -1123,8 +1123,11 @@ top_enrich <- enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:20) %>% 
   pull("altname")
-matches[top_enrich] %>% 
-  lapply(\(x) tibble(seq = x$seq)) %>% 
+motif_list %>% 
+  dplyr::filter(altname %in% top_enrich) %>% 
+  to_list() %>% 
+  getPwmMatches(fw_seq, mc.cores = threads) %>% 
+  lapply(\(x) tibble(seq = unique(x$seq))) %>% 
   bind_rows(.id = "altname") %>%
   distinct(altname, seq) %>% 
   left_join(
@@ -1300,7 +1303,13 @@ if (interactive()) {
 ```{r plot-total-pos-matches, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
 lb <- glue("{names(clust_names)}\n({clust_names})") %>% 
   setNames(names(clust_names))
-matches[top_pos$altname] %>% 
+top_matches <- motif_list %>% 
+  dplyr::filter(altname %in% top_pos$altname) %>% 
+  to_list() %>% 
+  getPwmMatches(
+    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+  )
+top_matches %>% 
   plotMatchPos(
     geom = "point", abs = motif_params$analysis$abs, use_totals = TRUE,
     binwidth = 1
@@ -1308,13 +1317,13 @@ matches[top_pos$altname] %>%
   geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
   facet_wrap(~name, labeller = as_labeller(lb)) +
   theme(legend.position = "none") +
-  labs(x = "Distance From Sequence Centre", y = "Total Matches")
+  labs(x = "Dsitance From Sequence Centre", y = "Total Matches")
 ```
 
 `r if (n_pos > 0) "#### Proportional Match Distributions"`
 
 ```{r plot-smoothed-pos, eval = n_pos > 0, echo = n_pos > 0, fig.height = 0.75 * fh, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
-A <- matches[top_pos$altname] %>% 
+A <- top_matches %>% 
   plotMatchPos(
     se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
     binwidth = motif_params$analysis$binwidth / 2
@@ -1322,15 +1331,13 @@ A <- matches[top_pos$altname] %>%
   labs(
     x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
   ) +
-  scale_colour_brewer(palette = "Set1", labels = \(x) lb[x]) +
   theme(legend.position = "none")
-B <- matches[top_pos$altname] %>% 
+B <- top_matches %>% 
   plotMatchPos(
     type = "cdf", geom = "line", abs = motif_params$analysis$abs,
     linewidth = 1 / 2, binwidth = 1
   ) +
-  scale_colour_brewer(palette = "Set1", labels = \(x) lb[x]) +
-  labs(x = "Distance From Centre", y = "Proportion", colour = "Motifs")
+  labs(x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster")
 A + B + plot_layout(guides = "collect") +
   theme(
     legend.key.height = unit(0.05, "npc"),
@@ -1345,7 +1352,12 @@ top_pos <- pos_res %>%
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:25) %>% 
   pull(altname)
-matches[top_pos] %>% 
+motif_list %>% 
+  dplyr::filter(altname %in% top_pos) %>% 
+  to_list() %>% 
+  getPwmMatches(
+    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+  ) %>% 
   plotMatchPos(
     abs = motif_params$analysis$abs, type = "heatmap", cluster = TRUE,
     use_totals = TRUE,

@@ -108,17 +108,14 @@ rule compile_macs2_summary_html:
         cors = os.path.join(
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
-        consensus_peaks = os.path.join(
-            peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
-        ),
-        localz = os.path.join(
-            peak_path, "{target}", "{target}_regions_localz.rds"
-        ),
-        motif_enrich = os.path.join(
-            peak_path, "{target}", "{target}_motif_enrichment.tsv.gz"
-        ),
-        motif_pos = os.path.join(
-            peak_path, "{target}", "{target}_motif_position.tsv.gz"
+        peak_files = expand(
+             os.path.join(
+                peak_path, "{{target}}", "{{target}}_{f}"
+            ),
+            f = [
+                'motif_position.tsv.gz', 'motif_enrichment.tsv.gz', 
+                'regions_localz.rds', 'consensus_peaks.bed.gz'
+                ]
         ),
         rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
@@ -150,13 +147,7 @@ rule compile_macs2_summary_html:
 
 rule compile_peak_comparison_rmd:
     input:
-        peaks = os.path.join(
-            peak_path, "shared", "shared_consensus_peaks.bed.gz"
-        ),
-        localz = expand(
-            os.path.join(peak_path, "shared", "{f}_localz.rds"),
-            f = ['all_consensus', 'shared_regions']
-        ),
+        annotations = ALL_RDS,
         motif_enrich = os.path.join(
             peak_path, "shared", "shared_motif_enrichment.tsv.gz"
         ),
@@ -164,6 +155,19 @@ rule compile_peak_comparison_rmd:
             peak_path, "shared", "shared_motif_position.tsv.gz"
         ),
         rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
+        shared_files = expand(
+            os.path.join(peak_path, "shared", "shared_{f}"),
+            f = [
+                'consensus_peaks.bed.gz', 'motif_position.tsv.gz', 
+                'motif_enrichment.tsv.gz', 'targets_localz.rds',
+                'regions_localz.rds',
+                ]
+        ),
+        target_files = expand(
+            os.path.join(peak_path, "{tg}", "{tg}_{f}"),
+            tg = targets,
+            f = ['regions_localz.rds', 'consensus_peaks.bed.gz']
+        ),
     output:
         rmd = os.path.join(rmd_path, "peak_comparison.Rmd"),
         html = os.path.join("docs", "peak_comparison.html"),

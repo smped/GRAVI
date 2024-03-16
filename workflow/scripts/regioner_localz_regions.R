@@ -101,17 +101,13 @@ cat_time(" done")
 
 threads <- slot(snakemake, "threads")[[1]] - 1
 cat_time("Running multiLocalZscore with", threads, "threads...")
-mlz <- multiLocalZscore(
-  A = peaks, Blist = test_regions,
-  ranFUN = "resampleGenome",
-  evFUN = "numOverlaps",
-  window = 5e3,
-  ntimes = all_params$ntimes,
-  adj_pv_method = enrich_params$adj,
-  max_pv = 1,
-  genome = ucsc$build,
-  mc.cores = threads
+mlz_params <- list(
+  A = peaks, Blist = test_regions, sampling = FALSE,
+  ranFUN = "resampleGenome", evFUN = "numOverlaps", 
+  max_pv = 1, genome = ucsc$build, mc.cores = threads
 )
+mlz_params <- c(mlz_params, enrich_params$regioner) 
+mlz <- do.call("multiLocalZscore", mlz_params)
 cat_time("Done")
 
 

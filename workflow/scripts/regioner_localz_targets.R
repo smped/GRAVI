@@ -56,15 +56,12 @@ sink(log, split = TRUE)
 #   sq = "output/annotations/seqinfo.rds"
 # )
 # all_output <- list(rds = "output/peak_analysis/shared/all_consensus_localz.rds")
-# all_params <- list(ntimes = 200)
 
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
-all_params <- slot(snakemake, "params")
 cat_list(all_input, "input")
 cat_list(all_output, "output")
-cat_list(all_params, "params")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -94,22 +91,27 @@ peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
 names(peaks) <- gsub("_consensus.+", "", names(peaks))
 cat_time(" done\n")
 
+cat_time("Loading enrichment params from", all_input$params)
+enrich_params <- read_yaml(all_input$params)$enrichment
+cat_time(" done")
+
 threads <- slot(snakemake, "threads")[[1]] - 1
 cat_time("Running multiLocalZscore with", threads, "threads...\n")
+mlz_params <- list(
+  sampling = FALSE, ranFUN = "resampleGenome", evFUN = "numOverlaps", 
+  max_pv = 1, genome = ucsc$build, mc.cores = threads
+)
+mlz_params <- c(mlz_params, enrich_params$regioner) 
 mlz_list <- names(peaks) %>%
   lapply(
     \(i) {
-      multiLocalZscore(
-        A = peaks[[i]],
-        Blist = peaks[setdiff(names(peaks), i)],
-        ranFUN = "resampleGenome",
-        evFUN = "numOverlaps",
-        window = 5e3,
-        ntimes = all_params$ntimes,
-        max_pv = 1,
-        genome = ucsc$build,
-        mc.cores = threads
+      params <- c(
+        list(
+          A = peaks[[i]], Blist = peaks[setdiff(names(peaks), i)]
+        ),
+        mlz_params
       )
+      do.call("multiLocalZscore", params)
     }
   ) %>%
   setNames(names(peaks))

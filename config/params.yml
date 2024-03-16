@@ -38,6 +38,11 @@ enrichment:
       - "CP:REACTOME"
       - "CP:WIKIPATHWAYS"
       - "TFT:GTRD"
+  ## Passed to regionerReloaded::multiLocalZScore
+  regioner:
+    ntimes: 5000
+    window: 5000
+    step: 100
 
 ## Used for network plots
 networks:
@@ -45,6 +50,7 @@ networks:
   max_size: 80
   max_distance: 0.9
   layout: 'fr'
+
 
 motif_analysis:
   motifdb:

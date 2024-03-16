@@ -13,14 +13,14 @@ rule run_motif_analysis:
 		enrich = os.path.join(
 			peak_path, "{i}", "{i}_motif_enrichment.tsv.gz"
 		),
-		matches = os.path.join(peak_path, "{i}", "{i}_matches.rds"),
 		pos = os.path.join(
 			peak_path, "{i}", "{i}_motif_position.tsv.gz"
 		),
 	threads: 8
+	retries: 1
 	resources:
 		runtime = "2h",
-		mem_mb = 32768,
+		mem_mb = 64000,
 	log: os.path.join(log_path, "motif_analysis", "{i}_motif_enrichment.log")
 	conda: "../envs/rmarkdown.yml"
 	script:

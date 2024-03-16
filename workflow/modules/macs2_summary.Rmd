@@ -1531,9 +1531,6 @@ enrich_res <- peak_path %>%
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha & enrich_res$Z > 0)
-matches <- file.path(peak_path, "{target}_matches.rds") %>% 
-  glue() %>% 
-  read_rds()
 ```
 
 Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
@@ -1648,8 +1645,11 @@ top_enrich <- enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:20) %>% 
   pull("altname")
-matches[top_enrich] %>% 
-  lapply(\(x) tibble(seq = x$seq)) %>% 
+motif_list %>% 
+  dplyr::filter(altname %in% top_enrich) %>% 
+  to_list() %>% 
+  getPwmMatches(fw_seq, mc.cores = threads) %>% 
+  lapply(\(x) tibble(seq = unique(x$seq))) %>% 
   bind_rows(.id = "altname") %>%
   distinct(altname, seq) %>% 
   left_join(
@@ -1827,7 +1827,13 @@ if (interactive()) {
 ```{r plot-total-pos-matches, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
 lb <- glue("{names(clust_names)}\n({clust_names})") %>% 
   setNames(names(clust_names))
-matches[top_pos$altname] %>% 
+top_matches <- motif_list %>% 
+  dplyr::filter(altname %in% top_pos$altname) %>% 
+  to_list() %>% 
+  getPwmMatches(
+    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+  )
+top_matches %>% 
   plotMatchPos(
     geom = "point", abs = motif_params$analysis$abs, use_totals = TRUE,
     binwidth = 1
@@ -1835,13 +1841,13 @@ matches[top_pos$altname] %>%
   geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
   facet_wrap(~name, labeller = as_labeller(lb)) +
   theme(legend.position = "none") +
-  labs(x = "Distance From Sequence Centre", y = "Total Matches")
+  labs(x = "Dsitance From Sequence Centre", y = "Total Matches")
 ```
 
 `r if (n_pos > 0) "#### Proportional Match Distributions"`
 
 ```{r plot-smoothed-pos, eval = n_pos > 0, echo = n_pos > 0, fig.height = 0.75 * fh, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
-A <- matches[top_pos$altname] %>% 
+A <- top_matches %>% 
   plotMatchPos(
     se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
     binwidth = motif_params$analysis$binwidth / 2
@@ -1849,20 +1855,14 @@ A <- matches[top_pos$altname] %>%
   labs(
     x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
   ) +
-  scale_colour_brewer(palette = "Set1", labels = \(x) lb[x]) +
   theme(legend.position = "none")
-B <- matches[top_pos$altname] %>% 
+B <- top_matches %>% 
   plotMatchPos(
     type = "cdf", geom = "line", abs = motif_params$analysis$abs,
     linewidth = 1 / 2, binwidth = 1
   ) +
-  scale_colour_brewer(palette = "Set1", labels = \(x) lb[x]) +
-  labs(x = "Distance From Centre", y = "Proportion", colour = "Motifs")
-A + B + plot_layout(guides = "collect") +
-  theme(
-    legend.key.height = unit(0.05, "npc"),
-    legend.title = element_text(hjust = 0.5)
-  )
+  labs(x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster")
+A + B + plot_layout(guides = "collect") 
 ```
 
 `r if (n_pos > 0) "#### Match Heatmap"`
@@ -1872,7 +1872,12 @@ top_pos <- pos_res %>%
   dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:25) %>% 
   pull(altname)
-matches[top_pos] %>% 
+motif_list %>% 
+  dplyr::filter(altname %in% top_pos) %>% 
+  to_list() %>% 
+  getPwmMatches(
+    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+  ) %>% 
   plotMatchPos(
     abs = motif_params$analysis$abs, type = "heatmap", cluster = TRUE,
     use_totals = TRUE,

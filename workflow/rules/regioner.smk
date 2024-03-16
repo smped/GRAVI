@@ -7,9 +7,8 @@ rule localz_regions:
 		params = os.path.join("config", "params.yml"),
 	output:
 		rds = os.path.join(peak_path, "{path}_regions_localz.rds")
-	params:
-		ntimes = 5000, # Maybe source from elsewhere later?
 	threads: 8
+	retries: 1
 	resources:
 		mem_mb = 32768,
 		run_time = "60m",
@@ -21,6 +20,7 @@ rule localz_regions:
 rule localz_targets:
 	input:
 		checks = ALL_CHECKS,
+		params = os.path.join("config", "params.yml"),
 		peaks = expand(
 			os.path.join(
 				peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
@@ -29,14 +29,13 @@ rule localz_targets:
 		),
 		sq = os.path.join(annotation_path, "seqinfo.rds")
 	output:
-		rds = os.path.join(peak_path, "shared", "all_consensus_localz.rds")
-	params:
-		ntimes = 5000, # Maybe source from elsewhere later?
+		rds = os.path.join(peak_path, "shared", "shared_targets_localz.rds")
 	threads: 8
+	retries: 1
 	resources:
 		mem_mb = 32768,
 		run_time = "60m",
-	log: os.path.join(log_path, "regioner", "shared", "all_consensus_localz.log")
+	log: os.path.join(log_path, "regioner", "shared", "shared_targets_localz.log")
 	conda: "../envs/rmarkdown.yml"
 	script:
 		"../scripts/regioner_localz_targets.R"

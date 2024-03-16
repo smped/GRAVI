@@ -190,11 +190,14 @@ enrich_res |>
   write_tsv(all_output$enrich)
 cat_time("Done")
 
-all_sig <- c(
-  rownames(subset(pos_res, fdr < params$alpha)),
-  rownames(subset(enrich_res, fdr < params$alpha))
-) |>
-  unique()
-cat_time("Exporting all", length(all_sig), "matches for significant TFBMs")
-write_rds(matches[all_sig], all_output$matches, compress = "gz")
-cat_time("Done")
+## Sets of matches can exceed 2GB which makes loading during the macs2_summary
+## compilation very difficult. Best to manually find the matches for just the
+## top motifs within the document itself
+# all_sig <- c(
+#   rownames(subset(pos_res, fdr < params$alpha)),
+#   rownames(subset(enrich_res, fdr < params$alpha))
+# ) |>
+#   unique()
+# cat_time("Exporting all", length(all_sig), "matches for significant TFBMs")
+# write_rds(matches[all_sig], all_output$matches, compress = "gz")
+# cat_time("Done")
