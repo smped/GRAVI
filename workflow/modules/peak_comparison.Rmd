@@ -868,7 +868,7 @@ Shifted Z-Scores indicate proximity and fine-grained relative binding patterns, 
 
 #### Shifted Z-Scores
 
-```{r plot-shiftedz, fig.cap = "Distributions of shifted Z-scores for each target relative to other targets. Narrow peaks indicate close proximity of overlaps, whilst dips around zero indicate very close by not overlapping signal, as may be observed with histone marks and associated transcription factors."}
+```{r plot-shiftedz, fig.cap = glue("*Distributions of shifted Z-scores for each target relative to other targets. Narrow peaks indicate close proximity of overlaps, whilst dips around zero indicate very close by not overlapping signal, as may be observed with histone marks and associated transcription factors.*")}
 dist_df %>% 
   arrange(desc(Z)) %>%
   mutate(
@@ -888,7 +888,7 @@ dist_df %>%
 
 #### Overlap Heatmap
 
-```{r plot-overlap-heatmap, fig.cap = "Heatmap showing the strength of overlaps between each target and the alternative targets, here represented as the Query and Target respectively. Fill colours are derived from Z-scores and indicate the significance of overlaps, with asterisks indicating a formal result passing statistical significance as detailed in the reults table. The proportion of peaks from each query and alternative targets is also shown within each tile."}
+```{r plot-overlap-heatmap, fig.cap = glue("*Heatmap showing the strength of overlaps between each target and the alternative targets, here represented as the Query and Target respectively. Fill colours are derived from Z-scores and indicate the significance of overlaps, with asterisks indicating a formal result passing statistical significance as detailed in the reults table. The proportion of peaks from each query and alternative targets is also shown within each tile.*")}
 pairwise_df %>% 
   ggplot(aes(Target, fct_rev(Query), fill = norm_zscore)) +
   geom_raster() +
@@ -1118,7 +1118,7 @@ if (interactive()) {
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
+```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified, but may also indicate co-occurrence. Numbes within each square are spearman correlations.*")}
 top_enrich <- enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
   dplyr::slice(1:20) %>% 

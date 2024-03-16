@@ -14,10 +14,13 @@
 - [ ] Checks for input file consistency/structure
 - [ ] Shift `cowplot` to `patchwork`
 - [ ] Motif Detection
-  - [ ] Macs2 Summary
-  - [ ] Shared Peaks
+  - [x] Macs2 Summary
+  - [x] Shared Peaks
   - [ ] Differential Signal
-  - [ ] Save Best matches as an rds to keep sequence information
+  
+## Peak Analysis
+
+- [ ] Add goseq as well as GREAT
 
 ## Differential Signal
 
@@ -51,12 +54,3 @@
 - `IHW` is currently not installable using conda with Bioc 3.18. Checks for updates may be prudent
 - The package simplifyEnrichment also looks useful for comparing across targets. Examples here: https://jokergoo.github.io/rGREAT_suppl/compare_online_and_local.html
 
-### Motifs & Enrichment Testing
-
-- The Bioconductor package `memes` only implements `AME` out of the tools of interst
-- The standalone MEME suite may be able to be added in a modular fashion
-    + Centrimo looks highly relevant, as does AME
-- HOMER may be simpler and has an R implementation as [`marge`](https://robertamezquita.github.io/marge/index.html)
-    + `-nfr ` performed analysis of the nucleosome free region of Histone marks. Not available in `marge`
-- Need to figure out `regioneR`
-    + Use `regionR` to compare peak sets across targets?
