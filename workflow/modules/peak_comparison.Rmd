@@ -565,6 +565,16 @@ tbl <- great_df_targets %>%
         minWidth = 200
       )
     ),
+    details =  function(index){
+      htmltools::div(
+        htmltools::tags$pre(
+          str_wrap(
+            paste(capture.output(great_df_genomic$genes_with_hits[index]), collapse = "\n"),
+            width = 120
+          )
+        )
+      )
+    },
     elementId = 'great-targets-res-table'
   )
 cp <- htmltools::em(
