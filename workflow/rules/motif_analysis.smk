@@ -9,7 +9,7 @@ rule run_motif_analysis:
 		peaks = os.path.join(
 			peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
 		),
-		script = os.path.join("workflow", "scripts", "motif_enrichment.R"),
+		script = os.path.join("workflow", "scripts", "motif_analysis.R"),
 	output:
 		enrich = os.path.join(
 			peak_path, "{target}", "{target}_motif_enrichment.tsv.gz"
@@ -29,7 +29,7 @@ rule run_motif_analysis:
 	resources:
 		runtime = "2h",
 		mem_mb = 64000,
-	log: os.path.join(log_path, "motif_analysis", "{target}_motif_enrichment.log")
+	log: os.path.join(log_path, "motif_analysis", "{target}_motif_analysis.log")
 	conda: "../envs/rmarkdown.yml"
 	script:
 		"../scripts/motif_analysis.R"

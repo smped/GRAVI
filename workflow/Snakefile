@@ -214,7 +214,7 @@ if len(targets) > 1:
 
 ## Try bringing in diffsignal again
 COUNTS = expand(
-	os.path.join("data", "counts", "{target}_counts.rds"),
+	os.path.join(peak_path, "{target}", "{target}_counts.rds"),
 	target = targets
 )
 ALL_OUTPUTS.extend(COUNTS)
