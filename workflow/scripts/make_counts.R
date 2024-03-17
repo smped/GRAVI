@@ -6,14 +6,25 @@
 #' target. This will only create any changes where >2 treatments are present,
 #' however considerable time will be saved where the same files would previously
 #' have been counted several times.
-#' The files should be written to `output/differential_*/target` as
-#' `{target}_window_counts.rds` and `{target}_filtered_counts.rds`.
+#' 
+#' Required input files are:
+#'   - All bam files for the target
+#'   - All bam indexes
+#'   - macs2_qc (to determine valid samples)
+#'   - macs2 logs (fragment length)
+#'   - All consensus peaks
+#'   - Checks (packages & here)
+#'   - Black & grey lists
+#'   - All annotations (mainly seqinfo)
 #'
-#' Files required for setup are:
-#'   - config.yml
-#'   - samples.tsv
-#'   - macs2 summaries (for fragment length)
-#'   - Bam Files
+#' Required output files are:
+#'   - The counts (put somewhere. Maybe in the peak_analysis folder?)
+#' 
+#' Required parameters are
+#'   - win_type
+#'   - win_size
+#'   - win_step
+#'   - filter_q
 #'
 #' Handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
@@ -25,7 +36,74 @@ if (conda_pre != "") {
   .libPaths(paths_to_set)
 }
 
+## A function for printing snakemake input
+cat_list <- function(x, slot = NULL, sep = "\n\t"){
+    nm <- setdiff(names(x), "")
+    invisible(
+        lapply(
+            nm,
+            \(i) cat("Received", slot, i, sep, paste0( x[[i]], "\n\t"), "\n")
+        )
+    )
+}
 
+## Time stamped messages
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
+
+log <- slot(snakemake, "log")[[1]]
+cat("Setting stdout to ", log, "\n")
+sink(log)
+
+all_input <- list(
+  bam = file.path(
+    "data", "bam", paste0("SRR83151", 74:79, ".bam")
+  ),
+  bai = file.path(
+    "data", "bam", paste0("SRR83151", 74:79, ".bam.bai")
+  ),
+  peaks = file.path("output", "peak_analysis", "AR_consensus_peaks.bed.gz"),
+  macs2_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
+  macs2_logs = file.path(
+    "output", "macs2", "AR", paste0(
+      "AR_", c("E2", "E2DHT"), "_merged_callpeak.log"
+    )
+  )
+  blacklist = file.path("output","annotations", "blacklist.rds")
+  ## Note this may be a vector of files when being run
+  greylist = file.path("output", "annotations", "SRR8315192_greylist.bed.gz"),
+  seqinfo = file.path("output", "annotations", "seqinfo.rds")
+)
+all_output <- list(
+  counts = file.path("output", "peak_analysis", "AR", "AR_counts.rds")
+)
+all_params <- list(
+  filter_q = 0,
+  win_size =  400, # This should become a global parameter for all
+  win_step = 0,
+  win_type = "fixed"
+)
+
+
+
+config <- slot(snakemake, "config")
+# all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+
+cat_list(all_wildcards, "wildcards", ":")
+cat_list(all_params, "params", ":")
+cat_list(all_input, "input")
+cat_list(all_output, "output")
+
+## Solidify file paths
+all_input <- lapply(all_input, here::here)
+all_output <- lapply(all_output, here::here)
+
+cat_time("Loading packages...\n")
 library(tidyverse)
 library(yaml)
 library(extraChIPs)

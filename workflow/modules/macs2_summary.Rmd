@@ -74,9 +74,12 @@ enrich_params <- here::here("config", "params.yml") %>%
 network_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("networks")
-motif_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("motif_analysis")
+motif_params <- config$motif_analysis$default
+if (target %in% names(config$motif_analysis)) {
+  for (i in names(config$motif_analysis[[target]])) {
+    motif_params[[i]] <- config$motif_analysis[[target]][[i]]
+  }
+}
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
@@ -1514,38 +1517,40 @@ div(class = "table",
 ```{r load-motif-res}
 bs_genome <- get(bs_pkg)
 fw_peaks <- resize(
-  consensus_peaks, width = motif_params$analysis$peak_width, fix = "center"
+  consensus_peaks, width = motif_params$peak_width, fix = "center"
 )
 genome(fw_peaks) <- ucsc$build
 fw_seq <- getSeq(bs_genome, fw_peaks)
-motif_adj <- match.arg(motif_params$analysis$adj, p.adjust.methods)
+motif_adj <- match.arg(motif_params$adj, p.adjust.methods)
 motif_list <- file.path(annotation_path, "motif_list.rds") %>% 
   read_rds() %>% 
   to_df %>% 
   as_tibble()
+motif_uri <- file.path(annotation_path, "motif_uri.rds") %>% 
+  read_rds()
 pos_res <- file.path(peak_path, "{target}_motif_position.tsv.gz") %>% 
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_pos <- sum(pos_res$adj_p < motif_params$analysis$alpha)
+n_pos <- sum(pos_res$adj_p < motif_params$alpha)
 enrich_res <- peak_path %>% 
   file.path("{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha & enrich_res$Z > 0)
+n_enrich <- sum(enrich_res$adj_p < motif_params$alpha & enrich_res$Z > 0)
 ```
 
 Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
-For this step peaks were set to a fixed width of `r motif_params$analysis$peak_width`bp, with sequences taken from these regions.
+For this step peaks were set to a fixed width of `r motif_params$peak_width`bp, with sequences taken from these regions.
 
 ### Motif Enrichment {.tabset}
 
 A simple enrichment analysis was performed by selecting a set of `r comma(enrich_res$sequences[[1]] * enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(enrich_res$sequences[[1]])` *test sequences*.
 This gave a set of genomically matched control sequences to gauge enrichment by.
-Analysis was performed using the `motifTestR` package and the `r motif_params$analysis$model`.
+Analysis was performed using the `motifTestR` package and the `r motif_params$model`.
 
 Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) are shown in the results below, with `r n_enrich` of the `r comma(nrow(motif_list))` included motifs matching the criteria for being considered as enriched.
 
@@ -1554,14 +1559,13 @@ Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) ar
 ```{r tbl-res-enrich, eval = n_enrich > 0, echo = n_enrich > 0}
 tbl <- enrich_res %>%
   arrange(p) %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha, Z > 0) %>% 
+  dplyr::filter(adj_p < motif_params$alpha, Z > 0) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
   dplyr::select(
     cluster, ends_with("name"), Z, p, adj_p, matches, expected, enrichment
   ) %>% 
   mutate(
-    PWM = here::here("docs", "assets", "motifs", glue("{altname}.png")),
-    PWM = lapply(PWM, knitr::image_uri)
+    PWM = lapply(altname, \(x) motif_uri[[x]])
   ) %>% 
   reactable(
     groupBy = "cluster",
@@ -1611,8 +1615,8 @@ tbl <- enrich_res %>%
 cp <- htmltools::em(
   glue(
     "All {n_enrich} motifs considered as enriched relative to the background set
-    of sequences, using the {motif_params$analysis$model} model and an adjusted 
-    p-value ({motif_adj}) < {motif_params$analysis$alpha} as the criteria for 
+    of sequences, using the {motif_params$model} model and an adjusted 
+    p-value ({motif_adj}) < {motif_params$alpha} as the criteria for 
     significance. Motifs are grouped by clusters formed earlier, with all motifs
     visible by clicking the arrow to the arbitrary cluster identifier. All 
     columns are searchable and filterable."
@@ -1647,7 +1651,7 @@ if (interactive()) {
 
 ```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
 top_enrich <- enrich_res %>%
-  dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:20) %>% 
   pull("altname")
 motif_list %>% 
@@ -1679,13 +1683,13 @@ motif_list %>%
 
 ```{r get-top-pos, eval = n_pos > 0, echo = n_pos > 0}
 top_pos <- pos_res %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(adj_p < motif_params$alpha) %>% 
   dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
   dplyr::slice(1:9) %>% 
   dplyr::select(altname, name, cluster)
 clust_names <- pos_res %>% 
   dplyr::filter(
-    adj_p < motif_params$analysis$alpha,
+    adj_p < motif_params$alpha,
     cluster %in% top_pos$cluster
   ) %>% 
   arrange(desc(matches_in_region)) %>% 
@@ -1697,10 +1701,10 @@ clust_names <- pos_res %>%
   pull(name)
 ```
 
-Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$analysis$binwidth`bp and testing `r ifelse(motif_params$analysis$abs, "distance from sequence centres", "position either side of the sequence centres")`.
-Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_below)` of sequences were not tested for any positional bias.
+Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$binwidth`bp and testing `r ifelse(motif_params$abs, "distance from sequence centres", "position either side of the sequence centres")`.
+Any motifs which matched fewer than `r percent(motif_params$ignore_below)` of sequences were not tested for any positional bias.
 
-Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
+Using an adjusted p-value (`r motif_adj`) less than `r motif_params$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
 
 It should also be noted that this type of analysis is agnostic to the number of matches found for a TFBM, and only assesses any bias within the distribution of matches.
 
@@ -1709,15 +1713,14 @@ It should also be noted that this type of analysis is agnostic to the number of 
 
 ```{r tbl-res-pos, eval = n_pos > 0, echo = n_pos > 0}
 tbl <- pos_res %>%
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(adj_p < motif_params$alpha) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
   dplyr::select(
     cluster, contains("name"), ends_with("p"), start, end, centre, width,
     contains("total"), matches_in_region, starts_with("e"), 
   ) %>% 
   mutate(
-    PWM = here::here("docs", "assets", "motifs", glue("{altname}.png")),
-    PWM = lapply(PWM, knitr::image_uri)
+    PWM = lapply(altname, \(x) motif_uri[[x]])
   ) %>% 
   reactable(
     groupBy = "cluster", showPageSizeOptions = TRUE, filterable = TRUE,
@@ -1791,9 +1794,9 @@ tbl <- pos_res %>%
 cp <- htmltools::em(
   glue(
     "
-    All {sum(pos_res$adj_p < motif_params$analysis$alpha)} TFBMs found to show
+    All {sum(pos_res$adj_p < motif_params$alpha)} TFBMs found to show
     positional bias using an adjusted p-value ({motif_adj}) below
-    {motif_params$analysis$alpha} as the criteria for significance. Highly 
+    {motif_params$alpha} as the criteria for significance. Highly 
     similar motifs were clustered during preparation and are grouped accordingly.
     Clicking the arrow next to the arbitrary cluster id will reveal full details
     for all motifs within the cluster which were found to be significant, 
@@ -1838,11 +1841,11 @@ top_matches <- motif_list %>%
   arrange(fct) %>% 
   to_list() %>% 
   getPwmMatches(
-    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   )
 top_matches %>% 
   plotMatchPos(
-    geom = "point", abs = motif_params$analysis$abs, use_totals = TRUE,
+    geom = "point", abs = motif_params$abs, use_totals = TRUE,
     binwidth = 1
   ) +
   geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
@@ -1856,8 +1859,8 @@ top_matches %>%
 ```{r plot-smoothed-pos, eval = n_pos > 0, echo = n_pos > 0, fig.height = 0.75 * fh, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
 A <- top_matches %>% 
   plotMatchPos(
-    se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
-    binwidth = motif_params$analysis$binwidth / 2
+    se = FALSE, abs = motif_params$abs, linewidth = 1/2,
+    binwidth = motif_params$binwidth / 2
   ) +
   labs(
     x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
@@ -1865,7 +1868,7 @@ A <- top_matches %>%
   theme(legend.position = "none")
 B <- top_matches %>% 
   plotMatchPos(
-    type = "cdf", geom = "line", abs = motif_params$analysis$abs,
+    type = "cdf", geom = "line", abs = motif_params$abs,
     linewidth = 1 / 2, binwidth = 1
   ) +
   labs(x = "Distance From Centre", y = "Proportion", colour = "Representative Motif")
@@ -1876,20 +1879,20 @@ A + B + plot_layout(guides = "collect")
 
 ```{r heatmap-pos, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
 top_pos <- pos_res %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:25) %>% 
   pull(altname)
 motif_list %>% 
   dplyr::filter(altname %in% top_pos) %>% 
   to_list() %>% 
   getPwmMatches(
-    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   ) %>% 
   plotMatchPos(
-    abs = motif_params$analysis$abs, type = "heatmap", cluster = TRUE,
+    abs = motif_params$abs, type = "heatmap", cluster = TRUE,
     use_totals = TRUE,
-    # binwidth = floor(motif_params$analysis$binwidth / 2)
-    binwidth = motif_params$analysis$binwidth 
+    # binwidth = floor(motif_params$binwidth / 2)
+    binwidth = motif_params$binwidth 
   ) + labs(x = "Bin", fill = "Total\n Matches")
 ```
 

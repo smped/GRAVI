@@ -85,8 +85,7 @@ rule macs2_qc:
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
     params:
-        outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold'],
-        allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
+        lambda wildcards: macs2_qc_param[wildcards.target]
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:

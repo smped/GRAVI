@@ -66,6 +66,8 @@ df = pd.read_table(config['samples']['file'])
 ## Now set all values as required
 samples = list(set(df['sample']))
 targets = list(set(df['target']))
+targets_ext = targets.copy()
+targets_ext.extend(['shared']) # Enable 'shared' in widlcards
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
 # pairs=make_pairwise(config['comparisons']['contrasts'])
@@ -73,7 +75,7 @@ pairs = False
 
 ## Note that the last level in treats can never be the reference level
 wildcard_constraints:
-	target = "(" + '|'.join(targets) + ")",
+	target = "(" + '|'.join(targets_ext) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
@@ -82,23 +84,18 @@ wildcard_constraints:
 #######################
 ## Update parameters ##
 #######################
-## Set the defaults for every target, updating where manually set
-macs2_param = {}
-for i in targets:
-	macs2_param[i] = config['macs2']['default'].copy()
-	if i in config['macs2'].keys():
-		for j in config['macs2'][i].keys():
-			macs2_param[i][j] = config['macs2'][i][j]
+def update_params(config, targets):
+	out = {}
+	for i in targets:
+		out[i] = config['default'].copy()
+		if i in config.keys():
+			for j in config[i].keys():
+				out[i][j] = config[i][j]
+	return(out)
 
-
-macs2_qc_param = {}
-for i in targets:
-	macs2_qc_param[i] = config['macs2_qc']['default'].copy()
-	if i in config['macs2_qc'].keys():
-		for j in config['macs2_qc'][i].keys():
-			macs2_qc_param[i][j] = config['macs2_qc'][i][j]
-
-
+macs2_param = update_params(config['macs2'], targets)
+macs2_qc_param = update_params(config['macs2_qc'], targets)
+motif_param = update_params(config['motif_analysis'], targets_ext)
 
 
 
@@ -165,7 +162,8 @@ ALL_RDS = expand(
 	os.path.join(annotation_path, "{file}.rds"),
 	file = [
 		'colours', 'gene_regions', 'seqinfo', 'trans_models','tss', 'gtf_gene',
-		'gtf_transcript', 'gtf_exon', 'blacklist', 'features'
+		'gtf_transcript', 'gtf_exon', 'blacklist', 'features', 'motif_list',
+		'motif_uri'
 	]
 )
 ALL_OUTPUTS.extend(ALL_RDS)
