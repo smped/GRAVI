@@ -7,6 +7,10 @@ rule create_site_yaml:
     output:
         yml = os.path.join(rmd_path, "_site.yml")
     log: os.path.join(log_path, "scripts", "create_site_yaml.log")
+    params:
+        targets = targets,
+        diff_sig = diff_sig_param,
+        pairs = pairs,
     threads: 1
     localrule: True
     resources:
@@ -24,7 +28,7 @@ rule create_setup_chunk:
         yml = "config/rmarkdown.yml",
     output:
         rmd = "analysis/setup_chunk.Rmd"
-    log: os.path.join(log_path, "scripts/create_setup_chunk.log")
+    log: os.path.join(log_path, "scripts", "create_setup_chunk.log")
     threads: 1
     localrule: True
     resources:

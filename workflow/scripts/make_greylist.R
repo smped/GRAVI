@@ -17,6 +17,10 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
         )
     )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%m-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -41,22 +45,22 @@ cat_list(all_output, "output")
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(readr)
 library(GreyListChIP)
 library(plyranges)
 sq <- read_rds(all_input$sq)
 
 ## This is set for only a single input file
-cat("Initialising new GreyList object\n")
+cat_time("Initialising new GreyList object\n")
 gl <- new("GreyList", karyotype = sq)
-cat("Counting reads in ", all_input$bam, "...\n")
+cat_time("Counting reads in ", all_input$bam, "...\n")
 gl <- countReads(gl, all_input$bam)
-cat("Calculating thresholds...\n")
+cat_time("Calculating thresholds...\n")
 set.seed(100)
 gl <- calcThreshold(gl)
-cat("Making greylist...\n")
+cat_time("Making greylist...\n")
 gl <- makeGreyList(gl)
-cat("Writing to ", all_output$bed, "\n")
+cat_time("Writing to ", all_output$bed, "\n")
 write_bed(slot(gl, "regions"), all_output$bed)
-cat("done\n")
+cat_time("done\n")

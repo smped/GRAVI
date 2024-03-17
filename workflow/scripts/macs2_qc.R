@@ -63,10 +63,6 @@ cat_list(all_output, "output")
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-outlier_thresh <- as.numeric(all_params$outlier_threshold)
-## Might need to wrangle a logical value here
-allow_zero <- all_params[["allow_zero"]]
-
 cat_time("Loading packages...")
 library(tidyverse)
 library(yaml)
@@ -144,8 +140,8 @@ macs2_logs <- all_input$logs %>%
   mutate(
     med = median(filtered_peaks),
     qc = case_when(
-      filtered_peaks == 0 & allow_zero ~ "pass",
-      abs(log10(filtered_peaks / med)) > log10(outlier_thresh) ~ "fail",
+      filtered_peaks == 0 & all_params$allow_zero ~ "pass",
+      abs(log10(filtered_peaks / med)) > log10(all_params$outlier_threshold) ~ "fail",
       TRUE ~ "pass"
     ),
     label = case_when(

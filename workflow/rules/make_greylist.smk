@@ -6,9 +6,9 @@ rule make_greylist:
         packages = rules.check_r_packages.output,
         sq = os.path.join(annotation_path, "seqinfo.rds")
     output:
-        bed = os.path.join(annotation_path, "{ip_sample}_greylist.bed.gz")
+        bed = os.path.join(grey_path, "{ip_sample}_greylist.bed.gz")
     conda: "../envs/rmarkdown.yml"
-    log: os.path.join(log_path, "scripts", "{ip_sample}_make_greylist.log")
+    log: os.path.join(log_path, "make_greylist", "{ip_sample}_make_greylist.log")
     threads: 2
     resources:
         mem_mb = 16384,

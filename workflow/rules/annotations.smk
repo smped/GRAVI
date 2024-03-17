@@ -29,7 +29,7 @@ rule compile_annotations_html:
     input:
         checks = ALL_CHECKS,
         greylist = expand(
-            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            os.path.join(grey_path, "{f}_greylist.bed.gz"),
             f = set(df['input'])
         ),
         rmd = "workflow/modules/annotation_description.Rmd",

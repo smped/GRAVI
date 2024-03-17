@@ -225,7 +225,7 @@ db |>
   write_rds(all_output$motifs, compress = "gz")
 cat_time("done\n")
 
-cat_time("Creating IC Matrix Thumbnailsas uri strings")
+cat_time("Creating IC Matrix Thumbnails as uri strings")
 # img_path <- here::here("docs", "assets", "motifs")
 # if (!dir.exists(img_path)) dir.create(img_path, recursive = TRUE)
 img_path <- tempdir()
@@ -252,7 +252,7 @@ motif_uri <- db |>
     }
   ) |>
   setNames(db$altname)
-cat_time("Removing" img_path)
+cat_time("Removing", img_path)
 unlink(img_path, recursive = TRUE)
 cat_time("Done")
 

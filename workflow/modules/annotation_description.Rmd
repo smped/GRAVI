@@ -34,6 +34,7 @@ theme_set(
 )
 source(here::here("workflow", "scripts", "custom_functions.R"))
 annotation_path <- here::here("output", "annotations")
+grey_path <- here::here("output", "greylist")
 all_out <- list(
   chrom_sizes = file.path(annotation_path, "chrom.sizes"),
   gene_regions = file.path(annotation_path, "gene_regions.rds"),
@@ -98,7 +99,7 @@ bl <- unlist(config$external$blacklist)
 exclude_ranges <- bl %>% 
   here::here() %>% 
   c(
-    file.path(annotation_path, glue("{ip}_greylist.bed.gz"))
+    file.path(grey_path, glue("{ip}_greylist.bed.gz"))
   ) %>% 
   importPeaks(type = "bed", seqinfo = sq) %>% 
   setNames(c(basename(bl), ip))

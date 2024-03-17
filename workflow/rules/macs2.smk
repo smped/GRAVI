@@ -62,7 +62,7 @@ rule macs2_qc:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         checks = ALL_CHECKS,
         greylist = lambda wildcards: expand(
-            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            os.path.join(grey_path, "{f}_greylist.bed.gz"),
             f = set(df[df.target == wildcards.target]['input'])
         ),
         input_bam = lambda wildcards: expand(
@@ -85,7 +85,8 @@ rule macs2_qc:
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
     params:
-        lambda wildcards: macs2_qc_param[wildcards.target]
+        allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
+        outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold']
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
