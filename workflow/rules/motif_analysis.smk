@@ -18,7 +18,12 @@ rule run_motif_analysis:
 			peak_path, "{target}", "{target}_motif_position.tsv.gz"
 		),
 	params:
-		lambda wildcards: motif_param[wildcards.target]
+		abs =  lambda wildcards: motif_param[wildcards.target]['abs'],
+		binwidth =  lambda wildcards: motif_param[wildcards.target]['binwidth'],
+		ignore_below =  lambda wildcards: motif_param[wildcards.target]['ignore_below'],
+		iterations =  lambda wildcards: motif_param[wildcards.target]['iterations'],
+		model = lambda wildcards: motif_param[wildcards.target]['model'],
+		peak_width = lambda wildcards: motif_param[wildcards.target]['peak_width'],
 	threads: 8
 	retries: 1
 	resources:

@@ -51,12 +51,9 @@ enrich_params <- here::here("config", "params.yml") %>%
 region_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("gene_regions")
-motif_params <- config$motif_analysis$default
-if ("shared" %in% names(config$motif_analysis)) {
-  for (i in names(config$motif_analysis[["shared]])) {
-    motif_params[[i]] <- config$motif_analysis[["shared"]][[i]]
-  }
-}
+motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
+  jsonlite::fromJSON() %>%
+  pluck("shared")
 network_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("networks")

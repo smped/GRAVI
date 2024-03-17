@@ -55,51 +55,51 @@ cat_time <- function(...){
 
 log <- slot(snakemake, "log")[[1]]
 cat("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
-all_input <- list(
-  bam = file.path(
-    "data", "bam", paste0("SRR83151", 74:79, ".bam")
-  ),
-  bai = file.path(
-    "data", "bam", paste0("SRR83151", 74:79, ".bam.bai")
-  ),
-  peaks = file.path(
-    "output", "peak_analysis", 
-    paste0("AR_", c("E2", "E2DHT") ,"_filtered_peaks.narrowPeak")
-  ),
-  macs2_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
-  macs2_logs = file.path(
-    "output", "macs2", "AR", paste0(
-      "AR_", c("E2", "E2DHT"), "_merged_callpeak.log"
-    )
-  )
-  blacklist = file.path("output","annotations", "blacklist.rds")
-  ## Note this may be a vector of files when being run
-  greylist = file.path("output", "annotations", "SRR8315192_greylist.bed.gz"),
-  seqinfo = file.path("output", "annotations", "seqinfo.rds")
-)
-all_output <- list(
-  counts = file.path("data", "counts", "AR_counts.rds")
-)
-all_params <- list(
-  filter_q = 0,
-  win_size =  400, 
-  win_step = 0,
-  win_type = "fixed",
-  contrasts = list(c("E2", "E2DHT"))
-)
-config <- read_yaml(here::here("config", "config.yml"))
-all_widcards <- list(target = "AR")
-threads <- 1
+# all_input <- list(
+#   bam = file.path(
+#     "data", "bam", paste0("SRR83151", 74:79, ".bam")
+#   ),
+#   bai = file.path(
+#     "data", "bam", paste0("SRR83151", 74:79, ".bam.bai")
+#   ),
+#   peaks = file.path(
+#     "output", "peak_analysis", "AR",
+#     paste0("AR_", c("E2", "E2DHT") ,"_filtered_peaks.narrowPeak")
+#   ),
+#   macs2_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
+#   macs2_logs = file.path(
+#     "output", "macs2", "AR", paste0(
+#       "AR_", c("E2", "E2DHT"), "_merged_callpeak.log"
+#     )
+#   ),
+#   blacklist = file.path("output","annotations", "blacklist.rds"),
+#   ## Note this may be a vector of files when being run
+#   greylist = file.path("output", "greylist", "SRR8315192_greylist.bed.gz"),
+#   seqinfo = file.path("output", "annotations", "seqinfo.rds")
+# )
+# all_output <- list(
+#   counts = file.path("data", "counts", "AR_counts.rds")
+# )
+# all_params <- list(
+#   filter_q = 0.7,
+#   win_size =  180, 
+#   win_step = 60,
+#   win_type = "sliding",
+#   contrasts = list(c("E2", "E2DHT"))
+# )
+# config <- read_yaml(here::here("config", "config.yml"))
+# all_widcards <- list(target = "AR")
+# threads <- 1
 
-# config <- slot(snakemake, "config")
-# all_wildcards <- slot(snakemake, "wildcards")
-# all_params <- slot(snakemake, "params")
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# threads <- slot(snakemake, "threads")
-# target <- all_wildcards$target
+config <- slot(snakemake, "config")
+all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+threads <- slot(snakemake, "threads")
+target <- all_wildcards$target
 
 cat_list(all_wildcards, "wildcards", ":")
 cat_list(all_params, "params", ":")
@@ -121,34 +121,23 @@ library(csaw)
 library(ngsReports)
 library(BiocParallel)
 library(plyranges)
+library(scales)
+cat_time("Configuring for", threads, "threads")
+register(MulticoreParam(workers = threads))
 
 cat_time("Checking all parameters")
 win_type <- match.arg(all_params$win_type, c("sliding", "fixed"))
-if (win_type == "fixed") {
+if (win_type == "sliding") {
   win_step <- all_params$win_step
   ## Equality will give tiling windows...
   stopifnot(win_step > 0 & win_step <= all_params$win_size)
-  stopifnot(all_params$filter_q > 0 & all_parms$filter_q <= 1)
+  stopifnot(all_params$filter_q > 0 & all_params$filter_q <= 1)
 }
 cat_time("Done")
 
 #'
 #' Setup the key config elements
 #'
-register(MulticoreParam(workers = threads))
-
-#'
-#' Setup the paths
-#'
-# macs2_path <- here::here("output", "macs2", target)
-# annotation_path <- here::here("output", "annotations")
-# stopifnot(dir.exists(annotation_path))
-# bam_path <- here::here(config$paths$bam)
-# stopifnot(dir.exists(bam_path))
-# out_path <- dirname(counts_file)
-# if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
-# message("Counts will be written to:\n", counts_file)
-
 cat_time("Setting treat_levels")
 treat_levels <- all_params$contrasts %>% 
   unlist() %>% 
@@ -177,7 +166,10 @@ cat_time("Done")
 ## For the peaks, loading in the treatment-level peaks will provide the
 ## estimated centres which will be used to recentre & resize the peaks (if reqd)
 cat_time("Importing peaks")
-peaks <- importPeaks(all_input$peaks, exclude = exclude_gr, seqinfo = sq) %>%
+peaks <- all_input$peaks %>%
+  importPeaks(blacklist = exclude_gr, seqinfo = sq, centre = TRUE) %>%
+  unlist() %>%
+  select(centre) %>%
   reduceMC() %>%
   mutate(centre = vapply(centre, \(x) as.integer(mean(x)), integer(1)))
 
@@ -186,9 +178,10 @@ peaks <- importPeaks(all_input$peaks, exclude = exclude_gr, seqinfo = sq) %>%
 #'
 #'
 cat_time("Defining BamFileList")
-ids <- c(samples$sample, unique(samples$input))
-bfl <- BamFileList(all_input$bam)
-ids <- str_remove_all(basename(all_input$bam), "\\.bam$")
+bfl <- BamFileList(c(all_input$bam, all_input$input_bam))
+ids <- path(bfl) %>% 
+  basename() %>% 
+  str_remove_all(".bam$")
 names(bfl) <- ids
 stopifnot(all(file.exists(path(bfl))))
 cat_time("Done")
@@ -243,9 +236,7 @@ rp <- readParam(
 #' Set parameters for the windows using the settings in config.yml
 #'
 cat_time("Estimating fragment length from macs2 logs")
-macs2_merged_logs <- file.path(
-  macs2_path, glue("{target}_{treat_levels}_merged_callpeak.log")
-) %>%
+macs2_merged_logs <- all_input$macs2_logs %>%
   importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
 
@@ -277,8 +268,8 @@ if (win_type == "fixed") {
     as.data.frame() %>%
     DataFrame(row.names = .$sample)
 
-  cat_time("Writing counts to ", all_output$counts)
-  write_rds(se, all_output$counts, compress = "gz")
+  cat_time("Writing counts to ", all_output$rds)
+  write_rds(se, all_output$rds, compress = "gz")
 }
 
 if (win_type == "sliding") {
@@ -295,6 +286,7 @@ if (win_type == "sliding") {
     param = rp,
     BPPARAM = bpparam()
   )
+  cat_time("Counted", comma(nrow(window_counts)), "windows")
 
   cat_time("Updating colData")
   colData(window_counts) <- colData(window_counts) %>%
@@ -321,11 +313,15 @@ if (win_type == "sliding") {
     keep.totals = TRUE,
     q = all_params$filter_q
   )
+  cat_time("Updating metadata")
   colData(filtered_counts) <- droplevels(colData(filtered_counts))
-  cat_time("Reduced inital ", nrow(window_counts), " windows to ", nrow(filtered_counts))
+  cat_time(
+    "Reduced inital ", comma(nrow(window_counts)), " windows to ", 
+    comma(nrow(filtered_counts)), "filtered windows"
+  )
 
-  cat_time("Writing filtered counts to ", all_output$counts)
-  write_rds(filtered_counts, all_output$counts, compress = "gz")
+  cat_time("Writing filtered counts to ", all_output$rds)
+  write_rds(filtered_counts, all_output$rds, compress = "gz")
 
 }
 cat_time("Done counting")

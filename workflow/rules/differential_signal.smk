@@ -36,6 +36,14 @@ rule count_windows:
 			os.path.join(bam_path, "{sample}.bam.bai"),
 			sample = df['sample'][(df['target'] == wildcards.target)]
 		),
+		input_bam = lambda wildcards: expand(
+			os.path.join(bam_path, "{sample}.bam"),
+			sample = set(df['input'][(df['target'] == wildcards.target)])
+		),
+		input_bai = lambda wildcards: expand(
+			os.path.join(bam_path, "{sample}.bam.bai"),
+			sample = set(df['input'][(df['target'] == wildcards.target)])
+		),
 		blacklist = os.path.join(annotation_path, "blacklist.rds"),
 		chk = ALL_CHECKS,
 		greylist = lambda wildcards: expand(
@@ -60,12 +68,12 @@ rule count_windows:
 			treat = set(df['treat'][df['target'] == wildcards.target])
 		),
 		script = os.path.join("workflow", "scripts", "make_counts.R"),
-		sq = os.path.join(annotation_path, "seqinfo.rds"),
+		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
 	output:
 		rds = os.path.join("data", "counts", "{target}_counts.rds")
 	conda: "../envs/rmarkdown.yml"
-	log: log_path + "/diferential_signal/{target}_count_windows.log"
-	threads: 4
+	log: os.path.join(log_path, "count_windows", "{target}_make_counts.log")
+	threads: 8
 	params:
 		contrasts = lambda wildcards: diff_sig_param[wildcards.target]['contrasts'],
 		filter_q = lambda wildcards: diff_sig_param[wildcards.target]['filter_q'],
@@ -73,8 +81,8 @@ rule count_windows:
 		win_size = lambda wildcards: diff_sig_param[wildcards.target]['window_size'],
 		win_step = lambda wildcards: diff_sig_param[wildcards.target]['window_step'],
 	resources:
-		runtime = "2h",
-		mem_mb = 32768
+		runtime = "1h",
+		mem_mb = 64000,
 	script:
 		"../scripts/make_counts.R"
 
