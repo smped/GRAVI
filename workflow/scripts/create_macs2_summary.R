@@ -23,12 +23,10 @@ message("Setting stdout to ", log, "\n")
 sink(log)
 
 all_wildcards <- slot(snakemake, "wildcards")
-all_params <- slot(snakemake, "params")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 
 cat_list(all_wildcards, "wildcards", ":")
-cat_list(all_params, "params")
 cat_list(all_input, "input")
 cat_list(all_output, "output")
 
@@ -40,9 +38,6 @@ cat("Loading packages...\n")
 library(glue)
 
 target <- all_wildcards$target
-macs2_fdr <- all_params$macs2_fdr
-outlier_thresh <- all_params$outlier_thresh
-min_prop <- all_params$min_prop
 
 ln <- glue(
 	"
@@ -53,9 +48,6 @@ ln <- glue(
 	link-citations: true
 	params:
 	    target: \"{{target}}\"
-	    min_prop: {{min_prop}}
-	    outlier_thresh: {{outlier_thresh}}
-	    macs2_fdr: {{macs2_fdr}}
 	---
 
 	",

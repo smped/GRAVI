@@ -2,7 +2,7 @@ rule filter_merged_peaks:
     input:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         greylist = lambda wildcards: expand(
-            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            os.path.join(grey_path, "{f}_greylist.bed.gz"),
             f = set(df[df.target == wildcards.target]['input'])
         ),
         merged = os.path.join(
@@ -33,7 +33,7 @@ rule make_consensus_peaks:
     input:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         greylist = lambda wildcards: expand(
-            os.path.join(annotation_path, "{f}_greylist.bed.gz"),
+            os.path.join(grey_path, "{f}_greylist.bed.gz"),
             f = set(df[df.target == wildcards.target]['input'])
         ),
         peaks = lambda wildcards: expand(

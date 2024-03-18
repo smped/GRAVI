@@ -225,10 +225,12 @@ db |>
   write_rds(all_output$motifs, compress = "gz")
 cat_time("done\n")
 
-cat_time("Creating IC Matrix Thumbnails")
-img_path <- here::here("docs", "assets", "motifs")
-if (!dir.exists(img_path)) dir.create(img_path, recursive = TRUE)
-db |>
+cat_time("Creating IC Matrix Thumbnails as uri strings")
+# img_path <- here::here("docs", "assets", "motifs")
+# if (!dir.exists(img_path)) dir.create(img_path, recursive = TRUE)
+img_path <- tempdir()
+cat_time("Writing motifs to", img_path)
+motif_uri <- db |>
   to_list() |>
   lapply(
     \(x) {
@@ -246,12 +248,16 @@ db |>
         )
       print(p)
       dev.off()
+      knitr::image_uri(png_out)
     }
-  )
+  ) |>
+  setNames(db$altname)
+cat_time("Removing", img_path)
+unlink(img_path, recursive = TRUE)
 cat_time("Done")
-cat_time("Checking thumbnails")
-all_thumbs <- file.path(img_path, paste0(db$altname, ".png"))
-stopifnot(all(file.exists(all_thumbs)))
+
+cat_time("Writing", all_output$motif_uri)
+write_rds(motif_uri, all_output$motif_uri, compress = "gz")
 cat_time("Done")
 
 

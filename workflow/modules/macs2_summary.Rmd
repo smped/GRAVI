@@ -4,9 +4,6 @@
 
 ```{r get-params}
 target <- params$target
-macs2_fdr <- params$macs2_fdr
-outlier_thresh <- params$outlier_thresh
-min_prop <- params$min_prop
 threads <- parallel::detectCores() - 1
 ```
 
@@ -74,9 +71,15 @@ enrich_params <- here::here("config", "params.yml") %>%
 network_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("networks")
-motif_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("motif_analysis")
+motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
+  jsonlite::fromJSON() %>%
+  pluck(target)
+macs2_params <- here::here("config", "json", "macs2_param.json") %>%
+  jsonlite::fromJSON() %>%
+  pluck(target)
+macs2_qc_params <- here::here("config", "json", "macs2_qc_param.json") %>%
+  jsonlite::fromJSON() %>%
+  pluck(target)
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
@@ -250,7 +253,7 @@ This section provides a simple series of visualisations to enable detection of a
 
 - Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak` [@Zhang18798982]
 - GC Content: Most variation in GC-content should have been identified prior to performing alignments, using common tools such as [FastQC](https://github.com/s-andrews/FastQC), MultiQC [@EwelsMultiQC2016] or `ngsReports` [@WardNgsReports2019]. However, these plots may still be informative for detection of potential sequencing issues not previously addressed
-- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `peaks:qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r outlier_thresh`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
+- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `peaks:qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r macs2_qc_params$outlier_threshold`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
 - Cross Correlations: Shows the cross-correlation coefficients between read positions across a series of intervals [@LunSmythCsaw2014]. Weak cross-correlations can also indicate low-quality samples. These values are also used to estimate fragment length within each sample, as the peak value of the cross-correlations
 - Fraction Of Reads In Peaks (FRIP): This plot shows the proportion of the alignments which fall within peaks identified by `macs2 callpeak`, with the remainder of alignments being assumed to be background [@Landt01092012]. This can provide guidance as to the success of the IP protocol, and the common-use threshold of 1% is indicated as a horizontal line. This value is not enforced as a hard QC criteria, but may be used to manually exclude samples from the file `samples.tsv` of deemed to be appropriate.
 
@@ -272,13 +275,13 @@ macs2_logs %>%
     caption = glue(
       "*Summary of results for `macs2 callpeak` on individual {target} samples.",
       "Total peaks indicates the number retained after applying the FDR ", 
-      "threshold of {percent(macs2_fdr)} during peak calling.",
+      "threshold of {percent(macs2_params$fdr)} during peak calling.",
       ifelse(
         any_fail,
         glue(
           "Samples shown in italics were marked for exclusion from ",
           "downstream analysis as they identified a number of peaks beyond ",
-          "+/- {outlier_thresh}-fold the median number of ",
+          "+/- {macs2_qc_params$outlier_threshold}-fold the median number of ",
           "peaks amongst all samples within the relevant treatment group.",
         ),
         glue(
@@ -328,7 +331,7 @@ macs2_logs %>%
 
 ### Peaks Detected
 
-```{r plot-macs2-peaks-individual, fig.height = 0.75 * fh, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {macs2_fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
+```{r plot-macs2-peaks-individual, fig.height = 0.75 * fh, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {macs2_params$fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
 suppressWarnings(
   macs2_logs %>%
     ggplot(aes(label, total_peaks, fill = qc)) +
@@ -562,7 +565,7 @@ individual_peaks %>%
           hjust = 1.1, stat = 'count', size = 3.5
         ) +
         scale_y_reverse(expand = expansion(c(0.3, 0)), label = comma) +
-        ylab(glue("Macs2 Peaks (FDR < {macs2_fdr})")) +
+        ylab(glue("Macs2 Peaks (FDR < {macs2_params$fdr})")) +
         theme(
           panel.grid = element_blank(), 
           axis.line = element_line(colour = "grey20"),
@@ -728,7 +731,7 @@ htmltools::tagList(
                     hjust = 1.1, stat = 'count', size = 4
                   ) +
                   scale_y_reverse(expand = expansion(c(0.2, 0)), label = comma) +
-                  ylab(glue("Macs2 Peaks (FDR < {macs2_fdr})")) +
+                  ylab(glue("Macs2 Peaks (FDR < {macs2_params$fdr})")) +
                   theme(
                     text = element_text(size = 14),
                     panel.grid = element_blank(), 
@@ -807,7 +810,7 @@ individual_peaks %>%
 A set of treatment-specific `r target` peaks was defined for each of `r pander(treat_levels)` by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
 Replicates which failed the previous QC steps were omitted during peak-calling.
 
-Peaks detected when merging samples, and which overlapped a peak in more than `r percent(min_prop)` of the *individual replicates passing QC* in each treatment group, were retained.
+Peaks detected when merging samples, and which overlapped a peak in more than `r percent(macs2_qc_params$min_prop_reps)` of the *individual replicates passing QC* in each treatment group, were retained.
 Those additionally overlapping any black- or grey-listed regions were also removed as viable peaks.
 
 ```{r tab-treatment-peak}
@@ -831,7 +834,7 @@ treat_levels %>%
     caption = glue(
       "Treatment-specific peaks detected by merging samples within each",
       "treatment group. Peaks were only retained if detected in at least",
-      "{percent(min_prop)} of the qc-passing samples for each treatment group,",
+      "{percent(macs2_qc_params$min_prop_reps)} of the qc-passing samples for each treatment group,",
       "as described above.",
       .sep = " "
     )
@@ -1514,38 +1517,40 @@ div(class = "table",
 ```{r load-motif-res}
 bs_genome <- get(bs_pkg)
 fw_peaks <- resize(
-  consensus_peaks, width = motif_params$analysis$peak_width, fix = "center"
+  consensus_peaks, width = motif_params$peak_width, fix = "center"
 )
 genome(fw_peaks) <- ucsc$build
 fw_seq <- getSeq(bs_genome, fw_peaks)
-motif_adj <- match.arg(motif_params$analysis$adj, p.adjust.methods)
+motif_adj <- match.arg(motif_params$adj, p.adjust.methods)
 motif_list <- file.path(annotation_path, "motif_list.rds") %>% 
   read_rds() %>% 
   to_df %>% 
   as_tibble()
+motif_uri <- file.path(annotation_path, "motif_uri.rds") %>% 
+  read_rds()
 pos_res <- file.path(peak_path, "{target}_motif_position.tsv.gz") %>% 
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_pos <- sum(pos_res$adj_p < motif_params$analysis$alpha)
+n_pos <- sum(pos_res$adj_p < motif_params$alpha)
 enrich_res <- peak_path %>% 
   file.path("{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_enrich <- sum(enrich_res$adj_p < motif_params$analysis$alpha & enrich_res$Z > 0)
+n_enrich <- sum(enrich_res$adj_p < motif_params$alpha & enrich_res$Z > 0)
 ```
 
 Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
-For this step peaks were set to a fixed width of `r motif_params$analysis$peak_width`bp, with sequences taken from these regions.
+For this step peaks were set to a fixed width of `r motif_params$peak_width`bp, with sequences taken from these regions.
 
 ### Motif Enrichment {.tabset}
 
 A simple enrichment analysis was performed by selecting a set of `r comma(enrich_res$sequences[[1]] * enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(enrich_res$sequences[[1]])` *test sequences*.
 This gave a set of genomically matched control sequences to gauge enrichment by.
-Analysis was performed using the `motifTestR` package and the `r motif_params$analysis$model`.
+Analysis was performed using the `motifTestR` package and the `r motif_params$model`.
 
 Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) are shown in the results below, with `r n_enrich` of the `r comma(nrow(motif_list))` included motifs matching the criteria for being considered as enriched.
 
@@ -1554,14 +1559,13 @@ Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) ar
 ```{r tbl-res-enrich, eval = n_enrich > 0, echo = n_enrich > 0}
 tbl <- enrich_res %>%
   arrange(p) %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha, Z > 0) %>% 
+  dplyr::filter(adj_p < motif_params$alpha, Z > 0) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
   dplyr::select(
     cluster, ends_with("name"), Z, p, adj_p, matches, expected, enrichment
   ) %>% 
   mutate(
-    PWM = here::here("docs", "assets", "motifs", glue("{altname}.png")),
-    PWM = lapply(PWM, knitr::image_uri)
+    PWM = lapply(altname, \(x) motif_uri[[x]])
   ) %>% 
   reactable(
     groupBy = "cluster",
@@ -1611,8 +1615,8 @@ tbl <- enrich_res %>%
 cp <- htmltools::em(
   glue(
     "All {n_enrich} motifs considered as enriched relative to the background set
-    of sequences, using the {motif_params$analysis$model} model and an adjusted 
-    p-value ({motif_adj}) < {motif_params$analysis$alpha} as the criteria for 
+    of sequences, using the {motif_params$model} model and an adjusted 
+    p-value ({motif_adj}) < {motif_params$alpha} as the criteria for 
     significance. Motifs are grouped by clusters formed earlier, with all motifs
     visible by clicking the arrow to the arbitrary cluster identifier. All 
     columns are searchable and filterable."
@@ -1647,7 +1651,7 @@ if (interactive()) {
 
 ```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
 top_enrich <- enrich_res %>%
-  dplyr::filter(Z > 0, adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:20) %>% 
   pull("altname")
 motif_list %>% 
@@ -1679,13 +1683,13 @@ motif_list %>%
 
 ```{r get-top-pos, eval = n_pos > 0, echo = n_pos > 0}
 top_pos <- pos_res %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(adj_p < motif_params$alpha) %>% 
   dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
   dplyr::slice(1:9) %>% 
   dplyr::select(altname, name, cluster)
 clust_names <- pos_res %>% 
   dplyr::filter(
-    adj_p < motif_params$analysis$alpha,
+    adj_p < motif_params$alpha,
     cluster %in% top_pos$cluster
   ) %>% 
   arrange(desc(matches_in_region)) %>% 
@@ -1697,10 +1701,10 @@ clust_names <- pos_res %>%
   pull(name)
 ```
 
-Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$analysis$binwidth`bp and testing `r ifelse(motif_params$analysis$abs, "distance from sequence centres", "position either side of the sequence centres")`.
-Any motifs which matched fewer than `r percent(motif_params$analysis$ignore_below)` of sequences were not tested for any positional bias.
+Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$binwidth`bp and testing `r ifelse(motif_params$abs, "distance from sequence centres", "position either side of the sequence centres")`.
+Any motifs which matched fewer than `r percent(motif_params$ignore_below)` of sequences were not tested for any positional bias.
 
-Using an adjusted p-value (`r motif_adj`) less than `r motif_params$analysis$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
+Using an adjusted p-value (`r motif_adj`) less than `r motif_params$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
 
 It should also be noted that this type of analysis is agnostic to the number of matches found for a TFBM, and only assesses any bias within the distribution of matches.
 
@@ -1709,15 +1713,14 @@ It should also be noted that this type of analysis is agnostic to the number of 
 
 ```{r tbl-res-pos, eval = n_pos > 0, echo = n_pos > 0}
 tbl <- pos_res %>%
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(adj_p < motif_params$alpha) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
   dplyr::select(
     cluster, contains("name"), ends_with("p"), start, end, centre, width,
     contains("total"), matches_in_region, starts_with("e"), 
   ) %>% 
   mutate(
-    PWM = here::here("docs", "assets", "motifs", glue("{altname}.png")),
-    PWM = lapply(PWM, knitr::image_uri)
+    PWM = lapply(altname, \(x) motif_uri[[x]])
   ) %>% 
   reactable(
     groupBy = "cluster", showPageSizeOptions = TRUE, filterable = TRUE,
@@ -1791,9 +1794,9 @@ tbl <- pos_res %>%
 cp <- htmltools::em(
   glue(
     "
-    All {sum(pos_res$adj_p < motif_params$analysis$alpha)} TFBMs found to show
+    All {sum(pos_res$adj_p < motif_params$alpha)} TFBMs found to show
     positional bias using an adjusted p-value ({motif_adj}) below
-    {motif_params$analysis$alpha} as the criteria for significance. Highly 
+    {motif_params$alpha} as the criteria for significance. Highly 
     similar motifs were clustered during preparation and are grouped accordingly.
     Clicking the arrow next to the arbitrary cluster id will reveal full details
     for all motifs within the cluster which were found to be significant, 
@@ -1838,11 +1841,11 @@ top_matches <- motif_list %>%
   arrange(fct) %>% 
   to_list() %>% 
   getPwmMatches(
-    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   )
 top_matches %>% 
   plotMatchPos(
-    geom = "point", abs = motif_params$analysis$abs, use_totals = TRUE,
+    geom = "point", abs = motif_params$abs, use_totals = TRUE,
     binwidth = 1
   ) +
   geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
@@ -1856,8 +1859,8 @@ top_matches %>%
 ```{r plot-smoothed-pos, eval = n_pos > 0, echo = n_pos > 0, fig.height = 0.75 * fh, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
 A <- top_matches %>% 
   plotMatchPos(
-    se = FALSE, abs = motif_params$analysis$abs, linewidth = 1/2,
-    binwidth = motif_params$analysis$binwidth / 2
+    se = FALSE, abs = motif_params$abs, linewidth = 1/2,
+    binwidth = motif_params$binwidth / 2
   ) +
   labs(
     x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
@@ -1865,7 +1868,7 @@ A <- top_matches %>%
   theme(legend.position = "none")
 B <- top_matches %>% 
   plotMatchPos(
-    type = "cdf", geom = "line", abs = motif_params$analysis$abs,
+    type = "cdf", geom = "line", abs = motif_params$abs,
     linewidth = 1 / 2, binwidth = 1
   ) +
   labs(x = "Distance From Centre", y = "Proportion", colour = "Representative Motif")
@@ -1876,20 +1879,20 @@ A + B + plot_layout(guides = "collect")
 
 ```{r heatmap-pos, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
 top_pos <- pos_res %>% 
-  dplyr::filter(adj_p < motif_params$analysis$alpha) %>% 
+  dplyr::filter(adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:25) %>% 
   pull(altname)
 motif_list %>% 
   dplyr::filter(altname %in% top_pos) %>% 
   to_list() %>% 
   getPwmMatches(
-    fw_seq, abs = motif_params$analysis$abs, best_only = TRUE, mc.cores = threads
+    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   ) %>% 
   plotMatchPos(
-    abs = motif_params$analysis$abs, type = "heatmap", cluster = TRUE,
+    abs = motif_params$abs, type = "heatmap", cluster = TRUE,
     use_totals = TRUE,
-    # binwidth = floor(motif_params$analysis$binwidth / 2)
-    binwidth = motif_params$analysis$binwidth 
+    # binwidth = floor(motif_params$binwidth / 2)
+    binwidth = motif_params$binwidth 
   ) + labs(x = "Bin", fill = "Total\n Matches")
 ```
 

@@ -1,7 +1,6 @@
 #' This script uses motifTestR to analyse motifs
 #'
 #' Required input files is:
-#' - config/params.yml
 #' - output/peak_analysis/{target}/{target}_consensus_peaks.bed.gz
 #' - output/annotations/gene_regions.rds
 #' - output/annotations/motif_list.rds
@@ -71,6 +70,16 @@ sink(log)
 #   pos = "output/peak_analysis/AR/AR_motif_position.tsv.gz",
 #   matches = "output/peak_analysis/AR/AR_matches.rds"
 # )
+# all_params = list(
+#   abs = TRUE,
+#   adj = "fdr", # not used here
+#   alpha = 0.05, # not used here
+#   binwidth = 10,
+#   peak_width = 400,
+#   ignore_below = 0.01,
+#   iterations = 100,
+#   model = "quasipoisson"
+# )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
 
@@ -78,8 +87,10 @@ config <- slot(snakemake, "config")
 threads <- slot(snakemake, "threads")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
 cat_list(all_input, "input -", sep = ":")
 cat_list(all_output, "output -", sep = ":")
+cat_list(all_params, "params -", sep = ":")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -100,11 +111,7 @@ pkg <- paste(c("BSgenome", ucsc$sp, "UCSC", ucsc$build), collapse = ".")
 cat_time("Loading", pkg)
 library(pkg, character.only = TRUE)
 
-cat_time("Reading params")
-params <- read_yaml(all_input$params)[["motif_analysis"]][["analysis"]]
-cat_list(params, "params", ":")
-
-cat_time("Readin gene_regions")
+cat_time("Reading gene_regions")
 gene_regions <- read_rds(all_input$gene_regions)
 sq <- seqinfo(gene_regions)
 ## Convert to the same as the BSgenome package
@@ -116,7 +123,7 @@ peaks <- importPeaks(all_input$peaks, type = "bed", seqinfo = sq) |>
   unlist() |>
   granges() |>
   unname() |>
-  resize(width = params$peak_width, fix = "center")
+  resize(width = all_params$peak_width, fix = "center")
 peaks$region <- bestOverlap(peaks, gene_regions)
 cat_time("Read", comma(length(peaks)), "peaks")
 
@@ -129,12 +136,12 @@ cat_time("done")
 
 motif_list <- read_rds(all_input$motifs)
 cat_time("Checking for low frequency matches")
-min_matches <- params$ignore_below * n_seq
+min_matches <- all_params$ignore_below * n_seq
 counts <- countPwmMatches(motif_list, test_seq, mc.cores = threads)
 ignore <- counts < min_matches
 cat_time(
   "Found", sum(ignore), "motifs with matches in <",
-  percent(params$ignore_below), "of sequences"
+  percent(all_params$ignore_below), "of sequences"
 )
 
 cat_time("Started getting best matches")
@@ -146,7 +153,8 @@ gc()
 
 cat_time("Testing for Positional Bias")
 pos_res <- testMotifPos(
-  matches, binwidth = params$binwidth, abs = params$abs, mc.cores = threads
+  matches, binwidth = all_params$binwidth, abs = all_params$abs,
+  mc.cores = threads
 )
 cat_time("done\n")
 gc()
@@ -165,7 +173,7 @@ exclude_ranges <- read_rds(all_input$exclude_ranges)
 cat_time("Generating RMRanges based on provided gene_regions")
 rm_ranges <- makeRMRanges(
   split(peaks, peaks$region), gene_regions, exclude = exclude_ranges,
-  n_iter = params$iterations, mc.cores = threads
+  n_iter = all_params$iterations, mc.cores = threads
 )
 cat_time("Sampled", comma(length(rm_ranges)), "RMRanges\n")
 gc()
@@ -177,7 +185,7 @@ cat_time("done")
 
 cat_time("Testing for motif enrichment")
 enrich_res <- testMotifEnrich(
-  motif_list, test_seq, rm_seq, model = params$model, mc.cores = threads
+  motif_list, test_seq, rm_seq, model = all_params$model, mc.cores = threads
 )
 cat_time("Done")
 

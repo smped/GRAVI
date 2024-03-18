@@ -6,14 +6,25 @@
 #' target. This will only create any changes where >2 treatments are present,
 #' however considerable time will be saved where the same files would previously
 #' have been counted several times.
-#' The files should be written to `output/differential_*/target` as
-#' `{target}_window_counts.rds` and `{target}_filtered_counts.rds`.
+#' 
+#' Required input files are:
+#'   - All bam files for the target
+#'   - All bam indexes
+#'   - macs2_qc (to determine valid samples)
+#'   - macs2 logs (fragment length)
+#'   - All consensus peaks
+#'   - Checks (packages & here)
+#'   - Black & grey lists
+#'   - All annotations (mainly seqinfo)
 #'
-#' Files required for setup are:
-#'   - config.yml
-#'   - samples.tsv
-#'   - macs2 summaries (for fragment length)
-#'   - Bam Files
+#' Required output files are:
+#'   - The counts (put somewhere. Maybe in the peak_analysis folder?)
+#' 
+#' Required parameters are
+#'   - win_type
+#'   - win_size
+#'   - win_step
+#'   - filter_q
 #'
 #' Handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
@@ -25,7 +36,81 @@ if (conda_pre != "") {
   .libPaths(paths_to_set)
 }
 
+## A function for printing snakemake input
+cat_list <- function(x, slot = NULL, sep = "\n\t"){
+    nm <- setdiff(names(x), "")
+    invisible(
+        lapply(
+            nm,
+            \(i) cat("Received", slot, i, sep, paste0( x[[i]], "\n\t"), "\n")
+        )
+    )
+}
 
+## Time stamped messages
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
+
+log <- slot(snakemake, "log")[[1]]
+cat("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+
+# all_input <- list(
+#   bam = file.path(
+#     "data", "bam", paste0("SRR83151", 74:79, ".bam")
+#   ),
+#   bai = file.path(
+#     "data", "bam", paste0("SRR83151", 74:79, ".bam.bai")
+#   ),
+#   peaks = file.path(
+#     "output", "peak_analysis", "AR",
+#     paste0("AR_", c("E2", "E2DHT") ,"_filtered_peaks.narrowPeak")
+#   ),
+#   macs2_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
+#   macs2_logs = file.path(
+#     "output", "macs2", "AR", paste0(
+#       "AR_", c("E2", "E2DHT"), "_merged_callpeak.log"
+#     )
+#   ),
+#   blacklist = file.path("output","annotations", "blacklist.rds"),
+#   ## Note this may be a vector of files when being run
+#   greylist = file.path("output", "greylist", "SRR8315192_greylist.bed.gz"),
+#   seqinfo = file.path("output", "annotations", "seqinfo.rds")
+# )
+# all_output <- list(
+#   counts = file.path("data", "counts", "AR_counts.rds")
+# )
+# all_params <- list(
+#   filter_q = 0.7,
+#   win_size =  180, 
+#   win_step = 60,
+#   win_type = "sliding",
+#   contrasts = list(c("E2", "E2DHT"))
+# )
+# config <- read_yaml(here::here("config", "config.yml"))
+# all_widcards <- list(target = "AR")
+# threads <- 1
+
+config <- slot(snakemake, "config")
+all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+threads <- slot(snakemake, "threads")
+target <- all_wildcards$target
+
+cat_list(all_wildcards, "wildcards", ":")
+cat_list(all_params, "params", ":")
+cat_list(all_input, "input")
+cat_list(all_output, "output")
+
+## Solidify file paths
+all_input <- lapply(all_input, here::here)
+all_output <- lapply(all_output, here::here)
+
+cat_time("Loading packages...\n")
 library(tidyverse)
 library(yaml)
 library(extraChIPs)
@@ -36,51 +121,28 @@ library(csaw)
 library(ngsReports)
 library(BiocParallel)
 library(plyranges)
+library(scales)
+cat_time("Configuring for", threads, "threads")
+register(MulticoreParam(workers = threads))
 
-#' Arguments required to be set during calling from the workflow are
-#'   - threads
-#'   - target
-#'   - out_file
-#'   - window_type
-#'   - window_size
-#'   - step (sliding only), use a value of 0 for fixed-with
-#'   - filter_q
-# args <- c("4", "H3K27ac", "data/counts/H3K27ac_counts.rds","sliding", "240", "80", "0.7")
-args <- commandArgs(TRUE)
-cat("\nReceived args:", args, "", sep = "\n")
-threads <- as.integer(args[[1]])
-target <- args[[2]]
-counts_file <- here::here(args[[3]])
-win_type <- match.arg(args[[4]], c("fixed", "sliding"))
-win_size <- as.integer(args[[5]])
-win_step <- as.integer(args[[6]])
-filter_q <- as.numeric(args[[7]])
+cat_time("Checking all parameters")
+win_type <- match.arg(all_params$win_type, c("sliding", "fixed"))
+if (win_type == "sliding") {
+  win_step <- all_params$win_step
+  ## Equality will give tiling windows...
+  stopifnot(win_step > 0 & win_step <= all_params$win_size)
+  stopifnot(all_params$filter_q > 0 & all_params$filter_q <= 1)
+}
+cat_time("Done")
 
 #'
 #' Setup the key config elements
 #'
-register(MulticoreParam(workers = threads))
-config <- read_yaml(here::here("config", "config.yml"))
-
-#'
-#' Setup the paths
-#'
-macs2_path <- here::here("output", "macs2", target)
-annotation_path <- here::here("output", "annotations")
-stopifnot(dir.exists(annotation_path))
-bam_path <- here::here(config$paths$bam)
-stopifnot(dir.exists(bam_path))
-out_path <- dirname(counts_file)
-if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
-message("Counts will be written to:\n", counts_file)
-
-#'
-#' The sample information. Initially use all treat_levels based on the contrasts
-#'
-treat_levels <- config$comparisons$contrasts %>%
-  unlist() %>%
+cat_time("Setting treat_levels")
+treat_levels <- all_params$contrasts %>% 
+  unlist() %>% 
   unique()
-samples <- file.path(macs2_path, glue("{target}_qc_samples.tsv")) %>%
+samples <- all_input$macs2_qc %>%
   read_tsv() %>%
   dplyr::filter(qc == "pass") %>%
   mutate(treat = fct(treat, levels = treat_levels)) %>%
@@ -89,24 +151,25 @@ samples <- file.path(macs2_path, glue("{target}_qc_samples.tsv")) %>%
 treat_levels <- levels(samples$treat)
 stopifnot(nrow(samples) > 0)
 
-#'
-#' Annotations and black/greylists
-#'
-sq <- file.path(annotation_path, "seqinfo.rds") %>%
-  read_rds()
-exclude_gr <- c(
-  here::here(config$external$blacklist),
-  file.path(
-    annotation_path, glue("{unique(samples$input)}_greylist.bed")
-  )
-) %>%
+cat_time("Loading seqinfo")
+sq <- read_rds(all_input$seqinfo)
+cat_time("Defining black and greylists")
+blacklist <- read_rds(all_input$blacklist)
+greylist <- all_input$greylist %>% 
+  unlist() %>%
   importPeaks(type = "bed", seqinfo = sq) %>%
   unlist() %>%
   reduce()
-peaks <- here::here(macs2_path, paste0(target, "_treatment_peaks.rds")) %>%
-  read_rds() %>%
-  endoapply(select, centre) %>%
+exclude_gr <- reduce(c(blacklist, greylist))
+cat_time("Done")
+
+## For the peaks, loading in the treatment-level peaks will provide the
+## estimated centres which will be used to recentre & resize the peaks (if reqd)
+cat_time("Importing peaks")
+peaks <- all_input$peaks %>%
+  importPeaks(blacklist = exclude_gr, seqinfo = sq, centre = TRUE) %>%
   unlist() %>%
+  select(centre) %>%
   reduceMC() %>%
   mutate(centre = vapply(centre, \(x) as.integer(mean(x)), integer(1)))
 
@@ -114,14 +177,20 @@ peaks <- here::here(macs2_path, paste0(target, "_treatment_peaks.rds")) %>%
 #' Prepare the BamFileList and check for paired reads/duplicates
 #'
 #'
-ids <- c(samples$sample, unique(samples$input))
-bfl <- BamFileList(file.path(bam_path, paste0(ids, ".bam")))
+cat_time("Defining BamFileList")
+bfl <- BamFileList(c(all_input$bam, all_input$input_bam))
+ids <- path(bfl) %>% 
+  basename() %>% 
+  str_remove_all(".bam$")
 names(bfl) <- ids
 stopifnot(all(file.exists(path(bfl))))
+cat_time("Done")
+
 
 #'
 #' Check for paired reads/duplicates
 #'
+cat_time("Checking for Paired Reads & duplicates")
 ys <- 1000
 anyDups <- bplapply(
   bfl,
@@ -136,7 +205,7 @@ anyDups <- bplapply(
 ) %>%
   unlist() %>%
   any()
-message(paste(ifelse(anyDups, "", "No"), "Duplicate Reads were found"))
+cat_time(paste(ifelse(anyDups, "", "No"), "Duplicate Reads were found"))
 anyPE <- bplapply(
   bfl,
   function(x){
@@ -149,12 +218,13 @@ anyPE <- bplapply(
 ) %>%
   unlist() %>%
   any()
-message(paste("Reads were", ifelse(anyPE, "paired", "single"), "end"))
+cat_time(paste("Reads were", ifelse(anyPE, "paired", "single"), "end"))
 
 
 #'
 #' Define the parameters for reading in counts
 #'
+cat_time("Defining readParam")
 rp <- readParam(
   pe = ifelse(anyPE, "both", "none"),
   dedup = anyDups,
@@ -165,29 +235,31 @@ rp <- readParam(
 #'
 #' Set parameters for the windows using the settings in config.yml
 #'
-macs2_merged_logs <- file.path(
-  macs2_path, glue("{target}_{treat_levels}_merged_callpeak.log")
-) %>%
+cat_time("Estimating fragment length from macs2 logs")
+macs2_merged_logs <- all_input$macs2_logs %>%
   importNgsLogs()
 fl <- max(macs2_merged_logs$fragment_length)
 
 if (win_type == "fixed") {
-  message("Centering & resizing peaks at ", win_size, "bp")
+
+  cat_time("Centering & resizing peaks at ", all_params$win_size, "bp")
   fw_peaks <- peaks %>%
     mutate(
       range = paste(seqnames, centre, sep = ":"),
       union_peak = granges(.)
     ) %>%
     colToRanges("range") %>%
-    resize(width = win_size, fix = "center") %>%
+    resize(width = all_params$win_size, fix = "center") %>%
     filter_by_non_overlaps(exclude_gr)
-  message("Counting alignments...")
+
+  cat_time("Counting alignments...")
   se <- regionCounts(
     bfl[samples$sample], fw_peaks, ext = fl, param = rp, BPPARAM = bpparam()
   )
   seqlevels(se) <- seqlevels(sq)
   seqinfo(se) <- sq
-  message("Updating row/colData...")
+
+  cat_time("Updating row/colData...")
   rowRanges(se) <- rowData(se)$union_peak
   rowData(se)$centred_peak <- granges(fw_peaks)
   colData(se) <- colData(se)[c("bam.files", "totals", "ext", "rlen")] %>%
@@ -195,25 +267,28 @@ if (win_type == "fixed") {
     left_join(samples, by = "sample") %>%
     as.data.frame() %>%
     DataFrame(row.names = .$sample)
-  message("Writing counts to ", counts_file)
-  write_rds(se, counts_file, compress = "gz")
+
+  cat_time("Writing counts to ", all_output$rds)
+  write_rds(se, all_output$rds, compress = "gz")
 }
 
 if (win_type == "sliding") {
   #'
   #' Count the windows
   #'
-  message("Counting ", win_size, "bp windows with a step of ", win_step, "bp...")
+  cat_time("Counting ", all_params$win_size, "bp windows with a step of ", all_params$win_step, "bp...")
   window_counts <- windowCounts(
     bam.files = bfl,
-    spacing = win_step,
-    width = win_size,
+    spacing = all_params$win_step,
+    width = all_params$win_size,
     ext = fl,
     filter = length(bfl) - 1,
     param = rp,
     BPPARAM = bpparam()
   )
-  message("Updating colData")
+  cat_time("Counted", comma(nrow(window_counts)), "windows")
+
+  cat_time("Updating colData")
   colData(window_counts) <- colData(window_counts) %>%
     as_tibble(rownames = "sample") %>%
     dplyr::select(all_of(c("sample", "bam.files", "totals", "ext", "rlen"))) %>%
@@ -230,19 +305,24 @@ if (win_type == "sliding") {
   #'
   #' Run the filter
   #'
-  message("Filtering counts...")
+  cat_time("Filtering counts...")
   filtered_counts <- dualFilter(
     x = window_counts[, samples$sample],
     bg = window_counts[, samples$input],
     ref = peaks,
     keep.totals = TRUE,
-    q = filter_q
+    q = all_params$filter_q
   )
+  cat_time("Updating metadata")
   colData(filtered_counts) <- droplevels(colData(filtered_counts))
-  message("Reduced inital ", nrow(window_counts), " windows to ", nrow(filtered_counts))
+  cat_time(
+    "Reduced inital ", comma(nrow(window_counts)), " windows to ", 
+    comma(nrow(filtered_counts)), "filtered windows"
+  )
 
-  message("Writing filtered counts to ", counts_file)
-  write_rds(filtered_counts, counts_file, compress = "gz")
+  cat_time("Writing filtered counts to ", all_output$rds)
+  write_rds(filtered_counts, all_output$rds, compress = "gz")
 
 }
+cat_time("Done counting")
 

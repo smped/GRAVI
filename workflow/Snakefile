@@ -7,6 +7,7 @@ import sys
 import random
 import itertools
 import yaml
+import json
 
 configfile: "config/config.yml"
 
@@ -27,36 +28,6 @@ for i in config['external']:
 				msg = "File " + f[j][k] + " not found"
 				assert(os.path.isfile(f[j][k])), msg
 			
-		
-	
-# Define all contrasts
-# x will be config['comparisons']['contrasts']:
-def make_contrasts(x):
-	ret_val = []
-	for comp in x:
-		ref = comp[0]
-		tgt_ref = set(df['target'][df['treat'] == ref])
-		treat = comp[1]
-		tgt_treat = set(df['target'][df['treat'] == treat])
-		comp_tgts = list(tgt_ref.intersection(tgt_treat))
-		for t in comp_tgts:
-			ret_val.extend([t + "_" + ref + "_" + treat])
-	return(ret_val)
-
-
-
-def make_pairwise(x):
-	ret_val = []
-	all_cont = make_contrasts(x)
-	all_cont.sort()
-	all_pairs = list(
-		itertools.combinations(all_cont, 2)
-	)
-	for p in all_pairs:
-		ret_val.extend([p[0] + "_" + p[1]])
-	return(ret_val)
-
-
 
 ####################
 ## Define Samples ##
@@ -66,41 +37,17 @@ df = pd.read_table(config['samples']['file'])
 ## Now set all values as required
 samples = list(set(df['sample']))
 targets = list(set(df['target']))
+targets_ext = targets.copy()
+targets_ext.extend(['shared']) # Enable 'shared' in widlcards
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
-# pairs=make_pairwise(config['comparisons']['contrasts'])
-pairs = False
 
 ## Note that the last level in treats can never be the reference level
 wildcard_constraints:
-	target = "(" + '|'.join(targets) + ")",
+	target = "(" + '|'.join(targets_ext) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
-
-
-#######################
-## Update parameters ##
-#######################
-## Set the defaults for every target, updating where manually set
-macs2_param = {}
-for i in targets:
-	macs2_param[i] = config['macs2']['default'].copy()
-	if i in config['macs2'].keys():
-		for j in config['macs2'][i].keys():
-			macs2_param[i][j] = config['macs2'][i][j]
-
-
-macs2_qc_param = {}
-for i in targets:
-	macs2_qc_param[i] = config['macs2_qc']['default'].copy()
-	if i in config['macs2_qc'].keys():
-		for j in config['macs2_qc'][i].keys():
-			macs2_qc_param[i][j] = config['macs2_qc'][i][j]
-
-
-
-
 
 ###############
 ## Key Paths ##
@@ -110,10 +57,85 @@ rmd_path = "analysis"
 annotation_path = os.path.join("output", "annotations")
 check_path =os.path.join("output", "checks")
 diff_path = os.path.join("output", "differential_signal")
+grey_path = os.path.join("output", "greylist")
+json_path = os.path.join("config", "json")
 macs2_path = os.path.join("output", "macs2")
 peak_path = os.path.join("output", "peak_analysis")
 log_path = os.path.join("workflow", "logs")
 
+
+#######################
+## Update parameters ##
+#######################
+def set_params(config, targets):
+	out = {}
+	for i in targets:
+		out[i] = config['default'].copy()
+		if i in config.keys():
+			for j in config[i].keys():
+				out[i][j] = config[i][j]
+	return(out)
+
+# Dump params to json. Might be handy later
+os.makedirs(json_path, exist_ok = True)
+macs2_param = set_params(config['macs2'], targets)
+with open(os.path.join(json_path, "macs2_param.json"), 'w') as fp:
+	json.dump(macs2_param, fp, indent = 4)
+
+macs2_qc_param = set_params(config['macs2_qc'], targets)
+with open(os.path.join(json_path, "macs2_qc_param.json"), 'w') as fp:
+	json.dump(macs2_qc_param, fp, indent = 4)
+
+motif_param = set_params(config['motif_analysis'], targets_ext)
+with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:
+	json.dump(motif_param, fp, indent = 4)
+
+## These do need more careful checking as not all levels may be found in each 
+## target. Compare to df['treat'][df$target' == x] at some point
+diff_sig_param = set_params(config['differential_signal'], targets)
+rm_targets = []
+for i in diff_sig_param.keys():
+	poss_levels = set(df['treat'][df['target'] == i])
+	valid_contrasts = []
+	J = len(diff_sig_param[i]['contrasts'])
+	for j in range(J):
+		supplied = diff_sig_param[i]['contrasts'][j].copy()
+		valid = poss_levels.intersection(supplied)
+		if len(valid) == 2:
+			valid_contrasts.extend([supplied])
+			
+	if len(valid_contrasts):
+		diff_sig_param[i]['contrasts'] = valid_contrasts
+		diff_sig_param[i]['target'] = i
+	else:
+		rm_targets.extend([i])
+
+if len(rm_targets):
+	for i in rm_targets:
+		del diff_sig_param[i]
+
+with open(os.path.join(json_path, "differential_signal_param.json"), 'w') as fp:
+	json.dump(diff_sig_param, fp, indent = 4)
+
+all_contrasts = []
+if len(diff_sig_param):
+	for i in diff_sig_param.keys():
+		for j in range(len(diff_sig_param[i]['contrasts'])):
+			lv = diff_sig_param[i]['contrasts'][j]
+			cont = i + "_" + lv[0] + "_" + lv[1]
+			all_contrasts.extend([cont])
+
+all_contrasts.sort()
+
+## Turn of all Diff Signal & Pairwise comps by uncommenting this line
+all_contrasts = []
+
+## use the contrasts to define all pairwise comparisons
+pairs = []
+for p in list(itertools.combinations(all_contrasts, 2)):
+	pairs.extend([p[0] + "_" + p[1]])
+
+pairs = []
 
 #################
 ## Figure Type ##
@@ -139,7 +161,7 @@ chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
 # Currently LibSize + QuasiLikelihood (ls-ql) or 
 # SmoothQuantile + Limma-Trend (sq-lt)
-db_method = config['comparisons']['method']
+# db_method = config['comparisons']['method']
 
 #####################
 ## Prepare Outputs ##
@@ -165,7 +187,8 @@ ALL_RDS = expand(
 	os.path.join(annotation_path, "{file}.rds"),
 	file = [
 		'colours', 'gene_regions', 'seqinfo', 'trans_models','tss', 'gtf_gene',
-		'gtf_transcript', 'gtf_exon', 'blacklist', 'features'
+		'gtf_transcript', 'gtf_exon', 'blacklist', 'features', 'motif_list',
+		'motif_uri'
 	]
 )
 ALL_OUTPUTS.extend(ALL_RDS)
@@ -191,33 +214,32 @@ if len(targets) > 1:
 
 ## Try bringing in diffsignal again
 COUNTS = expand(
-	os.path.join("data", "counts", "{target}_counts.rds"),
+	os.path.join(peak_path, "{target}", "{target}_counts.rds"),
 	target = targets
 )
-# ALL_OUTPUTS.extend(COUNTS)
+ALL_OUTPUTS.extend(COUNTS)
 RMD = expand(
 	os.path.join(rmd_path, "{cont}_differential_signal.Rmd"),
-	cont = make_contrasts(config['comparisons']['contrasts'])
+	cont = all_contrasts
 )
-# ALL_OUTPUTS.extend(RMD)
+ALL_OUTPUTS.extend(RMD)
 
 
 # Differential Signal
-# HTML_OUT.extend(
-# 	expand(
-# 		os.path.join("docs", "{cont}_differential_signal.html"),
-# 		cont = make_contrasts(config['comparisons']['contrasts'])
-# 	)
-# )
+HTML_OUT.extend(
+	expand(
+		os.path.join("docs", "{cont}_differential_signal.html"),
+		cont = all_contrasts
+	)
+)
 
 ## Pairwise Comparisons: Only if required
-if pairs:
-	HTML_OUT.extend(
-		expand(
-			os.path.join("docs", "{comp}_pairwise_comparison.html"),
-			comp = pairs
-		)
+HTML_OUT.extend(
+	expand(
+		os.path.join("docs", "{comp}_pairwise_comparison.html"),
+		comp = pairs
 	)
+)
 
 
 ALL_OUTPUTS.extend(HTML_OUT)
@@ -263,10 +285,10 @@ MERGED_BW = expand(
 	path = merged_pre
 )
 ALL_OUTPUTS.extend(MERGED_BW)
-FE_BW = expand(
-	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
-)
-ALL_OUTPUTS.extend(FE_BW)
+# FE_BW = expand(
+# 	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
+# )
+# ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
     input:
@@ -282,5 +304,5 @@ include: "rules/bigwig.smk"
 include: "rules/annotations.smk"
 include: "rules/regioner.smk"
 include: "rules/motif_analysis.smk"
-# include: "rules/differential_signal.smk"
+include: "rules/differential_signal.smk"
 # include: "rules/pairwise_comparisons.smk"
