@@ -73,7 +73,8 @@ rule count_windows:
 		rds = os.path.join(peak_path, "{target}", "{target}_counts.rds")
 	conda: "../envs/rmarkdown.yml"
 	log: os.path.join(log_path, "count_windows", "{target}_make_counts.log")
-	threads: 8
+	retries: 1
+	threads: lambda wildcards, attempt: attempt * 8
 	params:
 		contrasts = lambda wildcards: diff_sig_param[wildcards.target]['contrasts'],
 		filter_q = lambda wildcards: diff_sig_param[wildcards.target]['filter_q'],
@@ -81,8 +82,8 @@ rule count_windows:
 		win_size = lambda wildcards: diff_sig_param[wildcards.target]['window_size'],
 		win_step = lambda wildcards: diff_sig_param[wildcards.target]['window_step'],
 	resources:
-		runtime = "1h",
-		mem_mb = 64000,
+		runtime = lambda wildcards, attempt: attempt * 60,
+		mem_mb = lambda wildcards, attempt: attempt * 64000,
 	script:
 		"../scripts/make_counts.R"
 

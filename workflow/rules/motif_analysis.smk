@@ -24,11 +24,12 @@ rule run_motif_analysis:
 		iterations =  lambda wildcards: motif_param[wildcards.target]['iterations'],
 		model = lambda wildcards: motif_param[wildcards.target]['model'],
 		peak_width = lambda wildcards: motif_param[wildcards.target]['peak_width'],
-	threads: 8
+	threads: lambda wildcards, attempt: attempt * 8
 	retries: 1
 	resources:
-		runtime = "2h",
-		mem_mb = 64000,
+		runtime = lambda wildcards, attempt: attempt * 120,
+		disk_mb = lambda wildcards, attempt: attempt * 10000,
+		mem_mb = lambda wildcards, attempt: attempt * 64000
 	log: os.path.join(log_path, "motif_analysis", "{target}_motif_analysis.log")
 	conda: "../envs/rmarkdown.yml"
 	script:
