@@ -21,10 +21,14 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
     )
   )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
 config <- slot(snakemake, "config")
 all_external <- config$external
@@ -41,7 +45,7 @@ all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 all_external <- lapply(all_external, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(Rsamtools)
 library(tidyverse)
 library(extraChIPs)
@@ -49,7 +53,7 @@ library(rtracklayer)
 library(plyranges)
 
 #### Seqinfo won't have been created yet ####
-cat("Parsing genome info...")
+cat_time("Parsing genome info...")
 sq <- all_input$bam %>%
   BamFileList() %>%
   seqinfo() %>%
@@ -60,20 +64,20 @@ sq <- all_input$bam %>%
     isCircular = FALSE, genome = config$genome$build
   ) %>%
   as("Seqinfo")
-cat("done\n")
+cat_time("done\n")
 
 #### Check the blacklist for compatibility
-cat("Checking blacklist...")
+cat_time("Checking blacklist...")
 blacklist <- all_external$blacklist %>%
   importPeaks(type = "bed")
 sq_has_chr <- any(grepl("chr", seqlevels(sq)))
 bl_has_chr <- any(grepl("chr", seqlevels(blacklist)))
 if (sq_has_chr != bl_has_chr)
   stop("Chromosome identifiers do not match between the blacklist & alignments")
-cat("done\n")
+cat_time("done\n")
 
 #### GTF ####
-cat("Checking GTF annotations...\n")
+cat_time("Checking GTF annotations...\n")
 stopifnot(length(all_external$gtf) == 1)
 stopifnot(file.exists(all_external$gtf))
 reqd_cols <- c(
@@ -81,47 +85,60 @@ reqd_cols <- c(
   "transcript_id", "transcript_type", "transcript_name",
   "exon_id"
 )
-cat("Importing ", all_external$gtf, "\n")
+cat_time("Importing ", all_external$gtf, "\n")
 gtf <- all_external$gtf %>%
   import.gff(which = GRanges(sq)) %>% # THIS WILL FAIL if incompatible
   select(all_of(reqd_cols)) %>% # WILL ABORT if any are missing
   mutate(gene_id = str_remove_all(gene_id, "\\..+$")) %>%
   sort() %>%
   subset(seqnames %in% seqlevels(sq))
-cat("GTF imported successfully...\n")
+cat_time("GTF imported successfully...\n")
 if (length(gtf) == 0)
   stop(
     "No valid ranges found in the provided GTF.\nPlease check for compatible ",
     "chromosome identifiers"
   )
-cat("done\n")
+cat_time("done\n")
+
 
 #### Optional RNA-Seq ####
-if (!is.null(all_external$rnaseq)) {
-  cat("Checking RNA-Seq data...")
-  stopifnot(length(all_external$rnaseq) == 1)
-  stopifnot(file.exists(all_external$rnaseq))
-  if (str_detect(all_external$rnaseq, "tsv$"))
-    rnaseq <- read_tsv(all_external$rnaseq)
-  if (str_detect(all_external$rnaseq, "csv$"))
-    rnaseq <- read_csv(all_external$rnaseq)
-  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-  cat("RNA-Seq imported and contains gene_ids...\n")
-  shared_ids <- intersect(rnaseq$gene_id, gtf$gene_id)
-  if (length(shared_ids) == 0)
-    stop("RNA-Seq gene ids do not mach those in the GTF")
-  cat("done\n")
+## Now passed for each differential_signal comparison specifically, and can be
+## multiple files. Might also need to check for fdr columns?
+cat_time("Checking RNA-Seq data...")
+all_rna <- config$differential_signal %>%
+  lapply(pluck, "rna_toptable") %>%
+  unlist() %>%
+  unique() %>%
+  here::here()
+if (!is.null(all_rna)) {
+  for (f in all_rna) {
+    cat_time("Checking", f)
+    suffix <- str_replace_all(f, ".+(txt|tsv|csv)($|.gz$|.zip$)", "\\1")
+    read_fun <- match.fun(paste0("read_", strsplit(suffix, "")[[1]][1],"sv"))
+    tbl <- read_fun(f)
+    if (!"gene_id" %in% colnames(tbl)) {
+      cat("'gene_id' not found in columns provided in", f)
+      stop()
+    }
+    shared_ids <- intersect(tbl$gene_id, gtf$gene_id)
+    if (length(shared_ids) == 0) {
+      cat("RNA-Seq gene ids do not mach those in the GTF")
+      stop()
+    }
+    cat_time("done")
+  }
 } else {
-  cat("No RNA-Seq data specified\n")
+  cat_time("none supplied")
 }
+
 
 ## FEATURES ##
 if (!is.null(all_external$features)) {
-  cat("Checking features...")
+  cat_time("Checking features...")
   feat_exists <- file.exists(all_external$features)
   if (any(!feat_exists))
     stop("Couldn't find specified features as ", all_external$features[!feat_exists], "\n")
-  cat("Found feature files:\n\t", paste0(all_external$features, "\n\t"))
+  cat_time("Found feature files:\n\t", paste0(all_external$features, "\n\t"))
   ## This will fail if chromosome ids are incompatible
   feat_gtf <- lapply(
     all_external$features, import.gff, which = GRanges(sq)[1:5]
@@ -137,7 +154,7 @@ if (!is.null(all_external$features)) {
       "No features were found in\n\t",
       paste(all_external$features[empty_gtf], "\n\t")
     )
-    cat("done\n")
+  cat_time("done\n")
 
   ## Check the features don't match the regions
   region_cols <- c(
@@ -147,15 +164,15 @@ if (!is.null(all_external$features)) {
   invalid_types <- map_lgl(feat_gtf, \(x) any(region_cols %in% x$feature))
   if (any(invalid_types))
         stop(
-          "Disallowed feature types in:", 
-          all_external$features[invalid_types], 
+          "Disallowed feature types in:",
+          all_external$features[invalid_types],
           "\n. Cannot contain the same names as the gene-regions (",
           paste(region_cols, collapse = "/"), ")"
         )
 
 
 } else {
-  cat("No features provided\n")
+  cat_time("No features provided\n")
 }
 
 ## HIC ##
@@ -164,7 +181,7 @@ if (!is.null(all_external$features)) {
 ## COVERAGE ##
 ## Write checks for bw files
 
-cat("All checks passed. Writing ", all_output[[1]], "\n")
+cat_time("All checks passed. Writing ", all_output[[1]], "\n")
 checked <- unlist(all_external, recursive = TRUE)
 writeLines(checked, all_output[[1]])
-cat("Done")
+cat_time("Done")

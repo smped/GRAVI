@@ -16,54 +16,40 @@ macs2:
   default:
     gsize: "hs"
     fdr: 0.05
-    keep_duplicates: "all"   
+    keep_duplicates: "all"
 
 macs2_qc:
   default:
     outlier_threshold: 10
-    allow_zero: true
-    min_prop_reps: 0.5 # Currently, this cannot be set within a given target
+    allow_zero: false
+    min_prop_reps: 0.5
 
 ## Set the defaults across all targets here and set any changes as desired
 ## for any specific target
 differential_signal:
   default:
-    window_type: "fixed"
-    window_size: 400 
-    window_step: 
-    filter_q: 
-    method: "qlf"
-    norm: "TMM"
-    fc: 1.2
-    fdr: 0.05
-    pair_column: 
+    alpha: 0.05
     contrasts:
       - ["E2", "E2DHT"]
     ihw: "targets"
+    fc: 1.2
+    filter_q:
+    method: "qlf"
+    norm: "TMM"
+    pair_column:
+    rna_toptable:
+    window_type: "fixed"
+    window_size: 400
+    window_step:
   H3K27ac:
+    filter_q: 0.7
     window_type: "sliding"
     window_size: 180
     window_step: 60
-    filter_q: 0.7
-
-
-comparisons:
-  windows:
-    size: 120
-    step: 40
-  filter_q: 0.6
-  method: "sq-lt"
-  fc: 1.2
-  fdr: 0.05
-  paired: false
-  contrasts:
-    - ["E2", "E2DHT"]
-  ihw: "targets"
 
 external:
-  blacklist: 
-  gtf: 
-  rnaseq:
+  blacklist:
+  gtf:
   features:
   hic:
   coverage:

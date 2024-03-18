@@ -411,9 +411,9 @@ tf_db <- read_rds(all_out$motifs) %>%
 top3 <- levels(tf_db$cluster)[1:3]
 ```
 
-Transcription factor binding motifs (TFBMs) were prepared from `r pander(params$motif_analysis$motifdb$data_source)` with `r nrow(tf_db)` motifs prepared for downstream analysis.
+Transcription factor binding motifs (TFBMs) were prepared from `r pander(params$motifdb$data_source)` with `r nrow(tf_db)` motifs prepared for downstream analysis.
 Whilst *all motifs will be retained for testing*, highly similar motifs were clustered to enable easier reporting and interpretation.
-Pairwise correlations between motifs were found during preparation and those where $\rho \geq$ `r params$motif_analysis$motifdb$cluster_above` were clustered, giving a final set of `r max(as.integer(tf_db$cluster))` clusters.
+Pairwise correlations between motifs were found during preparation and those where $\rho \geq$ `r params$motifdb$cluster_above` were clustered, giving a final set of `r max(as.integer(tf_db$cluster))` clusters.
 `r sum(table(tf_db$cluster) == 1)` TFBMs remained un-clustered.
 The largest groups of clustered motifs contains:
 

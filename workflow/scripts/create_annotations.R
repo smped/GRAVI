@@ -82,7 +82,7 @@ sq <- all_input$bam %>%
 write_rds(sq, all_output$sq)
 cat_time("Seqinfo exported...\n")
 
-### Blacklist ###
+#### Blacklist ####
 ## Set all provided files into a single GRanges & export
 cat_time("Forming unified blacklist from all files...")
 bl <- config$external$blacklist %>%
@@ -104,6 +104,7 @@ sq %>%
 cat_time("chrom_sizes exported...\n")
 
 #### GTF ####
+## Perhaps set to this to also take a named list of bed files?
 gtf <- here::here(config$external$gtf)[[1]]
 stopifnot(file.exists(gtf))
 reqd_cols <- c(
@@ -195,7 +196,7 @@ write_rds(feat, all_output$features, compress = "gz")
 cat_time("done\n")
 
 #### Motifs ####
-motif_params <- params$motif_analysis$motifdb
+motif_params <- params$motifdb
 cat_time("Converting to Universal Motif format\n")
 db <- convert_motifs(MotifDb) |> to_df()
 if (is.null(motif_params$data_source))

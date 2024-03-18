@@ -45,18 +45,14 @@ library(bs_pkg, character.only = TRUE)
 ```
 
 ```{r target-config}
-enrich_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("enrichment")
-region_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("gene_regions")
+all_params <-  here::here("config", "params.yml") %>% read_yaml() 
+region_params <- all_params$gene_regions
+enrich_params <- all_params$enrichment
+network_params <- all_params$networks
+msigdb_params <- all_params$msigdb
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck("shared")
-network_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("networks")
 figure_params <- here::here("config", "rmarkdown.yml") %>%
   read_yaml() %>% 
   pluck("knitr_opts")
@@ -236,10 +232,9 @@ ext_tss <- gtf_gene %>%
     basal_downstream = region_params$promoters$downstream
   ) 
 ext_tss_ol <- subsetByOverlaps(ext_tss, shared_peaks)
-msigdb <- msigdbr(enrich_params$species) %>% 
+msigdb <- msigdbr(msigdb_params$species) %>% 
   dplyr::filter(
-    gs_cat %in% enrich_params$msigdb$gs_cat |
-      gs_subcat %in% enrich_params$msigdb$gs_subcat,
+    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
     ensembl_gene %in% ext_tss$gene_id
   )
 gs_list <- msigdb %>% 

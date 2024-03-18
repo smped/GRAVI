@@ -20,7 +20,6 @@ rule create_site_yaml:
     script:
         "../scripts/create_site_yaml.R"
 
-
 rule create_setup_chunk:
     input:
         here = rules.check_here_file.output,
@@ -85,7 +84,7 @@ rule create_macs2_summary_rmd:
     conda: "../envs/rmarkdown.yml"
     threads: 1
     localrule: True
-    log: os.path.join(log_path, "macs2_summary", "create_{target}_macs2_summary.log")
+    log: os.path.join(log_path, "create_rmd", "create_{target}_macs2_summary.log")
     resources:
         mem_mb = 1024,
         runtime = "5m",
@@ -113,7 +112,7 @@ rule compile_macs2_summary_html:
                 peak_path, "{{target}}", "{{target}}_{f}"
             ),
             f = [
-                'motif_position.tsv.gz', 'motif_enrichment.tsv.gz', 
+                'motif_position.tsv.gz', 'motif_enrichment.tsv.gz',
                 'regions_localz.rds', 'consensus_peaks.bed.gz'
                 ]
         ),
@@ -158,7 +157,7 @@ rule compile_peak_comparison_rmd:
         shared_files = expand(
             os.path.join(peak_path, "shared", "shared_{f}"),
             f = [
-                'consensus_peaks.bed.gz', 'motif_position.tsv.gz', 
+                'consensus_peaks.bed.gz', 'motif_position.tsv.gz',
                 'motif_enrichment.tsv.gz', 'targets_localz.rds',
                 'regions_localz.rds',
                 ]
@@ -188,3 +187,22 @@ rule compile_peak_comparison_rmd:
         cp {input.rmd} {output.rmd}
         R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
         """
+
+rule create_differential_signal_rmd:
+	input:
+		chk = ALL_CHECKS,
+		module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
+		r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
+	output:
+		rmd = os.path.join(
+			rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
+		)
+	conda: "../envs/rmarkdown.yml"
+	localrule: True
+	log: os.path.join(log_path, "create_rmd", "{target}_{ref}_{treat}_differential_signal.log")
+	threads: 1
+    resources:
+        mem_mb = 1024,
+        runtime = "5m",
+  script:
+        "../scripts/create_differential_rmd.R"
