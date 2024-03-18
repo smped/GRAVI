@@ -1,63 +1,33 @@
-This is a rewrite of the previous differential signal module.
-Required input should be the sets of counts which can be produced by running
-a standalone R script. These counts will be used as input for the DSA section.
-Sliding window counts should also be filtered using `dualFilter()` as part of
-this script.
+```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
+```
 
-Permitted DSA methods are:
 
-1. Fixed-Width Windows
-+ All edgeR normalisation & either QL or LT
-2. Sliding Windows
-+ All edgeR normalisation & either QL or LT
-+ SQ Normalisation & LT
+<!-- This is a rewrite of the previous differential signal module. -->
+<!-- Required input should be the sets of counts which can be produced by running -->
+<!-- a standalone R script. These counts will be used as input for the DSA section. -->
+<!-- Sliding window counts should also be filtered using `dualFilter()` as part of -->
+<!-- this script. -->
 
-The basic approach will be:
+<!-- Permitted DSA methods are: -->
 
-1. Load counts
-2. Perform a quantro test
-+ Failed tests will only permit "none" (QL/LT) or SQ (FW-LT) normalisation
-+ Passed tests will permit all normalisation methods
-3. Perform DSA
+<!-- 1. Fixed-Width Windows -->
+<!-- + All edgeR normalisation & either QL or LT -->
+<!-- 2. Sliding Windows -->
+<!-- + All edgeR normalisation & either QL or LT -->
+<!-- + SQ Normalisation & LT -->
+
+<!-- The basic approach will be: -->
+
+<!-- 1. Load counts -->
+<!-- 2. Perform a quantro test -->
+<!-- + Failed tests will only permit "none" (QL/LT) or SQ (FW-LT) normalisation -->
+<!-- + Passed tests will permit all normalisation methods -->
+<!-- 3. Perform DSA -->
 
 ```{r set-params, eval = interactive(), echo = FALSE}
 params <- list(
-  threads = 4,
-  target = "ERa", 
-  treat_levels = c("E2", "E2DHT"), 
-  windows = "fixed",
-  window_size = 400,
-  method = "qlf",
-  norm = "TMM",
-  pair_col = NULL,
-  fdr_alpha = 0.05,
-  fc = 1.2,
-  ihw = "regions"
-)
-```
-
-Supplied parameters for this analysis include:
-
-`r pander::pander(params)`
-
-```{r get_params, echo = FALSE, eval=TRUE}
-threads <- as.numeric(params$threads)
-target <- params$target
-treat_levels <- params$treat_levels
-win_type <- match.arg(params$windows, c("fixed-width", "sliding"))
-win_size <- as.numeric(params$window_size)
-method <- match.arg(params$method, c("qlf", "lt"))
-norm <- match.arg(
-  params$norm, c("sq", eval(formals(edgeR::calcNormFactors.DGEList)$method))
-)
-pair_col <- params$pair_col ## This may need revision of earlier modules
-fdr_alpha <- as.numeric(params$fdr_alpha)
-fc <- as.numeric(params$fc)
-ihw_method <- match.arg(
-  params$ihw, c("regions", "features", "targets", "none")
-)
-if (win_type == "fixed-width" & norm == "sq") stop(
-  "Smooth Quantile normalisation not permitted on fixed-width windows."
+  target = "AR", 
+  treat_levels = c("E2", "E2DHT")
 )
 ```
 
@@ -99,13 +69,38 @@ theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
 )
+threads <- parallel::detectCores() - 1
 # register(MulticoreParam(workers = threads))
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "table_funs.R"))
 ```
 
-```{r set-params}
-extra_params <- read_yaml(here::here("config", "params.yml"))
+```{r set_params, echo = FALSE, eval=TRUE}
+target <- params$target
+treat_levels <- params$treat_levels
+diff_sig_params <- here::here("config", "json", "differential_signal_param.json") %>% 
+  jsonlite::fromJSON() %>% 
+  pluck(target)
+win_type <- match.arg(diff_sig_params$window_type, c("fixed", "sliding"))
+win_size <- diff_sig_params$window_size
+method <- diff_sig_params$method
+norm <- match.arg(
+  diff_sig_params$norm,
+  c(eval(formals(calcNormFactors.default)$method), "sq")
+)
+pair_col <- diff_sig_params$pair_column ## This may need revision of earlier modules
+fdr_alpha <- diff_sig_params$alpha
+fc <- diff_sig_params$fc
+ihw_method <- match.arg(
+  diff_sig_params$ihw, c("regions", "features", "targets", "none")
+)
+if (win_type == "fixed" & norm == "sq") stop(
+  "Smooth Quantile normalisation not permitted on fixed-width windows."
+)
+```
+
+
+```{r load-config}
 config <- read_yaml(here::here("config", "config.yml"))
 macs2_path <- here::here("output", "macs2", target)
 samples <- file.path(macs2_path, glue("{target}_qc_samples.tsv")) %>% 
@@ -114,76 +109,56 @@ samples <- file.path(macs2_path, glue("{target}_qc_samples.tsv")) %>%
   mutate(treat = factor(treat, levels = treat_levels)) %>% 
   droplevels()
 stopifnot(length(levels(samples$treat)) == 2)
-annotation_path <- here::here("output", "annotations")
-stopifnot(dir.exists(annotation_path))
-out_path <- here::here("output", "differential_signal", target)
-if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 ```
 
 
 ```{r load-annotations}
+annotation_path <- here::here("output", "annotations")
+stopifnot(dir.exists(annotation_path))
 sq <- file.path(annotation_path, "seqinfo.rds") %>% read_rds()
-exclude_gr <- here::here(
-  annotation_path, glue("{unique(samples$input)}_greylist.bed")
-) %>% 
-  c(here::here(config$external$blacklist)) %>% 
-  importPeaks(type = "bed", seqinfo = sq) %>% 
-  unlist() %>% 
-  GenomicRanges::reduce()
-
-gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
+blacklist <- here::here(annotation_path, "blacklist.rds") %>% 
+  read_rds()
+grey_path <- here::here("output", "greylist")
+greylist <- GRanges(seqinfo = sq)
+if (length(unique(samples$input))) {
+  greylist <- file.path(grey_path, "{samples$input}_greylist.bed") %>% 
+    unique() %>% 
+    glue() %>% 
+    importPeaks(type = "bed", seqinfo = sq) %>% 
+    unlist() %>% 
+    reduce()
+}
+exclude_gr <- c(blacklist, greylist)
+gtf_gene <- file.path(annotation_path, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
 
-external_features <- GRanges(seqinfo = sq)
-if (!is.null(config$external$features)) {
-  external_features <- suppressWarnings(
-    import.gff(here::here(config$external$features), genome = sq)
-  )
-  keep_cols <- !map_lgl(mcols(external_features), \(x) all(is.na(x)))
-  mcols(external_features) <- mcols(external_features)[keep_cols]
-}
-has_features <- length(external_features) > 0
-
-gene_regions <- file.path(annotation_path, "gene_regions.rds") %>% 
-  read_rds()
-regions <- map_chr(gene_regions, \(x) unique(x$region))
-
-rna_path <- here::here(config$external$rnaseq)
-rnaseq <- tibble(gene_id = character())
-if (length(rna_path) > 0) {
-  stopifnot(file.exists(rna_path))
-  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
-  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
-  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-  gtf_gene <- subset(gtf_gene, gene_id %in% rnaseq$gene_id)
-  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
-  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
-}
-has_rnaseq <- as.logical(nrow(rnaseq))
-## Does this need tidying?
-tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
-rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
-rna_col <- c(tx_col, "gene_id")[[1]]
-```
-
-```{r set-graphics}
 colours <- read_rds(file.path(annotation_path, "colours.rds")) %>% 
   lapply(unlist)
-region_colours <- setNames(colours$regions, regions[names(colours$regions)])
+
+external_features <- here::here(annotation_path, "features.rds") %>% 
+  read_rds()
+has_features <- length(external_features) > 0
 if (has_features)
   feature_colours <- setNames(
     colours$features, str_sep_to_title(names(colours$features))
   )
+
+gene_regions <- file.path(annotation_path, "gene_regions.rds") %>% 
+  read_rds()
+regions <- map_chr(gene_regions, \(x) unique(x$region))
+region_colours <- setNames(colours$regions, regions[names(colours$regions)])
+
 direction_colours <- colours$direction %>% 
   setNames(str_to_title(names(.))) %>% 
   .[names(.) %in% c("Increased", "Decreased", "Unchanged", "Ambiguous")]
 treat_colours <- colours$treat[treat_levels]
-fig_dev <- knitr::opts_chunk$get("dev")
-if (!interactive()) {
-  fig_type <- fig_dev[[1]]
-} else {
-  fig_type <- "png"
-}
+
+fig_params <- here::here("config", "rmarkdown.yml") %>% 
+  read_yaml() %>% 
+  pluck("knitr_opts")
+fw <- fig_params$fig.width
+fh <- fig_params$fig.height
+fig_type <- fig_params$dev[[1]]
 if (is.null(fig_type)) stop("Couldn't detect figure type")
 fig_fun <- match.fun(fig_type)
 if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
@@ -268,24 +243,25 @@ has_hic <- as.logical(length(hic))
 
 
 ```{r define-outputs}
+out_path <- here::here("output", "differential_signal", target)
 comp <- glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}")
 all_out <- list(
   results = file.path(out_path, glue("{comp}-differential_signal.rds")),
   csv = file.path(out_path, glue("{comp}-differential_signal.csv.gz")),
   up_regions = file.path(out_path, glue("{comp}-up.bed")),
   down_regions = file.path(out_path, glue("{comp}-down.bed")),
-  de_genes = file.path(out_path, glue("{comp}-DE_genes.csv")),
+  # de_genes = file.path(out_path, glue("{comp}-DE_genes.csv")),
   enrichment = file.path(out_path, glue("{comp}-enrichment.csv")),
-  rna_enrichment = file.path(out_path, glue("{comp}-rnaseq_enrichment.csv")),
+  # rna_enrichment = file.path(out_path, glue("{comp}-rnaseq_enrichment.csv")),
   renv = here::here("output/envs", glue("{comp}-differential_signal.RData"))
 )
 ## Initialise outputs from RNA-Seq
-cmn_diff <- cmn_up <- cmn_down <- tibble(leadingEdge = list())
+# cmn_diff <- cmn_up <- cmn_down <- tibble(leadingEdge = list())
 fig_path <- here::here("docs", "assets", comp)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 ```
 
-```{r method-descriptions, echo = FALSE, eval = FALSE}
+```{r method-descriptions, echo = FALSE}
 norm_ref <- case_when(
   norm == "sq" ~ "normalised using Smooth-Quantile normalisation [@HicksSQN2017]",
   norm %in% c("TMM", "TMMwsp") ~ paste("with", norm, "normalisation [@Robinson2010-qp]", collapse = " "),
@@ -306,10 +282,11 @@ desc_windows <- c(
   fixed = glue(
     "During counting all ranges were set to be {win_size}bp and centred based on
     the estimated peaks centres determined by macs2. For downstream reporting of 
-    results, the original range called as a 'peak' by macs2 is reported.
+    results, the original range called as a 'peak' by macs2 is reported rather 
+    than the centred range.
     "
   )
-)[[params$windows]] %>% 
+)[[win_type]] %>% 
   str_replace_all("\\n", " ") %>% 
   str_replace_all(" +", " ")
 desc_method <- c(
@@ -337,7 +314,7 @@ desc_treat <- ifelse(
 ## Outline
 
 This step of the GRAVI workflow uses a `r win_type` window approach to differential signal with windows of `r win_size`bp.
-Counts for all windows were prepared across all `r target` samples as a stand-alone process, with the samples retained in this analysis being those with counts from `r collapseGenes(treat_levels, last = " or ", format = "")`.
+Counts for all windows were prepared across all `r target` samples as a stand-alone process, with the only samples retained in this analysis being those with counts from `r collapseGenes(treat_levels, last = " or ", format = "")`.
 This process has produced counts for `r comma(nrow(counts))` ranges.
 
 `r desc_windows`
@@ -371,7 +348,9 @@ The workflow depends heavily on the functions implemented in the Bioconductor pa
 ## Differential Signal Analysis
 
 ```{r load-counts}
-counts <- read_rds(here::here("data", "counts", glue("{target}_counts.rds")))
+counts <- here::here("output", "counts", "{target}_counts.rds") %>% 
+  glue() %>% 
+  read_rds()
 counts <- counts[, colData(counts)$treat %in% treat_levels]
 stopifnot(ncol(counts) == nrow(samples))
 assay_name <- c(qlf = "counts", lt = "logCPM")[method]
@@ -387,6 +366,10 @@ quantro_p <- c(
   perm = quantroPvalPerm(qtest),
   anova = anova(qtest)[["Pr(>F)"]][[1]]
 )
+if (any(quantro_p < 0.05) & norm != "sq") norm <- "none" 
+```
+
+```{r desc-quantro, echo = FALSE}
 desc_quantro <- case_when(
   any(quantro_p < 0.05) & norm == "sq" ~ "These results indicate that the data across treatments is drawn from different distributions and SQ-normalisation may improve the results",
   any(quantro_p < 0.05) & norm != "none" ~ paste(
@@ -398,7 +381,6 @@ desc_quantro <- case_when(
     "normalisation.", collapse = " "
   )
 )
-if (any(quantro_p < 0.05) & norm != "sq") norm <- "none" 
 ```
 
 
@@ -413,6 +395,8 @@ if (norm == "sq") {
   qs <- qsmooth(assay(counts, "logCPM"), group_factor = counts$treat)
   assay(counts, assay_name) <- qsmoothData(qs)
 } else {
+  ## Make sure the normalisation is included for CPM values
+  ## as well as the complete library sizes
   dge <- calcNormFactors(counts, method = norm)
   dge$samples$lib.size <- counts$totals
   lcpm <- cpm(dge, log = TRUE) 
@@ -542,7 +526,7 @@ colnames(X) <- str_remove_all(colnames(X), "treat")
 colData(counts)$design <- X
 paired_cors <- block <- txt <- NULL
 if (!is.null(pair_col) & method == "lt") {
-  ## These will be passed to fitAssayDiff. This is turn passes these to
+  ## These will be passed to fitAssayDiff. This in turn passes these to
   ## lmFit, although when method is qlf they will be passed to glmQLFit.
   ## As they are not parameters for that modelling approach, they will be 
   ## ignored

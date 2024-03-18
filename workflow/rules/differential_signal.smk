@@ -1,30 +1,3 @@
-# rule create_differential_signal_rmd:
-# 	input:
-# 		chk = ALL_CHECKS,
-# 		module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
-# 		r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
-# 	output: 
-# 		rmd = os.path.join(
-# 			rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
-# 		)
-# 	conda: "../envs/rmarkdown.yml"
-# 	params:
-# 		win_type = "fixed" # Add the rest really soon!!!
-# 	log: log_path + "/create_rmd/{target}_{ref}_{treat}_differential_signal.log"
-# 	threads: 1
-# 	shell:
-# 		"""
-# 		## Create the generic markdown header
-# 		Rscript --vanilla \
-# 			{input.r} \
-# 			{wildcards.target} \
-# 			{wildcards.ref} \
-# 			{wildcards.treat} \
-# 			{output.rmd} &>> {log}
-
-# 		## Add the remainder of the module as literal text
-# 		cat {input.module} >> {output.rmd}
-# 		"""
 
 rule count_windows:
 	input:
@@ -52,7 +25,7 @@ rule count_windows:
 		),
 		macs2_logs = lambda wildcards: expand(
 			os.path.join(
-				macs2_path, "{{target}}", 
+				macs2_path, "{{target}}",
 				"{{target}}_{treat_levels}_merged_callpeak.log"
 			),
 			treat_levels = set(df['treat'][df['target'] == wildcards.target])
@@ -98,7 +71,7 @@ rule count_windows:
 # 		),
 # 		merged_bw = lambda wildcards: expand(
 # 			os.path.join(
-# 				macs2_path, "{{target}}", 
+# 				macs2_path, "{{target}}",
 # 				"{{target}}_{pre}_merged_treat_pileup.bw"
 # 			),
 # 			pre = [wildcards.ref, wildcards.treat]

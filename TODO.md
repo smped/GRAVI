@@ -18,6 +18,10 @@
   - [x] Shared Peaks
   - [ ] Differential Signal
   
+## Annotation Setup
+
+- [ ] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
+  
 ## Peak Analysis
 
 - [ ] Add goseq as well as GREAT
