@@ -1,64 +1,63 @@
-
 rule count_windows:
-	input:
-		bam = lambda wildcards: expand(
-			os.path.join(bam_path, "{sample}.bam"),
-			sample = df['sample'][(df['target'] == wildcards.target)]
-		),
-		bai = lambda wildcards: expand(
-			os.path.join(bam_path, "{sample}.bam.bai"),
-			sample = df['sample'][(df['target'] == wildcards.target)]
-		),
-		input_bam = lambda wildcards: expand(
-			os.path.join(bam_path, "{sample}.bam"),
-			sample = set(df['input'][(df['target'] == wildcards.target)])
-		),
-		input_bai = lambda wildcards: expand(
-			os.path.join(bam_path, "{sample}.bam.bai"),
-			sample = set(df['input'][(df['target'] == wildcards.target)])
-		),
-		blacklist = os.path.join(annotation_path, "blacklist.rds"),
-		chk = ALL_CHECKS,
-		greylist = lambda wildcards: expand(
-			os.path.join(grey_path, "{ip_sample}_greylist.bed.gz"),
-			ip_sample = set(df['input'][df['target'] == wildcards.target])
-		),
-		macs2_logs = lambda wildcards: expand(
-			os.path.join(
-				macs2_path, "{{target}}",
-				"{{target}}_{treat_levels}_merged_callpeak.log"
-			),
-			treat_levels = set(df['treat'][df['target'] == wildcards.target])
-		),
-		macs2_qc = os.path.join(
-			macs2_path, "{target}", "{target}_qc_samples.tsv"
-		),
-		peaks = lambda wildcards: expand(
-			os.path.join(
-				peak_path, "{{target}}",
-				"{{target}}_{treat}_filtered_peaks.narrowPeak"
-			),
-			treat = set(df['treat'][df['target'] == wildcards.target])
-		),
-		script = os.path.join("workflow", "scripts", "make_counts.R"),
-		seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
-	output:
-		rds = os.path.join(peak_path, "{target}", "{target}_counts.rds")
-	conda: "../envs/rmarkdown.yml"
-	log: os.path.join(log_path, "count_windows", "{target}_make_counts.log")
-	retries: 1
-	threads: lambda wildcards, attempt: attempt * 8
-	params:
-		contrasts = lambda wildcards: diff_sig_param[wildcards.target]['contrasts'],
-		filter_q = lambda wildcards: diff_sig_param[wildcards.target]['filter_q'],
-		win_type = lambda wildcards: diff_sig_param[wildcards.target]['window_type'],
-		win_size = lambda wildcards: diff_sig_param[wildcards.target]['window_size'],
-		win_step = lambda wildcards: diff_sig_param[wildcards.target]['window_step'],
-	resources:
-		runtime = lambda wildcards, attempt: attempt * 60,
-		mem_mb = lambda wildcards, attempt: attempt * 64000,
-	script:
-		"../scripts/make_counts.R"
+    input:
+        bam = lambda wildcards: expand(
+            os.path.join(bam_path, "{sample}.bam"),
+            sample = df['sample'][(df['target'] == wildcards.target)]
+        ),
+        bai = lambda wildcards: expand(
+            os.path.join(bam_path, "{sample}.bam.bai"),
+            sample = df['sample'][(df['target'] == wildcards.target)]
+        ),
+        input_bam = lambda wildcards: expand(
+            os.path.join(bam_path, "{sample}.bam"),
+            sample = set(df['input'][(df['target'] == wildcards.target)])
+        ),
+        input_bai = lambda wildcards: expand(
+            os.path.join(bam_path, "{sample}.bam.bai"),
+            sample = set(df['input'][(df['target'] == wildcards.target)])
+        ),
+        blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        chk = ALL_CHECKS,
+        greylist = lambda wildcards: expand(
+            os.path.join(grey_path, "{ip_sample}_greylist.bed.gz"),
+            ip_sample = set(df['input'][df['target'] == wildcards.target])
+        ),
+        macs2_logs = lambda wildcards: expand(
+            os.path.join(
+                macs2_path, "{{target}}",
+                "{{target}}_{treat_levels}_merged_callpeak.log"
+            ),
+            treat_levels = set(df['treat'][df['target'] == wildcards.target])
+        ),
+        macs2_qc = os.path.join(
+            macs2_path, "{target}", "{target}_qc_samples.tsv"
+        ),
+        peaks = lambda wildcards: expand(
+            os.path.join(
+                peak_path, "{{target}}",
+                "{{target}}_{treat}_filtered_peaks.narrowPeak"
+            ),
+            treat = set(df['treat'][df['target'] == wildcards.target])
+        ),
+        script = os.path.join("workflow", "scripts", "make_counts.R"),
+        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+    output:
+        rds = os.path.join(peak_path, "{target}", "{target}_counts.rds")
+    conda: "../envs/rmarkdown.yml"
+    log: os.path.join(log_path, "count_windows", "{target}_make_counts.log")
+    retries: 1
+    threads: lambda wildcards, attempt: attempt * 8
+    params:
+        contrasts = lambda wildcards: diff_sig_param[wildcards.target]['contrasts'],
+        filter_q = lambda wildcards: diff_sig_param[wildcards.target]['filter_q'],
+        win_type = lambda wildcards: diff_sig_param[wildcards.target]['window_type'],
+        win_size = lambda wildcards: diff_sig_param[wildcards.target]['window_size'],
+        win_step = lambda wildcards: diff_sig_param[wildcards.target]['window_step'],
+    resources:
+        runtime = lambda wildcards, attempt: attempt * 60,
+        mem_mb = lambda wildcards, attempt: attempt * 64000,
+    script:
+        "../scripts/make_counts.R"
 
 # rule compile_differential_signal_html:
 # 	input:

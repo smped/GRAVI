@@ -4,6 +4,9 @@
 
 ```{r get-params}
 target <- params$target
+annotation_path <- here::here(params$annotation_path)
+macs2_path <- here::here(params$macs2_path)
+peak_path <- here::here(params$peak_path)
 threads <- parallel::detectCores() - 1
 ```
 
@@ -51,16 +54,13 @@ register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
+bam_path <- here::here(config$paths$bam)
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
 library(bs_pkg, character.only = TRUE)
 ```
 
 ```{r config-params-paths}
-bam_path <- here::here(config$paths$bam)
-macs2_path <- here::here("output", "macs2")
-peak_path <- here::here("output", "peak_analysis", target)
-annotation_path <- here::here("output", "annotations")
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
 region_params <- all_params$gene_regions
 enrich_params <- all_params$enrichment
@@ -1231,7 +1231,7 @@ Genes from the supplied GTF were used to define the TSS, giving only one TSS for
 Whilst unrealistic, this ensures model assumptions are not violated.
 This gave a total of `r comma(length(ext_tss))` TSS regions were defined for analysis.
 
-The `r length(gs_list)` pathways tested were `r pander(unname(unlist(enrich_params$msigdb)))` as defined by MSigDB v`r packageVersion("msigdbr")`.
+The `r length(gs_list)` pathways tested were those belonging to `r pander(unname(unlist(msigdb_params[c("gs_cat", "gs_subcat")])))` as defined by [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/) v`r packageVersion("msigdbr")` [@Liberzon2011-fr].
 Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r enrich_params$adj`) below `r enrich_params$alpha`, using the `rGREAT` results from the *hyper-geometric test*, instead of the *binomial test*.
 sing this strategy `r n_great` pathways were considered to be enriched within the set of `r target` consensus peaks.
 

@@ -291,17 +291,18 @@ ALL_OUTPUTS.extend(MERGED_BW)
 # ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
-    input:
-        ALL_OUTPUTS
+	input:
+		ALL_OUTPUTS
 
 include: "rules/initial_checks.smk"
+include: "rules/annotations.smk"
 include: "rules/samtools.smk"
-include: "rules/rmarkdown.smk"
+include: "rules/create_rmd.smk"
+include: "rules/compile_rmd.smk"
 include: "rules/macs2.smk"
 include: "rules/consensus_peaks.smk"
 include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
-include: "rules/annotations.smk"
 include: "rules/regioner.smk"
 include: "rules/motif_analysis.smk"
 include: "rules/differential_signal.smk"

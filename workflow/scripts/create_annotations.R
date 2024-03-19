@@ -39,14 +39,16 @@ cat_time <- function(...){
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
 config <- slot(snakemake, "config")
 
 cat_list(all_input, "input:")
 cat_list(all_output, "output:")
+cat_list(all_params, "params:", "-")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -79,7 +81,7 @@ sq <- all_input$bam %>%
     genome = config$genome$build
   ) %>%
   as("Seqinfo")
-write_rds(sq, all_output$sq)
+write_rds(sq, all_output$seqinfo)
 cat_time("Seqinfo exported...\n")
 
 #### Blacklist ####
@@ -261,11 +263,49 @@ cat_time("Writing", all_output$motif_uri)
 write_rds(motif_uri, all_output$motif_uri, compress = "gz")
 cat_time("Done")
 
-
-## Now exit confirming everything
-all_exist <- map_lgl(all_output, file.exists)
-if (!all(all_exist)) {
-  nm <- names(all_exist)[!all_exist]
-  stop("\nFailed to create:\n\t", paste(nm, collapse = "\n\t"), )
-}
 cat_time("Data export completed")
+
+cat_time("Forming annotation_description.Rmd")
+
+all_output <- lapply(
+  all_output,
+  str_remove_all,
+  pattern = paste0(here::here(), .Platform$file.sep)
+)
+ln <- glue(
+	"
+	---
+	title: 'Description of Annotations'
+	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
+	bibliography: references.bib
+	link-citations: true
+	params:
+	  annotation_path: \"{{all_params$annotation_path}}\"
+	  grey_path: \"{{all_params$grey_path}}\"
+	  chrom_sizes: \"{{all_output$chrom_sizes}}\"
+	  colours: \"{{all_params$colours}}\"
+	  features: \"{{all_output$features}}\"
+	  gene_regions: \"{{all_output$regions}}\"
+	  gtf_exon: \"{{all_output$exons}}\"
+	  gtf_gene: \"{{all_output$genes}}\"
+	  gtf_transcript: \"{{all_output$transcripts}}\"
+	  motif_list: \"{{all_output$motifs}}\"
+	  motif_uri: \"{{all_output$motif_uri}}\"
+	  seqinfo: \"{{all_output$seqinfo}}\"
+	  trans_models: \"{{all_output$trans_models}}\"
+	  tss: \"{{all_output$tss}}\"
+	---
+
+	",
+	.open = "{{",
+	.close = "}}"
+)
+readr::write_lines(ln, all_output$rmd)
+
+
+
+cat_time("Written YAML header; Appending Module")
+file.append(all_output$rmd, all_input$module)
+
+cat_time("Done")
+

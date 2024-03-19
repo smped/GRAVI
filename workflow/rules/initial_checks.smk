@@ -8,7 +8,7 @@ rule check_r_packages:
     resources:
         runtime = "30m",
         mem_mb = 2048,
-    log: os.path.join(log_path, "checks", "check_r_packages.log")
+    log: os.path.join(log_path, "initial_checks", "check_r_packages.log")
     conda: "../envs/rmarkdown.yml"
     localrule: True
     script:
@@ -21,7 +21,7 @@ rule check_here_file:
     resources:
         runtime = "1m",
         mem_mb = 1024,
-    log: os.path.join(log_path, "checks", "check_here_file.log")
+    log: os.path.join(log_path, "initial_checks", "check_here_file.log")
     shell:
         """
         f1=$(find ./ -type f -name '*Rproj')
@@ -46,13 +46,13 @@ rule check_external_files:
         bai = expand(os.path.join(bam_path, "{bam}.bam.bai"), bam = samples),
         here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
-        script = "../scripts/check_external_files.R",
+        script = os.path.join("workflow", "scripts", "check_external_files.R"),
     output: os.path.join(check_path, "external-files.chk")
     threads: 1
     resources:
         runtime = "30m",
         mem_mb = 8192,
-    log: os.path.join(log_path, "checks", "check_external_files.log")
+    log: os.path.join(log_path, "initial_checks", "check_external_files.log")
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/check_external_files.R"

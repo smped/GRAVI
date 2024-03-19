@@ -1,7 +1,3 @@
----
-title: "Annotations"
-date: "`r format(Sys.Date(), '%d %B, %Y')`"
----
 
 ```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
 ```
@@ -33,25 +29,18 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 source(here::here("workflow", "scripts", "custom_functions.R"))
-annotation_path <- here::here("output", "annotations")
-grey_path <- here::here("output", "greylist")
-all_out <- list(
-  chrom_sizes = file.path(annotation_path, "chrom.sizes"),
-  gene_regions = file.path(annotation_path, "gene_regions.rds"),
-  gtf_gene = file.path(annotation_path, "gtf_gene.rds"),
-  gtf_transcript = file.path(annotation_path, "gtf_transcript.rds"),
-  gtf_exon = file.path(annotation_path, "gtf_exon.rds"),
-  motifs = file.path(annotation_path, "motif_list.rds"),
-  seqinfo = file.path(annotation_path, "seqinfo.rds"),
-  transcript_models = file.path(annotation_path, "trans_models.rds"),
-  tss = file.path(annotation_path, "tss.rds"),
-  colours = file.path(annotation_path, "colours.rds")
-)
+annotation_path <- here::here(params$annotation_path)
+grey_path <- here::here(params$grey_path)
+all_out <- params[!grepl("path", names(params))] %>%
+  lapply(here::here)
 ```
 
 ```{r config}
 config <- read_yaml(here::here("config", "config.yml"))
-params <- read_yaml(here::here("config", "params.yml"))
+region_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("gene_regions")
+motif_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("motifdb")
 colours <- read_yaml(here::here("config", "colours.yml"))
 treat_levels <- config$comparisons$contrasts %>% 
   unlist() %>% 
@@ -90,8 +79,8 @@ This `Seqinfo` object is added to all subsequent objects requiring information a
 
 ## Blacklisted Regions {.tabset}
 
-Blacklisted regions were supplied in the file `rconfig$external$blacklist`.
-In addition, grey-listed regions were derived from all the input samples, `r pander(unique(samples$input))`
+Blacklisted regions were supplied in `r pander(unname(unlist(config$external$blacklist)))`.
+In addition, grey-listed regions were derived from all the input sample(s), `r pander(unique(samples$input))`
 
 ```{r blacklist}
 ip <- unique(samples$input)
@@ -199,12 +188,12 @@ region_cols <- unlist(colours$regions) %>%
 Using the provided GTF, **unique** gene and transcript-centric features were also defined using `defineRegions()`, and will be treated as annotated regions throughout the workflow.
 The regions are:
 
-1. Promoters (-`r params$gene_regions$promoters$upstream`/+`r params$gene_regions$promoters$downstream`bp)
-2. Upstream Promoters (> `r params$gene_regions$promoters$upstream`bp; < `r params$gene_regions$upstream`bp)
+1. Promoters (-`r region_params$promoters$upstream`/+`r region_params$promoters$downstream`bp)
+2. Upstream Promoters (> `r region_params$promoters$upstream`bp; < `r region_params$upstream`bp)
 3. Exons
 4. Introns
-5. Intergenic regions within `r params$gene_regions$intergenic/1e3`kb of a gene
-6. Intergenic regions >`r params$gene_regions$intergenic/1e3`kb from any defined genes
+5. Intergenic regions within `r region_params$intergenic/1e3`kb of a gene
+6. Intergenic regions >`r region_params$intergenic/1e3`kb from any defined genes
 
 Colours were also defined for each of these regions for consistent visualisation.
 
@@ -404,16 +393,16 @@ df %>%
 # Transcription Factor Motifs 
 
 ```{r tf-db}
-tf_db <- read_rds(all_out$motifs) %>% 
+tf_db <- read_rds(all_out$motif_list) %>% 
   to_df() %>% 
   as_tibble() %>% 
   mutate(cluster = fct_infreq(cluster))
 top3 <- levels(tf_db$cluster)[1:3]
 ```
 
-Transcription factor binding motifs (TFBMs) were prepared from `r pander(params$motifdb$data_source)` with `r nrow(tf_db)` motifs prepared for downstream analysis.
+Transcription factor binding motifs (TFBMs) were prepared from `r pander(motif_params$data_source)` with `r nrow(tf_db)` motifs prepared for downstream analysis.
 Whilst *all motifs will be retained for testing*, highly similar motifs were clustered to enable easier reporting and interpretation.
-Pairwise correlations between motifs were found during preparation and those where $\rho \geq$ `r params$motifdb$cluster_above` were clustered, giving a final set of `r max(as.integer(tf_db$cluster))` clusters.
+Pairwise correlations between motifs were found during preparation and those where $\rho \geq$ `r motif_params$cluster_above` were clustered, giving a final set of `r max(as.integer(tf_db$cluster))` clusters.
 `r sum(table(tf_db$cluster) == 1)` TFBMs remained un-clustered.
 The largest groups of clustered motifs contains:
 

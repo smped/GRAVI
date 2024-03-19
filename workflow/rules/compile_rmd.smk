@@ -1,59 +1,3 @@
-rule create_site_yaml:
-    input:
-        here = rules.check_here_file.output,
-        packages = rules.check_r_packages.output,
-        script = os.path.join("workflow", "scripts", "create_site_yaml.R"),
-        yml = "config/rmarkdown.yml",
-    output:
-        yml = os.path.join(rmd_path, "_site.yml")
-    log: os.path.join(log_path, "scripts", "create_site_yaml.log")
-    params:
-        targets = targets,
-        diff_sig = diff_sig_param,
-        pairs = pairs,
-    threads: 1
-    localrule: True
-    resources:
-        mem_mb = 1024,
-        runtime = "5m",
-    conda: "../envs/rmarkdown.yml"
-    script:
-        "../scripts/create_site_yaml.R"
-
-rule create_setup_chunk:
-    input:
-        here = rules.check_here_file.output,
-        packages = rules.check_r_packages.output,
-        yml = "config/rmarkdown.yml",
-    output:
-        rmd = "analysis/setup_chunk.Rmd"
-    log: os.path.join(log_path, "scripts", "create_setup_chunk.log")
-    threads: 1
-    localrule: True
-    resources:
-        mem_mb = 1024,
-        runtime = "5m",
-    conda: "../envs/rmarkdown.yml"
-    script:
-        "../scripts/create_setup_chunk.R"
-
-rule create_index_rmd:
-    input:
-        here = rules.check_here_file.output,
-        packages = rules.check_r_packages.output,
-        rmd = os.path.join("workflow", "modules", "index.Rmd"),
-    output:
-        os.path.join(rmd_path, "index.Rmd")
-    threads: 1
-    localrule: True
-    resources:
-        mem_mb = 512,
-        runtime = "2m",
-    shell:
-        """
-        cat {input.rmd} > {output}
-        """
-
 rule compile_index_html:
     input:
         html = HTML_OUT,
@@ -68,28 +12,39 @@ rule compile_index_html:
     resources:
         mem_mb = 1024,
         runtime = "5m",
-    log: os.path.join(log_path, "rmarkdown/compile_index_html.log")
+    log: os.path.join(log_path, "compile_rmd", "compile_index_html.log")
     shell:
         """
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
         """
 
-rule create_macs2_summary_rmd:
+rule compile_annotations_html:
     input:
-        here = rules.check_here_file.output,
-        packages = rules.check_r_packages.output,
-        module = "workflow/modules/macs2_summary.Rmd",
+        checks = ALL_CHECKS,
+        greylist = expand(
+            os.path.join(grey_path, "{f}_greylist.bed.gz"),
+            f = set(df['input'])
+        ),
+        rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
+        setup = rules.create_setup_chunk.output,
+        site_yaml = rules.create_site_yaml.output
     output:
-        rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd")
+        rds = os.path.join(annotation_path, "colours.rds"),
+        html = "docs/annotation_description.html",
+        fig_path = directory(
+            os.path.join("docs", "annotation_description_files", "figure-html")
+        )
     conda: "../envs/rmarkdown.yml"
     threads: 1
-    localrule: True
-    log: os.path.join(log_path, "create_rmd", "create_{target}_macs2_summary.log")
+    log: os.path.join(log_path, "compile_rmd", "compile_annotations_html.log")
     resources:
-        mem_mb = 1024,
-        runtime = "5m",
-    script:
-        "../scripts/create_macs2_summary.R"
+        mem_mb = 4096,
+        disk_mb = 4000,
+        run_time = "10m",
+    shell:
+        """
+        R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
+        """
 
 
 rule compile_macs2_summary_html:
@@ -138,7 +93,7 @@ rule compile_macs2_summary_html:
     resources:
         mem_mb = 16384,
         runtime = "30m",
-    log: os.path.join(log_path, "macs2_summary", "compile_{target}_macs2_summary.log")
+    log: os.path.join(log_path, "compile_rmd", "compile_{target}_macs2_summary.log")
     shell:
         """
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
@@ -181,28 +136,10 @@ rule compile_peak_comparison_rmd:
     resources:
         mem_mb = 16384,
         runtime = "30m",
-    log: os.path.join(log_path, "peak_comparison", "compile_peak_comparison.log")
+    log: os.path.join(log_path, "compile_rmd", "compile_peak_comparison.log")
     shell:
         """
         cp {input.rmd} {output.rmd}
         R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
         """
 
-rule create_differential_signal_rmd:
-	input:
-		chk = ALL_CHECKS,
-		module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
-		r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
-	output:
-		rmd = os.path.join(
-			rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
-		)
-	conda: "../envs/rmarkdown.yml"
-	localrule: True
-	log: os.path.join(log_path, "create_rmd", "{target}_{ref}_{treat}_differential_signal.log")
-	threads: 1
-    resources:
-        mem_mb = 1024,
-        runtime = "5m",
-  script:
-        "../scripts/create_differential_rmd.R"

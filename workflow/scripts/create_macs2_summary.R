@@ -17,37 +17,44 @@ cat_list <- function(x, slot = NULL, sep = "\n\t"){
         )
     )
 }
+cat_time <- function(...){
+  tm <- format(Sys.time(), "%Y-%b-%d %H:%M:%S\t")
+  cat(tm, ..., "\n")
+}
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
 all_wildcards <- slot(snakemake, "wildcards")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
 
-cat_list(all_wildcards, "wildcards", ":")
 cat_list(all_input, "input")
 cat_list(all_output, "output")
+cat_list(all_wildcards, "wildcards:", "-")
+cat_list(all_params, "params:", "-")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
-cat("Loading packages...\n")
+cat_time("Loading packages...\n")
 library(glue)
-
-target <- all_wildcards$target
 
 ln <- glue(
 	"
 	---
-	title: '{{target}}: MACS2 Summary'
+	title: '{{all_wildcards$target}}: MACS2 Summary'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	bibliography: references.bib
 	link-citations: true
 	params:
-	    target: \"{{target}}\"
+	  annotation_path: \"{{all_params$annotation_path}}\"
+	  macs2_path: \"{{all_params$macs2_path}}\"
+	  peak_path: \"{{all_params$peak_path}}\"
+	  target: \"{{all_wildcards$target}}\"
 	---
 
 	",
@@ -56,9 +63,9 @@ ln <- glue(
 )
 readr::write_lines(ln, all_output$rmd)
 
-cat("Written YAML header\nAppending Module\n")
+cat_time("Written YAML header\nAppending Module\n")
 
 ## Now add the rest of the module
 file.append(all_output$rmd, all_input$module)
 
-cat("Done")
+cat_time("Done")
