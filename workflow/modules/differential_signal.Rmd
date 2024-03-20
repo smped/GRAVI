@@ -990,9 +990,15 @@ div(class = "table",
 ### Summary Plots {.tabset}
 
 ```{r make-heatmaps}
+bw_type <- match.arg(heat_params$bw_type, c("FE", "coverage"))
+fill_type <- c(coverage = "logCPM", FE = "Fold-Enrichment")[bw_type]
 bwfl <- file.path(
   all_paths$macs2, target,
-  glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+  ifelse(
+      bw_type == "coverage",
+      glue("{target}_{treat_levels}_merged_treat_pileup.bw"),
+      glue("{target}_{treat_levels}_merged_FE.bw")
+  )
 ) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
@@ -1016,19 +1022,19 @@ for (i in names(sig_profiles)) {
     temp_gr <- temp_gr[sort(sample.int(n, heat_params$max_ranges))]
   sig_profiles[[i]] <- getProfileData(
     bwfl, temp_gr, upstream = heat_params$width / 2, 
-    bins = heat_params$n_bins, BPPARAM = bpparam()
+    log = bw_type == "coverage", bins = heat_params$n_bins, 
+    BPPARAM = bpparam()
   )
   rm(temp_gr)
 }
 profile_heatmaps <- list()
+
 if (length(sig_profiles) > 0) {
   profile_heatmaps <- sig_profiles %>% 
     parallel::mclapply(
       plotProfileHeatmap,
-      profileCol = "profile_data", 
-      colour = "name",
-      xLab = "Distance from Centre (kb)",
-      fillLab = "logCPM",
+      profileCol = "profile_data", colour = "name",
+      xLab = "Distance from Centre (kb)", fillLab = fill_type,
       labelFunX = comma_format(accuracy = 0.1, scale = 1e-3),
       mc.cores = max(1, length(sig_profiles))
     ) 
@@ -1045,17 +1051,16 @@ if (length(sig_profiles) > 0) {
       \(x) {
         suppressWarnings(
           x + 
-            scale_fill_gradientn(colours = colours$heatmaps, limits = fill_range) +
+            scale_fill_gradientn(
+                colours = heat_params$gradient, limits = fill_range
+            ) +
             scale_xsidey_continuous(limits = sidey_range) +
             scale_colour_manual(values = treat_colours) +
             labs(
               x = "Distance from Centre (kb)",
-              fill = "logCPM", 
-              colour = "Treat"
+              fill = fill_type, colour = "Treat"
             ) +
-            theme(
-              strip.text.y = element_text(angle = 0)
-            )
+            theme(strip.text.y = element_text(angle = 0))
         )
       }
     )
@@ -1095,9 +1100,7 @@ results %>%
     show.legend = FALSE
   ) +
   scale_colour_manual(values = direction_colours) +
-  labs(
-    x = "Ave Signal (logCPM)", colour = "Status"
-  ) 
+  labs(x = "Ave Signal (logCPM)", colour = "Status") 
 ```
 
 

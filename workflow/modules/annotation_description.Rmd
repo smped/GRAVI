@@ -50,6 +50,7 @@ samples <- here::here(config$samples$file) %>%
     treat = factor(treat, levels = unique(c(treat_levels, treat))),
     target = as.factor(target)
   )
+targets <- unique(samples$target)
 treat_levels <- levels(samples$treat)
 has_external <- length(config$external$coverage) > 0
 if (has_external) {
@@ -694,13 +695,30 @@ if (length(missing_dir_cols) > 0) {
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
 
-## Heatmap gradients
-if (length(colours$heatmaps) < 2) {
-  colours$heatmaps <- unique(c(colours$heatmaps,  c("white", "red")))
+all_heat_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("profile_heatmaps")
+heat_cols <- targets %>% 
+  lapply(\(x) all_heat_params$default$gradient) %>% 
+  setNames(targets)
+for (i in targets) {
+  if ("gradient" %in% names(all_heat_params[[i]])) {
+    heat_cols[[i]] <- all_heat_params[[i]]$gradient
+  }
 }
 
+target_cols <- map_chr(heat_cols, \(x) x[length(x)])
+if (any(duplicated(target_cols))) {
+  target_cols <- target_cols[!duplicated(target_cols)]
+  missing_tgt_cols <- setdiff(targets, names(target_cols))
+  n <- min(length(missing_tgt_cols), 9)
+  pal <- RColorBrewer::brewer.pal(9, "Set1")[seq_len(n)]
+  new_cols <- colorRampPalette(pal)(length(missing_tgt_cols))
+  names(new_cols) <- missing_tgt_cols
+  target_cols <- c(target_cols, new_cols)
+}
+colours$target <- target_cols
 
-write_rds(colours, all_out$colours, compress = "gz")
 ```
 
 
@@ -746,15 +764,30 @@ knitr::opts_chunk$set(dev = "png")
 
 ## Heatmap Gradient
 
-```{r plot-gradient, fig.height=3, fig.width=8}
-colorRampPalette(colours$heatmaps)(11) %>% 
-  setNames(percent(seq(0, 1, length.out = 11))) %>% 
-  as.list() %>% 
-  .plotScheme(xlab = "% Of Signal")
+```{r plot-gradient, fig.height=5, fig.width=8}
+heat_cols %>% 
+  lapply(\(x) colorRampPalette(x)(11)) %>% 
+  as_tibble() %>% 
+  mutate(
+    x = seq(0, 1, by = 0.1) %>% percent() %>% fct_inorder()
+  ) %>% 
+  pivot_longer(
+    cols = all_of(targets), names_to = "target", values_to = "colour"
+  ) %>% 
+  ggplot(aes(x, target, fill = I(colour))) +
+  geom_tile() +
+  scale_x_discrete(expand = rep_len(0, 4), name = "% Of Maximal Signal") +
+  scale_y_discrete(expand = rep_len(0, 4), name = "Target") +
+  theme_minimal() 
 ```
 
 
 # Data Export
+
+```{r export}
+write_rds(colours, all_out$colours, compress = "gz")
+```
+
 
 During setup of all required annotations, the following files were exported:
 

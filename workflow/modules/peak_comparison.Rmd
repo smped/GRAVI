@@ -103,9 +103,6 @@ region_colours <- c(colours$regions, colours$features) %>%
       TRUE ~ names(.)
     )
   )
-target_colours <- RColorBrewer::brewer.pal(n_targets , "Set1") %>% 
-  setNames(targets) %>% 
-  c(Shared = "black")
 ## For regioneR analysis
 heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
@@ -147,7 +144,7 @@ This ensures any individual targets with broader peaks do not lead to unrealisti
 ```{r plot-overlaps, fig.width = ifelse(n_targets > 2, fh, fw), fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
 plotType <- ifelse(n_targets > 2, "upset", "venn")
 plotOverlaps(
-  consensus_peaks, type = plotType, set_col = target_colours, exp_sets = 0.3
+  consensus_peaks, type = plotType, set_col = colours$target, exp_sets = 0.3
 )
 ```
 
@@ -167,7 +164,7 @@ consensus_peaks %>%
       mutate(label = comma(n), width = min(width)),
     fill = "white", alpha = 0.7
   ) +
-  scale_fill_manual(values = target_colours) +
+  scale_fill_manual(values = colours$target) +
   scale_y_log10(labels = comma, name = "Peak Width") +
   labs(x = "Target", fill = "Target")
 ```
@@ -195,7 +192,7 @@ A <- df %>%
   ggplot(aes(d / 1e3, colour = target)) +
   geom_density() +
   coord_cartesian(xlim = c(-50, 50)) +
-  scale_colour_manual(values = target_colours) +
+  scale_colour_manual(values = colours$target) +
   labs(
     x = "Distance To Nearest TSS (kb)",
     y = "Density"
@@ -213,7 +210,7 @@ B <- df %>%
     x = "Absolute Distance to Nearest TSS (kb)",
     y = "Percentile", colour = "Target"
   ) +
-  scale_colour_manual(values = target_colours) +
+  scale_colour_manual(values = colours$target) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
   scale_x_continuous(breaks = seq(0, 100, by = 20))
 A + B + plot_annotation(tag_levels = "A")
@@ -887,7 +884,7 @@ dist_df %>%
     labels = \(x) x * 1e-3, name = "Shift (kb)"
   ) +
   scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  scale_colour_manual(values = target_colours)
+  scale_colour_manual(values = colours$target)
 ```
 
 
