@@ -302,10 +302,10 @@ MERGED_BW = expand(
 	path = merged_pre
 )
 ALL_OUTPUTS.extend(MERGED_BW)
-# FE_BW = expand(
-# 	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
-# )
-# ALL_OUTPUTS.extend(FE_BW)
+FE_BW = expand(
+	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
+)
+ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
 	input:
