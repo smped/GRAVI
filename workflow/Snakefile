@@ -9,6 +9,10 @@ import itertools
 import yaml
 import json
 
+## For manual testing...
+# f = "config/config.yml"
+# config = yaml.safe_load(open(f))
+
 configfile: "config/config.yml"
 
 ## Figure out how to run check_yaml from here if possible
@@ -52,16 +56,30 @@ wildcard_constraints:
 ###############
 ## Key Paths ##
 ###############
-bam_path = config['paths']['bam']
-rmd_path = "analysis"
 annotation_path = os.path.join("output", "annotations")
+bam_path = config['paths']['bam']
 check_path =os.path.join("output", "checks")
 diff_path = os.path.join("output", "differential_signal")
 grey_path = os.path.join("output", "greylist")
 json_path = os.path.join("config", "json")
 macs2_path = os.path.join("output", "macs2")
 peak_path = os.path.join("output", "peak_analysis")
+rmd_path = "analysis"
 log_path = os.path.join("workflow", "logs")
+## Export for easier parsing within each script/Rmd
+all_paths = {
+	'annotation': annotation_path,
+	'bam': bam_path,
+	'diff_signal': diff_path,
+	'greylist': grey_path,
+	'json': json_path,
+	'macs2': macs2_path,
+	'peaks': peak_path,
+	'rmd': rmd_path
+}
+os.makedirs(json_path, exist_ok = True)
+with open(os.path.join(json_path, "all_paths.json"), 'w') as fp:
+	json.dump(all_paths, fp, indent = 4)
 
 
 #######################
@@ -77,7 +95,6 @@ def set_params(config, targets):
 	return(out)
 
 # Dump params to json. Might be handy later
-os.makedirs(json_path, exist_ok = True)
 macs2_param = set_params(config['macs2'], targets)
 with open(os.path.join(json_path, "macs2_param.json"), 'w') as fp:
 	json.dump(macs2_param, fp, indent = 4)

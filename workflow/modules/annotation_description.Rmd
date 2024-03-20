@@ -29,14 +29,13 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 source(here::here("workflow", "scripts", "custom_functions.R"))
-annotation_path <- here::here(params$annotation_path)
-grey_path <- here::here(params$grey_path)
-all_out <- params[!grepl("path", names(params))] %>%
-  lapply(here::here)
+config <- read_yaml(here::here("config", "config.yml"))
+all_paths <- here::here("config", "json", "all_paths.json") %>% 
+    jsonlite::fromJSON()
+all_out <- lapply(params, here::here)
 ```
 
 ```{r config}
-config <- read_yaml(here::here("config", "config.yml"))
 region_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("gene_regions")
 motif_params <- read_yaml(here::here("config", "params.yml")) %>%
@@ -88,7 +87,7 @@ bl <- unlist(config$external$blacklist)
 exclude_ranges <- bl %>% 
   here::here() %>% 
   c(
-    file.path(grey_path, glue("{ip}_greylist.bed.gz"))
+    here::here(all_paths$greylist, glue("{ip}_greylist.bed.gz"))
   ) %>% 
   importPeaks(type = "bed", seqinfo = sq) %>% 
   setNames(c(basename(bl), ip))
@@ -455,7 +454,7 @@ tf_db %>%
 # External Features
 
 ```{r external-features}
-external_features <- file.path(annotation_path, "features.rds") %>% 
+external_features <- here::here(all_paths$annotation, "features.rds") %>% 
   read_rds()
 has_features <- length(external_features) > 0
 ```
@@ -619,7 +618,7 @@ hic %>%
 
 `r ifelse(has_hic & has_features, "## Feature Distribution of Interaction Pairs", "")`
 
-```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided in {basename(feat_path)}. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' category*")}
+```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided above. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' category*")}
 feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 
   as.matrix() %>% 
   apply(

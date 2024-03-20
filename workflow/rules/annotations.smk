@@ -23,9 +23,7 @@ rule create_annotations:
         chrom_sizes = chrom_sizes
     conda: "../envs/rmarkdown.yml"
     params:
-        annotation_path = annotation_path,
         colours = os.path.join(annotation_path, "colours.rds"),
-        grey_path = grey_path,
     threads: 2
     resources:
         mem_mb = 16384,

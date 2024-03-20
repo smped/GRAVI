@@ -38,6 +38,9 @@ panderOptions("big.mark", ",")
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 config <- here::here("config", "config.yml") %>% read_yaml()
+all_paths <- here::here("config", "json", "all_paths.json") %>% 
+    jsonlite::fromJSON() %>% 
+    lapply(here::here)
 threads <- detectCores() - 1
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
@@ -62,9 +65,7 @@ targets <- here::here(config$samples) %>%
   read_tsv() %>% 
   pull("target") %>% 
   unique()
-macs2_path <- here::here("output", "macs2")
-peak_path <- here::here("output", "peak_analysis")
-samples <- file.path(macs2_path, "{targets}", "{targets}_qc_samples.tsv") %>% 
+samples <- file.path(all_paths$macs2, "{targets}", "{targets}_qc_samples.tsv") %>% 
   glue() %>% 
   lapply(read_tsv) %>% 
   bind_rows() %>% 
@@ -75,17 +76,16 @@ n_targets <- length(targets)
 ```
 
 ```{r annotations}
-annotation_path <- here::here("output", "annotations")
-sq <- file.path(annotation_path, "seqinfo.rds") %>% 
+sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% 
   read_rds()
-gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
+gtf_gene <- read_rds(file.path(all_paths$annotation, "gtf_gene.rds"))
 id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
-tss <- read_rds(file.path(annotation_path, "tss.rds"))
+tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## Gene Regions
-gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
+gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
 regions <- map_chr(gene_regions, \(x) unique(x$region)[[1]])
 ## External features
-external_features <- read_rds(file.path(annotation_path, "features.rds"))
+external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
 has_features <- length(external_features) > 0
 ## Combine features & regions for testing
 all_regions <- c(gene_regions, external_features) %>% 
@@ -94,7 +94,7 @@ all_regions_labs <- c(
   map_chr(gene_regions, \(x) x$region[[1]]),
   map_chr(external_features, \(x) x$feature[[1]])
 )
-colours <- file.path(annotation_path, "colours.rds") %>% 
+colours <- file.path(all_paths$annotation, "colours.rds") %>% 
   read_rds()
 region_colours <- c(colours$regions, colours$features) %>%
   setNames(
@@ -124,13 +124,13 @@ Comparisons were performed in a treatment-agnostic manner, using the sets of con
 ## Peak Comparisons {.tabset}
 
 ```{r load-peaks}
-consensus_peaks <- peak_path %>% 
+consensus_peaks <- all_paths$peaks %>% 
   file.path("{targets}", "{targets}_consensus_peaks.bed.gz") %>% 
   glue() %>% 
   importPeaks(seqinfo = sq, type = "bed") %>% 
   setNames(str_remove(names(.), "_consensus.+"))
 ## NB: for n = 2, this will be the union peaks
-shared_peaks <- file.path(peak_path, "shared", "shared_consensus_peaks.bed.gz") %>% 
+shared_peaks <- file.path(all_paths$peaks, "shared", "shared_consensus_peaks.bed.gz") %>% 
   importPeaks(seqinfo = sq, type = "bed") %>% 
   setNames(str_remove(names(.), "_consensus.+")) %>% 
   unlist() %>% 
@@ -668,10 +668,10 @@ if (length(tg_great_targets) >= network_params$min_size) {
 
 ```{r load-regioner}
 localz_regions <- here::here(
-  peak_path, "{targets}", "{targets}_regions_localz.rds"
+  all_paths$peaks, "{targets}", "{targets}_regions_localz.rds"
 ) %>% 
   glue() %>%
-  c(here::here(peak_path, "shared", "shared_regions_localz.rds")) %>% 
+  c(here::here(all_paths$peaks, "shared", "shared_regions_localz.rds")) %>% 
   setNames(c(targets, "shared")) %>% 
   lapply(read_rds)
 localz_df <- localz_regions %>%
@@ -832,7 +832,7 @@ if (interactive()) {
 ### Comparison Between Peaks {.tabset}
 
 ```{r load-localz-peaks}
-mlz_list <- here::here(peak_path, "shared", "shared_targets_localz.rds") %>% 
+mlz_list <- here::here(all_paths$peaks, "shared", "shared_targets_localz.rds") %>% 
   read_rds
 dist_df <- mlz_list %>% 
   lapply(
@@ -1000,18 +1000,18 @@ fw_peaks <- resize(
 genome(fw_peaks) <- ucsc$build
 fw_seq <- getSeq(bs_genome, fw_peaks)
 motif_adj <- match.arg(motif_params$adj, p.adjust.methods)
-motif_list <- file.path(annotation_path, "motif_list.rds") %>% 
+motif_list <- file.path(all_paths$annotation, "motif_list.rds") %>% 
   read_rds() %>% 
   to_df %>% 
   as_tibble()
-motif_uri <- file.path(annotation_path, "motif_uri.rds") %>% 
+motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
   read_rds()   
-pos_res <- here::here(peak_path, "shared", "shared_motif_position.tsv.gz") %>% 
+pos_res <- here::here(all_paths$peaks, "shared", "shared_motif_position.tsv.gz") %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_pos <- sum(pos_res$adj_p < motif_params$alpha)
-enrich_res <-  here::here(peak_path, "shared", "shared_motif_enrichment.tsv.gz") %>% 
+enrich_res <-  here::here(all_paths$peaks, "shared", "shared_motif_enrichment.tsv.gz") %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
@@ -1370,9 +1370,6 @@ motif_list %>%
     binwidth = motif_params$binwidth 
   ) + labs(x = "Bin", fill = "Total\n Matches")
 ```
-
-
-
 
 
 ## Data Export 

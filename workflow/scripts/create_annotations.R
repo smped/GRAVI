@@ -69,6 +69,7 @@ params <- read_yaml(all_input$yaml)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
 
+
 #### Seqinfo ####
 sq <- all_input$bam %>%
   BamFileList() %>%
@@ -229,8 +230,6 @@ db |>
 cat_time("done\n")
 
 cat_time("Creating IC Matrix Thumbnails as uri strings")
-# img_path <- here::here("docs", "assets", "motifs")
-# if (!dir.exists(img_path)) dir.create(img_path, recursive = TRUE)
 img_path <- tempdir()
 cat_time("Writing motifs to", img_path)
 motif_uri <- db |>
@@ -280,8 +279,6 @@ ln <- glue(
 	bibliography: references.bib
 	link-citations: true
 	params:
-	  annotation_path: \"{{all_params$annotation_path}}\"
-	  grey_path: \"{{all_params$grey_path}}\"
 	  chrom_sizes: \"{{all_output$chrom_sizes}}\"
 	  colours: \"{{all_params$colours}}\"
 	  features: \"{{all_output$features}}\"

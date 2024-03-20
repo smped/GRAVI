@@ -4,9 +4,6 @@
 
 ```{r get-params}
 target <- params$target
-annotation_path <- here::here(params$annotation_path)
-macs2_path <- here::here(params$macs2_path)
-peak_path <- here::here(params$peak_path)
 threads <- parallel::detectCores() - 1
 ```
 
@@ -54,7 +51,9 @@ register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
-bam_path <- here::here(config$paths$bam)
+all_paths <- here::here("config", "json", "all_paths.json") %>% 
+    jsonlite::fromJSON() %>% 
+    lapply(here::here)
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
 library(bs_pkg, character.only = TRUE)
@@ -81,7 +80,7 @@ knitr_params <- here::here("config", "rmarkdown.yml") %>%
 ```
 
 ```{r read-samples}
-samples <- macs2_path %>%
+samples <- all_paths$macs2 %>%
   file.path(target, glue("{target}_qc_samples.tsv")) %>%
   read_tsv()
 treat_levels <- unique(samples$treat)
@@ -106,7 +105,7 @@ ip <- unique(samples$input)
 
 ```{r set-colours}
 ## Set the colour palettes
-colours <- file.path(annotation_path, "colours.rds") %>% 
+colours <- file.path(all_paths$annotation, "colours.rds") %>% 
   read_rds() %>% 
   lapply(unlist)
 colours$direction <- c(
@@ -122,16 +121,16 @@ full_palette <- colours %>%
 
 ```{r annotations}
 ## Seqinfo
-sq <- read_rds(file.path(annotation_path, "seqinfo.rds"))
+sq <- read_rds(file.path(all_paths$annotation, "seqinfo.rds"))
 ## Gene Annotations
-gtf_gene <- read_rds(file.path(annotation_path, "gtf_gene.rds"))
-gtf_transcript <- read_rds(file.path(annotation_path, "gtf_transcript.rds"))
+gtf_gene <- read_rds(file.path(all_paths$annotation, "gtf_gene.rds"))
+gtf_transcript <- read_rds(file.path(all_paths$annotation, "gtf_transcript.rds"))
 id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
 ## Gene Regions
-gene_regions <- read_rds(file.path(annotation_path, "gene_regions.rds"))
+gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 ## External features
-external_features <- read_rds(file.path(annotation_path, "features.rds"))
+external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
 has_features <- length(external_features) > 0
 ## Combine features & regions for testing
 all_regions <- c(gene_regions, external_features) %>% 
@@ -156,7 +155,7 @@ if (length(rna_path) > 0) {
 tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
 rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
 rna_col <- c(tx_col, "gene_id")[[1]]
-tss <- read_rds(file.path(annotation_path, "tss.rds"))
+tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## bands_df
 cb <- config$genome$build %>%
   str_to_lower() %>% 
@@ -180,7 +179,7 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 ```
 
 ```{r bfl}
-bfl <- bam_path %>%
+bfl <- all_paths$bam %>%
   file.path(glue("{samples$sample}.bam")) %>%
   BamFileList() %>%
   setNames(samples$sample)
@@ -188,7 +187,7 @@ bfl <- bam_path %>%
 
 ```{r load-peaks}
 individual_peaks <- file.path(
-  macs2_path, samples$sample, glue("{samples$sample}_peaks.narrowPeak")
+  all_paths$macs2, samples$sample, glue("{samples$sample}_peaks.narrowPeak")
 ) %>%
   importPeaks(seqinfo = sq) %>%
   endoapply(names_to_column, var = "sample") %>% 
@@ -198,16 +197,16 @@ individual_peaks <- file.path(
     treat = left_join(tibble(sample = sample), samples, by = "sample")$treat
   ) %>% 
   setNames(samples$sample)
-merged_peaks <- macs2_path %>% 
+merged_peaks <- all_paths$macs2 %>% 
   file.path(target, glue("{target}_{treat_levels}_merged_peaks.narrowPeak")) %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
-filtered_peaks <- peak_path %>% 
+filtered_peaks <- all_paths$peaks %>% 
   file.path("{target}_{treat_levels}_filtered_peaks.narrowPeak") %>% 
   glue() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
-consensus_peaks <- peak_path %>% 
+consensus_peaks <- all_paths$peaks %>% 
   file.path("{target}_consensus_peaks.bed.gz") %>% 
   glue() %>% 
   importPeaks(type = "bed", seqinfo = sq, setNames = FALSE) %>% 
@@ -228,7 +227,7 @@ if (has_features) {
 
 
 ```{r macs2-logs}
-macs2_logs <- macs2_path %>%
+macs2_logs <- all_paths$macs2 %>%
   file.path(samples$sample, glue("{samples$sample}_callpeak.log")  ) %>%
   importNgsLogs() %>%
   dplyr::select(
@@ -385,7 +384,7 @@ samples$sample %>%
 ### Cross Correlations
 
 ```{r plot_correlation, fig.height = 0.75 * fh, fig.cap = glue("*Cross Correlaton between alignments up to 1kb apart. The dashed, grey, vertical line is the fragment length estimated by `macs2 callpeak` for each sample, with labels indicating the approximate point of the highest correlation, as representative of the average fragment length. For speed, only the first 5 chromosomes were used for sample-specific estimates.*")}
-macs2_path %>%
+all_paths$macs2 %>%
   file.path(target, glue("{target}_cross_correlations.tsv")) %>% 
   read_tsv() %>% 
   left_join(samples, by = "sample") %>% 
@@ -959,7 +958,7 @@ for (i in treat_levels) {
 ```{r prepare-plot-objects}
 ## The coverage
 bwfl <- list2(
-  "{target}" := macs2_path %>%
+  "{target}" := all_paths$macs2 %>%
     file.path(target, glue("{target}_{treat_levels}_merged_treat_pileup.bw")) %>% 
     BigWigFileList() %>% 
     setNames(treat_levels)
@@ -1396,7 +1395,7 @@ plotRegionGeneAssociations(great_res, top_id, which = 2:3)
 
 ```{r load-localz}
 ## This should be run in a separate script with many threads & lots of RAM
-mlz <- peak_path %>% 
+mlz <- all_paths$peaks %>% 
   file.path("{target}_regions_localz.rds") %>% 
   glue() %>% 
   read_rds()
@@ -1518,19 +1517,19 @@ fw_peaks <- resize(
 genome(fw_peaks) <- ucsc$build
 fw_seq <- getSeq(bs_genome, fw_peaks)
 motif_adj <- match.arg(motif_params$adj, p.adjust.methods)
-motif_list <- file.path(annotation_path, "motif_list.rds") %>% 
+motif_list <- file.path(all_paths$annotation, "motif_list.rds") %>% 
   read_rds() %>% 
   to_df %>% 
   as_tibble()
-motif_uri <- file.path(annotation_path, "motif_uri.rds") %>% 
+motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
   read_rds()
-pos_res <- file.path(peak_path, "{target}_motif_position.tsv.gz") %>% 
+pos_res <- file.path(all_paths$peaks, "{target}_motif_position.tsv.gz") %>% 
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_pos <- sum(pos_res$adj_p < motif_params$alpha)
-enrich_res <- peak_path %>% 
+enrich_res <- all_paths$peaks %>% 
   file.path("{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 

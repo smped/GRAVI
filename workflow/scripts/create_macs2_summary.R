@@ -51,9 +51,6 @@ ln <- glue(
 	bibliography: references.bib
 	link-citations: true
 	params:
-	  annotation_path: \"{{all_params$annotation_path}}\"
-	  macs2_path: \"{{all_params$macs2_path}}\"
-	  peak_path: \"{{all_params$peak_path}}\"
 	  target: \"{{all_wildcards$target}}\"
 	---
 
