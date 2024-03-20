@@ -29,12 +29,10 @@ sink(log, split = TRUE)
 all_wildcards <- slot(snakemake, "wildcards")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
-all_params <- slot(snakemake, "params")
 
 cat_list(all_input, "input")
 cat_list(all_output, "output")
 cat_list(all_wildcards, "wildcards:", "-")
-cat_list(all_params, "params:", "-")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)

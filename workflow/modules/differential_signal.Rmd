@@ -73,6 +73,9 @@ threads <- parallel::detectCores() - 1
 # register(MulticoreParam(workers = threads))
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "table_funs.R"))
+all_paths <- here::here("config", "json", "all_paths.json") %>% 
+    jsonlite::fromJSON() %>% 
+    lapply(here::here)
 ```
 
 ```{r set_params, echo = FALSE, eval=TRUE}
@@ -102,8 +105,7 @@ if (win_type == "fixed" & norm == "sq") stop(
 
 ```{r load-config}
 config <- read_yaml(here::here("config", "config.yml"))
-macs2_path <- here::here("output", "macs2", target)
-samples <- file.path(macs2_path, glue("{target}_qc_samples.tsv")) %>% 
+samples <- file.path(all_paths$macs2, glue("{target}_qc_samples.tsv")) %>% 
   read_tsv() %>% 
   dplyr::filter(treat %in% treat_levels, qc == "pass") %>% 
   mutate(treat = factor(treat, levels = treat_levels)) %>% 
@@ -113,10 +115,8 @@ stopifnot(length(levels(samples$treat)) == 2)
 
 
 ```{r load-annotations}
-annotation_path <- here::here("output", "annotations")
-stopifnot(dir.exists(annotation_path))
-sq <- file.path(annotation_path, "seqinfo.rds") %>% read_rds()
-blacklist <- here::here(annotation_path, "blacklist.rds") %>% 
+sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% read_rds()
+blacklist <- here::here(all_paths$annotation, "blacklist.rds") %>% 
   read_rds()
 grey_path <- here::here("output", "greylist")
 greylist <- GRanges(seqinfo = sq)
@@ -129,13 +129,13 @@ if (length(unique(samples$input))) {
     reduce()
 }
 exclude_gr <- c(blacklist, greylist)
-gtf_gene <- file.path(annotation_path, "gtf_gene.rds") %>% read_rds()
+gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
 
-colours <- read_rds(file.path(annotation_path, "colours.rds")) %>% 
+colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
   lapply(unlist)
 
-external_features <- here::here(annotation_path, "features.rds") %>% 
+external_features <- here::here(all_paths$annotation, "features.rds") %>% 
   read_rds()
 has_features <- length(external_features) > 0
 if (has_features)
@@ -143,7 +143,7 @@ if (has_features)
     colours$features, str_sep_to_title(names(colours$features))
   )
 
-gene_regions <- file.path(annotation_path, "gene_regions.rds") %>% 
+gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
 regions <- map_chr(gene_regions, \(x) unique(x$region))
 region_colours <- setNames(colours$regions, regions[names(colours$regions)])
@@ -980,7 +980,7 @@ div(class = "table",
 profile_width <- ifelse(str_to_lower(target) == "h3k27ac", 1e4, 5e3)
 n_bins <- 100
 bwfl <- file.path(
-  macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+  all_paths$macs2, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
 ) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
@@ -1292,7 +1292,7 @@ bands_df <- get(cb)
 stopifnot(
   colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
 )
-trans_models <- file.path(annotation_path, "trans_models.rds") %>% 
+trans_models <- file.path(all_paths$annotation, "trans_models.rds") %>% 
   read_rds() 
 ```
 
@@ -1328,7 +1328,7 @@ grl_to_plot <- GRangesList(
 ## The coverage
 bwfl <- list2(
   "{target}" := file.path(
-    macs2_path, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+    all_paths$macs2, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
   ) %>% 
     BigWigFileList() %>% 
     setNames(treat_levels)

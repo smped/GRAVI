@@ -70,10 +70,6 @@ rule create_macs2_summary_rmd:
     resources:
         mem_mb = 1024,
         runtime = "5m",
-    params:
-        annotation_path = annotation_path,
-        macs2_path = macs2_path,
-        peak_path = os.path.join(peak_path, "{target}"),
     script:
         "../scripts/create_macs2_summary.R"
 
@@ -86,6 +82,8 @@ rule create_differential_signal_rmd:
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
         )
+    params:
+        diff_sig_params = lambda wildcards: diff_sig_param[wildcards.target]
     conda: "../envs/rmarkdown.yml"
     localrule: True
     log: os.path.join(log_path, "create_rmd", "{target}_{ref}_{treat}_differential_signal.log")

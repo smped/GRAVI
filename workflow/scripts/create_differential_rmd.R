@@ -35,9 +35,11 @@ threads <- slot(snakemake, "threads")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")
 cat_list(all_input, "input", sep = ":")
 cat_list(all_output, "output", sep = ":")
 cat_list(all_wildcards, "wildcards", sep = ":")
+cat_list(all_params, "params")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -51,25 +53,53 @@ cat_time("Setting main arguments")
 target <- all_wildcards$target
 ref <- all_wildcards$ref
 treat <- all_wildcards$treat
+diff_sig_params <- all_params$diff_sig_params
+diff_sig_params <- diff_sig_params %>%
+    .[vapply(., length, integer(1)) > 0] %>%
+    lapply(\(x) ifelse(is.character(x), paste0("\"", x, "\""), x))
 
 cat_time("Writing file header")
+glue_params <- names(diff_sig_params) %>%
+    lapply(
+        \(x) glue("    {x}: {diff_sig_params[[x]]}")
+    ) %>%
+    .[vapply(., length, integer(1)) > 0] %>%
+    c(glue("---\n\n")) %>%
+    glue_collapse(sep = "\n")
 glue(
-	"
+    "
 	---
-	title: '{{target}} Differential Signal: {{treat}} Vs. {{ref}}'
+	title: '{target} Differential Signal: {treat} Vs. {ref}'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	bibliography: references.bib
 	link-citations: true
 	params:
-	    target: \"{{target}}\"
-	    treat_levels: [\"{{ref}}\", \"{{treat}}\"]
-	---
-
-	",
-	.open = "{{",
-	.close = "}}"
+	    treat_levels: [\"{ref}\", \"{treat}\"]"
 ) %>%
-	write_lines(all_output$rmd)
+    c(glue_params) %>%
+    glue_collapse(sep = "\n") %>%
+    write_lines(all_output$rmd)
+
+
+# glue(
+# 	"
+# 	---
+# 	title: '{{target}} Differential Signal: {{treat}} Vs. {{ref}}'
+# 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
+# 	bibliography: references.bib
+# 	link-citations: true
+# 	params:
+# 	    target: \"{{target}}\"
+# 	    treat_levels: [\"{{ref}}\", \"{{treat}}\"]
+# 	    alpha: \"{{diff_sig_params$alpha}}\"
+# 	    fc: \"{{diff_sig_params$fc}}\"
+# 	---
+#
+# 	",
+# 	.open = "{{",
+# 	.close = "}}"
+# ) %>%
+# 	write_lines(all_output$rmd)
 
 cat_time("Adding main body of file")
 ## Now add the rest of the module
