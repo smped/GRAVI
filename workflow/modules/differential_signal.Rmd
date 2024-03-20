@@ -25,10 +25,10 @@
 <!-- 3. Perform DSA -->
 
 ```{r set-params, eval = interactive(), echo = FALSE}
-params <- list(
-  target = "AR", 
-  treat_levels = c("E2", "E2DHT")
-)
+# params <- list(
+#   target = "AR", 
+#   treat_levels = c("E2", "E2DHT")
+# )
 ```
 
 ```{r packages}
@@ -56,7 +56,7 @@ library(msigdbr)
 library(tidygraph)
 library(ggraph)
 library(doParallel)
-# library(BiocParallel)
+library(BiocParallel)
 # library(GenomeInfoDb)
 # library(Rsamtools)
 # library(ngsReports)
@@ -70,9 +70,10 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 threads <- parallel::detectCores() - 1
-# register(MulticoreParam(workers = threads))
+register(MulticoreParam(workers = threads))
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "table_funs.R"))
+config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
     lapply(here::here)
@@ -81,36 +82,46 @@ all_paths <- here::here("config", "json", "all_paths.json") %>%
 ```{r set_params, echo = FALSE, eval=TRUE}
 target <- params$target
 treat_levels <- params$treat_levels
-diff_sig_params <- here::here("config", "json", "differential_signal_param.json") %>% 
-  jsonlite::fromJSON() %>% 
-  pluck(target)
-win_type <- match.arg(diff_sig_params$window_type, c("fixed", "sliding"))
-win_size <- diff_sig_params$window_size
-method <- diff_sig_params$method
+win_type <- match.arg(params$window_type, c("fixed", "sliding"))
+method <- match.arg(params$method, c("qlf", "lt"))
 norm <- match.arg(
-  diff_sig_params$norm,
-  c(eval(formals(calcNormFactors.default)$method), "sq")
+  params$norm, c("none", "TMM", "RLE", "TMMwsp", "upperquartile", "sq")
 )
-pair_col <- diff_sig_params$pair_column ## This may need revision of earlier modules
-fdr_alpha <- diff_sig_params$alpha
-fc <- diff_sig_params$fc
+check_norm <- norm != "none"
+pair_col <- params$pair_column ## This may need revision of earlier modules
+paired_samples <- !is.null(pair_col)
 ihw_method <- match.arg(
-  diff_sig_params$ihw, c("regions", "features", "targets", "none")
+  params$ihw, c("regions", "features", "targets", "none")
 )
 if (win_type == "fixed" & norm == "sq") stop(
   "Smooth Quantile normalisation not permitted on fixed-width windows."
 )
+mapping_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("mapping")
+all_heat_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("profile_heatmaps") 
+heat_params <- all_heat_params$default
+if (target %in% names(all_heat_params)) {
+  nm <- names(all_heat_params[[target]])
+  heat_params[nm] <- all_heat_params[[target]][nm]
+}
 ```
 
 
-```{r load-config}
-config <- read_yaml(here::here("config", "config.yml"))
-samples <- file.path(all_paths$macs2, glue("{target}_qc_samples.tsv")) %>% 
+```{r load-data}
+samples <- file.path(all_paths$macs2, target, glue("{target}_qc_samples.tsv")) %>% 
   read_tsv() %>% 
   dplyr::filter(treat %in% treat_levels, qc == "pass") %>% 
   mutate(treat = factor(treat, levels = treat_levels)) %>% 
   droplevels()
 stopifnot(length(levels(samples$treat)) == 2)
+counts <- here::here(params$counts) %>% 
+  read_rds() %>% 
+  .[,samples$sample]
+assay_name <- c(qlf = "counts", lt = "logCPM")[method]
+n_max <- min(5e5, nrow(counts))
 ```
 
 
@@ -118,12 +129,11 @@ stopifnot(length(levels(samples$treat)) == 2)
 sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% read_rds()
 blacklist <- here::here(all_paths$annotation, "blacklist.rds") %>% 
   read_rds()
-grey_path <- here::here("output", "greylist")
 greylist <- GRanges(seqinfo = sq)
 if (length(unique(samples$input))) {
-  greylist <- file.path(grey_path, "{samples$input}_greylist.bed") %>% 
-    unique() %>% 
+  greylist <- file.path(all_paths$greylist, "{samples$input}_greylist.bed.gz") %>% 
     glue() %>% 
+    unique() %>% 
     importPeaks(type = "bed", seqinfo = sq) %>% 
     unlist() %>% 
     reduce()
@@ -267,20 +277,20 @@ norm_ref <- case_when(
   norm %in% c("TMM", "TMMwsp") ~ paste("with", norm, "normalisation [@Robinson2010-qp]", collapse = " "),
   norm == "RLE" ~ "with RLE normalisation [@Anders2010-sd].",
   norm == "upperquartile" ~ "with upperquartile normalisation",
-  TRUE ~ "with only library-size normalisation"
+  TRUE ~ "with library-size normalisation"
 )
 desc_windows <- c(
   sliding = glue(
-    "During counting, sliding windows of {win_size}bp were used with a step-size
+    "During counting, sliding windows of {params$window_size}bp were used with a step-size
     defined to ensure each position is covered by at least 3 windows (e.g. 
-    {ceiling(win_size/3)}bp). After performing the analysis on the set of 
+    {ceiling(params$window_size/3)}bp). After performing the analysis on the set of 
     sliding windows, final results will be obtained by merging nearby windows 
     using the harmonic-mean p-value [@Wilson2019-ln]. Any windows within 
-    {floor(1 + win_size * 2 / 3)}bp of each other are considered as 'nearby' 
+    {floor(1 + params$window_size * 2 / 3)}bp of each other are considered as 'nearby' 
     windows suitable for merging."
   ),
   fixed = glue(
-    "During counting all ranges were set to be {win_size}bp and centred based on
+    "During counting all ranges were set to be {params$window_size}bp and centred based on
     the estimated peaks centres determined by macs2. For downstream reporting of 
     results, the original range called as a 'peak' by macs2 is reported rather 
     than the centred range.
@@ -302,10 +312,10 @@ desc_ihw <- list(
   none = c()
 )[[ihw_method]]
 desc_treat <- ifelse(
-  fc == 1,
+  params$fc == 1,
   "The Null Hypothesis (H~0~) is the conventional H~0~ testing for zero against non-zero (i.e. H~A~) change",
   glue(
-    "The Null Hypothesis (H~0~) is a range-based hypothesis testing for log fold-change beyond the range &#177;{round(log2(fc), 3)}"
+    "The Null Hypothesis (H~0~) is a range-based hypothesis testing for log fold-change beyond the range &#177;{round(log2(params$fc), 3)}"
   )
 )
 ```
@@ -313,7 +323,7 @@ desc_treat <- ifelse(
 
 ## Outline
 
-This step of the GRAVI workflow uses a `r win_type` window approach to differential signal with windows of `r win_size`bp.
+This step of the GRAVI workflow uses a `r win_type` window approach to differential signal with windows of `r params$window_size`bp.
 Counts for all windows were prepared across all `r target` samples as a stand-alone process, with the only samples retained in this analysis being those with counts from `r collapseGenes(treat_levels, last = " or ", format = "")`.
 This process has produced counts for `r comma(nrow(counts))` ranges.
 
@@ -321,7 +331,7 @@ This process has produced counts for `r comma(nrow(counts))` ranges.
 
 Differential signal analysis will be performed using `r unname(desc_method)`.
 `r desc_treat`
-Ranges with an FDR < `r fdr_alpha` will be considered as significant.
+Ranges with an FDR < `r params$alpha` will be considered as significant.
 `r if (paired_samples) "Samples were denoted as being paired"`
 
 `r glue("Independent Hypothesis Weighting (IHW) [@IgnatiadisIHW2016] is additionally used to improve the power of the results. Under this strategy, p-values are partitioned based on {desc_ihw}, which is considered here to be a statistically independent variable.")`
@@ -347,19 +357,9 @@ The workflow depends heavily on the functions implemented in the Bioconductor pa
 
 ## Differential Signal Analysis
 
-```{r load-counts}
-counts <- here::here("output", "counts", "{target}_counts.rds") %>% 
-  glue() %>% 
-  read_rds()
-counts <- counts[, colData(counts)$treat %in% treat_levels]
-stopifnot(ncol(counts) == nrow(samples))
-assay_name <- c(qlf = "counts", lt = "logCPM")[method]
-n_max <- min(5e5, nrow(counts))
-```
+`r if (check_norm) "### Normalisation Checks"`
 
-### Normalisation Checks
-
-```{r qtest}
+```{r qtest, eval = check_norm}
 registerDoParallel(threads)
 qtest <- quantro(assay(counts, "counts"), counts$treat, B = 1e3)
 quantro_p <- c(
@@ -369,23 +369,31 @@ quantro_p <- c(
 if (any(quantro_p < 0.05) & norm != "sq") norm <- "none" 
 ```
 
-```{r desc-quantro, echo = FALSE}
-desc_quantro <- case_when(
-  any(quantro_p < 0.05) & norm == "sq" ~ "These results indicate that the data across treatments is drawn from different distributions and SQ-normalisation may improve the results",
-  any(quantro_p < 0.05) & norm != "none" ~ paste(
-    "These results indicate that the data across treatments is drawn from different distributions and **", norm, "normalisation will be inappropriate**. *The normalisation method has been reset to library-size.*", collapse = ""
-  ),
-  TRUE ~ paste(
-    "All results from the quantro test support the choice of", 
-    ifelse(norm == "none", "library-size", norm), 
-    "normalisation.", collapse = " "
+```{r desc-quantro, echo = FALSE, eval = check_norm}
+desc_quantro <- paste(
+  "Prior to performing analysis, un-normalised logCPM values were tested for",
+  "equality of distribution using the `quantro` test [@HicksQuantro2015].",
+  "Results testing for equality of distribution gave a p-value of",
+  paste0(round(quantro_p[["perm"]], 3), ","), 
+  "and tests for an equality of medians between group returned a p-value of",
+  paste0(round(quantro_p[["anova"]], 3), ".")
+) %>% 
+  c(
+    case_when(
+      any(quantro_p < 0.05) & norm == "sq" ~ "These results indicate that the data across treatments is drawn from different distributions and SQ-normalisation may improve the results",
+      any(quantro_p < 0.05) & norm != "none" ~ paste(
+        "These results indicate that the data across treatments is drawn from different distributions and **", norm, "normalisation will be inappropriate**. *The normalisation method has been reset to library-size.*", collapse = ""
+      ),
+      TRUE ~ paste(
+        "All results from the quantro test support the choice of", 
+        ifelse(norm == "none", "library-size", norm), 
+        "normalisation.", collapse = " "
+      )
+    )
   )
-)
 ```
 
 
-Prior to performing analysis, un-normalised logCPM values were tested for equality of distribution using the `quantro` test [@HicksQuantro2015].
-Results testing for equality of distribution gave a p-value of `r round(quantro_p[["perm"]], 3)`, and tests for an equality of medians between group returned a p-value of `r round(quantro_p[["anova"]], 3)`.
 `r desc_quantro`
 
 
@@ -472,8 +480,16 @@ a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
 
 
 
-```{r plot-rle, eval = norm != "sq", echo = norm != "sq", dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
-counts %>% 
+```{r plot-rle, eval = norm != "sq", echo = norm != "sq", dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated (A) across all samples, and (B) within each treatment group to account for the potentially different signal dynamics of {target} across treatments.*")}
+a <- counts %>% 
+  plotAssayRle(
+    "logCPM", fill = "treat", n_max = n_max, by_x = "label"
+  ) +
+  geom_hline(yintercept = 0) + 
+  facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  scale_fill_manual(values = treat_colours) +
+  labs(x = "Sample", fill = "Treat")
+b <- counts %>% 
   plotAssayRle(
     "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
   ) +
@@ -481,6 +497,8 @@ counts %>%
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
   scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
+a + b + plot_layout(guides = "collect", axis_titles = "collect") + 
+  plot_annotation(tag_levels = "A")
 ```
 
 
@@ -547,24 +565,24 @@ if (!is.null(pair_col) & method == "lt") {
 fit <- fitAssayDiff(
   counts, assay = assay_name, design = X, coef = treat_levels[[2]],
   method = method, norm = ifelse(norm == "sq", "none", norm), 
-  fc = fc, block = block, correlation = paired_cors
+  fc = params$fc, block = block, correlation = paired_cors
 ) 
 pcols <- c("PValue", "p_mu0")
 if (win_type == "sliding") {
   results <- mergeByHMP(
-    fit, pval = pcols, merge_within = floor(1 + 2 * win_size / 3),
+    fit, pval = pcols, merge_within = floor(1 + 2 * params$window_size / 3),
     hm_pre = ""
   ) %>%
     plyranges::select(
       starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
       FDR = PValue_fdr
     ) %>% 
-    addDiffStatus(alpha = fdr_alpha)
+    addDiffStatus(alpha = params$alpha)
 } else {
-  results <- rowRanges(fit) %>% addDiffStatus(alpha = fdr_alpha)
+  results <- rowRanges(fit) %>% addDiffStatus(alpha = params$alpha)
 }
 fdr_column <- "FDR"
-n_sig <- sum(mcols(results)[[fdr_column]] < fdr_alpha)
+n_sig <- sum(results$FDR < params$alpha)
 ```
 
 `r txt`
@@ -608,10 +626,10 @@ results <- results %>%
     prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
     enh = feat_enh,
     gi = hic, 
-    gr2gene = extra_params$mapping$gr2gene,
-    prom2gene = extra_params$mapping$prom2gene,
-    enh2gene = extra_params$mapping$enh2gene,
-    gi2gene = extra_params$mapping$gi2gene
+    gr2gene = mapping_params$gr2gene,
+    prom2gene = mapping_params$prom2gene,
+    enh2gene = mapping_params$enh2gene,
+    gi2gene = mapping_params$gi2gene
   )
 ```
 
@@ -624,10 +642,10 @@ During mapping to genes, promoters were defined as the union of all potential pr
 
 These features were used to map ranges to features using the process defined in the function `extraChIPs::mapByFeature()`:
 
-1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(extra_params$mapping$prom2gene == 0, "directly overlapping", paste("within", extra_params$mapping$prom2gene, "bp of"))` that specific promoter
-2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(extra_params$mapping$enh2gene == 0, "directly overlapping", paste("within", round(extra_params$mapping$enh2gene/1e3, 1), "kb of"))` the enhancer
-3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(extra_params$mapping$gi2gene == 0, "directly overlapping", paste("within", round(extra_params$mapping$gi2gene/1e3, 1), "kb of"))` either end of the interaction
-4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(extra_params$mapping$gr2gene/1e3, 1)`kb
+1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(mapping_params$prom2gene == 0, "directly overlapping", paste("within", mapping_params$prom2gene, "bp of"))` that specific promoter
+2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(mapping_params$enh2gene == 0, "directly overlapping", paste("within", round(mapping_params$enh2gene/1e3, 1), "kb of"))` the enhancer
+3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(mapping_params$gi2gene == 0, "directly overlapping", paste("within", round(mapping_params$gi2gene/1e3, 1), "kb of"))` either end of the interaction
+4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(mapping_params$gr2gene/1e3, 1)`kb
 
 Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3.
 For visualisation purposes, only genes which were considered as detected in any provided RNA-Seq data will be shown as the mapping targets.
@@ -884,12 +902,7 @@ cp <- htmltools::em(
       glue("")
     ),
     "For ranges mapped to large numbers of genes, hovering a mouse over the ", 
-    "cell will reveal the full set of genes. ",
-    ifelse(
-      has_rnaseq,
-      "Only genes considered as detected in the RNA-Seq data are included. ",
-      ""
-    )
+    "cell will reveal the full set of genes. "
   )
 )
 fs <- 12
@@ -951,7 +964,7 @@ tbl <- results %>%
           sprintf(fmt, value)
         },
         style = \(value) {
-          text_colour <- ifelse(value < fdr_alpha, "black", direction_colours[["Unchanged"]])
+          text_colour <- ifelse(value < params$alpha, "black", direction_colours[["Unchanged"]])
           list(color = text_colour, borderRight = "1px solid rgba(0, 0, 0, 0.1)")
         },
         maxWidth = 5.5 * fs
@@ -977,34 +990,33 @@ div(class = "table",
 ### Summary Plots {.tabset}
 
 ```{r make-heatmaps}
-profile_width <- ifelse(str_to_lower(target) == "h3k27ac", 1e4, 5e3)
-n_bins <- 100
 bwfl <- file.path(
-  all_paths$macs2, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+  all_paths$macs2, target,
+  glue("{target}_{treat_levels}_merged_treat_pileup.bw")
 ) %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- results %>% 
-  filter(!!sym(fdr_column) < fdr_alpha) %>%
+  filter(!!sym(fdr_column) < params$alpha) %>%
   splitAsList(f = .$status) %>% 
-  .[map_int(., length) > 0] 
+  .[map_int(., length) > heat_params$min_ranges] 
 if (win_type == "sliding") {
   sig_ranges <- endoapply(sig_ranges, colToRanges, "keyval_range")
 } else {
   sig_ranges <- endoapply(sig_ranges, colToRanges, "centred_peak")
 }
 sig_profiles <- lapply(sig_ranges, as.null)
-heat_max <- 1e4
 for (i in names(sig_profiles)) {
   ## Restrict to 20,000. Plots work poorly above this number.
   ## Randomly sample
   set.seed(threads)
   temp_gr <- granges(sig_ranges[[i]])
   n <- length(temp_gr)
-  if (n > heat_max) temp_gr <- temp_gr[sort(sample.int(n, heat_max))]
+  if (n > heat_params$max_ranges) 
+    temp_gr <- temp_gr[sort(sample.int(n, heat_params$max_ranges))]
   sig_profiles[[i]] <- getProfileData(
-    bwfl, temp_gr, upstream = profile_width / 2, bins = n_bins,
-    BPPARAM = bpparam()
+    bwfl, temp_gr, upstream = heat_params$width / 2, 
+    bins = heat_params$n_bins, BPPARAM = bpparam()
   )
   rm(temp_gr)
 }
@@ -1065,7 +1077,7 @@ results %>%
   geom_label_repel(
     aes(y = logFC, label = annot, colour = status),
     data = . %>%
-      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
+      dplyr::filter(!!sym(fdr_column) < params$alpha) %>% 
       arrange(desc(abs(logFC))) %>% 
       dplyr::slice(1:2, .by = status) %>% 
       mutate(
@@ -1100,7 +1112,7 @@ results %>%
     aes(label = annot, colour = status),
     data = . %>%
       arrange(PValue) %>%
-      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
+      dplyr::filter(!!sym(fdr_column) < params$alpha) %>% 
       droplevels() %>% 
       dplyr::slice(1:2, .by = status) %>% 
       mutate(
@@ -1235,7 +1247,7 @@ results %>%
 
 ```{r plot-db-regions, eval = n_sig > 0, echo = n_sig > 0, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all genomic regions.*")}
 results %>% 
-  dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
+  dplyr::filter(!!sym(fdr_column) < params$alpha) %>%
   as_tibble() %>% 
   dplyr::rename("{target}" := status, Region = region) %>% 
   droplevels() %>% 
@@ -1268,7 +1280,7 @@ results %>%
 
 ```{r plot-db-features, eval = has_features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all external features.*")}
 results %>% 
-  dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
+  dplyr::filter(!!sym(fdr_column) < params$alpha) %>%
   as_tibble() %>% 
   dplyr::rename("{target}" := status, Feature = feature) %>% 
   plotSplitDonut(
@@ -1303,13 +1315,13 @@ trans_models <- file.path(all_paths$annotation, "trans_models.rds") %>%
 grl_to_plot <- GRangesList(
   
   top_inc_by_fdr = results %>% 
-    filter(logFC > 0, !!sym(fdr_column) < fdr_alpha) %>% 
+    filter(logFC > 0, !!sym(fdr_column) < params$alpha) %>% 
     arrange(PValue) %>% 
     .[min(1, length(.))],
   top_inc_by_lfc = filter(results, logFC == max(logFC)),
   
   top_dec_by_fdr = results %>% 
-    filter(logFC < 0, !!sym(fdr_column) < fdr_alpha) %>% 
+    filter(logFC < 0, !!sym(fdr_column) < params$alpha) %>% 
     arrange(PValue) %>% 
     .[min(1, length(.))],
   top_dec_by_lfc = filter(results, logFC == min(logFC))
@@ -1379,13 +1391,13 @@ if (has_rnaseq) {
         status = case_when(
           !gene %in% rnaseq$gene_id ~ "Undetected",
           gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
+            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < params$alpha
           )$gene_id ~ "Up",
           gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
+            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < params$alpha
           )$gene_id ~ "Down",
           gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
+            rnaseq, !!sym(rna_fdr_col) >= params$alpha
           )$gene_id ~ "Unchanged",
         )
       ) %>% 

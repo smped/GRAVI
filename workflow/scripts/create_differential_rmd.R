@@ -74,6 +74,7 @@ glue(
 	bibliography: references.bib
 	link-citations: true
 	params:
+	    counts: \"{all_input$counts}\"
 	    treat_levels: [\"{ref}\", \"{treat}\"]"
 ) %>%
     c(glue_params) %>%

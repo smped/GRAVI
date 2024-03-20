@@ -62,5 +62,18 @@ networks:
   max_distance: 0.9
   layout: 'fr'
 
-
+## For profile heatmaps. These are modified by target only within a Rmd files
+profile_heatmaps:
+  default:
+    bw_type: "FE" # Can be FE or coverage
+    gradient: ['white', 'red'] # This needs to be changed in the annotations!!!
+    min_ranges: 10
+    max_ranges: 5000
+    n_bins: 100
+    width: 1000
+  ER:
+    gradient: ['white', 'red']
+  H3K27ac:
+    gradient: ['white', 'forestgreen']
+    width: 5000
 
