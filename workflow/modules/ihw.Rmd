@@ -152,12 +152,8 @@ results %>%
   scale_x_discrete(labels = label_wrap(25)) +
   scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
   fillScale +
-  labs(
-    x = str_to_title(ihw_method), y = "Total"
-  ) +
-  theme(
-    legend.position = "none"
-  )
+  labs(x = str_to_title(ihw_method), y = "Total") +
+  theme(legend.position = "none")
 ```
 
 
@@ -176,7 +172,7 @@ results %>%
   select(PValue, ihw_covariate) %>% 
   mcols() %>% 
   as_tibble() %>% 
-  ggplot(aes(PValue, stat(density))) +
+  ggplot(aes(PValue, after_stat(density))) +
   geom_histogram(aes(fill = ihw_covariate), colour = "black", bins = 100) +
   geom_text(
     aes(0.8, y, label = lab),
@@ -238,3 +234,4 @@ ihw %>%
   )
 ```
 
+`

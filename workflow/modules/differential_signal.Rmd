@@ -431,106 +431,80 @@ qsmoothPlotWeights(
 
 #### Densities
 
-```{r plot-qsmooth-densities, eval = norm == "sq", echo = norm == "sq", fig.height = 6, fig.cap = "*Distributions for all analysed windows A) showing logCPM values, and B) qsmooth-normalised logCPM values.*"}
+```{r plot-densities, fig.height = 6, fig.cap = "*Distributions of counts for each sample within each treatment group shown (A) before normalisation and (B) after normalisation..*"}
+assays <- c("counts", "logCPM")
+trans <- "log1p"
+xlab <- "Normalised logCPM"
+if (norm == "sq") {
+  assays <- c("logCPM", "qsmooth")
+  trans <- NULL
+  xlab <- "SQ-Normalised logCPM"
+}
 a <- counts %>%
-  plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
+  plotAssayDensities(assays[[1]], colour = "treat", n_max = n_max, trans = trans) +
   scale_colour_manual(values = treat_colours) +
   labs(colour = "Treat")
 b <- counts %>% 
-  plotAssayDensities("qsmooth", colour = "treat", n_max = n_max) +
+  plotAssayDensities(assays[[2]], colour = "treat", n_max = n_max) +
   scale_colour_manual(values = treat_colours) +
-  labs(colour = "Treat")
-a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
-```
-
-
-```{r plot-logcpm-densities, eval = norm != "sq", echo = norm != "sq", fig.height = 6, fig.cap = "*Distributions for all analysed windows A) showing log1p-transformed raw counts, and B) normalised logCPM values. Whilst the scales on the x-axis will not be comparable, the shapes of the distributions will be.*"}
-a <- counts %>%
-  plotAssayDensities("counts", colour = "treat", n_max = n_max, trans = "log1p") +
-  scale_colour_manual(values = treat_colours) +
-  labs(colour = "Treat")
-b <- counts %>% 
-  plotAssayDensities("logCPM", colour = "treat", n_max = n_max) +
-  scale_colour_manual(values = treat_colours) +
-  labs(
-    x = "Normalised logCPM", colour = "Treat"
-  )
-a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
+  labs(x = xlab, colour = "Treat")
+a + b + 
+  plot_layout(guides = "collect", axis_titles = "collect") +
+  plot_annotation(tag_levels = "A")
 ```
 
 #### RLE
 
-```{r plot-qsmooth-rle, eval = norm == "sq", echo = norm == "sq", fig.height = 6, fig.cap = glue("*RLE plot showing logCPM values before and after SQ normalisation. RLE values were calculated within each treatment group to account for the potentially different signal dynamics of {target}.*")}
+
+```{r plot-rle, dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing two perspectives on the data. (A) shows all samples with median values taken across all samples. If any differences are evident between treatment groups, library-size or smooth-quantile normalisation may be the best approaches for normalisation. (B) shows all samples taking median values within treatment groups and potentially highlights any problematic samples within each groups.*")}
+rle_assay <- ifelse(norm == "sq", "qsmooth", "logCPM")
 a <- counts %>% 
   plotAssayRle(
-    "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
+    rle_assay, fill = "treat", n_max = n_max, by_x = "label"
   ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
   scale_fill_manual(values = treat_colours) +
-  labs(x = "Sample", fill = "Treat")
+  ggtitle(glue("RLE: No Grouping")) +
+  labs(x = "Sample", fill = "Treat") 
 b <- counts %>% 
   plotAssayRle(
-    "qsmooth", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
+    rle_assay, fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
   ) +
   geom_hline(yintercept = 0) + 
   facet_grid(.~treat, scales = "free_x", space = "free_x") +
+  ggtitle(glue("RLE: Grouping by Treat")) +
   scale_fill_manual(values = treat_colours) +
   labs(x = "Sample", fill = "Treat")
-a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
-```
-
-
-
-```{r plot-rle, eval = norm != "sq", echo = norm != "sq", dev = 'png', fig.height=6, fig.cap = glue("*RLE plot showing logCPM values. RLE values were calculated (A) across all samples, and (B) within each treatment group to account for the potentially different signal dynamics of {target} across treatments.*")}
-a <- counts %>% 
-  plotAssayRle(
-    "logCPM", fill = "treat", n_max = n_max, by_x = "label"
-  ) +
-  geom_hline(yintercept = 0) + 
-  facet_grid(.~treat, scales = "free_x", space = "free_x") +
-  scale_fill_manual(values = treat_colours) +
-  labs(x = "Sample", fill = "Treat")
-b <- counts %>% 
-  plotAssayRle(
-    "logCPM", fill = "treat", rle_group = "treat", n_max = n_max, by_x = "label"
-  ) +
-  geom_hline(yintercept = 0) + 
-  facet_grid(.~treat, scales = "free_x", space = "free_x") +
-  scale_fill_manual(values = treat_colours) +
-  labs(x = "Sample", fill = "Treat")
-a + b + plot_layout(guides = "collect", axis_titles = "collect") + 
+a + b + 
+  plot_layout(guides = "collect", axis_titles = "collect") + 
   plot_annotation(tag_levels = "A")
 ```
 
 
 #### PCA
 
-```{r plot-qsmooth-pca, eval = norm == "sq", echo = norm == "sq", fig.height = 5, fig.cap = "*PCA plots for logCPM values A) before and B) after SQ normalisation*"}
+```{r plot-qsmooth-pca, fig.width = ifelse(norm == "sq", fw, fh), fig.cap = "*PCA showing the amount of variance attributed to each component*"}
 a <- plotAssayPCA(
   counts, "logCPM", colour = "treat", label = "label", 
   show_points = FALSE
 ) +
   scale_colour_manual(values = treat_colours) +
   guides(colour = "none") +
-  ggtitle("Pre-Normalisation")
-b <- plotAssayPCA(
-  counts, "qsmooth", colour = "treat", label = "label",
-  show_points = FALSE
-) +
-  scale_colour_manual(values = treat_colours) +
-  guides(colour = "none") +
-  ggtitle("Post-Normalisation")
-a + b + plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
-```
-
-```{r plot-pca, eval = norm != "sq", echo = norm != "sq", fig.height = 5, fig.cap = "*PCA plots for logCPM values *"}
-plotAssayPCA(
-  counts, "logCPM", colour = "treat", label = "label", 
-  show_points = FALSE
-) +
-  scale_colour_manual(values = treat_colours) +
-  guides(colour = "none")
+  ggtitle("PCA using logCPM values")
+b <- NULL
+if (norm == "sq") {
+  b <- plotAssayPCA(
+    counts, "qsmooth", colour = "treat", label = "label",
+    show_points = FALSE
+  ) +
+    scale_colour_manual(values = treat_colours) +
+    guides(colour = "none") +
+    ggtitle("PCA after SQ Normalisation")
+  a <- a + b + 
+    plot_layout(guides = "collect") + plot_annotation(tag_levels = "A")
+}
+a
 ```
 
 
@@ -660,6 +634,7 @@ For visualisation purposes, only genes which were considered as detected in any 
 ```{r tbl-setup}
 n_unch <- sum(results$status == "Unchanged")
 n_windows <- length(results)
+type <- ifelse(win_type == "fixed", "Peaks", "Windows")
 tbl_cols <- list(
   Region = colDef(
     footer = htmltools::tags$b("Total"), minWidth = 200
@@ -667,8 +642,8 @@ tbl_cols <- list(
   Feature = colDef(
     footer = htmltools::tags$b("Total"), minWidth = 200
   ),
-  Up = colDef(
-    cell = \(value) comma(value, 1),
+  Increased = colDef(
+    format = comma_col,
     style = \(value) {
       normalized <- value / (n_windows - n_unch)
       color <- up_col(normalized)
@@ -676,8 +651,8 @@ tbl_cols <- list(
     },
     footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
-  Down = colDef(
-    cell = \(value) comma(value, 1),
+  Decreasd = colDef(
+    format = comma_col,
     style = \(value) {
       normalized <- value / (n_windows - n_unch)
       color <- down_col(normalized)
@@ -686,7 +661,7 @@ tbl_cols <- list(
     footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   Ambiguous = colDef(
-    cell = \(value) comma(value, 1),
+    format = comma_col,
     style = \(value) {
       normalized <- value / (n_windows - n_unch)
       color <- unch_col(normalized)
@@ -695,7 +670,7 @@ tbl_cols <- list(
     footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   Unchanged = colDef(
-    cell = \(value) comma(value, 1),
+    format = comma_col,
     style = \(value) {
       normalized <- value / n_windows
       color <- unch_col(normalized)
@@ -704,7 +679,7 @@ tbl_cols <- list(
     footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
   `% Changed` = colDef(
-    cell = \(value) percent(value, 0.1),
+    format = percent_col,
     style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
     align = "right",
     footer = htmltools::tags$b(
@@ -712,7 +687,7 @@ tbl_cols <- list(
     )
   ),
   Total = colDef(
-    cell = \(value) comma(value, 1),
+    format = comma_col,
     style = \(value) {
       bar_style(width = value / n_windows, fill = "#B3B3B3", align = "right")
     },
@@ -721,7 +696,11 @@ tbl_cols <- list(
   ),
   `% Of All Windows` = colDef(
     style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
-    format = colFormat(digits = 2, percent = TRUE)
+    format = percent_col
+  ),
+  `% Of All Peaks` = colDef(
+    style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
+    format = percent_col
   )
 )
 ```
@@ -749,7 +728,7 @@ tbl <- results %>%
         footer = htmltools::tags$b("Overall")
       ),
       n = colDef(
-        name = "Nbr of Windows", maxWidth = 150, format = colFormat(separators = TRUE),
+        name = glue("Nbr of {type}"), maxWidth = 150, format = colFormat(separators = TRUE),
         footer = htmltools::tags$b(comma(length(results)))
       ),
       width = colDef(
@@ -758,7 +737,7 @@ tbl <- results %>%
         maxWidth = 200
       ),
       `%` = colDef(
-        name = "% Total Windows", format = colFormat(percent = TRUE, digits = 1),
+        name = glue("% Total {type}"), format = colFormat(percent = TRUE, digits = 1),
         style = \(value) bar_style(width = value, align = "right"),
         maxWidth = 150
       ),
@@ -779,12 +758,12 @@ cp <- htmltools::em(
     " comparison."
   )
 )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
-)
+tl <- tagList(tbl, cp)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 
@@ -803,14 +782,14 @@ df <- results %>%
   pivot_wider(names_from = "status", values_from = "n") %>% 
   dplyr::filter(Total > 0) %>% 
   mutate(
-    `% Of All Windows` = Total / length(results),
+    "% Of All {type}" := Total / length(results),
     `% Changed` = 1 - Unchanged / Total
   ) %>% 
   arrange(region) %>% 
   dplyr::select(
     Region = region,
     any_of(names(direction_colours)),
-    `% Changed`, Total, `% Of All Windows`
+    `% Changed`, Total, starts_with("% Of All")
   )
 cp <- htmltools::em(
   glue(
@@ -826,14 +805,14 @@ tbl <- df %>%
     defaultColDef = colDef(
       footer = \(values) htmltools::tags$b(comma(sum(values)))
     ),
-    fullWidth = TRUE
+    fullWidth = TRUE, elementId = 'tbl-results-by-region'
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
-)
+tl <- tagList(tbl, cp)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 `r ifelse(has_features, "#### Summary By Feature", "")`
@@ -850,14 +829,14 @@ df <- results %>%
   pivot_wider(names_from = "status", values_from = "n") %>% 
   dplyr::filter(Total > 0) %>% 
   mutate(
-    `% Of All Windows` = Total / length(results),
+    "% Of All {type}" := Total / length(results),
     `% Changed` = 1 - Unchanged / Total
   ) %>% 
   arrange(feature) %>% 
   dplyr::select(
     Feature = feature,
     any_of(names(direction_colours)),
-    `% Changed`, Total, `% Of All Windows`
+    `% Changed`, Total, starts_with("% Of All")
   )
 cp <- htmltools::em(
   glue(
@@ -872,14 +851,15 @@ tbl <- df %>%
     columns = tbl_cols[colnames(df)],
     defaultColDef = colDef(
       footer = \(values) htmltools::tags$b(comma(sum(values)))
-    )
+    ),
+    elementId = 'tbl-results-by-feature'
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
-)
+tl <- tagList(tbl, cp)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 
@@ -894,8 +874,8 @@ scaling_vals <- list(
 )
 cp <- htmltools::em(
   glue(
-    "The {show_n} most highly-ranked ranges by FDR, with {comma(n_sig)}", 
-    " showing evidence of changed {target} signal. ",
+    "The {show_n} most highly-ranked ranges by FDR, with {comma(n_sig)} ", 
+    "in total showing evidence of changed {target} signal. ",
     "Regions were assigned based on which genomic region showed the largest ",
     "overlap with the range being analysed. ",
     ifelse(
@@ -913,7 +893,7 @@ tbl <- results %>%
   arrange(!!sym(fdr_column)) %>% 
   plyranges::slice(seq_len(show_n)) %>% 
   plyranges::select(
-    w, starts_with("log"), !!sym(fdr_column), 
+    w, starts_with("log"), !!sym(fdr_column), status,
     Region = region, any_of("feature"), Genes = gene_name
   ) %>% 
   as_tibble() %>% 
@@ -971,20 +951,41 @@ tbl <- results %>%
         },
         maxWidth = 5.5 * fs
       ),
+      status = colDef(
+        "Status", maxWidth = 80,
+        style = \(value) {
+          i <- which(names(direction_colours) == value)
+          list(color = direction_colours[[i]])
+        } 
+      ),
       Region = colDef(maxWidth = 150),
       Genes = colDef(
         cell = \(value) with_tooltip(value, width = ifelse(has_features, 30, 60)),
         minWidth = 11 * fs
       )
     ),
-    theme = reactableTheme(style = list(fontSize = fs))
+    theme = reactableTheme(style = list(fontSize = fs)),
+    elementId = 'tbl-top-ranked'
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('tbl-top-ranked', '{comp}_top_ranked.csv')"
     )
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('tbl-top-ranked', [])"
+  ),
+  tbl,
+  cp
 )
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 
@@ -992,16 +993,17 @@ div(class = "table",
 ### Summary Plots {.tabset}
 
 ```{r make-heatmaps}
+type <- str_to_lower(type)
 bw_type <- match.arg(heat_params$bw_type, c("FE", "coverage"))
 fill_type <- c(coverage = "logCPM", FE = "Fold-Enrichment")[bw_type]
 bwfl <- file.path(
-  all_paths$macs2, target,
-  ifelse(
-      bw_type == "coverage",
-      glue("{target}_{treat_levels}_merged_treat_pileup.bw"),
-      glue("{target}_{treat_levels}_merged_FE.bw")
+  all_paths$macs2, target, ifelse(
+    bw_type == "coverage",
+    "{target}_{treat_levels}_merged_treat_pileup.bw",
+    "{target}_{treat_levels}_merged_FE.bw"
   )
 ) %>% 
+  glue() %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
 sig_ranges <- results %>% 
@@ -1015,8 +1017,6 @@ if (win_type == "sliding") {
 }
 sig_profiles <- lapply(sig_ranges, as.null)
 for (i in names(sig_profiles)) {
-  ## Restrict to 20,000. Plots work poorly above this number.
-  ## Randomly sample
   set.seed(threads)
   temp_gr <- granges(sig_ranges[[i]])
   n <- length(temp_gr)
@@ -1072,7 +1072,7 @@ if (length(sig_profiles) > 0) {
 
 #### MA Plot
 
-```{r plot-ma, fig.cap = glue("*MA plot showing the status of each range under consideration. The two most extreme regions are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve.*")}
+```{r plot-ma, fig.cap = glue("*MA plot showing the status of all {type} under consideration. The two most extreme {type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve.*")}
 if (!"Ambiguous" %in% levels(results$status)) 
   direction_colours <- direction_colours[names(direction_colours) != "Ambiguous"]
 results %>% 
@@ -1108,7 +1108,7 @@ results %>%
 
 #### Volcano Plot
 
-```{r plot-volcano, fig.cap = glue("*Volcano plot showing regions with evidence of differential {target} signal. The most significant regions are labelled along with any genes these regions are mapped to.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing {type} with evidence of differential {target} signal. The most significant {type} are labelled along with any genes these regions are mapped to.*")}
 results %>% 
   as_tibble() %>% 
   ggplot(aes(logFC, -log10(PValue))) +
@@ -1155,7 +1155,7 @@ htmltools::tagList(
         fig_path,
         glue("{nm}_profile_heatmap.{fig_type}")
       )
-      n_ranges <- length(profile_heatmaps[[i]])
+      n_ranges <- length(sig_profiles[[i]][[1]])
       fig_fun(
         filename = img_out,
         width = knitr::opts_current$get("fig.width"), 
@@ -1171,9 +1171,9 @@ htmltools::tagList(
       cp <- htmltools::tags$em(
         glue(
           "
-        {n_ranges} ranges were defined as showing {nm} signal. Heatmaps were 
-        restricted to a maximum of {comma(heat_max)} ranges. Values shown are 
-        log2 CPM taking the SPMR-based bigwig files produced by macs callpeak.
+        {n_ranges} {type} selected as showing {nm} signal. Heatmaps were 
+        restricted to a maximum of {comma(heat_params$max_ranges)} {type}. Values 
+        shown are use the {bw_type}-based bigwig files produced by macs2 callpeak.
         "
         )
       )
@@ -1201,33 +1201,6 @@ htmltools::tagList(
 )
 ```
 
-
-#### Results By Chromosome
-
-```{r plot-res-by-chromosome, fig.cap = "*Results for differential signal separated by chromosome. Results are scaled by chromosome length and shown as windows / Mb, although the distributions of windows will be unevenly spaced.*"}
-results %>% 
-  select(status) %>% 
-  as_tibble(rangeAsChar = FALSE) %>% 
-  mutate(
-    merge_status = fct_collapse(
-      status,
-      `Ambiguous/Unchanged` = intersect(c("Ambiguous", "Unchanged"), levels(status))
-    )
-  ) %>% 
-  group_by(seqnames, merge_status) %>% 
-  summarise(n = dplyr::n(), .groups = "drop") %>% 
-  left_join(as_tibble(sq)) %>%
-  mutate(
-    p = 1e6 * n / seqlengths,
-    seqnames = fct(seqnames, levels = seqlevels(sq))
-  ) %>% 
-  ggplot(aes(seqnames, y = p, fill = merge_status)) +
-  geom_col() +
-  facet_grid(merge_status~., scales = "free_y") +
-  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-  scale_fill_manual(values =  direction_colours) +
-  labs(x = "Chromosome", y = "Windows / Mb", fill = "Status")
-```
 
 #### Signal By Region
 
@@ -1345,8 +1318,9 @@ grl_to_plot <- GRangesList(
 ## The coverage
 bwfl <- list2(
   "{target}" := file.path(
-    all_paths$macs2, glue("{target}_{treat_levels}_merged_treat_pileup.bw")
+    all_paths$macs2, target, "{target}_{treat_levels}_merged_treat_pileup.bw"
   ) %>% 
+    glue() %>% 
     BigWigFileList() %>% 
     setNames(treat_levels)
 )
@@ -1467,7 +1441,7 @@ if (!is.null(config$external$coverage)) {
 
 
 ```{r plot-all-top-ranges}
-makeCaption <- function(.gr) {
+.makeCaption <- function(.gr) {
   if (is.null(.gr)) return(NULL)
   dir <- str_to_lower(.gr$status)
   reg <- case_when(
@@ -1500,7 +1474,7 @@ makeCaption <- function(.gr) {
           "with the gene-centric regions. "
         ),
         glue("")
-      ),
+      )
     ),
     ifelse(
       .gr$overlaps_ref,
@@ -1562,7 +1536,7 @@ htmltools::tagList(
       dev.off()
       ## Create html tags
       fig_link <- str_extract(img_out, "assets.+")
-      cp <- htmltools::tags$em(makeCaption(grl_to_plot[[i]]))
+      cp <- htmltools::tags$em(.makeCaption(grl_to_plot[[i]]))
       htmltools::div(
         htmltools::div(
           id = img_out %>% 
@@ -1589,28 +1563,178 @@ htmltools::tagList(
 ## Enrichment Testing 
 
 ```{r msigdb}
-min_gs_size <- extra_params$enrichment$min_size
+enrich_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("enrichment")
+msigdb_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("msigdb")
+network_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("networks")
+region_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("gene_regions")
+
+## Ensure we don't have nulls/NAs
+min_gs_size <- enrich_params$min_size
 if (is.null(min_gs_size) | is.na(min_gs_size)) min_gs_size <- 0
-max_gs_size <- extra_params$enrichment$max_size
+max_gs_size <- enrich_params$max_size
 if (is.null(max_gs_size) | is.na(max_gs_size)) max_gs_size <- Inf
-min_sig <- extra_params$enrichment$min_sig
+min_sig <- enrich_params$min_sig
 if (is.null(min_sig) | is.na(min_sig)) min_sig <- 1
-sp <- case_when(
-  str_detect(config$genome$build, "GRCh|hg|CHM|T2T") ~ "Homo sapiens",
-  str_detect(config$genome$build, "GRCm|mm") ~ "Mus musculus",
-  str_detect(config$genome$build, "Dan|GRCz|z[0-9]") ~ "Danio rerio",
-  str_detect(config$genome$build, "mRat|Rnor") ~ "Rattus norvegicus",
-  str_detect(config$genome$build, "GRCg|Gallus") ~ "Gallus gallus",
-  TRUE ~ NA_character_
-)
-if (is.na(sp)) stop("Unsupported genome")
+sp <- match.arg(msigdb_params$species, msigdbr_species()$species_name)
+
+## Set parameters for enabling networks
+min_network_size <- network_params$min_size
+if (is.null(min_network_size) | is.na(min_network_size))
+  min_network_size <- 2
+max_network_size <- network_params$max_size
+if (is.null(max_network_size) | is.na(max_network_size))
+  max_network_size <- Inf
+max_network_dist <- network_params$max_distance
+if (is.null(max_network_dist) | is.na(max_network_dist))
+  max_network_dist <- 1
+net_layout <- network_params$layout
+enrich_alpha <- enrich_params$alpha
+adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
+```
+
+
+
+```{r try-great}
+library(rGREAT)
+## The parameters for enrichment
+adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
+ucsc <- get_ucsc(config$genome$build)
+ext_tss <- gtf_gene %>% 
+  select(gene_id) %>% 
+  extendTSS(
+    genome = ucsc$build, gene_id_type = 'ENSEMBL', 
+    basal_upstream = region_params$promoters$upstream,
+    basal_downstream = region_params$promoters$downstream
+  )
+ext_tss_ol <- subsetByOverlaps(ext_tss, results)
+msigdb <- msigdbr(sp) %>% 
+  dplyr::filter(
+    gs_cat %in% msigdb_params$gs_cat |
+      gs_subcat %in% msigdb_params$gs_subcat,
+    ensembl_gene %in% ext_tss$gene_id
+  )
+gs_list <- msigdb %>% 
+  split(.$gs_name) %>% 
+  lapply(pull, ensembl_gene) %>% 
+  .[map_int(., length) <= enrich_params$max_size] %>% 
+  .[map_int(., length) >= enrich_params$min_size] 
+gs_url <- msigdb %>% 
+  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
+  mutate(
+    gs_url = case_when(
+      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
+      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
+      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
+        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
+      ),
+      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
+      TRUE ~ gs_url
+    ) %>% 
+      setNames(gs_name)
+  ) %>% 
+  pull(gs_url)
+great_changed <- results %>% 
+  filter(!!sym(fdr_column) < params$alpha) %>% 
+  set_genome_info(ucsc$build) %>% 
+  great(
+    gene_sets = gs_list, extended_tss = ext_tss, 
+    min_gene_set_size = enrich_params$min_size, 
+    background = set_genome_info(results, ucsc$build), cores = threads
+  )
+great_changed_df <- great_changed %>% 
+  getEnrichmentTable() %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
+  as_tibble() %>% 
+  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
+  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+  mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
+    gene_id  = gs_list[id],
+    genes_with_hits = map_chr(
+      gene_id, 
+      \(x) {
+        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
+      }
+    )
+  )
+n_great_changed <- sum(great_changed_df$p_adjust_hyper < enrich_params$alpha)
+
+great_increased <- results %>% 
+  filter(status == "Increased") %>% 
+  set_genome_info(ucsc$build) %>% 
+  great(
+    gene_sets = gs_list, extended_tss = ext_tss, 
+    min_gene_set_size = enrich_params$min_size, 
+    background = set_genome_info(results, ucsc$build), cores = threads
+  )
+great_increased_df <- great_increased %>% 
+  getEnrichmentTable() %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
+  as_tibble() %>% 
+  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
+  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+  mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
+    gene_id  = gs_list[id],
+    genes_with_hits = map_chr(
+      gene_id, 
+      \(x) {
+        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
+      }
+    )
+  )
+n_great_increased <- sum(great_increased_df$p_adjust_hyper < enrich_params$alpha)
+
+great_decreased <- results %>% 
+  filter(status == "Decreased") %>% 
+  set_genome_info(ucsc$build) %>% 
+  great(
+    gene_sets = gs_list, extended_tss = ext_tss, 
+    min_gene_set_size = enrich_params$min_size, 
+    background = set_genome_info(results, ucsc$build), cores = threads
+  )
+great_decreased_df <- great_decreased %>% 
+  getEnrichmentTable() %>% 
+  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
+  as_tibble() %>% 
+  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
+  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+  mutate(
+    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
+    gene_id  = gs_list[id],
+    genes_with_hits = map_chr(
+      gene_id, 
+      \(x) {
+        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
+        paste(unname(id2gene[unique(ids)]), collapse = "; ")
+      }
+    )
+  )
+n_great_decreased <- sum(great_decreased_df$p_adjust_hyper < enrich_params$alpha)
+```
+
+
+
+```{r}
+## The original methods for goseq
 msigdb <- msigdbr(species = sp) %>% 
   dplyr::filter(
-    gs_cat %in% unlist(extra_params$enrichment$msigdb$gs_cat) |
-      gs_subcat %in% unlist(extra_params$enrichment$msigdb$gs_subcat),
+    gs_cat %in% unlist(msigdb_params$gs_cat) |
+      gs_subcat %in% unlist(msigdb_params$gs_subcat),
     str_detect(ensembl_gene, "^E")
   ) %>% 
-  dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
+  # For easier integration 
+  dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% 
   dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
   dplyr::filter(gene_id %in% gtf_gene$gene_id) %>% 
   mutate(gs_url = str_extract(gs_url, "^[^|]+")) %>% 
@@ -1625,30 +1749,24 @@ gs_by_geneid <- msigdb %>%
   split(.$gene_id) %>% 
   lapply(pull, "gs_name") %>% 
   lapply(unique)
+## There are some current errors in the msigdb urls
 gs_url <- msigdb %>% 
-  distinct(gs_name, gs_url) %>%
+  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
   mutate(
-    gs_url = ifelse(
-      gs_url == "", "
-      http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
-      gs_url
-    )
+    gs_url = case_when(
+      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
+      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
+      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
+        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
+      ),
+      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
+      TRUE ~ gs_url
+    ) %>% 
+      setNames(gs_name)
   ) %>% 
-  with(setNames(gs_url, gs_name))
+  pull(gs_url)
 
-## Set parameters for enabling networks
-min_network_size <- extra_params$networks$min_size
-if (is.null(min_network_size) | is.na(min_network_size))
-  min_network_size <- 2
-max_network_size <- extra_params$networks$max_size
-if (is.null(max_network_size) | is.na(max_network_size))
-  max_network_size <- Inf
-max_network_dist <- extra_params$networks$max_distance
-if (is.null(max_network_dist) | is.na(max_network_dist))
-  max_network_dist <- 1
-net_layout <- extra_params$networks$layout
-enrich_alpha <- extra_params$enrichment$alpha
-adj_method <- match.arg(extra_params$enrichment$adj, p.adjust.methods)
+
 adj_desc <- case_when(
   p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
   p.adjust.methods %in% c("BY") ~ "the Benjamini-Yekutieli FDR",
@@ -1670,6 +1788,23 @@ mapped_ids <- results %>%
     .by = starts_with("gene")
   )
 ```
+
+
+
+
+
+
+
+
+
+Enrichment testing in this section takes a different approach to the analysis of [macs2 peaks](`r glue("{target}_macs2_summary.html#Enrichment_Analysis")`).
+Mappings to genes as described above are instead used to perform a conventional enrichment testing using genes assigned to `r type`, using hypergeometric tests [@YoungGoseq2010].
+This allows a tailored approach when assigning genes to `r type` and fine control of distances between `r type` and any associated genes.
+
+This strategy also
+
+Hypergeometric testing also tends to be more conservative
+
 
 As an initial exploration, the ranges containing `r target` signal were compared to pre-defined gene-sets.
 These were taken from the `MSigDB` database for `r sp` and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
@@ -1848,7 +1983,7 @@ tbl <- goseq_mapped %>%
             value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
           )
         },
-        maxWidth = 80
+        maxWidth = 80, show = FALSE
       ),
       adj_p = colDef(
         name = "p<sub>adj</sub>", html = TRUE,
