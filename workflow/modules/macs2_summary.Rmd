@@ -1175,13 +1175,15 @@ ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
 msigdb <- msigdbr(msigdb_params$species) %>% 
   dplyr::filter(
     gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
-    ensembl_gene %in% ext_tss$gene_id
-  )
+  ) %>% 
+  dplyr::filter(
+    n() >= min(msigdb_params$size) & n() <= max(msigdb_params$size),
+    .by = gs_name
+  ) %>% 
+  dplyr::filter(ensembl_gene %in% ext_tss$gene_id)
 gs_list <- msigdb %>% 
   split(.$gs_name) %>% 
-  lapply(pull, ensembl_gene) %>% 
-  .[map_int(., length) <= max(enrich_params$size)] %>% 
-  .[map_int(., length) >= min(enrich_params$size)] 
+  lapply(pull, ensembl_gene) 
 gs_url <- msigdb %>% 
   distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
   mutate(
@@ -1205,7 +1207,7 @@ great_res <- consensus_peaks %>%
   set_genome_info(genome = ucsc$build) %>% 
   great(
     gene_sets = gs_list, extended_tss = ext_tss, 
-    min_gene_set_size = min(enrich_params$size), 
+    min_gene_set_size = min(msigdb_params$size), 
     cores = threads
   )
 great_df <- getEnrichmentTable(great_res) %>% 

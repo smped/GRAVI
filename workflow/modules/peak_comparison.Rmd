@@ -232,14 +232,16 @@ ext_tss <- gtf_gene %>%
 ext_tss_ol <- subsetByOverlaps(ext_tss, shared_peaks)
 msigdb <- msigdbr(msigdb_params$species) %>% 
   dplyr::filter(
-    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
-    ensembl_gene %in% ext_tss$gene_id
-  )
+    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat
+  ) %>% 
+  dplyr::filter(
+    n() >= min(msigdb_params$size) & n() <= max(msigdb_params$size),
+    .by = gs_name
+  ) %>% 
+  dplyr::filter(ensembl_gene %in% ext_tss$gene_id)
 gs_list <- msigdb %>% 
   split(.$gs_name) %>% 
-  lapply(pull, ensembl_gene) %>% 
-  .[map_int(., length) <= max(enrich_params$size)] %>% 
-  .[map_int(., length) >= min(enrich_params$size)] 
+  lapply(pull, ensembl_gene) 
 gs_url <- msigdb %>% 
   distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
   mutate(
@@ -259,7 +261,7 @@ great_res <- great(
   set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
   extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = min(enrich_params$size), 
+  min_gene_set_size = min(msigdb_params$size), 
   cores = threads
 )
 great_df <- getEnrichmentTable(great_res) %>% 
@@ -298,7 +300,7 @@ great_res_genomic <- great(
   set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
   extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = min(enrich_params$size), 
+  min_gene_set_size = min(msigdb_params$size), 
   cores = threads
 )
 great_df_genomic <- getEnrichmentTable(great_res_genomic) %>% 
@@ -491,7 +493,7 @@ great_res_targets <- great(
   gene_sets = gs_list, 
   background = bg,
   extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = min(enrich_params$size), 
+  min_gene_set_size = min(msigdb_params$size), 
   cores = threads
 )
 great_df_targets <- getEnrichmentTable(great_res_targets) %>% 
