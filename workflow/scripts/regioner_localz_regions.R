@@ -95,18 +95,18 @@ peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
 peaks <- unlist(peaks)
 cat_time(" done")
 
-cat_time("Loading enrichment params from", all_input$params)
-enrich_params <- read_yaml(all_input$params)$enrichment
+cat_time("Loading params from", all_input$params)
+regioner_params <- read_yaml(all_input$params)$regioner
 cat_time(" done")
 
 threads <- slot(snakemake, "threads")[[1]] - 1
 cat_time("Running multiLocalZscore with", threads, "threads...")
 mlz_params <- list(
   A = peaks, Blist = test_regions, sampling = FALSE,
-  ranFUN = "resampleGenome", evFUN = "numOverlaps", 
+  ranFUN = "resampleGenome", evFUN = "numOverlaps",
   max_pv = 1, genome = ucsc$build, mc.cores = threads
 )
-mlz_params <- c(mlz_params, enrich_params$regioner) 
+mlz_params <- c(mlz_params, regioner_params[c("ntimes", "step", "window")])
 mlz <- do.call("multiLocalZscore", mlz_params)
 cat_time("Done")
 

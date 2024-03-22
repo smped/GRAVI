@@ -49,10 +49,11 @@ library(bs_pkg, character.only = TRUE)
 
 ```{r target-config}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
-region_params <- all_params$gene_regions
 enrich_params <- all_params$enrichment
-network_params <- all_params$networks
 msigdb_params <- all_params$msigdb
+network_params <- all_params$networks
+region_params <- all_params$gene_regions
+regioner_params <- all_params$regioner
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck("shared")
@@ -679,7 +680,7 @@ localz_df <- localz_regions %>%
   dplyr::rename(region = name) %>% 
   mutate(
     p_value = 1 - pchisq(norm_zscore^2, 1),
-    adj.p_value = p.adjust(p_value, enrich_params$adj),
+    adj.p_value = p.adjust(p_value, regioner_params$adj),
     region = case_when(
       region %in% names(regions) ~ regions[region],
       TRUE ~ region
@@ -783,7 +784,8 @@ tbl <- localz_df %>%
         cell = \(value) sprint_pval(value), maxWidth = 80,
         style = \(value) list(
           color = ifelse(
-            value < enrich_params$alpha, "black", colours$direction$unchanged
+            value < regioner_params$alpha,
+            "black", colours$direction[["unchanged"]]
           )
         ),
         filterMethod = js_less
@@ -861,7 +863,7 @@ pairwise_df <- mlz_list %>%
     prop = n_overlaps / map_int(consensus_peaks, length)[Query],
     enrichment = log2(n_overlaps / mean_perm_test),
     p_value = 1 - pchisq(norm_zscore^2, 1),
-    adj.p_value = p.adjust(p_value, enrich_params$adj)
+    adj.p_value = p.adjust(p_value, regioner_params$adj)
   ) 
 ```
 
@@ -955,7 +957,8 @@ tbl <- pairwise_df %>%
         cell = \(value) sprint_pval(value),
         style = \(value) {
           text_colour = ifelse(
-            value < enrich_params$alpha, "black", colours$direction[["unchanged"]]
+            value < regioner_params$alpha,
+            "black", colours$direction[["unchanged"]]
           )
           list(color = text_colour)
         }

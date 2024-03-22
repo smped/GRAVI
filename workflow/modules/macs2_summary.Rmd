@@ -61,8 +61,9 @@ library(bs_pkg, character.only = TRUE)
 
 ```{r config-params-paths}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
-region_params <- all_params$gene_regions
 enrich_params <- all_params$enrichment
+region_params <- all_params$gene_regions
+regioner_params <- all_params$regioner
 network_params <- all_params$networks
 msigdb_params <- all_params$msigdb
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
@@ -1404,7 +1405,7 @@ localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
   dplyr::rename(region = name) %>% 
   mutate(
     p_value = 1 - pchisq(norm_zscore^2, 1),
-    adj.p_value = p.adjust(p_value, enrich_params$adj)
+    adj.p_value = p.adjust(p_value, regioner_params$adj)
   ) %>% 
   mutate(
     region = case_when(
@@ -1483,7 +1484,14 @@ tbl <- localz_df %>%
       ),
       adj.p_value = colDef(
         glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
-        cell = \(value) sprint_pval(value)
+        cell = \(value) sprint_pval(value),
+        style = \(value) {
+          text_colour <- ifelse(
+            value < regioner_params$alpha,
+            "black", colours$direction[["unchanged"]]
+          )
+          list(color = text_colour)
+        }
       )
     )
   )
@@ -1492,7 +1500,7 @@ cp <- htmltools::em(
     "
     Results for association between the {comma(length(consensus_peaks))} 
     {target} consensus peaks and the pre-defined 
-    genomic regions{ifelse(has_features, 'and the supplied external features.', '.')}.
+    genomic regions{ifelse(has_features, ' and the supplied external features.', '.')}.
     Expected overlaps are those obtained through random resampling of the genome
     to match the consensus peaks. Enrichment is given taking log2 of 
     the ratio between observed and expected overlapping peaks.

@@ -1,10 +1,10 @@
 rule localz_regions:
 	input:
 		checks = ALL_CHECKS,
-		regions = os.path.join(annotation_path, "gene_regions.rds"),
 		features = os.path.join(annotation_path, "features.rds"),
 		peaks = os.path.join(peak_path, "{path}_consensus_peaks.bed.gz"),
 		params = os.path.join("config", "params.yml"),
+		regions = os.path.join(annotation_path, "gene_regions.rds"),
 	output:
 		rds = os.path.join(peak_path, "{path}_regions_localz.rds")
 	threads: 8

@@ -17,6 +17,7 @@
   - [x] Macs2 Summary
   - [x] Shared Peaks
   - [ ] Differential Signal
+- [ ] Update index for more complete description of parameters 
   
 ## Annotation Setup
 

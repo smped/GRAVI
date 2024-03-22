@@ -44,16 +44,17 @@ motifdb:
 enrichment:
   adj: "fdr"
   alpha: 0.05
-  ## Only gene-sets between these two values will be retained before testing
-  min_size: 5
-  max_size: 1000
-  ## Only gene-sets above this size will be shown in the results
-  min_sig: 3
-  ## Passed to regionerReloaded::multiLocalZScore
-  regioner:
-    ntimes: 5000
-    window: 5000
-    step: 100
+  method: "great" # Define a wrapper to pass either 'great' or 'genes'
+  min_sig: 3 ## Only gene-sets above this size will be shown in the results
+  size: [5,1000] ## Gene-sets outside this range will be excluded from testing
+
+## Passed to regionerReloaded::multiLocalZScore
+regioner:
+  adj: "fdr"
+  alpha: 0.05
+  ntimes: 5000
+  window: 5000
+  step: 100
 
 ## Used for network plots
 networks:
@@ -66,7 +67,7 @@ networks:
 profile_heatmaps:
   default:
     bw_type: "FE" # Can be FE or coverage
-    gradient: ['white', 'red'] # This needs to be changed in the annotations!!!
+    gradient: ['white', 'red'] 
     min_ranges: 10
     max_ranges: 5000
     n_bins: 100
