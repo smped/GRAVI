@@ -40,6 +40,7 @@ library(universalmotif)
 library(motifTestR)
 library(corrplot)
 library(fontawesome)
+library(GenomicInteractions)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -62,10 +63,11 @@ library(bs_pkg, character.only = TRUE)
 ```{r config-params-paths}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
 enrich_params <- all_params$enrichment
+mapping_params <- all_params$mapping
+msigdb_params <- all_params$msigdb
+network_params <- all_params$networks
 region_params <- all_params$gene_regions
 regioner_params <- all_params$regioner
-network_params <- all_params$networks
-msigdb_params <- all_params$msigdb
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)
@@ -179,6 +181,79 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 }
 ```
 
+```{r load-hic}
+hic <- GInteractions()
+hic_path <- here::here(config$external$hic)
+if (length(hic_path) > 0)
+  if (file.exists(hic_path)) {
+    has_hic <- TRUE
+    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
+    reg_combs <- expand.grid(regions, regions) %>% 
+      as.matrix() %>% 
+      apply(
+        MARGIN = 1, 
+        \(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      unique()
+    hic$regions <- anchors(hic) %>% 
+      vapply(
+        bestOverlap,
+        y = GRangesList(lapply(gene_regions, granges)),
+        character(length(hic))
+      ) %>% 
+      apply(MARGIN = 2, \(x) regions[x]) %>% 
+      apply(
+        MARGIN = 1, 
+        \(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      factor(levels = reg_combs) %>%
+      fct_relabel(
+        str_replace_all,
+        pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
+      )
+    if (has_features) {
+      feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>% 
+        as.matrix() %>% 
+        apply(
+          MARGIN = 1, 
+          \(x) {
+            x <- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        unique()
+      hic$features <- vapply(
+        anchors(hic),
+        \(x) bestOverlap(
+          x, external_features, var = "feature", missing = "no_feature"
+        ),
+        character(length(hic))
+      )  %>% 
+        apply(
+          MARGIN = 1, 
+          \(x) {
+            x <- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        factor(levels = feat_combs) %>%
+        fct_relabel(str_sep_to_title, pattern = "_")
+    }
+  }
+stopifnot(is(hic, "GInteractions"))
+seqlevels(hic) <- seqlevels(sq)
+seqinfo(hic) <- sq
+# hic <- hic[!overlapsAny(hic, exclude_gr)]
+has_hic <- as.logical(length(hic))
+```
+
+
 ```{r bfl}
 bfl <- all_paths$bam %>%
   file.path(glue("{samples$sample}.bam")) %>%
@@ -203,12 +278,12 @@ merged_peaks <- all_paths$macs2 %>%
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
 filtered_peaks <- all_paths$peaks %>% 
-  file.path("{target}_{treat_levels}_filtered_peaks.narrowPeak") %>% 
+  file.path("{target}", "{target}_{treat_levels}_filtered_peaks.narrowPeak") %>% 
   glue() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
 consensus_peaks <- all_paths$peaks %>% 
-  file.path("{target}_consensus_peaks.bed.gz") %>% 
+  file.path("{target}", "{target}_consensus_peaks.bed.gz") %>% 
   glue() %>% 
   importPeaks(type = "bed", seqinfo = sq, setNames = FALSE) %>% 
   unlist() %>% 
@@ -217,13 +292,40 @@ consensus_peaks <- all_paths$peaks %>%
       fct(levels = names(gene_regions)) %>% 
       fct_relabel(\(x) regions[x])
   )
+```
+
+```{r}
+feat_prom <- GRanges()
+feat_enh <- GRanges()
 if (has_features) {
-  consensus_peaks$Feature <- bestOverlap(
-    consensus_peaks, external_features, missing = "no_feature"
-  ) %>%
-    factor(levels = names(colours$features)) %>%
-    fct_relabel(str_sep_to_title)
+  consensus_peaks <- consensus_peaks %>% 
+    mutate(
+      feature = bestOverlap(
+        ., external_features, "feature", missing = "no_feature"
+      ) %>% 
+        factor(levels = names(colours$features)) %>% 
+        fct_relabel(str_sep_to_title)
+    )
+  if ("feature" %in% colnames(mcols(external_features))) {
+    feat_prom <- external_features %>%
+      subset(str_detect(feature, "[Pp]rom")) %>%
+      granges()
+    feat_enh <- external_features %>%
+      subset(str_detect(feature, "[Ee]nhanc")) %>%
+      granges()
+  }
 }
+consensus_peaks <- consensus_peaks %>%
+  mapByFeature(
+    genes = gtf_gene, 
+    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+    enh = feat_enh,
+    gi = hic, 
+    gr2gene = mapping_params$gr2gene,
+    prom2gene = mapping_params$prom2gene,
+    enh2gene = mapping_params$enh2gene,
+    gi2gene = mapping_params$gi2gene
+  )
 ```
 
 
@@ -917,7 +1019,7 @@ consensus_peaks %>%
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 consensus_peaks %>% 
   plotPie(
-    fill = "Feature", total_size = 4,
+    fill = "feature", total_size = 4,
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
     cat_alpha = 0.9, cat_adj = 0.05
   ) +
@@ -930,7 +1032,7 @@ consensus_peaks %>%
 ```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
 consensus_peaks %>% 
   plotSplitDonut(
-    inner = "Feature", outer = "region",
+    inner = "feature", outer = "region",
     inner_palette = region_colours,
     outer_palette = region_colours,
     inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",

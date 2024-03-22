@@ -1810,6 +1810,7 @@ As an initial exploration, the ranges containing `r target` signal were compared
 These were taken from the `MSigDB` database for `r sp` and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
 
 ```{r tbl-msigdb}
+## Move to annotation_description
 msigdb %>% 
   distinct(gs_cat, gs_subcat, gs_name) %>%
   summarise(`Gene Sets` = dplyr::n(), .by = ends_with("cat")) %>% 
