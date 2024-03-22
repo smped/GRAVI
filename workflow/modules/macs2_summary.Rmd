@@ -1158,8 +1158,8 @@ For this specific analysis, the background ranges were set to be the whole genom
 
 ```{r setup-great}
 ## Set parameters for enabling networks, handling possible NULLs
-min_network_size <- c(network_params$min_size, 2)[[1]]
-max_network_size <- c(network_params$max_size, Inf)[[1]]
+min_network_size <- min(network_params$size)
+max_network_size <- max(network_params$size)
 max_network_dist <- c(network_params$max_distance, 1)[[1]]
 net_layout <- c(network_params$layout, "fr")[[1]]
 ## The parameters for enrichment
@@ -1180,8 +1180,8 @@ msigdb <- msigdbr(msigdb_params$species) %>%
 gs_list <- msigdb %>% 
   split(.$gs_name) %>% 
   lapply(pull, ensembl_gene) %>% 
-  .[map_int(., length) <= enrich_params$max_size] %>% 
-  .[map_int(., length) >= enrich_params$min_size] 
+  .[map_int(., length) <= max(enrich_params$size)] %>% 
+  .[map_int(., length) >= min(enrich_params$size)] 
 gs_url <- msigdb %>% 
   distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
   mutate(
@@ -1205,7 +1205,7 @@ great_res <- consensus_peaks %>%
   set_genome_info(genome = ucsc$build) %>% 
   great(
     gene_sets = gs_list, extended_tss = ext_tss, 
-    min_gene_set_size = enrich_params$min_size, 
+    min_gene_set_size = min(enrich_params$size), 
     cores = threads
   )
 great_df <- getEnrichmentTable(great_res) %>% 

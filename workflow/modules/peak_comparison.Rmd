@@ -238,8 +238,8 @@ msigdb <- msigdbr(msigdb_params$species) %>%
 gs_list <- msigdb %>% 
   split(.$gs_name) %>% 
   lapply(pull, ensembl_gene) %>% 
-  .[map_int(., length) <= enrich_params$max_size] %>% 
-  .[map_int(., length) >= enrich_params$min_size] 
+  .[map_int(., length) <= max(enrich_params$size)] %>% 
+  .[map_int(., length) >= min(enrich_params$size)] 
 gs_url <- msigdb %>% 
   distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
   mutate(
@@ -259,7 +259,7 @@ great_res <- great(
   set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
   extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = enrich_params$min_size, 
+  min_gene_set_size = min(enrich_params$size), 
   cores = threads
 )
 great_df <- getEnrichmentTable(great_res) %>% 
@@ -298,7 +298,7 @@ great_res_genomic <- great(
   set_genome_info(shared_peaks, genome = ucsc$build), 
   gene_sets = gs_list, 
   extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = enrich_params$min_size, 
+  min_gene_set_size = min(enrich_params$size), 
   cores = threads
 )
 great_df_genomic <- getEnrichmentTable(great_res_genomic) %>% 
@@ -419,18 +419,18 @@ if (interactive()) {
 }
 ```
 
-`r if (n_great_genomic >= network_params$min_size) "#### Enrichment Network"`
+`r if (n_great_genomic >= min(network_params$size)) "#### Enrichment Network"`
 
-```{r great-network-genomic, echo = n_great_genomic >= network_params$min_size, eval = n_great_genomic >= network_params$min_size, fig.cap = glue("*The {n_great_genomic} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {network_params$max_size} gene sets*")}
+```{r great-network-genomic, echo = n_great_genomic >= min(network_params$size), eval = n_great_genomic >= min(network_params$size), fig.cap = glue("*The {n_great_genomic} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
 tg_great_genomic <- great_df_genomic %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
   make_tbl_graph(
     gs = great_df[["gene_id"]], 
     alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
     hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-    min_dist = network_params$max_distance, max_gs = network_params$max_size
+    min_dist = network_params$max_distance, max_gs = max(network_params$size)
   )
-if (length(tg_great_genomic) >= network_params$min_size) {
+if (length(tg_great_genomic) >= min(network_params$size)) {
   tg_great_genomic %>% 
     mutate(
       ## The lowest p-value obtainable from pbinom is 1e-16
@@ -491,7 +491,7 @@ great_res_targets <- great(
   gene_sets = gs_list, 
   background = bg,
   extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = enrich_params$min_size, 
+  min_gene_set_size = min(enrich_params$size), 
   cores = threads
 )
 great_df_targets <- getEnrichmentTable(great_res_targets) %>% 
@@ -608,18 +608,18 @@ if (interactive()) {
 }
 ```
 
-`r if (n_great_targets >= network_params$min_size) "#### Enrichment Network"`
+`r if (n_great_targets >= min(network_params$size)) "#### Enrichment Network"`
 
-```{r great-network-targets, echo = n_great_targets >= network_params$min_size, eval = n_great_targets >= network_params$min_size, fig.cap = glue("*The {n_great_targets} most highly ranked gene sets from rGREAT analysis when using the combined peaks as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {network_params$max_size} gene sets*")}
+```{r great-network-targets, echo = n_great_targets >= min(network_params$size), eval = n_great_targets >= min(network_params$size), fig.cap = glue("*The {n_great_targets} most highly ranked gene sets from rGREAT analysis when using the combined peaks as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
 tg_great_targets <- great_df_targets %>% 
   dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
   make_tbl_graph(
     gs = great_df[["gene_id"]], 
     alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
     hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-    min_dist = network_params$max_distance, max_gs = network_params$max_size
+    min_dist = network_params$max_distance, max_gs = max(network_params$size)
   )
-if (length(tg_great_targets) >= network_params$min_size) {
+if (length(tg_great_targets) >= min(network_params$size)) {
   tg_great_targets %>% 
     mutate(
       ## The lowest p-value obtainable from pbinom is 1e-16
