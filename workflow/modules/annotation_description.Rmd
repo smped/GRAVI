@@ -40,6 +40,8 @@ region_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("gene_regions")
 motif_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("motifdb")
+msigdb_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("msigdb")
 colours <- read_yaml(here::here("config", "colours.yml"))
 treat_levels <- config$comparisons$contrasts %>% 
   unlist() %>% 
@@ -388,6 +390,52 @@ df %>%
     x = as.character(seqnames(gr)), y = "Transcript", fill = "Feature"
   ) +
   theme(panel.grid = element_blank())
+```
+
+# Enrichment Analysis
+
+The same approach to enrichment analysis is defined to be used in all steps of the analysis.
+
+The [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/) database version `r packageVersion("msigdbr")` was used [@Liberzon2011-fr].
+Gene-sets and pathways were retained if more than `r min(msigdb_params$size)` genes and fewer than `r max(msigdb_params$size)` genes were assigned to it.
+This left the following breakdown of gene-sets and pathways tested for enrichment during all steps.
+
+```{r tbl-msigdb}
+msigdb <- here::here(all_paths$annotation, "msigdb.rds") %>% read_rds()
+msigdb %>% 
+  distinct(gs_cat, gs_subcat, gs_name) %>%
+  summarise(`Gene Sets` = dplyr::n(), .by = ends_with("cat")) %>% 
+  dplyr::rename(Category = gs_cat, `Sub-Category` = gs_subcat) %>% 
+  mutate(
+    Description = case_when(
+      Category == "H" ~ "Hallmark Gene-Sets",
+      Category == "C1" ~ "Positional Gene Sets",
+      Category == "C2" ~ str_replace_all(`Sub-Category`, "CP:(.+)", "Curated Gene-Sets: \\1"),
+      str_detect(`Sub-Category`, "TFT") ~ str_replace_all(`Sub-Category`, "TFT:(.+)", "Transcription Factor Target Prediction Gene-Sets: \\1"),
+      str_detect(`Sub-Category`, "MIR") ~ str_replace_all(`Sub-Category`, "MIR:(.+)", "microRNA Target Gene-Sets: \\1"),
+      str_detect(`Sub-Category`, "CGN") ~ "Cancer Gene Neighbourhoods",
+      str_detect(`Sub-Category`, "CM") ~ "Cancer Modules",
+      str_detect(`Sub-Category`, "GO:BP") ~ "Gene Ontology: Bological Process",
+      str_detect(`Sub-Category`, "GO:MF") ~ "Gene Ontology: Molecular Function",
+      str_detect(`Sub-Category`, "GO:CC") ~ "Gene Ontology: Cellular Component",
+      str_detect(`Sub-Category`, "HPO") ~ "Human Phenotype Ontology",
+      Category == "C6" ~ "Oncogenic Signature Gene Sets",
+      `Sub-Category` == "IMMUNESIGDB" ~ "ImmuneSigDB Gene Sets",
+      `Sub-Category` == "VAX" ~ "Vaccine Response Gene Sets",
+      Category == "C8" ~ "Cell Type Signature Gene Sets"
+    ),
+    Category = factor(Category, levels = c("H", paste0("C", 1:8)))
+  ) %>% 
+  droplevels() %>% 
+  arrange(Category) %>% 
+  bind_rows(
+    tibble(Category = "Total", `Gene Sets` = sum(.[["Gene Sets"]]))
+  ) %>% 
+  pander(
+    justify = "llrl", 
+    caption = "*Summary of Gene-Sets used for Enrichment Testing*",
+    emphasize.strong.rows = which(grepl("Total", .$Category))
+  )
 ```
 
 # Transcription Factor Motifs 

@@ -31,7 +31,7 @@ for i in config['external']:
 			for k in f[j]:
 				msg = "File " + f[j][k] + " not found"
 				assert(os.path.isfile(f[j][k])), msg
-			
+
 
 ####################
 ## Define Samples ##
@@ -107,7 +107,7 @@ motif_param = set_params(config['motif_analysis'], targets_ext)
 with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:
 	json.dump(motif_param, fp, indent = 4)
 
-## These do need more careful checking as not all levels may be found in each 
+## These do need more careful checking as not all levels may be found in each
 ## target. Compare to df['treat'][df$target' == x] at some point
 diff_sig_param = set_params(config['differential_signal'], targets)
 rm_targets = []
@@ -120,7 +120,7 @@ for i in diff_sig_param.keys():
 		valid = poss_levels.intersection(supplied)
 		if len(valid) == 2:
 			valid_contrasts.extend([supplied])
-			
+
 	if len(valid_contrasts):
 		diff_sig_param[i]['contrasts'] = valid_contrasts
 		diff_sig_param[i]['target'] = i
@@ -176,7 +176,7 @@ chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 ## Differential Signal Method ##
 #################################
 
-# Currently LibSize + QuasiLikelihood (ls-ql) or 
+# Currently LibSize + QuasiLikelihood (ls-ql) or
 # SmoothQuantile + Limma-Trend (sq-lt)
 # db_method = config['comparisons']['method']
 
@@ -205,7 +205,7 @@ ALL_RDS = expand(
 	file = [
 		'colours', 'gene_regions', 'seqinfo', 'trans_models','tss', 'gtf_gene',
 		'gtf_transcript', 'gtf_exon', 'blacklist', 'features', 'motif_list',
-		'motif_uri'
+		'motif_uri', 'msigdb'
 	]
 )
 ALL_OUTPUTS.extend(ALL_RDS)
@@ -227,7 +227,7 @@ HTML_OUT.extend(
 )
 if len(targets) > 1:
 	HTML_OUT.extend([os.path.join("docs", "peak_comparison.html")])
-	
+
 
 ## Try bringing in diffsignal again
 COUNTS = expand(

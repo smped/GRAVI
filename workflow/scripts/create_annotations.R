@@ -65,6 +65,7 @@ library(Rsamtools)
 library(extraChIPs)
 library(MotifDb)
 library(universalmotif)
+library(msigdbr)
 params <- read_yaml(all_input$yaml)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
@@ -262,17 +263,53 @@ cat_time("Writing", all_output$motif_uri)
 write_rds(motif_uri, all_output$motif_uri, compress = "gz")
 cat_time("Done")
 
+#### MSigDB ####
+cat_time("Preparaing MSigDB using msigdbr...")
+msigdb_params <- all_params$msigdb
+msigdb <- msigdbr(msigdb_params$species) %>%
+  dplyr::filter(
+    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
+    ensembl_gene %in% all_gtf$gene$gene_id
+  ) %>%
+  dplyr::filter(
+    n() >= min(msigdb_params$size) & n() <= max(msigdb_params$size),
+    .by = gs_name
+  )
+cat_time("Loaded", comma(length(unique(msigdb$gs_name))), "gene-sets")
+
+cat_time("Updating Gene-Set URLs...")
+gs_url <- msigdb %>%
+  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
+  mutate(
+    gs_url = case_when(
+      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
+      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
+      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
+        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
+      ),
+      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
+      TRUE ~ gs_url
+    ) %>%
+      setNames(gs_name)
+  ) %>%
+  pull(gs_url)
+msigdb$gs_url <- gs_url[msigdb$gs_name]
+
+cat_time("Exporting to", all_output$msigdb)
+write_rds(msigdb, all_output$msigdb, compress = "gz")
+cat_time("Done")
+
 cat_time("Data export completed")
 
+#### Prepare the RMD ####
 cat_time("Forming annotation_description.Rmd")
-
 all_output <- lapply(
   all_output,
   str_remove_all,
   pattern = paste0(here::here(), .Platform$file.sep)
 )
 ln <- glue(
-	"
+  "
 	---
 	title: 'Description of Annotations'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
@@ -294,12 +331,10 @@ ln <- glue(
 	---
 
 	",
-	.open = "{{",
-	.close = "}}"
+  .open = "{{",
+  .close = "}}"
 )
 readr::write_lines(ln, all_output$rmd)
-
-
 
 cat_time("Written YAML header; Appending Module")
 file.append(all_output$rmd, all_input$module)
