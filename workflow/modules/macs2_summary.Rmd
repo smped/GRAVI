@@ -1236,7 +1236,7 @@ htmltools::tagList(
 )  
 ```
 
-## Gene-Set Enrichment Analysis
+## Gene-Set Enrichment
 
 ```{r setup-enrichment}
 ## Set parameters for enabling networks, handling possible NULLs
@@ -1245,8 +1245,8 @@ max_network_size <- max(network_params$size)
 max_network_dist <- c(network_params$max_distance, 1)[[1]]
 net_layout <- c(network_params$layout, "fr")[[1]]
 enrich_method <- match.arg(enrich_params$method, c("great", "gene_id"))
-msigdb <- read_rds(all_paths$annotation, "msigdb.rds")
-gs_url <- unique(msigdb$gs_url)
+msigdb <- here::here(all_paths$annotation, "msigdb.rds") %>% read_rds()
+gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
 ```
 
 `r desc_enrichment(enrich_method)`
@@ -1299,7 +1299,7 @@ tbl <- enrich_df %>%
     gs_name, genes_with_hits, contains("gene"), everything()
   ) %>% 
   reactable(
-    sortable = TRUE, filterable = TRUE, 
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE, 
     columns = enrich_cols[colnames(.)],
     details =  function(index){
       htmltools::div(
