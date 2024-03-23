@@ -40,6 +40,7 @@ library(universalmotif)
 library(motifTestR)
 library(corrplot)
 library(fontawesome)
+library(GenomicInteractions)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -62,10 +63,11 @@ library(bs_pkg, character.only = TRUE)
 ```{r config-params-paths}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
 enrich_params <- all_params$enrichment
+mapping_params <- all_params$mapping
+msigdb_params <- all_params$msigdb
+network_params <- all_params$networks
 region_params <- all_params$gene_regions
 regioner_params <- all_params$regioner
-network_params <- all_params$networks
-msigdb_params <- all_params$msigdb
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)
@@ -85,6 +87,7 @@ samples <- all_paths$macs2 %>%
   file.path(target, glue("{target}_qc_samples.tsv")) %>%
   read_tsv()
 treat_levels <- unique(samples$treat)
+sample2label <- setNames(samples$label, samples$sample)
 if (!is.null(config$comparisons$contrasts)) {
   ## Ensure levels respect those provided in contrasts
   treat_levels <- config$comparisons$contrasts %>%
@@ -120,13 +123,12 @@ full_palette <- colours %>%
 ```
 
 
-```{r annotations}
+```{r load-annotations}
 ## Seqinfo
 sq <- read_rds(file.path(all_paths$annotation, "seqinfo.rds"))
 ## Gene Annotations
 gtf_gene <- read_rds(file.path(all_paths$annotation, "gtf_gene.rds"))
-gtf_transcript <- read_rds(file.path(all_paths$annotation, "gtf_transcript.rds"))
-id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
+tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## Gene Regions
 gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
@@ -143,20 +145,6 @@ region_colours <- c(colours$regions, colours$features) %>%
       TRUE ~ str_sep_to_title(names(.))
     )
   )
-# RNA-Seq
-rna_path <- here::here(config$external$rnaseq)
-rnaseq <- tibble(gene_id = character())
-if (length(rna_path) > 0) {
-  stopifnot(file.exists(rna_path))
-  if (str_detect(rna_path, "tsv$")) rnaseq <- read_tsv(rna_path)
-  if (str_detect(rna_path, "csv$")) rnaseq <- read_csv(rna_path)
-  if (!"gene_id" %in% colnames(rnaseq)) stop("Supplied RNA-Seq data must contain the column 'gene_id'")
-  gtf_gene <- subset(gtf_gene, gene_id %in% rnaseq$gene_id)
-}
-tx_col <- intersect(c("tx_id", "transcript_id"), colnames(rnaseq))
-rna_gr_col <- ifelse(length(tx_col) > 0, "transcript_id", "gene_id")
-rna_col <- c(tx_col, "gene_id")[[1]]
-tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## bands_df
 cb <- config$genome$build %>%
   str_to_lower() %>% 
@@ -178,6 +166,79 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
   formals(fig_fun)$res <- 300
 }
 ```
+
+```{r load-hic}
+hic <- GInteractions()
+hic_path <- here::here(config$external$hic)
+if (length(hic_path) > 0)
+  if (file.exists(hic_path)) {
+    has_hic <- TRUE
+    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
+    reg_combs <- expand.grid(regions, regions) %>% 
+      as.matrix() %>% 
+      apply(
+        MARGIN = 1, 
+        \(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      unique()
+    hic$regions <- anchors(hic) %>% 
+      vapply(
+        bestOverlap,
+        y = GRangesList(lapply(gene_regions, granges)),
+        character(length(hic))
+      ) %>% 
+      apply(MARGIN = 2, \(x) regions[x]) %>% 
+      apply(
+        MARGIN = 1, 
+        \(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      factor(levels = reg_combs) %>%
+      fct_relabel(
+        str_replace_all,
+        pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
+      )
+    if (has_features) {
+      feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>% 
+        as.matrix() %>% 
+        apply(
+          MARGIN = 1, 
+          \(x) {
+            x <- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        unique()
+      hic$features <- vapply(
+        anchors(hic),
+        \(x) bestOverlap(
+          x, external_features, var = "feature", missing = "no_feature"
+        ),
+        character(length(hic))
+      )  %>% 
+        apply(
+          MARGIN = 1, 
+          \(x) {
+            x <- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        factor(levels = feat_combs) %>%
+        fct_relabel(str_sep_to_title, pattern = "_")
+    }
+  }
+stopifnot(is(hic, "GInteractions"))
+seqlevels(hic) <- seqlevels(sq)
+seqinfo(hic) <- sq
+# hic <- hic[!overlapsAny(hic, exclude_gr)]
+has_hic <- as.logical(length(hic))
+```
+
 
 ```{r bfl}
 bfl <- all_paths$bam %>%
@@ -203,12 +264,12 @@ merged_peaks <- all_paths$macs2 %>%
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
 filtered_peaks <- all_paths$peaks %>% 
-  file.path("{target}_{treat_levels}_filtered_peaks.narrowPeak") %>% 
+  file.path("{target}", "{target}_{treat_levels}_filtered_peaks.narrowPeak") %>% 
   glue() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(treat_levels)
 consensus_peaks <- all_paths$peaks %>% 
-  file.path("{target}_consensus_peaks.bed.gz") %>% 
+  file.path("{target}", "{target}_consensus_peaks.bed.gz") %>% 
   glue() %>% 
   importPeaks(type = "bed", seqinfo = sq, setNames = FALSE) %>% 
   unlist() %>% 
@@ -217,13 +278,41 @@ consensus_peaks <- all_paths$peaks %>%
       fct(levels = names(gene_regions)) %>% 
       fct_relabel(\(x) regions[x])
   )
+```
+
+```{r map-peaks}
+feat_prom <- GRanges()
+feat_enh <- GRanges()
 if (has_features) {
-  consensus_peaks$Feature <- bestOverlap(
-    consensus_peaks, external_features, missing = "no_feature"
-  ) %>%
-    factor(levels = names(colours$features)) %>%
-    fct_relabel(str_sep_to_title)
+  consensus_peaks <- consensus_peaks %>% 
+    mutate(
+      feature = bestOverlap(
+        ., external_features, "feature", missing = "no_feature"
+      ) %>% 
+        factor(levels = names(colours$features)) %>% 
+        fct_relabel(str_sep_to_title)
+    )
+  if ("feature" %in% colnames(mcols(external_features))) {
+    feat_prom <- external_features %>%
+      subset(str_detect(feature, "[Pp]rom")) %>%
+      granges()
+    feat_enh <- external_features %>%
+      subset(str_detect(feature, "[Ee]nhanc")) %>%
+      granges()
+  }
 }
+consensus_peaks <- consensus_peaks %>%
+  mapByFeature(
+    genes = gtf_gene, 
+    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+    enh = feat_enh,
+    gi = hic, 
+    gr2gene = mapping_params$gr2gene,
+    prom2gene = mapping_params$prom2gene,
+    enh2gene = mapping_params$enh2gene,
+    gi2gene = mapping_params$gi2gene
+  )
+## Should probably export after mapping...?
 ```
 
 
@@ -471,7 +560,6 @@ In the case of four or more replicates, the package `ComplexUpset` was used to c
 #### All Samples
 
 ```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. Intersections are only included if 10 or more sites are present. The top panel shows a boxplot of the median $q$-values produced by `macs2 callpeak` for each peak in the intersection. The y-axis for this panel is truncated at the 99^th^ percentile of values. Only intersections with 10 or more peaks are shown.*"}
-sample2label <- setNames(samples$label, samples$sample)
 sets <- list(all = paste(samples$label, collapse = "; ")) %>% 
   c(
     samples %>% 
@@ -917,7 +1005,7 @@ consensus_peaks %>%
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 consensus_peaks %>% 
   plotPie(
-    fill = "Feature", total_size = 4,
+    fill = "feature", total_size = 4,
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
     cat_alpha = 0.9, cat_adj = 0.05
   ) +
@@ -930,7 +1018,7 @@ consensus_peaks %>%
 ```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
 consensus_peaks %>% 
   plotSplitDonut(
-    inner = "Feature", outer = "region",
+    inner = "feature", outer = "region",
     inner_palette = region_colours,
     outer_palette = region_colours,
     inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
@@ -1067,10 +1155,11 @@ htmltools::tagList(
           paste0("_topranked.", fig_type)
       )
       fig_fun(filename = fig_out, width = fw, height = fh)
-      ## Automatically collapse Transcripts if more than 10
+      ## Automatically collapse Transcripts if more than 20
       ct <- FALSE
       gh <- 1
-      if (length(subsetByOverlaps(gtf_transcript, grl_to_plot[[x]])) > 20) {
+      ol_trans <- subsetByOverlaps(hfgc_genes, grl_to_plot)$transcript
+      if (length(unique(ol_trans)) > 20) {
         ct <- "meta"
         gh <- 0.5
       }
@@ -1147,144 +1236,71 @@ htmltools::tagList(
 )  
 ```
 
-## Enrichment Analysis
+## Gene-Set Enrichment
 
-### GREAT {.tabset}
-
-As a brief overview of pathways and genes likely to be regulated by `r target`, the package `rGREAT` [@Gu2023-rp] was used to test for enrichment of pathways and genesets, as an R implementation of the GREAT methodology [@McLean2010-gw].
-This approach takes a set of 'background' genomic ranges and assesses relative enrichment of matches to a given pathway amongst the provided peaks.
-For this specific analysis, the background ranges were set to be the whole genome, excluding the ranges defined as gaps by UCSC.
-
-
-```{r setup-great}
+```{r setup-enrichment}
 ## Set parameters for enabling networks, handling possible NULLs
 min_network_size <- min(network_params$size)
 max_network_size <- max(network_params$size)
 max_network_dist <- c(network_params$max_distance, 1)[[1]]
 net_layout <- c(network_params$layout, "fr")[[1]]
-## The parameters for enrichment
-adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
-ext_tss <- gtf_gene %>% 
-  select(gene_id) %>% 
-  extendTSS(
-    genome = ucsc$build, gene_id_type = 'ENSEMBL', 
-    basal_upstream = region_params$promoters$upstream,
-    basal_downstream = region_params$promoters$downstream
-  )
-ext_tss_ol <- subsetByOverlaps(ext_tss, consensus_peaks)
-msigdb <- msigdbr(msigdb_params$species) %>% 
-  dplyr::filter(
-    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
-  ) %>% 
-  dplyr::filter(
-    n() >= min(msigdb_params$size) & n() <= max(msigdb_params$size),
-    .by = gs_name
-  ) %>% 
-  dplyr::filter(ensembl_gene %in% ext_tss$gene_id)
-gs_list <- msigdb %>% 
-  split(.$gs_name) %>% 
-  lapply(pull, ensembl_gene) 
-gs_url <- msigdb %>% 
-  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
-  mutate(
-    gs_url = case_when(
-      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
-      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
-      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
-        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
-      ),
-      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
-      TRUE ~ gs_url
-    ) %>% 
-      setNames(gs_name)
-  ) %>% 
-  pull(gs_url)
+enrich_method <- match.arg(enrich_params$method, c("great", "gene_id"))
+msigdb <- here::here(all_paths$annotation, "msigdb.rds") %>% read_rds()
+gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
 ```
 
+`r desc_enrichment(enrich_method)`
 
-```{r run-great}
-great_res <- consensus_peaks %>% 
-  set_genome_info(genome = ucsc$build) %>% 
-  great(
-    gene_sets = gs_list, extended_tss = ext_tss, 
-    min_gene_set_size = min(msigdb_params$size), 
-    cores = threads
-  )
-great_df <- getEnrichmentTable(great_res) %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
+For this specific analysis, the background ranges were set to be the whole genome.
+`r if (enrich_method == "gene_id") "Widths of the genomic regions spanned by a gene were taken as a bias offset term with testing [@YoungGoseq2010]."`
+
+
+### Results {.tabset}
+
+
+```{r run-enrichment}
+enrich_arg_list <- list(
+  test_ranges = consensus_peaks, db = msigdb, gtf = gtf_gene, bg = NULL, 
+  genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 
+  adj_method = enrich_params$adj, params = region_params$promoters, 
+  method = "Wallenius"
+)
+if (enrich_method == "great") 
+  enrich_df <- do.call(".great_enrich", enrich_arg_list)
+if (enrich_method == "gene_id")
+  enrich_df <- do.call(".geneid_enrich", enrich_arg_list)
+n_enrich <- sum(enrich_df$adj_p < enrich_params$alpha)
+tg_enrich <- enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
   mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
+    p = ifelse(p > 0, p, 1e-16),
+    prop = observed_gene_hits / gene_set_size 
+  ) %>% 
+  make_tbl_graph(
+    gs = .$gene_id, 
+    alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = max_network_dist, max_gs = max_network_size
   )
-n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
 ```
 
-Genes from the supplied GTF were used to define the TSS, giving only one TSS for each gene.
-Whilst unrealistic, this ensures model assumptions are not violated.
-This gave a total of `r comma(length(ext_tss))` TSS regions were defined for analysis.
+Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r enrich_params$adj`) below `r enrich_params$alpha`.
+sing this strategy `r n_enrich` pathways were considered to be enriched within the set of `r target` consensus peaks.
 
-The `r length(gs_list)` pathways tested were those belonging to `r pander(unname(unlist(msigdb_params[c("gs_cat", "gs_subcat")])))` as defined by [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/) v`r packageVersion("msigdbr")` [@Liberzon2011-fr].
-Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r enrich_params$adj`) below `r enrich_params$alpha`, using the `rGREAT` results from the *hyper-geometric test*, instead of the *binomial test*.
-sing this strategy `r n_great` pathways were considered to be enriched within the set of `r target` consensus peaks.
 
-`r if (n_great > 0) "#### Results Table"`
+`r if (n_enrich > 0) "#### Results Table"`
 
-```{r tbl-great-res, eval = n_great > 0, echo = n_great > 0}
-tbl <- great_df %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+```{r tbl-enrich-res, eval = n_enrich > 0, echo = n_enrich > 0}
+tbl <- enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
-  dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
+  dplyr::select(-any_of(c("gene_id"))) %>% 
   dplyr::select(
-    id, genes_with_hits, contains("gene"), ends_with("hyper"), everything()
+    gs_name, genes_with_hits, contains("gene"), everything()
   ) %>% 
   reactable(
-    sortable = TRUE, filterable = TRUE, 
-    columns = list(
-      id = colDef(
-        name = "Gene Set", minWidth = 180,
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        html = TRUE
-      ),
-      genome_fraction = colDef(show = FALSE),
-      observed_region_hits = colDef(show = FALSE),
-      fold_enrichment_hyper = colDef(
-        name = "Fold Enrichment", format = colFormat(digits = 3),
-        minWidth = 110, filterMethod = js_greater
-      ),
-      p_adjust_hyper = colDef(
-        name = glue("P<sub>adj</sub>"),
-        html = TRUE, cell = \(value) sprint_pval(value),
-        maxWidth = 110, filterMethod = js_less
-      ),
-      mean_tss_dist = colDef(
-        "Mean TSS Distance (kb)", cell = \(value) round(value / 1e3, 2),
-        filterMethod = js_greater
-      ),
-      observed_gene_hits = colDef(
-        "Gene Hits", maxWidth = 100, filterMethod = js_greater
-      ),
-      gene_set_size = colDef(
-        "Gene Set Size", maxWidth = 100, filterMethod = js_greater
-      ),
-      genes_with_hits = colDef(
-        name = "Genes With Associated Peaks", minWidth = 200,
-        cell = \(value) with_tooltip(value, width = 60)
-      )
-    ),
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE, 
+    columns = enrich_cols[colnames(.)],
     details =  function(index){
       htmltools::div(
         htmltools::tags$pre(
@@ -1295,19 +1311,18 @@ tbl <- great_df %>%
         )
       )
     },
-    elementId = "great-res-table"
+    elementId = "enrich-res-table"
   )
 cp <- htmltools::em(
   glue(
     "
     Enrichment results for regions showing consistently detectable signal for 
-    {target} as considered significant when using rGREAT, using an adjusted 
-    p-value ({enrich_params$adj}) < {enrich_params$alpha} to determine 
-    significance. Backround regions to
-    determine relative enrichment were taken as the entire genome. In the case
-    of large numbers of significant gene-sets, results are limited to the 100 
-    most highly ranked. For gene-sets where rGREAT has returned a p-value of 
-    zero, the value <2e-16 will be printed.
+    {target}, using an adjusted p-value 
+    ({enrich_params$adj}) < {enrich_params$alpha} to determine significance. 
+    The backround to determine relative enrichment was taken as the entire 
+    genome. In the case of large numbers of significant gene-sets, results are 
+    limited to the 100  most highly ranked. For gene-sets where the analysis has
+    returned a p-value of zero, the value <2e-16 will be printed.
     "
   )
 )
@@ -1315,16 +1330,16 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('great-res-table', '{target}_great_res.csv')"
+      "Reactable.downloadDataCSV('enrich-res-table', '{target}_motif_enrich_res.csv')"
     )
   ),
   tags$button(
     "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('great-res-table')"
+    onclick = "Reactable.toggleAllRowsExpanded('enrich-res-table')"
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('great-res-table', [])"
+    onclick = "Reactable.setAllFilters('enrich-res-table', [])"
   ),
   tbl,
   cp
@@ -1336,70 +1351,49 @@ if (interactive()) {
 }
 ```
 
-`r if (n_great > 0) "#### Network Plot"`
+`r if (n_enrich > min_network_size) "#### Network Plot"`
 
-```{r great-network, echo = n_great > min_network_size, eval = n_great > min_network_size, fig.cap = glue("*The {n_great} most highly ranked gene sets from rGREAT analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
-tg_great <- great_df %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
-  make_tbl_graph(
-    gs = great_df[["gene_id"]], 
-    alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
-    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-    min_dist = max_network_dist, max_gs = max_network_size
-  )
-if (length(tg_great) >= min_network_size) {
-  tg_great %>% 
-    mutate(
-      ## The lowest p-value obtainable from pbinom is 1e-16
-      p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
-      prop = observed_gene_hits / gene_set_size 
-    ) %>% 
-    ggraph(layout = net_layout, weights = oc) +
-    geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-    geom_node_point(
-      aes(
-        fill = -log10(p_value_hyper), size = observed_gene_hits, stroke = 1.5 * prop
+```{r great-network, echo = n_enrich > min_network_size, eval = n_enrich > min_network_size, fig.cap = glue("*The {n_enrich} most highly ranked gene sets from enrichment analysis. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with detected {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max_network_size} gene sets*")}
+tg_enrich %>% 
+  ggraph(layout = net_layout, weights = oc) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+  geom_node_point(
+    aes(
+      fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+    ),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label, alpha = prop),
+    colour = "black", size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% 
+          str_trunc(60) %>% 
+          str_wrap(width = 18)
       ),
-      shape = 21
-    ) +
-    geom_node_text(
-      aes(label = label, alpha = prop),
-      colour = "black", size = 3, 
-      data = . %>%
-        mutate(
-          label = str_replace_all(label, "_", " ") %>% 
-            str_trunc(60) %>% 
-            str_wrap(width = 18)
-        ),
-      repel = TRUE, max.overlaps = max(10, round(length(tg_great) / 4, 0)),
-      bg.color = "white", bg.r = 0.1, 
-    ) +
-    scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-    scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-    scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-    scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-    scale_size_continuous(range = c(1, 10)) +
-    scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-    scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-    guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-    labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-    theme_void() 
-}
+    repel = TRUE, max.overlaps = max(10, round(length(tg_enrich) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+  labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+  theme_void() 
 ```
 
-`r if (n_great > 0) "#### Peak Distribution"`
-
-```{r plot-highest-great, eval = n_great > 0, echo = n_great > 0, fig.cap = glue("*Distribution of {target} signal around TSS regions for {top_id}, which was the most highly enriched of the test gene sets.*")}
-top_id <- great_df$id[1]
-plotRegionGeneAssociations(great_res, top_id, which = 2:3)
-```
 
 ## Region Analysis
 
 ```{r load-localz}
 ## This should be run in a separate script with many threads & lots of RAM
 mlz <- all_paths$peaks %>% 
-  file.path("{target}_regions_localz.rds") %>% 
+  file.path("{target}", "{target}_regions_localz.rds") %>% 
   glue() %>% 
   read_rds()
 localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
@@ -1539,13 +1533,15 @@ pos_res <- file.path(all_paths$peaks, "{target}_motif_position.tsv.gz") %>%
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
 n_pos <- sum(pos_res$adj_p < motif_params$alpha)
-enrich_res <- all_paths$peaks %>% 
+motif_enrich_res <- all_paths$peaks %>% 
   file.path("{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_enrich <- sum(enrich_res$adj_p < motif_params$alpha & enrich_res$Z > 0)
+n_enrich <- sum(
+  motif_enrich_res$adj_p < motif_params$alpha & motif_enrich_res$Z > 0
+)
 ```
 
 Using the motifs defined during preparation, testing was performed for 1) enrichment above background and 2) any positional bias within the tested sequences.
@@ -1553,7 +1549,7 @@ For this step peaks were set to a fixed width of `r motif_params$peak_width`bp, 
 
 ### Motif Enrichment {.tabset}
 
-A simple enrichment analysis was performed by selecting a set of `r comma(enrich_res$sequences[[1]] * enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(enrich_res$sequences[[1]])` *test sequences*.
+A simple enrichment analysis was performed by selecting a set of `r comma(motif_enrich_res$sequences[[1]] * motif_enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(motif_enrich_res$sequences[[1]])` *test sequences*.
 This gave a set of genomically matched control sequences to gauge enrichment by.
 Analysis was performed using the `motifTestR` package and the `r motif_params$model`.
 
@@ -1562,7 +1558,7 @@ Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) ar
 `r if (n_enrich > 0) "#### Enrichment Table"`
 
 ```{r tbl-res-enrich, eval = n_enrich > 0, echo = n_enrich > 0}
-tbl <- enrich_res %>%
+tbl <- motif_enrich_res %>%
   arrange(p) %>% 
   dplyr::filter(adj_p < motif_params$alpha, Z > 0) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
@@ -1631,7 +1627,7 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('enrich-res-table', '{target}_enrich_res.csv')"
+      "Reactable.downloadDataCSV('enrich-res-table', '{target}_motif_enrich_res.csv')"
     )
   ),
   tags$button(
@@ -1655,7 +1651,7 @@ if (interactive()) {
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
 ```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
-top_enrich <- enrich_res %>%
+top_enrich <- motif_enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:20) %>% 
   pull("altname")
@@ -1667,7 +1663,7 @@ motif_list %>%
   bind_rows(.id = "altname") %>%
   distinct(altname, seq) %>% 
   left_join(
-    dplyr::select(enrich_res, altname, name), by = "altname"
+    dplyr::select(motif_enrich_res, altname, name), by = "altname"
   ) %>% 
   mutate(detected = TRUE) %>% 
   dplyr::select(seq, name, detected) %>% 

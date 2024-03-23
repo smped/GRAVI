@@ -1809,38 +1809,6 @@ Hypergeometric testing also tends to be more conservative
 As an initial exploration, the ranges containing `r target` signal were compared to pre-defined gene-sets.
 These were taken from the `MSigDB` database for `r sp` and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
 
-```{r tbl-msigdb}
-msigdb %>% 
-  distinct(gs_cat, gs_subcat, gs_name) %>%
-  summarise(`Gene Sets` = dplyr::n(), .by = ends_with("cat")) %>% 
-  dplyr::rename(Category = gs_cat, `Sub-Category` = gs_subcat) %>% 
-  mutate(
-    Description = case_when(
-      Category == "H" ~ "Hallmark Gene-Sets",
-      Category == "C1" ~ "Positional Gene Sets",
-      Category == "C2" ~ str_replace_all(`Sub-Category`, "CP:(.+)", "Curated Gene-Sets: \\1"),
-      str_detect(`Sub-Category`, "TFT") ~ str_replace_all(`Sub-Category`, "TFT:(.+)", "Transcription Factor Target Prediction Gene-Sets: \\1"),
-      str_detect(`Sub-Category`, "MIR") ~ str_replace_all(`Sub-Category`, "MIR:(.+)", "microRNA Target Gene-Sets: \\1"),
-      str_detect(`Sub-Category`, "CGN") ~ "Cancer Gene Neighbourhoods",
-      str_detect(`Sub-Category`, "CM") ~ "Cancer Modules",
-      str_detect(`Sub-Category`, "GO:BP") ~ "Gene Ontology: Bological Process",
-      str_detect(`Sub-Category`, "GO:MF") ~ "Gene Ontology: Molecular Function",
-      str_detect(`Sub-Category`, "GO:CC") ~ "Gene Ontology: Cellular Component",
-      str_detect(`Sub-Category`, "HPO") ~ "Human Phenotype Ontology",
-      Category == "C6" ~ "Oncogenic Signature Gene Sets",
-      `Sub-Category` == "IMMUNESIGDB" ~ "ImmuneSigDB Gene Sets",
-      `Sub-Category` == "VAX" ~ "Vaccine Response Gene Sets",
-      Category == "C8" ~ "Cell Type Signature Gene Sets"
-    ),
-    Category = factor(Category, levels = c("H", paste0("C", 1:8)))
-  ) %>% 
-  droplevels() %>% 
-  arrange(Category) %>% 
-  pander(
-    justify = "llrl", 
-    caption = "*Summary of Gene-Sets used for Enrichment Testing*"
-  )
-```
 
 Ranges were tested for enrichment of these gene-sets using:
 

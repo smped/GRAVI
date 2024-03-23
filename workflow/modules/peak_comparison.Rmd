@@ -13,7 +13,6 @@ library(yaml)
 library(glue)
 library(metap)
 library(extraChIPs)
-library(rGREAT)
 library(msigdbr)
 library(plyranges)
 library(reactable)
@@ -30,6 +29,7 @@ library(regioneReloaded)
 library(motifTestR)
 library(universalmotif)
 library(corrplot)
+library(GenomicInteractions)
 theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
@@ -37,6 +37,7 @@ theme_set(
 panderOptions("big.mark", ",")
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
+source(here::here("workflow/scripts/enrichment_funs.R"))
 config <- here::here("config", "config.yml") %>% read_yaml()
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -50,6 +51,7 @@ library(bs_pkg, character.only = TRUE)
 ```{r target-config}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
 enrich_params <- all_params$enrichment
+mapping_params <- all_params$mapping
 msigdb_params <- all_params$msigdb
 network_params <- all_params$networks
 region_params <- all_params$gene_regions
@@ -80,7 +82,6 @@ n_targets <- length(targets)
 sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% 
   read_rds()
 gtf_gene <- read_rds(file.path(all_paths$annotation, "gtf_gene.rds"))
-id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id)
 tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## Gene Regions
 gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
@@ -111,6 +112,78 @@ heat_col <- c(
 )
 ```
 
+```{r load-hic}
+hic <- GInteractions()
+hic_path <- here::here(config$external$hic)
+if (length(hic_path) > 0)
+  if (file.exists(hic_path)) {
+    has_hic <- TRUE
+    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
+    reg_combs <- expand.grid(regions, regions) %>% 
+      as.matrix() %>% 
+      apply(
+        MARGIN = 1, 
+        \(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      unique()
+    hic$regions <- anchors(hic) %>% 
+      vapply(
+        bestOverlap,
+        y = GRangesList(lapply(gene_regions, granges)),
+        character(length(hic))
+      ) %>% 
+      apply(MARGIN = 2, \(x) regions[x]) %>% 
+      apply(
+        MARGIN = 1, 
+        \(x) {
+          x <- sort(factor(x, levels = regions))
+          paste(as.character(x), collapse = " - ")
+        }
+      ) %>% 
+      factor(levels = reg_combs) %>%
+      fct_relabel(
+        str_replace_all,
+        pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
+      )
+    if (has_features) {
+      feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>% 
+        as.matrix() %>% 
+        apply(
+          MARGIN = 1, 
+          \(x) {
+            x <- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        unique()
+      hic$features <- vapply(
+        anchors(hic),
+        \(x) bestOverlap(
+          x, external_features, var = "feature", missing = "no_feature"
+        ),
+        character(length(hic))
+      )  %>% 
+        apply(
+          MARGIN = 1, 
+          \(x) {
+            x <- sort(factor(x, levels = names(feature_colours)))
+            paste(as.character(x), collapse = " - ")
+          }
+        ) %>% 
+        factor(levels = feat_combs) %>%
+        fct_relabel(str_sep_to_title, pattern = "_")
+    }
+  }
+stopifnot(is(hic, "GInteractions"))
+seqlevels(hic) <- seqlevels(sq)
+seqinfo(hic) <- sq
+# hic <- hic[!overlapsAny(hic, exclude_gr)]
+has_hic <- as.logical(length(hic))
+```
+
 
 
 ## Introduction
@@ -135,6 +208,53 @@ shared_peaks <- file.path(all_paths$peaks, "shared", "shared_consensus_peaks.bed
   unname() %>% 
   granges()
 ```
+
+```{r map-peaks}
+feat_prom <- GRanges()
+feat_enh <- GRanges()
+if (has_features) {
+  consensus_peaks <- consensus_peaks %>% 
+    mutate(
+      feature = bestOverlap(
+        ., external_features, "feature", missing = "no_feature"
+      ) %>% 
+        factor(levels = names(colours$features)) %>% 
+        fct_relabel(str_sep_to_title)
+    )
+  if ("feature" %in% colnames(mcols(external_features))) {
+    feat_prom <- external_features %>%
+      subset(str_detect(feature, "[Pp]rom")) %>%
+      granges()
+    feat_enh <- external_features %>%
+      subset(str_detect(feature, "[Ee]nhanc")) %>%
+      granges()
+  }
+}
+consensus_peaks <- consensus_peaks %>%
+  endoapply(
+    mapByFeature,
+    genes = gtf_gene, 
+    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+    enh = feat_enh,
+    gi = hic, 
+    gr2gene = mapping_params$gr2gene,
+    prom2gene = mapping_params$prom2gene,
+    enh2gene = mapping_params$enh2gene,
+    gi2gene = mapping_params$gi2gene
+  )
+shared_peaks <- mapByFeature(
+  shared_peaks,
+  genes = gtf_gene, 
+  prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+  enh = feat_enh,
+  gi = hic, 
+  gr2gene = mapping_params$gr2gene,
+  prom2gene = mapping_params$prom2gene,
+  enh2gene = mapping_params$enh2gene,
+  gi2gene = mapping_params$gi2gene
+)
+```
+
 
 Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of common regions found.
 Given that `r n_targets` were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across all targets, but where signal was detected in at least `r n_targets - 1` targets.
@@ -218,179 +338,89 @@ A + B + plot_annotation(tag_levels = "A")
 ```
 
 
+## Gene-Set Enrichment
 
-## GREAT Enrichment 
-
-```{r setup-great}
-ext_tss <- gtf_gene %>% 
-  select(gene_id) %>% 
-  extendTSS(
-    genome = ucsc$build, gene_id_type = 'ENSEMBL', 
-    basal_upstream = region_params$promoters$upstream,
-    basal_downstream = region_params$promoters$downstream
-  ) 
-ext_tss_ol <- subsetByOverlaps(ext_tss, shared_peaks)
-msigdb <- msigdbr(msigdb_params$species) %>% 
-  dplyr::filter(
-    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat
-  ) %>% 
-  dplyr::filter(
-    n() >= min(msigdb_params$size) & n() <= max(msigdb_params$size),
-    .by = gs_name
-  ) %>% 
-  dplyr::filter(ensembl_gene %in% ext_tss$gene_id)
-gs_list <- msigdb %>% 
-  split(.$gs_name) %>% 
-  lapply(pull, ensembl_gene) 
-gs_url <- msigdb %>% 
-  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
-  mutate(
-    gs_url = case_when(
-      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
-      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
-      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
-        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
-      ),
-      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
-      TRUE ~ gs_url
-    ) %>% 
-      setNames(gs_name)
-  ) %>% 
-  pull(gs_url)
-great_res <- great(
-  set_genome_info(shared_peaks, genome = ucsc$build), 
-  gene_sets = gs_list, 
-  extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = min(msigdb_params$size), 
-  cores = threads
-)
-great_df <- getEnrichmentTable(great_res) %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
-  arrange(p_value_hyper) %>% 
-  mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, enrich_params$adj),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
-  )
-n_great <- sum(great_df$p_adjust_hyper < enrich_params$alpha)
+```{r setup-enrichment}
+## Set parameters for enabling networks, handling possible NULLs
+min_network_size <- min(network_params$size)
+max_network_size <- max(network_params$size)
+max_network_dist <- c(network_params$max_distance, 1)[[1]]
+net_layout <- c(network_params$layout, "fr")[[1]]
+enrich_method <- match.arg(enrich_params$method, c("great", "gene_id"))
+msigdb <- here::here(all_paths$annotation, "msigdb.rds") %>% read_rds
+gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
 ```
 
+`r desc_enrichment(enrich_method)`
 
-In keeping with the analysis of each individual set of peaks, the `r comma(length(shared_peaks))` regions where all targets were detectable were analysed using `rGREAT` [@Gu2023-rp] and identical parameterisation.
-This gives clear insight into which pathways are likely to be regulated by all targets *acting in concert*, with `r n_great` gene-sets being considered as enriched within these shared regions.
+For this specific analysis, the background ranges were set to be the whole genome.
+`r if (enrich_method == "gene_id") "Widths of the genomic regions spanned by a gene were taken as a bias offset term with testing [@YoungGoseq2010]."`
 
-As analysis using `rGREAT` determines enrichment in comparison to a set of background regions, two analyses were performed.
-The first uses the *entire genome* as the background ranges, whilst the second strategy uses the union of all ranges with detected signal in *any target* as the background.
-The latter approach effectively zooms in on the gene-sets specifically regulated by all targets acting in concert, out of the larger group of gene-sets regulated by *any* of the targets.
-The results will often be highly comparable, but can sometimes reveal interesting insights as to the underlying biology.
+As a separate step, the background was also taken as the union of all ranges.
 
 
 ### Genomic Background {.tabset}
 
-```{r great-genome-bg}
-great_res_genomic <- great(
-  set_genome_info(shared_peaks, genome = ucsc$build), 
-  gene_sets = gs_list, 
-  extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = min(msigdb_params$size), 
-  cores = threads
+```{r enrich-genome-bg}
+enrich_arg_list <- list(
+  test_ranges = shared_peaks, db = msigdb, gtf = gtf_gene, bg = NULL, 
+  genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 
+  adj_method = enrich_params$adj, params = region_params$promoters, 
+  method = "Wallenius"
 )
-great_df_genomic <- getEnrichmentTable(great_res_genomic) %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
-  arrange(p_value_hyper) %>% 
+if (enrich_method == "great") 
+  enrich_genomic_df <- do.call(".great_enrich", enrich_arg_list)
+if (enrich_method == "gene_id")
+  enrich_genomic_df <- do.call(".geneid_enrich", enrich_arg_list)
+n_enrich_genomic <- sum(enrich_genomic_df$adj_p < enrich_params$alpha)
+tg_enrich_genomic <- enrich_genomic_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
   mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, enrich_params$adj),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
+    p = ifelse(p > 0, p, 1e-16),
+    prop = observed_gene_hits / gene_set_size 
+  ) %>% 
+  make_tbl_graph(
+    gs = .$gene_id, 
+    alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = max_network_dist, max_gs = max_network_size
   )
-n_great_genomic <- sum(great_df_genomic$p_adjust_hyper < enrich_params$alpha)
 ```
 
 
-`r if (n_great_genomic > 0) "#### GREAT Results Table"`
+`r if (n_enrich_genomic > 0) "#### Enrichment Results Table"`
 
-```{r tbl-great-res-genomic, eval = n_great_genomic > 0, echo = n_great_genomic > 0}
-tbl <- great_df_genomic %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+```{r tbl-res-genomic, eval = n_enrich_genomic > 0, echo = n_enrich_genomic > 0}
+tbl <- enrich_genomic_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
-  dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
-  dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
+  dplyr::select(-any_of(c("gene_id"))) %>% 
+  dplyr::select(
+    gs_name, genes_with_hits, contains("gene"), everything()
+  ) %>% 
   reactable(
-    sortable = TRUE, filterable = TRUE,
-    columns = list(
-      id = colDef(
-        name = "Gene Set", minWidth = 180,
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        html = TRUE
-      ),
-      genome_fraction = colDef(show = FALSE),
-      observed_region_hits = colDef(show = FALSE),
-      fold_enrichment_hyper = colDef(
-        name = "Fold Enrichment", format = colFormat(digits = 3),
-        minWidth = 110, filterMethod = js_greater
-      ),
-      p_adjust_hyper = colDef(
-        name = glue("P<sub>adj</sub> ({enrich_params$adj})"),
-        html = TRUE, maxWidth = 110,
-        cell = \(value) sprint_pval(value),
-        filterMethod = js_less
-      ),
-      mean_tss_dist = colDef(
-        "Mean TSS Distance (kb)", 
-        cell = \(value) round(value / 1e3, 2), filterMethod = js_greater
-      ),
-      observed_gene_hits = colDef(
-        "Gene Hits", maxWidth = 100, filterMethod = js_greater
-      ),
-      gene_set_size = colDef(
-        "Gene Set Size", maxWidth = 100, filterMethod = js_greater
-      ),
-      genes_with_hits = colDef(
-        name = "Genes",
-        cell = \(value) with_tooltip(value, width = 60),
-        minWidth = 200
-      )
-    ),
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+    columns = enrich_cols[colnames(.)],
     details =  function(index){
       htmltools::div(
         htmltools::tags$pre(
           str_wrap(
-            paste(capture.output(great_df_genomic$genes_with_hits[index]), collapse = "\n"),
+            paste(capture.output(enrich_genomic_df$genes_with_hits[index]), collapse = "\n"),
             width = 120
           )
         )
       )
     },
-    elementId = "great-genomic-res-table"
+    elementId = "enrich-genomic-res-table"
   )
 cp <- htmltools::em(
   glue(
     "Gene-set enrichment results for regions showing consistently detectable ", 
     "signal for all of ", glue_collapse(targets, sep = ", ", last = " and "),
-    " that were considered significantly enriched when using rGREAT. ", 
-    "Backround regions to determine relative enrichment were taken as the entire genome. ",
-    comma(n_great_genomic), 
-    " gene-sets were considered as enriched relative to background. ",
+    " that were considered significantly enriched. ", 
+    "The entire genome was used for the background to determine enrichment, and ",
+    comma(n_enrich_genomic), 
+    " gene-sets were considered as enriched. ",
     "In the case of large numbers of significant gene-sets, results are limited to the 100 most highly ranked. ",
     "The genes listed are those associated with the set of shared regions, ",
     "with the gene-set size reflecting the number associated with the background regions."
@@ -400,16 +430,16 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('great-genomic-res-table', 'shared_great_genomic_res.csv')"
+      "Reactable.downloadDataCSV('enrich-genomic-res-table', 'shared_enrich_genomic_res.csv')"
     )
   ),
   tags$button(
     "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('great-genomic-res-table')"
+    onclick = "Reactable.toggleAllRowsExpanded('enrich-genomic-res-table')"
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('great-genomic-res-table', [])"
+    onclick = "Reactable.setAllFilters('enrich-genomic-res-table', [])"
   ),
   tbl,
   cp
@@ -421,64 +451,43 @@ if (interactive()) {
 }
 ```
 
-`r if (n_great_genomic >= min(network_params$size)) "#### Enrichment Network"`
+`r if (n_enrich_genomic >= min(network_params$size)) "#### Enrichment Network"`
 
-```{r great-network-genomic, echo = n_great_genomic >= min(network_params$size), eval = n_great_genomic >= min(network_params$size), fig.cap = glue("*The {n_great_genomic} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
-tg_great_genomic <- great_df_genomic %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
-  make_tbl_graph(
-    gs = great_df[["gene_id"]], 
-    alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
-    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-    min_dist = network_params$max_distance, max_gs = max(network_params$size)
-  )
-if (length(tg_great_genomic) >= min(network_params$size)) {
-  tg_great_genomic %>% 
-    mutate(
-      ## The lowest p-value obtainable from pbinom is 1e-16
-      p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
-      prop = observed_gene_hits / gene_set_size 
-    ) %>% 
-    ggraph(layout = network_params$layout, weights = oc) +
-    geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-    geom_node_point(
-      aes(
-        fill = -log10(p_value_hyper), size = observed_gene_hits, stroke = 1.5 * prop
+```{r enrich-network-genomic, echo = n_enrich_genomic >= min(network_params$size), eval = n_enrich_genomic >= min(network_params$size), fig.cap = glue("*The {n_enrich_genomic} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+tg_enrich_genomic %>% 
+  ggraph(layout = network_params$layout, weights = oc) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+  geom_node_point(
+    aes(
+      fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+    ),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label, alpha = prop),
+    colour = "black", size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% 
+          str_trunc(60) %>% 
+          str_wrap(width = 18)
       ),
-      shape = 21
-    ) +
-    geom_node_text(
-      aes(label = label, alpha = prop),
-      colour = "black", size = 3, 
-      data = . %>%
-        mutate(
-          label = str_replace_all(label, "_", " ") %>% 
-            str_trunc(60) %>% 
-            str_wrap(width = 18)
-        ),
-      repel = TRUE, 
-      max.overlaps = max(10, round(length(tg_great_genomic) / 4, 0)),
-      bg.color = "white", bg.r = 0.1, 
-    ) +
-    scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-    scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-    scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-    scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-    scale_size_continuous(range = c(1, 10)) +
-    scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-    scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-    guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-    labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-    theme_void() 
-}
+    repel = TRUE, 
+    max.overlaps = max(10, round(length(tg_enrich_genomic) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+  labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+  theme_void() 
 ```
 
-`r if (n_great_genomic > 0) "#### TSS Distribution"`
-
-```{r plot-top-great-genomic, eval = n_great_genomic > 0, echo = n_great_genomic > 0, fig.height = 0.75 * fw, fig.cap = glue("*The distribution of shared regions around the TSS for the most highly ranked gene-set ({top_id})*")}
-top_id <- great_df_genomic$id[1]
-plotRegionGeneAssociations(great_res_genomic, top_id, which = 2:3)
-```
 
 ### Targets Background
 
@@ -487,99 +496,74 @@ plotRegionGeneAssociations(great_res_genomic, top_id, which = 2:3)
 bg <- consensus_peaks %>% 
   unlist() %>% 
   reduce() %>% 
-  set_genome_info(genome = ucsc$build)
-great_res_targets <- great(
-  set_genome_info(shared_peaks, genome = ucsc$build), 
-  gene_sets = gs_list, 
-  background = bg,
-  extended_tss = set_genome_info(ext_tss, genome = ucsc$build), 
-  min_gene_set_size = min(msigdb_params$size), 
-  cores = threads
-)
-great_df_targets <- getEnrichmentTable(great_res_targets) %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
-  arrange(p_value_hyper) %>% 
-  mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, enrich_params$adj),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
+  mapByFeature(
+    genes = gtf_gene, 
+    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+    enh = feat_enh,
+    gi = hic, 
+    gr2gene = mapping_params$gr2gene,
+    prom2gene = mapping_params$prom2gene,
+    enh2gene = mapping_params$enh2gene,
+    gi2gene = mapping_params$gi2gene
   )
-n_great_targets <- sum(great_df_targets$p_adjust_hyper < enrich_params$alpha)
+enrich_arg_list <- list(
+  test_ranges = shared_peaks, db = msigdb, gtf = gtf_gene, bg = bg, 
+  genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 
+  adj_method = enrich_params$adj, params = region_params$promoters, 
+  method = "Hypergeometric"
+)
+if (enrich_method == "great") 
+  enrich_targets_df <- do.call(".great_enrich", enrich_arg_list)
+if (enrich_method == "gene_id")
+  enrich_targets_df <- do.call(".geneid_enrich", enrich_arg_list)
+n_enrich_targets <- sum(enrich_targets_df$adj_p < enrich_params$alpha)
+tg_enrich_targets <- enrich_targets_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  mutate(
+    p = ifelse(p > 0, p, 1e-16),
+    prop = observed_gene_hits / gene_set_size 
+  ) %>% 
+  make_tbl_graph(
+    gs = .$gene_id, 
+    alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = max_network_dist, max_gs = max_network_size
+  )
 ```
 
+`r if (n_enrich_targets > 0) "#### Enrichment Results Table"`
 
-`r if (n_great_targets > 0) "#### GREAT Results Table"`
-
-```{r tbl-great-res-targets, eval = n_great_targets > 0 , echo = n_great_targets > 0}
-tbl <- great_df_targets %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>% 
+```{r tbl-res-targets, eval = n_enrich_targets > 0, echo = n_enrich_targets > 0}
+tbl <- enrich_targets_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
-  dplyr::select(-all_of(c("p_value_hyper", "gene_id"))) %>% 
-  dplyr::select(id, fold_enrichment_hyper, p_adjust_hyper, everything()) %>% 
+  dplyr::select(-any_of(c("gene_id"))) %>% 
+  dplyr::select(
+    gs_name, genes_with_hits, contains("gene"), everything()
+  ) %>% 
   reactable(
-    sortable = TRUE, filterable = TRUE,
-    columns = list(
-      id = colDef(
-        name = "Gene Set",
-        cell = \(value) str_replace_all(value, "_", " "),
-        minWidth = 180
-      ),
-      genome_fraction = colDef(show = FALSE),
-      observed_region_hits = colDef(show = FALSE),
-      fold_enrichment_hyper = colDef(
-        name = "Fold Enrichment", format = colFormat(digits = 3),
-        minWidth = 110, filterMethod = js_greater
-      ),
-      p_adjust_hyper = colDef(
-        name = glue("P<sub>adj</sub> ({enrich_params$adj})"),
-        html = TRUE, filterMethod = js_less,
-        cell = \(value) sprint_pval(value),
-        maxWidth = 110
-      ),
-      mean_tss_dist = colDef(
-        "Mean TSS Distance (kb)", 
-        cell = \(value) round(value / 1e3, 2), filterMethod = js_greater
-      ),
-      observed_gene_hits = colDef(
-        "Gene Hits", maxWidth = 100, filterMethod = js_greater
-      ),
-      gene_set_size = colDef(
-        "Gene Set Size", maxWidth = 100, filterMethod = js_greater
-      ),
-      genes_with_hits = colDef(
-        name = "Genes",
-        cell = \(value) with_tooltip(value, width = 60),
-        minWidth = 200
-      )
-    ),
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+    columns = enrich_cols[colnames(.)],
     details =  function(index){
       htmltools::div(
         htmltools::tags$pre(
           str_wrap(
-            paste(capture.output(great_df_genomic$genes_with_hits[index]), collapse = "\n"),
+            paste(capture.output(enrich_targets_df$genes_with_hits[index]), collapse = "\n"),
             width = 120
           )
         )
       )
     },
-    elementId = 'great-targets-res-table'
+    elementId = "enrich-targets-res-table"
   )
 cp <- htmltools::em(
   glue(
     "Gene-set enrichment results for regions showing consistently detectable ", 
     "signal for all of ", glue_collapse(targets, sep = ", ", last = " and "),
-    " that were considered significantly enriched when using rGREAT. ", 
-    "Backround regions to determine relative enrichment were taken as the entire genome. ",
-    comma(n_great_targets), 
-    " gene-sets were considered as enriched relative to background. ",
+    " that were considered significantly enriched. ", 
+    "The background was set to all ranges with signal from any targets, and ",
+    comma(n_enrich_targets), 
+    " gene-sets were considered as enriched. ",
     "In the case of large numbers of significant gene-sets, results are limited to the 100 most highly ranked. ",
     "The genes listed are those associated with the set of shared regions, ",
     "with the gene-set size reflecting the number associated with the background regions."
@@ -589,16 +573,16 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('great-targets-res-table', 'shared_great_targets_res.csv')"
+      "Reactable.downloadDataCSV('enrich-targets-res-table', 'shared_enrich_targets_res.csv')"
     )
   ),
   tags$button(
     "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('great-targets-res-table')"
+    onclick = "Reactable.toggleAllRowsExpanded('enrich-targets-res-table')"
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('great-targets-res-table', [])"
+    onclick = "Reactable.setAllFilters('enrich-targets-res-table', [])"
   ),
   tbl,
   cp
@@ -610,57 +594,43 @@ if (interactive()) {
 }
 ```
 
-`r if (n_great_targets >= min(network_params$size)) "#### Enrichment Network"`
+`r if (n_enrich_targets >= min(network_params$size)) "#### Enrichment Network"`
 
-```{r great-network-targets, echo = n_great_targets >= min(network_params$size), eval = n_great_targets >= min(network_params$size), fig.cap = glue("*The {n_great_targets} most highly ranked gene sets from rGREAT analysis when using the combined peaks as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
-tg_great_targets <- great_df_targets %>% 
-  dplyr::filter(p_adjust_hyper < enrich_params$alpha) %>%
-  make_tbl_graph(
-    gs = great_df[["gene_id"]], 
-    alpha = enrich_params$alpha, p_col = "p_adjust_hyper", gs_col = "id", 
-    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
-    min_dist = network_params$max_distance, max_gs = max(network_params$size)
-  )
-if (length(tg_great_targets) >= min(network_params$size)) {
-  tg_great_targets %>% 
-    mutate(
-      ## The lowest p-value obtainable from pbinom is 1e-16
-      p_value_hyper = ifelse(p_value_hyper > 0, p_value_hyper, 1e-16),
-      prop = observed_gene_hits / gene_set_size 
-    ) %>% 
-    ggraph(layout = network_params$layout, weights = oc) +
-    geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-    geom_node_point(
-      aes(
-        fill = -log10(p_value_hyper), size = observed_gene_hits, stroke = 1.5 * prop
+```{r enrich-network-targets, echo = n_enrich_targets >= min(network_params$size), eval = n_enrich_targets >= min(network_params$size), fig.cap = glue("*The {n_enrich_targets} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+tg_enrich_targets %>% 
+  ggraph(layout = network_params$layout, weights = oc) +
+  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+  geom_node_point(
+    aes(
+      fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+    ),
+    shape = 21
+  ) +
+  geom_node_text(
+    aes(label = label, alpha = prop),
+    colour = "black", size = 3, 
+    data = . %>%
+      mutate(
+        label = str_replace_all(label, "_", " ") %>% 
+          str_trunc(60) %>% 
+          str_wrap(width = 18)
       ),
-      shape = 21
-    ) +
-    geom_node_text(
-      aes(label = label, alpha = prop),
-      colour = "black", size = 3, 
-      data = . %>%
-        mutate(
-          label = str_replace_all(label, "_", " ") %>% 
-            str_trunc(60) %>% 
-            str_wrap(width = 18)
-        ),
-      repel = TRUE, 
-      max.overlaps = max(10, round(length(tg_great_targets) / 4, 0)),
-      bg.color = "white", bg.r = 0.1, 
-    ) +
-    scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-    scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-    scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-    scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-    scale_size_continuous(range = c(1, 10)) +
-    scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-    scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-    guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-    labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-    theme_void() 
-}
+    repel = TRUE, 
+    max.overlaps = max(10, round(length(tg_enrich_targets) / 4, 0)),
+    bg.color = "white", bg.r = 0.1, 
+  ) +
+  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+  scale_size_continuous(range = c(1, 10)) +
+  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+  guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+  labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+  theme_void() 
 ```
+
 
 ## Regioner Analysis
 

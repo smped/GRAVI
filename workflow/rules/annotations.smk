@@ -14,6 +14,7 @@ rule create_annotations:
         genes = os.path.join(annotation_path, "gtf_gene.rds"),
         motifs = os.path.join(annotation_path, "motif_list.rds"),
         motif_uri = os.path.join(annotation_path, "motif_uri.rds"),
+        msigdb = os.path.join(annotation_path, "msigdb.rds"),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
