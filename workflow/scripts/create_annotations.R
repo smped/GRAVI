@@ -265,17 +265,18 @@ cat_time("Done")
 
 #### MSigDB ####
 cat_time("Preparaing MSigDB using msigdbr...")
-msigdb_params <- all_params$msigdb
+msigdb_params <- params$msigdb
 msigdb <- msigdbr(msigdb_params$species) %>%
   dplyr::filter(
     gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
     ensembl_gene %in% all_gtf$gene$gene_id
   ) %>%
   dplyr::filter(
-    n() >= min(msigdb_params$size) & n() <= max(msigdb_params$size),
+    dplyr::n() >= min(msigdb_params$size),
+    dplyr::n() <= max(msigdb_params$size),
     .by = gs_name
   )
-cat_time("Loaded", comma(length(unique(msigdb$gs_name))), "gene-sets")
+cat_time("Loaded", length(unique(msigdb$gs_name)), "gene-sets")
 
 cat_time("Updating Gene-Set URLs...")
 gs_url <- msigdb %>%
