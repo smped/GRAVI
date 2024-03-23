@@ -30,6 +30,7 @@ msigdb:
     - "CP:REACTOME"
     - "CP:WIKIPATHWAYS"
     - "TFT:GTRD"
+  size: [5,1000] ## Gene-sets outside this range will be excluded from testing
 
 ## Anything entered here will be passed to MotifDb to provide PWMs
 motifdb:
@@ -46,7 +47,6 @@ enrichment:
   alpha: 0.05
   method: "great" # Define a wrapper to pass either 'great' or 'genes'
   min_sig: 3 ## Only gene-sets above this size will be shown in the results
-  size: [5,1000] ## Gene-sets outside this range will be excluded from testing
 
 ## Passed to regionerReloaded::multiLocalZScore
 regioner:
