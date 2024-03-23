@@ -1071,42 +1071,7 @@ hfgc_genes <- read_rds(
   here::here("output", "annotations", "trans_models.rds")
 )
 gene_col <- "grey"
-## If RNA-Seq data is present, the genes track switches to Up/Down etc
-if (nrow(rnaseq)) {
-  #### Needs to change ####
-  fdr_alpha <- config$comparisons$fdr 
-  rna_lfc_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "logfc")][1]
-  rna_fdr_col <- colnames(rnaseq)[str_detect(str_to_lower(colnames(rnaseq)), "fdr|adjp")][1]
-  if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
-    hfgc_genes <- hfgc_genes %>%
-      mutate(
-        status = case_when(
-          !gene %in% rnaseq$gene_id ~ "Undetected",
-          gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < fdr_alpha
-          )$gene_id ~ "Up",
-          gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < fdr_alpha
-          )$gene_id ~ "Down",
-          gene %in% dplyr::filter(
-            rnaseq, !!sym(rna_fdr_col) >= fdr_alpha
-          )$gene_id ~ "Unchanged"
-        )
-      ) %>%
-      splitAsList(.$status) %>%
-      lapply(select, -status) %>%
-      GRangesList()
-    gene_col <- colours$direction %>%
-      c(
-        c(
-          up = colours$direction[["increased"]], 
-          down = colours$direction[["decreased"]]
-        )
-      ) %>% 
-      setNames(str_to_title(names(.))) 
-    
-  }
-}
+
 ## External Coverage (Optional)
 if (!is.null(config$external$coverage)) {
   ext_cov_path <- config$external$coverage %>% 
@@ -1199,13 +1164,8 @@ htmltools::tagList(
             paste('The peak directly overlaps', gn),
             paste0("The nearest gene was ", gn, ", ", round(d/1e3, 1), "kb away")
           ),
-          ifelse(
-            (nrow(rnaseq) > 0) & (gn %in% gtf_gene$gene_name),
-            glue(" which was detected in the RNA-Seq data."),
-            glue(".")
-          ),
           "
-          Y-axes for each coverage track are set to the most highly ranked peak
+          . Y-axes for each coverage track are set to the most highly ranked peak
           across all conditions.
           "
         )
@@ -1306,7 +1266,7 @@ tbl <- enrich_df %>%
       htmltools::div(
         htmltools::tags$pre(
           str_wrap(
-            paste(capture.output(great_df$genes_with_hits[index]), collapse = "\n"),
+            paste(capture.output(enrich_df$genes_with_hits[index]), collapse = "\n"),
             width = 120
           )
         )
@@ -1528,14 +1488,15 @@ motif_list <- file.path(all_paths$annotation, "motif_list.rds") %>%
   as_tibble()
 motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
   read_rds()
-pos_res <- file.path(all_paths$peaks, "{target}_motif_position.tsv.gz") %>% 
+motif_pos_res <- all_paths$peaks %>%
+  file.path("{target}", "{target}_motif_position.tsv.gz") %>% 
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_adj))
-n_pos <- sum(pos_res$adj_p < motif_params$alpha)
+n_pos <- sum(motif_pos_res$adj_p < motif_params$alpha)
 motif_enrich_res <- all_paths$peaks %>% 
-  file.path("{target}_motif_enrichment.tsv.gz") %>%
+  file.path("{target}", "{target}_motif_enrichment.tsv.gz") %>%
   glue() %>% 
   read_tsv() %>% 
   dplyr::select(-fdr) %>% 
@@ -1651,7 +1612,7 @@ if (interactive()) {
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified*")}
+```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
 top_enrich <- motif_enrich_res %>%
   dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:20) %>% 
@@ -1672,6 +1633,7 @@ motif_list %>%
     names_from = "name", values_from = "detected", values_fill = FALSE
   ) %>% 
   dplyr::select(-seq) %>% 
+  dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
   cor(method = "spearman") %>% 
   corrplot(
     addCoefasPercent = TRUE, addCoef.col = "grey20", 
@@ -1684,12 +1646,12 @@ motif_list %>%
 ### Positional Bias {.tabset}
 
 ```{r get-top-pos, eval = n_pos > 0, echo = n_pos > 0}
-top_pos <- pos_res %>% 
+top_pos <- motif_pos_res %>% 
   dplyr::filter(adj_p < motif_params$alpha) %>% 
   dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
   dplyr::slice(1:9) %>% 
   dplyr::select(altname, name, cluster)
-clust_names <- pos_res %>% 
+clust_names <- motif_pos_res %>% 
   dplyr::filter(
     adj_p < motif_params$alpha,
     cluster %in% top_pos$cluster
@@ -1714,7 +1676,7 @@ It should also be noted that this type of analysis is agnostic to the number of 
 `r if (n_pos > 0) "#### Results Table"`
 
 ```{r tbl-res-pos, eval = n_pos > 0, echo = n_pos > 0}
-tbl <- pos_res %>%
+tbl <- motif_pos_res %>%
   dplyr::filter(adj_p < motif_params$alpha) %>% 
   mutate(cluster = fct_inorder(as.character(cluster))) %>% 
   dplyr::select(
@@ -1796,7 +1758,7 @@ tbl <- pos_res %>%
 cp <- htmltools::em(
   glue(
     "
-    All {sum(pos_res$adj_p < motif_params$alpha)} TFBMs found to show
+    All {sum(motif_pos_res$adj_p < motif_params$alpha)} TFBMs found to show
     positional bias using an adjusted p-value ({motif_adj}) below
     {motif_params$alpha} as the criteria for significance. Highly 
     similar motifs were clustered during preparation and are grouped accordingly.
@@ -1880,7 +1842,7 @@ A + B + plot_layout(guides = "collect")
 `r if (n_pos > 0) "#### Match Heatmap"`
 
 ```{r heatmap-pos, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
-top_pos <- pos_res %>% 
+top_pos <- motif_pos_res %>% 
   dplyr::filter(adj_p < motif_params$alpha) %>% 
   dplyr::slice(1:25) %>% 
   pull(altname)
@@ -1917,7 +1879,7 @@ out_paths <- vapply(all_out, dirname, character(1)) %>% unique()
 for (p in out_paths) {
   if (!dir.exists(p)) dir.create(p, recursive = TRUE)
 }
-great_df %>% 
+enrich_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
   write_tsv(all_out$great)
 write_tsv(localz_df, all_out$localz)

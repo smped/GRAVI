@@ -233,13 +233,13 @@ enrich_cols <- list(
 desc_enrichment <- function(method = c("great", "gene_id")){
   method <- match.arg(method)
 
-  out <- list(
+  list(
     great = "The package `rGREAT` [@Gu2023-rp] was used to test for enrichment of pathways
   and genesets, as an R implementation of the GREAT methodology [@McLean2010-gw].
   This approach takes a set of 'background' genomic ranges and assesses relative
   enrichment of matches to a given pathway amongst the provided peaks.
 
-  Results from `rGREAT` were taken from the hypergeometric tests returned by the
+  All `rGREAT` results were taken from the hypergeometric tests returned by the
   algorithm.
   ",
     gene_id = "Enrichment testing was performed using hypergeometric approaches using gene-ids
@@ -249,6 +249,5 @@ desc_enrichment <- function(method = c("great", "gene_id")){
   significance of any enrichment.
   "
   )[[method]]
-  cat(out)
 
 }
