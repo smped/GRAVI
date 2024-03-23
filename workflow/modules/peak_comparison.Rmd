@@ -453,7 +453,7 @@ if (interactive()) {
 
 `r if (n_enrich_genomic >= min(network_params$size)) "#### Enrichment Network"`
 
-```{r enrich-network-genomic, echo = n_enrich_genomic >= min(network_params$size), eval = n_enrich_genomic >= min(network_params$size), fig.cap = glue("*The {n_enrich_genomic} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+```{r enrich-network-genomic, echo = n_enrich_genomic >= min(network_params$size), eval = n_enrich_genomic >= min(network_params$size), fig.cap = glue("*The {n_enrich_genomic} most highly ranked gene sets from enrichment analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
 tg_enrich_genomic %>% 
   ggraph(layout = network_params$layout, weights = oc) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -492,7 +492,7 @@ tg_enrich_genomic %>%
 ### Targets Background
 
 
-```{r great-targets-bg}
+```{r enrich-targets-bg}
 bg <- consensus_peaks %>% 
   unlist() %>% 
   reduce() %>% 
@@ -596,7 +596,7 @@ if (interactive()) {
 
 `r if (n_enrich_targets >= min(network_params$size)) "#### Enrichment Network"`
 
-```{r enrich-network-targets, echo = n_enrich_targets >= min(network_params$size), eval = n_enrich_targets >= min(network_params$size), fig.cap = glue("*The {n_enrich_targets} most highly ranked gene sets from rGREAT analysis when using the entire genome as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+```{r enrich-network-targets, echo = n_enrich_targets >= min(network_params$size), eval = n_enrich_targets >= min(network_params$size), fig.cap = glue("*The {n_enrich_targets} most highly ranked gene sets from enrichment analysis when using the complete set of peaks across all targets as the background. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with all targets detected. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
 tg_enrich_targets %>% 
   ggraph(layout = network_params$layout, weights = oc) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
@@ -1348,11 +1348,11 @@ motif_list %>%
 
 ```{r all-out}
 all_out <- list(
-  great_genomic_bg = here::here(
-    "output", "results", "shared", "shared_great_results_genomic_bg.tsv.gz"
+  enrich_genomic_bg = here::here(
+    "output", "results", "shared", "shared_enrichment_results_genomic_bg.tsv.gz"
   ),
-  great_targets_bg = here::here(
-    "output", "results", "shared", "shared_great_results_targets_bg.tsv.gz"
+  enrich_targets_bg = here::here(
+    "output", "results", "shared", "shared_enrichment_results_targets_bg.tsv.gz"
   ),
   localz_shared_regions = here::here(
     "output", "results", "shared", "shared_regions_localz.tsv"
@@ -1361,12 +1361,12 @@ all_out <- list(
     "output", "results", "shared", "pairwise_localz.tsv"
   )
 )
-great_df_genomic %>% 
+enrich_genomic_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
-  write_tsv(all_out$great_genomic_bg)
-great_df_targets %>% 
+  write_tsv(all_out$enrich_genomic_bg)
+enrich_targets_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
-  write_tsv(all_out$great_targets_bg)
+  write_tsv(all_out$enrich_targets_bg)
 localz_df %>% write_tsv(all_out$localz_shared_regions)
 pairwise_df %>% write_tsv(all_out$localz_pairwise_targets)
 ```

@@ -127,8 +127,8 @@ rule compile_peak_comparison_rmd:
         html = os.path.join("docs", "peak_comparison.html"),
         tsv = expand(
             os.path.join("output", "results", "shared", "{f}"),
-            f = ['shared_great_results_genomic_bg.tsv.gz',
-            'shared_great_results_targets_bg.tsv.gz',
+            f = ['shared_enrichment_results_genomic_bg.tsv.gz',
+            'shared_enrichment_results_targets_bg.tsv.gz',
             'shared_regions_localz.tsv', 'pairwise_localz.tsv']
         )
     conda: "../envs/rmarkdown.yml"
