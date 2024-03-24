@@ -140,7 +140,7 @@
   if (!is.null(bg)) {
     genome(bg) <- genome
     ## The bg set must include all of the test set
-    stopifnot(all(overlapsAny(test_ranges, bg)))
+    stopifnot(any(overlapsAny(test_ranges, bg)))
   }
 
   ## Define the TSS

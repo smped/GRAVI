@@ -129,7 +129,7 @@ consensus_peaks <- all_paths$peaks %>%
   setNames(targets) %>% 
   GRangesList()
 ## NB: for n = 2, this will be the union peaks
-shared_peaks <- file.path(all_paths$peaks, "shared", "shared_consensus_peaks.rds") %>%
+shared_peaks <- file.path(all_paths$peaks, "shared", "shared_peaks.rds") %>%
   read_rds()
 ```
 
@@ -212,6 +212,46 @@ B <- df %>%
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
   scale_x_continuous(breaks = seq(0, 100, by = 20))
 A + B + plot_annotation(tag_levels = "A")
+```
+
+#### Gene-Centric Regions
+
+```{r plot-region-overlap, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*Proportions of shared peaks which overlap gene-centric features.*")}
+shared_peaks %>% 
+  plotPie(
+    fill = "region", total_size = 4,
+    cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
+    cat_alpha = 0.9, cat_adj = 0.05, min_p = 0.025
+  ) +
+  scale_fill_manual(values = region_colours) +
+  theme(legend.position = "none")
+```
+
+`r ifelse(has_features, "#### External Features", "")`
+
+```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of shared peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
+shared_peaks %>% 
+  plotPie(
+    fill = "feature", total_size = 4,
+    cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
+    cat_alpha = 0.9, cat_adj = 0.05
+  ) +
+  scale_fill_manual(values = region_colours) +
+  theme(legend.position = "none")
+```
+
+`r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
+
+```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of shared peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
+shared_peaks %>% 
+  plotSplitDonut(
+    inner = "feature", outer = "region",
+    inner_palette = colours$features,
+    outer_palette = region_colours,
+    inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
+    outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
+    min_p = 0.03, outer_alpha = 0.8
+  )
 ```
 
 

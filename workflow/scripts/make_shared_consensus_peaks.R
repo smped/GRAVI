@@ -70,6 +70,7 @@ cat_time("Loading packages...\n")
 library(extraChIPs)
 library(plyranges)
 library(tidyverse)
+library(yaml)
 
 cat_time("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
@@ -116,12 +117,16 @@ feat_enh <- features[which_enh] %>%
 cat_time("Mapping peaks to regions and features")
 shared_peaks$region <- bestOverlap(shared_peaks, gene_regions)
 shared_peaks$region <- factor(region_levels[shared_peaks$region], unname(region_levels))
-if (length(features)) shared_peaks$feature <- bestOverlap(shared_peaks, features)
+if (length(features)) 
+  shared_peaks$feature <- bestOverlap(shared_peaks, features, missing = "no_feature")
+
+save.image(here::here("output/envs/shared_peaks.RData"))
 
 cat_time("Mapping peaks to genes")
+prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
 shared_peaks <- mapByFeature(
   shared_peaks, gtf_gene,
-  prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+  prom = prom,
   enh = feat_enh,
   gi = hic,
   gr2gene = mapping_params$gr2gene,
@@ -130,6 +135,7 @@ shared_peaks <- mapByFeature(
   gi2gene = mapping_params$gi2gene
 )
 cat_time("Writing mapped peaks to", all_output$rds)
+write_rds(shared_peaks, all_output$rds, compress = "gz")
 cat_time("Done")
 
 

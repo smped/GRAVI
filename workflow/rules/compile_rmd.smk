@@ -112,7 +112,7 @@ rule compile_peak_comparison_rmd:
         shared_files = expand(
             os.path.join(peak_path, "shared", "shared_{f}"),
             f = [
-                'consensus_peaks.bed.gz', 'motif_position.tsv.gz',
+                'peaks.bed.gz', 'motif_position.tsv.gz',
                 'motif_enrichment.tsv.gz', 'targets_localz.rds',
                 'regions_localz.rds',
                 ]

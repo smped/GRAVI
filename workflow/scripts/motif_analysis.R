@@ -53,7 +53,7 @@ cat_time <- function(...){
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
-sink(log)
+sink(log, split = TRUE)
 
 # all_input <- list(
 #   here = "output/checks/here.chk",
@@ -89,10 +89,12 @@ all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
 all_resources <- slot(snakemake, "resources")
+all_wildcards <- slot(snakemake, "wildcards")
 cat_list(all_input, "input", sep = ":")
 cat_list(all_output, "output", sep = ":")
+cat_list(all_wildcards, "wildcards", sep = ":")
 cat_list(all_params, "params", sep = ":")
-cat_list(all_resources, "rsources", sep = ":")
+cat_list(all_resources, "resources", sep = ":")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -106,6 +108,7 @@ library(extraChIPs)
 library(yaml)
 library(scales)
 library(universalmotif)
+library(plyranges)
 
 ## Contains the function for finding UCSC build info
 source(here::here("workflow/scripts/custom_functions.R"))
@@ -116,16 +119,25 @@ library(pkg, character.only = TRUE)
 
 cat_time("Reading gene_regions")
 gene_regions <- read_rds(all_input$gene_regions)
+map_regions <- setNames(
+  names(gene_regions), vapply(gene_regions, \(x) x$region[1], character(1))
+  )
+cat_time("Made map of region names")
 sq <- seqinfo(gene_regions)
 ## Convert to the same as the BSgenome package
 genome(sq) <- ucsc$build
 seqinfo(gene_regions) <- sq
 
 cat_time("Reading Peaks...")
-peaks <- read_rds(all_input$peaks) |>
+peaks <- read_rds(all_input$peaks)
+if (!"centre" %in% colnames(mcols(peaks)))
+  peaks$centre <- floor(start(peaks) + 0.5 * width(peaks))
+
+peaks <- peaks |>
   mutate(centre = paste0(seqnames, ":", centre)) |>
-  colToRanges("centre") |>
+  colToRanges("centre", seqinfo = sq) |>
   resize(width = all_params$peak_width, fix = "center")
+peaks$region <- map_regions[as.character(peaks$region)]
 cat_time("Read", comma(length(peaks)), "peaks")
 
 cat_time("Getting peak sequences...")

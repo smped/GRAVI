@@ -47,6 +47,7 @@ rule make_consensus_peaks:
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
+        script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
         yaml = os.path.join("config", "params.yml"),
     output:
@@ -67,17 +68,22 @@ rule make_consensus_peaks:
 
 rule make_shared_consensus_peaks:
     input:
+        features = os.path.join(annotation_path, "features.rds"),
+        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
+        hic = os.path.join(annotation_path, "hic.rds"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
         peaks = expand(
             os.path.join(
                 peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
             ),
             target = targets
         ),
+        script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
+        yaml = os.path.join("config", "params.yml"),
     output:
-        peaks = os.path.join(
-            peak_path, "shared", "shared_consensus_peaks.bed.gz"
-        ),
+        peaks = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
+        rds =  os.path.join(peak_path, "shared", "shared_peaks.rds"),        
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_peaks", "shared.log")

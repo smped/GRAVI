@@ -48,7 +48,7 @@ inputs = list(set(df['input']))
 
 ## Note that the last level in treats can never be the reference level
 wildcard_constraints:
-	target = "(" + '|'.join(targets_ext) + ")",
+	target = "(" + '|'.join(targets) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
@@ -58,7 +58,8 @@ wildcard_constraints:
 ###############
 annotation_path = os.path.join("output", "annotations")
 bam_path = config['paths']['bam']
-check_path =os.path.join("output", "checks")
+check_path = os.path.join("output", "checks")
+counts_path = os.path.join("output", "counts")
 diff_path = os.path.join("output", "differential_signal")
 grey_path = os.path.join("output", "greylist")
 json_path = os.path.join("config", "json")
@@ -70,6 +71,7 @@ log_path = os.path.join("workflow", "logs")
 all_paths = {
 	'annotation': annotation_path,
 	'bam': bam_path,
+	'counts': counts_path,
 	'diff_signal': diff_path,
 	'greylist': grey_path,
 	'json': json_path,
@@ -232,8 +234,7 @@ if len(targets) > 1:
 
 ## Try bringing in diffsignal again
 COUNTS = expand(
-	os.path.join(peak_path, "{target}", "{target}_counts.rds"),
-	target = targets
+	os.path.join(counts_path, "{target}_counts.rds"), target = targets
 )
 ALL_OUTPUTS.extend(COUNTS)
 RMD = expand(

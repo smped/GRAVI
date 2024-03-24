@@ -907,7 +907,7 @@ consensus_peaks %>%
 consensus_peaks %>% 
   plotSplitDonut(
     inner = "feature", outer = "region",
-    inner_palette = region_colours,
+    inner_palette = colours$features,
     outer_palette = region_colours,
     inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
     outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
@@ -1398,7 +1398,7 @@ For this step peaks were set to a fixed width of `r motif_params$peak_width`bp, 
 
 ### Motif Enrichment {.tabset}
 
-A simple enrichment analysis was performed by selecting a set of `r comma(motif_enrich_res$sequences[[1]] * motif_enrich_res$n_iter[[1]])` *background sequences* matched by position with genomic regions to the `r comma(motif_enrich_res$sequences[[1]])` *test sequences*.
+A simple enrichment analysis was performed by selecting a set of `r comma(motif_enrich_res$sequences[[1]] * motif_enrich_res$n_iter[[1]])` *background sequences* matched by genomic regions to the `r comma(motif_enrich_res$sequences[[1]])` *test sequences*.
 This gave a set of genomically matched control sequences to gauge enrichment by.
 Analysis was performed using the `motifTestR` package and the `r motif_params$model`.
 

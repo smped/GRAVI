@@ -38,7 +38,7 @@ rule count_windows:
         script = os.path.join("workflow", "scripts", "make_counts.R"),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
     output:
-        rds = os.path.join(peak_path, "{target}", "{target}_counts.rds")
+        rds = os.path.join(counts_path, "{target}_counts.rds")
     conda: "../envs/rmarkdown.yml"
     log: os.path.join(log_path, "count_windows", "{target}_make_counts.log")
     retries: 1

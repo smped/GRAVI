@@ -138,12 +138,14 @@ feat_enh <- features[which_enh] %>%
 cat_time("Mapping peaks to regions and features")
 cons_peaks$region <- bestOverlap(cons_peaks, gene_regions)
 cons_peaks$region <- factor(region_levels[cons_peaks$region], unname(region_levels))
-if (length(features)) cons_peaks$feature <- bestOverlap(cons_peaks, features)
+if (length(features)) 
+  cons_peaks$feature <- bestOverlap(cons_peaks, features, missing = "no_feature")
 
 cat_time("Mapping peaks to genes")
+prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
 cons_peaks <- mapByFeature(
   cons_peaks, gtf_gene,
-  prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+  prom = prom,
   enh = feat_enh,
   gi = hic,
   gr2gene = mapping_params$gr2gene,
@@ -152,4 +154,6 @@ cons_peaks <- mapByFeature(
   gi2gene = mapping_params$gi2gene
 )
 cat_time("Writing mapped peaks to", all_output$rds)
+write_rds(cons_peaks, all_output$rds)
 cat_time("Done")
+
