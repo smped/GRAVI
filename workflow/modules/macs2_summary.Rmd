@@ -287,20 +287,18 @@ feat_enh <- GRanges()
 if (has_features) {
   consensus_peaks <- consensus_peaks %>% 
     mutate(
-      feature = bestOverlap(
-        ., external_features, "feature", missing = "no_feature"
-      ) %>% 
+      feature = bestOverlap(., external_features, missing = "no_feature") %>% 
         factor(levels = names(colours$features)) %>% 
         fct_relabel(str_sep_to_title)
     )
-  if ("feature" %in% colnames(mcols(external_features))) {
-    feat_prom <- external_features %>%
-      subset(str_detect(feature, "[Pp]rom")) %>%
-      granges()
-    feat_enh <- external_features %>%
-      subset(str_detect(feature, "[Ee]nhanc")) %>%
-      granges()
-  }
+  which_prom <- grepl("prom", str_to_lower(names(external_features)))
+  feat_prom <- external_features[which_prom] %>%
+    unlist() %>%
+    GenomicRanges::reduce()
+  which_enh <- grepl("enhanc", str_to_lower(names(external_features)))
+  feat_enh <- external_features[which_enh] %>%
+    unlist() %>%
+    GenomicRanges::reduce()
 }
 consensus_peaks <- consensus_peaks %>%
   mapByFeature(
