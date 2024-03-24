@@ -3,28 +3,6 @@
 ```
 
 
-<!-- This is a rewrite of the previous differential signal module. -->
-<!-- Required input should be the sets of counts which can be produced by running -->
-<!-- a standalone R script. These counts will be used as input for the DSA section. -->
-<!-- Sliding window counts should also be filtered using `dualFilter()` as part of -->
-<!-- this script. -->
-
-<!-- Permitted DSA methods are: -->
-
-<!-- 1. Fixed-Width Windows -->
-<!-- + All edgeR normalisation & either QL or LT -->
-<!-- 2. Sliding Windows -->
-<!-- + All edgeR normalisation & either QL or LT -->
-<!-- + SQ Normalisation & LT -->
-
-<!-- The basic approach will be: -->
-
-<!-- 1. Load counts -->
-<!-- 2. Perform a quantro test -->
-<!-- + Failed tests will only permit "none" (QL/LT) or SQ (FW-LT) normalisation -->
-<!-- + Passed tests will permit all normalisation methods -->
-<!-- 3. Perform DSA -->
-
 ```{r set-params, eval = interactive(), echo = FALSE}
 # params <- list(
 #   target = "AR", 
@@ -74,10 +52,12 @@ threads <- parallel::detectCores() - 1
 register(MulticoreParam(workers = threads))
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("workflow", "scripts", "enrichment_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
     lapply(here::here)
+ucsc <- get_ucsc(config$genome$build)
 ```
 
 ```{r set_params, echo = FALSE, eval=TRUE}
@@ -94,9 +74,14 @@ paired_samples <- !is.null(pair_col)
 ihw_method <- match.arg(
   params$ihw, c("regions", "features", "targets", "none")
 )
-if (win_type == "fixed" & norm == "sq") stop(
-  "Smooth Quantile normalisation not permitted on fixed-width windows."
-)
+if (norm == "sq") {
+  if (win_type == "fixed") stop(
+    "Smooth Quantile normalisation not permitted on fixed-width windows."
+  )
+  if (method == "qlf")  stop(
+    "Smooth Quantile normalisation is only enabled for limma-trend."
+  )
+}
 mapping_params <- here::here("config", "params.yml") %>% 
   read_yaml() %>% 
   pluck("mapping")
@@ -108,6 +93,18 @@ if (target %in% names(all_heat_params)) {
   nm <- names(all_heat_params[[target]])
   heat_params[nm] <- all_heat_params[[target]][nm]
 }
+enrich_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("enrichment")
+msigdb_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("msigdb")
+network_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("networks")
+region_params <- here::here("config", "params.yml") %>% 
+  read_yaml() %>% 
+  pluck("gene_regions")
 ```
 
 
@@ -477,7 +474,6 @@ fit <- fitAssayDiff(
 ) 
 pcols <- c("PValue", "p_mu0")
 if (win_type == "sliding") {
-  #### Need to map genes, features & regions ####
   results <- mergeByHMP(
     fit, pval = pcols, merge_within = floor(1 + 2 * params$window_size / 3),
     hm_pre = ""
@@ -487,6 +483,31 @@ if (win_type == "sliding") {
       FDR = PValue_fdr
     ) %>% 
     addDiffStatus(alpha = params$alpha)
+  ## Map genes, features & regions, which are otherwise propagated through
+  results$region <- bestOverlap(results, unlist(gene_regions), var = "region") 
+  results$region <- factor(results$region, levels = names(region_colours))
+  if (has_features) results$feature <- bestOverlap(
+    results, external_features, missing = "no_feature"
+  )
+  which_prom <- grepl("prom", str_to_lower(names(external_features)))
+  feat_prom <- external_features[which_prom] %>%
+    unlist() %>%
+    GenomicRanges::reduce()
+  which_enh <- grepl("enhanc", str_to_lower(names(external_features)))
+  feat_enh <- external_features[which_enh] %>%
+    unlist() %>%
+    GenomicRanges::reduce()
+  prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
+  results <- mapByFeature(
+    results, gtf_gene,
+    prom = prom,
+    enh = feat_enh,
+    gi = hic,
+    gr2gene = mapping_params$gr2gene,
+    prom2gene = mapping_params$prom2gene,
+    enh2gene = mapping_params$enh2gene,
+    gi2gene = mapping_params$gi2gene
+  )
 } else {
   results <- rowRanges(fit) %>% addDiffStatus(alpha = params$alpha)
 }
@@ -535,7 +556,8 @@ tbl_cols <- list(
   Region = colDef(
     footer = htmltools::tags$b("Total"), minWidth = 200
   ),
-  Feature = colDef(
+  feature = colDef(
+    "Feature", cell = \(value) str_sep_to_title(value),
     footer = htmltools::tags$b("Total"), minWidth = 200
   ),
   Increased = colDef(
@@ -730,8 +752,7 @@ df <- results %>%
   ) %>% 
   arrange(feature) %>% 
   dplyr::select(
-    Feature = feature,
-    any_of(names(direction_colours)),
+    feature, any_of(names(direction_colours)),
     `% Changed`, Total, starts_with("% Of All")
   )
 cp <- htmltools::em(
@@ -776,7 +797,10 @@ cp <- htmltools::em(
     "overlap with the range being analysed. ",
     ifelse(
       has_features, 
-      glue("Features are as provided in the file {basename(config$external$features)}. "),
+      glue(
+        glue("Features are as provided in "), 
+        glue_collapse(config$external$features, sep = ", ", last = " and ")
+      ),
       glue("")
     ),
     "For ranges mapped to large numbers of genes, hovering a mouse over the ", 
@@ -795,7 +819,10 @@ tbl <- results %>%
   as_tibble() %>% 
   dplyr::rename(Range = range, `Width (bp)` = w) %>% 
   rename_with(\(x) str_replace_all(x, "feature", "Feature")) %>% 
-  mutate(Genes = map_chr(Genes, paste, collapse = "; ")) %>% 
+  mutate(
+    Genes = map_chr(Genes, paste, collapse = "; "),
+    across(any_of("Feature"), str_sep_to_title)
+  ) %>% 
   reactable(
     filterable = TRUE,
     showPageSizeOptions = TRUE,
@@ -842,7 +869,9 @@ tbl <- results %>%
           sprintf(fmt, value)
         },
         style = \(value) {
-          text_colour <- ifelse(value < params$alpha, "black", direction_colours[["Unchanged"]])
+          text_colour <- ifelse(
+            value < params$alpha, "black", direction_colours[["Unchanged"]]
+          )
           list(color = text_colour, borderRight = "1px solid rgba(0, 0, 0, 0.1)")
         },
         maxWidth = 5.5 * fs
@@ -1144,9 +1173,9 @@ results %>%
   ggplot(aes(feature, value, fill = feature)) +
   geom_boxplot() +
   facet_grid(
-    name~., scales = "free", labeller = facet_labeller, switch = "y"
+    name~., scales = "free", switch = "y"
   ) +
-  scale_fill_manual(values = feature_colours) +
+  scale_fill_manual(values = colours$features) +
   labs(x = "Region", y = c(), fill = "Overlaps") 
 ```
 
@@ -1156,6 +1185,7 @@ results %>%
 results %>% 
   dplyr::filter(!!sym(fdr_column) < params$alpha) %>%
   as_tibble() %>% 
+  mutate(feature = str_sep_to_title(feature)) %>% 
   dplyr::rename("{target}" := status, Feature = feature) %>% 
   plotSplitDonut(
     inner = !!sym(target), outer = "Feature", min_p = 0.01,
@@ -1249,7 +1279,7 @@ feat_gr <- gene_regions %>%
 feat_col_hfgc <- colours$regions
 if (has_features) {
   feat_gr <- list(Regions = feat_gr)
-  feat_gr$Features <- splitAsList(external_features, external_features$feature)
+  feat_gr$Features <- external_features
   feat_col_hfgc <- list(
     Regions = unlist(colours$regions),
     Features = unlist(colours$features)
@@ -1459,934 +1489,424 @@ htmltools::tagList(
 ## Enrichment Testing 
 
 ```{r msigdb}
-enrich_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("enrichment")
-msigdb_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("msigdb")
-network_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("networks")
-region_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("gene_regions")
-
-## Ensure we don't have nulls/NAs
-min_gs_size <- enrich_params$min_size
-if (is.null(min_gs_size) | is.na(min_gs_size)) min_gs_size <- 0
-max_gs_size <- enrich_params$max_size
-if (is.null(max_gs_size) | is.na(max_gs_size)) max_gs_size <- Inf
-min_sig <- enrich_params$min_sig
-if (is.null(min_sig) | is.na(min_sig)) min_sig <- 1
-sp <- match.arg(msigdb_params$species, msigdbr_species()$species_name)
-
-## Set parameters for enabling networks
-min_network_size <- network_params$min_size
-if (is.null(min_network_size) | is.na(min_network_size))
-  min_network_size <- 2
-max_network_size <- network_params$max_size
-if (is.null(max_network_size) | is.na(max_network_size))
-  max_network_size <- Inf
-max_network_dist <- network_params$max_distance
-if (is.null(max_network_dist) | is.na(max_network_dist))
-  max_network_dist <- 1
-net_layout <- network_params$layout
-enrich_alpha <- enrich_params$alpha
+msigdb <- file.path(all_paths$annotation, "msigdb.rds") %>% read_rds()
+gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
+enrich_method <- match.arg(enrich_params$method, c("great", "gene_id"))
 adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
+net_layout <- c(network_params$layout, "fr")[[1]]
 ```
 
+`r desc_enrichment(enrich_method)`
 
+For all analyses below, the complete set of regions showing signal were used as the background ranges.
+As such, if the majority of sites are showing change, there will be minimal opportunity for any pathways to emerge as enriched amongst the changed sites.
+Likewise, when very few sites are changed, no enrichment is likely to be observed.
 
-```{r try-great}
-library(rGREAT)
-## The parameters for enrichment
-adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
-ucsc <- get_ucsc(config$genome$build)
-ext_tss <- gtf_gene %>% 
-  select(gene_id) %>% 
-  extendTSS(
-    genome = ucsc$build, gene_id_type = 'ENSEMBL', 
-    basal_upstream = region_params$promoters$upstream,
-    basal_downstream = region_params$promoters$downstream
-  )
-ext_tss_ol <- subsetByOverlaps(ext_tss, results)
-msigdb <- msigdbr(sp) %>% 
-  dplyr::filter(
-    gs_cat %in% msigdb_params$gs_cat |
-      gs_subcat %in% msigdb_params$gs_subcat,
-    ensembl_gene %in% ext_tss$gene_id
-  )
-gs_list <- msigdb %>% 
-  split(.$gs_name) %>% 
-  lapply(pull, ensembl_gene) %>% 
-  .[map_int(., length) <= enrich_params$max_size] %>% 
-  .[map_int(., length) >= enrich_params$min_size] 
-gs_url <- msigdb %>% 
-  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
-  mutate(
-    gs_url = case_when(
-      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
-      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
-      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
-        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
-      ),
-      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
-      TRUE ~ gs_url
-    ) %>% 
-      setNames(gs_name)
-  ) %>% 
-  pull(gs_url)
-great_changed <- results %>% 
-  filter(!!sym(fdr_column) < params$alpha) %>% 
-  set_genome_info(ucsc$build) %>% 
-  great(
-    gene_sets = gs_list, extended_tss = ext_tss, 
-    min_gene_set_size = enrich_params$min_size, 
-    background = set_genome_info(results, ucsc$build), cores = threads
-  )
-great_changed_df <- great_changed %>% 
-  getEnrichmentTable() %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
-  mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
-  )
-n_great_changed <- sum(great_changed_df$p_adjust_hyper < enrich_params$alpha)
+Three primary sets of genomic regions are tested for enrichment relative to background, with these being:
 
-great_increased <- results %>% 
-  filter(status == "Increased") %>% 
-  set_genome_info(ucsc$build) %>% 
-  great(
-    gene_sets = gs_list, extended_tss = ext_tss, 
-    min_gene_set_size = enrich_params$min_size, 
-    background = set_genome_info(results, ucsc$build), cores = threads
-  )
-great_increased_df <- great_increased %>% 
-  getEnrichmentTable() %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
-  mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
-  )
-n_great_increased <- sum(great_increased_df$p_adjust_hyper < enrich_params$alpha)
+1. All sites showing any change
+2. All sites showing increased signal
+3. All sites showing decreased signal
 
-great_decreased <- results %>% 
-  filter(status == "Decreased") %>% 
-  set_genome_info(ucsc$build) %>% 
-  great(
-    gene_sets = gs_list, extended_tss = ext_tss, 
-    min_gene_set_size = enrich_params$min_size, 
-    background = set_genome_info(results, ucsc$build), cores = threads
-  )
-great_decreased_df <- great_decreased %>% 
-  getEnrichmentTable() %>% 
-  dplyr::select(-all_of(c("fold_enrichment", "p_adjust", "p_value"))) %>% 
-  as_tibble() %>% 
-  arrange(p_value_hyper, desc(fold_enrichment_hyper)) %>% 
-  dplyr::filter(observed_gene_hits >= enrich_params$min_sig) %>% 
-  mutate(
-    p_adjust_hyper = p.adjust(p_value_hyper, adj_method),
-    gene_id  = gs_list[id],
-    genes_with_hits = map_chr(
-      gene_id, 
-      \(x) {
-        ids <- subset(ext_tss_ol, gene_id %in% x)$gene_id
-        paste(unname(id2gene[unique(ids)]), collapse = "; ")
-      }
-    )
-  )
-n_great_decreased <- sum(great_decreased_df$p_adjust_hyper < enrich_params$alpha)
-```
+All p-values will be adjusted using the `r adj_method` correction during testing.
 
+### Any Changed Site {.tabset}
 
-
-```{r}
-## The original methods for goseq
-msigdb <- msigdbr(species = sp) %>% 
-  dplyr::filter(
-    gs_cat %in% unlist(msigdb_params$gs_cat) |
-      gs_subcat %in% unlist(msigdb_params$gs_subcat),
-    str_detect(ensembl_gene, "^E")
-  ) %>% 
-  # For easier integration 
-  dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% 
-  dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
-  dplyr::filter(gene_id %in% gtf_gene$gene_id) %>% 
-  mutate(gs_url = str_extract(gs_url, "^[^|]+")) %>% 
-  dplyr::filter(
-    dplyr::n() >= min_gs_size, dplyr::n() < max_gs_size, .by = gs_name
-  )
-gs_by_gsid <- msigdb %>% 
-  split(.$gs_name) %>% 
-  lapply(pull, "gene_id") %>% 
-  lapply(unique)
-gs_by_geneid <- msigdb %>% 
-  split(.$gene_id) %>% 
-  lapply(pull, "gs_name") %>% 
-  lapply(unique)
-## There are some current errors in the msigdb urls
-gs_url <- msigdb %>% 
-  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
-  mutate(
-    gs_url = case_when(
-      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
-      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
-      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
-        "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
-      ),
-      gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
-      TRUE ~ gs_url
-    ) %>% 
-      setNames(gs_name)
-  ) %>% 
-  pull(gs_url)
-
-
-adj_desc <- case_when(
-  p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
-  p.adjust.methods %in% c("BY") ~ "the Benjamini-Yekutieli FDR",
-  p.adjust.methods %in% c("bonferroni") ~ "the Bonferroni",
-  p.adjust.methods %in% c("holm") ~ "Holm's",
-  p.adjust.methods %in% c("hommel") ~ "Hommel's",
-  p.adjust.methods %in% c("hochberg") ~ "Hochberg's",
-  p.adjust.methods %in% c("none") ~ "no"
-) %>% 
-  setNames(p.adjust.methods)
-mapped_ids <- results %>%
-  as_tibble() %>% 
-  dplyr::select(status, starts_with("gene")) %>%
-  unnest(starts_with("gene")) %>%
-  summarise(
-    increased = any(status == "Increased"), 
-    decreased = any(status == "Decreased"), 
-    n_peaks = dplyr::n(),
-    .by = starts_with("gene")
-  )
-```
-
-
-
-
-
-
-
-
-
-Enrichment testing in this section takes a different approach to the analysis of [macs2 peaks](`r glue("{target}_macs2_summary.html#Enrichment_Analysis")`).
-Mappings to genes as described above are instead used to perform a conventional enrichment testing using genes assigned to `r type`, using hypergeometric tests [@YoungGoseq2010].
-This allows a tailored approach when assigning genes to `r type` and fine control of distances between `r type` and any associated genes.
-
-This strategy also
-
-Hypergeometric testing also tends to be more conservative
-
-
-As an initial exploration, the ranges containing `r target` signal were compared to pre-defined gene-sets.
-These were taken from the `MSigDB` database for `r sp` and the gene-sets used for enrichment testing were restricted to only include those with between `r min_gs_size` and `r max_gs_size` genes.
-
-
-Ranges were tested for enrichment of these gene-sets using:
-
-1. Any range mapped to a gene from these gene-sets
-2. Any range with evidence of differential signal mapped to a gene from these gene-sets
-
-In the first case, mapped genes were tested for enrichment against *all annotated genes*, or all detected genes if RNA-Seq data was provided.
-In the second case, i.e. Differential Signal Windows, the control set of genes were those mapped to any range (i.e. those test set from step 1).
-All adjusted p-values below are calculated using `r adj_desc[[adj_method]]` adjustment.
-After p-value adjustment, any enriched gene-sets with fewer than `r min_sig` mapped genes were excluded as being uninformative.
-
-If `r min_network_size` or more gene-sets were considered to be enriched, a network plot will be produced for that specific analysis, with network sizes capped at `r max_network_size` for easier interpretability.
-The distances between gene-sets were calculated using the overlap coefficient (OC).
-Gene-sets with a large overlap will thus be given small distances and in the case of a complete overlap ($OC = 1$) the only most highly ranked gene-set was retained.
-Gene-set (i.e. node) pairs with a distance > `r max_network_dist` will not have edges drawn between them and edge width also corresponds to the distance between nodes with closely related nodes having thicker edges.
-All network plots were generated using the `r net_layout` layout algorithm.
-
-### Windows With Detected `r target` {.tabset}
-
-
-```{r goseq-mapped, fig.show='hide'}
-pwf_mapped <- gtf_gene %>% 
-  mutate(w = width(.)) %>% 
-  as_tibble() %>% 
-  dplyr::select(gene_id, w) %>% 
-  arrange(desc(w)) %>% 
-  distinct(gene_id, .keep_all = TRUE) %>% 
-  mutate(mapped = gene_id %in% mapped_ids$gene_id) %>% 
-  with(
-    nullp(
-      structure(mapped, names = gene_id),
-      genome = config$genome$build,
-      bias.data = log10(w),
-      plot.fit = TRUE
-    )
-  )
-goseq_mapped <- tibble(
-  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+```{r enrich-changed}
+enrich_args <- list(
+  test_ranges = filter(results, !!sym(fdr_column) < enrich_params$alpha),
+  db = msigdb, gtf = gtf_gene, bg = results, genome = ucsc$build,
+  threads = threads, adj_method = adj_method, min_sig = enrich_params$min_sig,
+  params = region_params$promoters
 )
-if (sum(pwf_mapped$DEgenes) > 0) {
-  goseq_mapped <- goseq(
-    pwf_mapped, config$genome$build, gene2cat = gs_by_geneid,
-    method = "Wallenius"
+if (enrich_method == "great")
+  changed_enrich_df <- do.call(".great_enrich", enrich_args)
+if (enrich_method == "gene_id")
+  changed_enrich_df <- do.call(".geneid_enrich", enrich_args)
+n_changed_enrich <- sum(changed_enrich_df$adj_p < enrich_params$alpha)
+tg_changed_enrich <- changed_enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  mutate(
+    p = ifelse(p > 0, p, 1e-16),
+    prop = observed_gene_hits / gene_set_size 
   ) %>% 
-    dplyr::rename(gs_name = category, pval = over_represented_pvalue) %>% 
-    dplyr::select(-starts_with("under")) %>% 
-    as_tibble() %>% 
-    arrange(pval) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
-    mutate(adj_p = p.adjust(pval, adj_method)) %>% 
-    dplyr::filter(numDEInCat >= min_sig)
-}
-any_goseq_mapped <- sum(goseq_mapped$adj_p < enrich_alpha) > 0
-tg_mapped <- make_tbl_graph(
-  goseq_mapped, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_mapped, DEgenes))) %>% 
-    .[map_int(., length) > 0]
-)
-plot_network_mapped <- length(tg_mapped) >= min_network_size
+  make_tbl_graph(
+    gs = .$gene_id, 
+    alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = network_params$max_distance, max_gs = max(network_params$size)
+  )
 ```
 
-`r ifelse(!any_goseq_mapped, "No enrichment was found amongst genes mapped to any range with detected signal", "#### Results Table")`
+When testing for enrichment in the `r comma(sum(grepl("creased", results$status)))` sites (`r percent(mean(grepl("creased", results$status)), 0.1)`) showing evidence of any changed signal, `r comma(n_changed_enrich)` pathways were considered to be enriched using an adjusted p-value < `r enrich_params$alpha` as the criteria for considering a pathway as enriched.
 
+`r if (n_changed_enrich > 0) "#### Results Table"`
 
-```{r tbl-goseq-mapped, eval = any_goseq_mapped, echo = any_goseq_mapped}
-cp <- htmltools::tags$caption(
-  htmltools::em(
-    glue(
-      "
-    All {sum(goseq_mapped$adj_p < enrich_alpha)} gene sets considered as 
-    significantly enriched (p
-    "
-    ),
-    htmltools::tags$sub("adj"),
-    htmltools::em(
-      glue(
-        "
-        < {enrich_alpha}) amongst the ranges with detectable {target} signal.
-        Genes mapped to a range with detected signal were compared to those not 
-        mapped to any merged windows. The length of each gene locus was used to 
-        capture any gene-level sampling bias.
-        "
-      )
-    )
-  )
-)
-tbl <- goseq_mapped %>%
-  dplyr::filter(adj_p < enrich_alpha) %>% 
-  left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
-    by = "gs_name"
-  ) %>% 
-  dplyr::filter(gene_id %in% unlist(results$gene_id)) %>% 
-  dplyr::select(-gene_id) %>% 
-  chop(gene_name) %>% 
-  mutate(
-    gene_name = map_chr(gene_name, paste, collapse = "; "),
-    `%` = numDEInCat / numInCat
-  ) %>% 
+```{r tbl-changed-res, eval = n_enrich > 0, echo = n_enrich > 0}
+tbl <- changed_enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  dplyr::slice(seq_len(100)) %>%
+  dplyr::select(-any_of(c("gene_id"))) %>% 
   dplyr::select(
-    `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, 
-    p = pval, adj_p, 
-    `Mapped Genes` = gene_name
+    gs_name, genes_with_hits, contains("gene"), everything()
   ) %>% 
   reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list(
-      "Gene Set" = colDef(
-        minWidth = 150,
-        cell = \(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          value %>% 
-            str_replace_all("_", " ") %>% 
-            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
-        ),
-        html = TRUE
-      ),
-      Description = colDef(
-        minWidth = 150,
-        cell = \(value) with_tooltip(value, width = 100)
-      ),
-      numDEInCat = colDef(name = "Total Mapped", maxWidth = 80),
-      numInCat = colDef(
-        name = "Gene Set Size",
-        maxWidth = 80,
-        cell = \(value) comma(value, 1)
-      ),
-      "%" = colDef(
-        name = "% Mapped",
-        cell = \(value) percent(value, 0.1),
-        maxWidth = 80
-      ),
-      p = colDef(
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE, 
+    columns = enrich_cols[colnames(.)],
+    details =  function(index){
+      htmltools::div(
+        htmltools::tags$pre(
+          str_wrap(
+            paste(capture.output(changed_enrich_df$genes_with_hits[index]), collapse = "\n"),
+            width = 120
           )
-        },
-        maxWidth = 80, show = FALSE
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
-          )
-        },
-        maxWidth = 80
-      ),
-      "Mapped Genes" = colDef(
-        cell = \(value) with_tooltip(value, width = 100),
-        minWidth = 150
+        )
       )
-    )
+    },
+    elementId = "changed-enrich-res-table"
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
+cp <- htmltools::em(
+  glue(
+    "
+    Enrichment results for regions showing consistently changed signal for 
+    {target}, regardless of direction, using an adjusted p-value 
+    ({adj_method}) < {enrich_params$alpha} to determine significance. 
+    The backround to determine relative enrichment was the entire set of tested 
+    sites. In the case of large numbers of significant gene-sets, results are 
+    limited to the 100  most highly ranked. For gene-sets where the analysis has
+    returned a p-value of zero, the value <2e-16 will be printed.
+    "
+  )
 )
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('changed-enrich-res-table',
+      '{target}_changed_enrich_res.csv')"
+    )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('changed-enrich-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('changed-enrich-res-table', [])"
+  ),
+  tbl,
+  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
-`r ifelse(plot_network_mapped, "#### Network Plot", "")`
+`r if (n_changed_enrich > min_network_size) "#### Network Plot"`
 
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap=glue("*Network plot showing gene-sets enriched amongst the overall set of sites with detectable signal for {target}.*")}
-tg_mapped %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
+```{r changed-network, echo = n_changed_enrich > min_network_size, eval = n_changed_enrich > min_network_size, fig.cap = glue("*The {n_changed_enrich} most highly ranked gene sets from enrichment analysis using all sites showing changed signal. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with changed {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+tg_changed_enrich %>% 
+  ggraph(layout = net_layout, weights = oc) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
+    aes(
+      fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+    ),
     shape = 21
   ) +
   geom_node_text(
-    aes(label = label),
+    aes(label = label, alpha = prop),
     colour = "black", size = 3, 
     data = . %>%
       mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+        label = str_replace_all(label, "_", " ") %>% 
+          str_trunc(60) %>% 
+          str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_mapped) / 4, 0)),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_changed_enrich) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_alpha(range = c(0.5, 1), trans = "sqrt") +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha = "none", edge_width = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+  labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
   theme_void() 
 ```
 
 
-### Ranges With Differential `r target` Signal {.tabset}
+### Any Increased Site {.tabset}
 
-```{r goseq-diff, fig.show='hide'}
-pwf_diff <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
-  left_join(mapped_ids, by = "gene_id") %>% 
-  dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = increased | decreased) 
-goseq_diff <- tibble(
-  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+```{r enrich-increased}
+enrich_args <- list(
+  test_ranges = filter(results, status == "Increased"),
+  db = msigdb, gtf = gtf_gene, bg = results, genome = ucsc$build,
+  threads = threads, adj_method = adj_method, min_sig = enrich_params$min_sig,
+  params = region_params$promoters
 )
-if (sum(pwf_diff$diff) > 0) {
-  goseq_diff <- dplyr::select(pwf_diff, gene_id, DEgenes = diff) %>% 
-    as.data.frame() %>% 
-    column_to_rownames("gene_id") %>% 
-    goseq_hyper(gene2cat = gs_by_geneid) %>% 
-    mutate(adj_p = p.adjust(pval, adj_method)) %>% 
-    dplyr::filter(numDEInCat >= min_sig)
-}
-any_goseq_diff <- sum(goseq_diff$adj_p < enrich_alpha) > 0
-tg_diff <- make_tbl_graph(
-  goseq_diff, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, subset(pwf_diff, diff)$gene_id) %>%
-    .[map_int(., length) > 0]
-)
-plot_network_diff <- length(tg_diff) >= min_network_size
+if (enrich_method == "great")
+  increased_enrich_df <- do.call(".great_enrich", enrich_args)
+if (enrich_method == "gene_id")
+  increased_enrich_df <- do.call(".geneid_enrich", enrich_args)
+n_increased_enrich <- sum(increased_enrich_df$adj_p < enrich_params$alpha)
+tg_increased_enrich <- increased_enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  mutate(
+    p = ifelse(p > 0, p, 1e-16),
+    prop = observed_gene_hits / gene_set_size 
+  ) %>% 
+  make_tbl_graph(
+    gs = .$gene_id, 
+    alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = network_params$max_distance, max_gs = max(network_params$size)
+  )
 ```
 
+When testing for enrichment in the `r comma(sum(grepl("Increased", results$status)))` sites (`r percent(mean(grepl("Increased", results$status)), 0.1)`) showing evidence of any *decreased* signal, `r comma(n_changed_enrich)` pathways were considered to be enriched using an adjusted p-value < `r enrich_params$alpha` as the criteria for considering a pathway as enriched.
 
-`r ifelse(!any_goseq_diff, "No enrichment was found amongst genes mapped to sites showing any differential signal", "#### Results Table")`
 
+`r if (n_increased_enrich > 0) "#### Results Table"`
 
-```{r tbl-goseq-diff, eval = any_goseq_diff, echo = any_goseq_diff}
-cp <- htmltools::tags$caption(
-  htmltools::em(
-    glue(
-      "
-    All {sum(goseq_diff$adj_p < enrich_alpha)} gene sets considered as 
-    significantly enriched (p
-    "
-    ),
-    htmltools::tags$sub("adj"),
-    htmltools::em(
-      glue(
-        "
-         < {enrich_alpha}) amongst the windows showing evidence of changed 
-        {target} signal. Genes mapped to a differential signal window were 
-        compared to those mapped to any merged window. A standard (unbiased)
-        hypergeomtric test was used to test for enrichment.
-        "
-      )
-    )
-  )
-)
-tbl <- goseq_diff %>%
-  dplyr::filter(adj_p < enrich_alpha) %>%
-  left_join(
-    distinct(msigdb, gs_name, gs_url, gs_description),
-    by = "gs_name"
-  ) %>% 
-  mutate(
-    gene_name = map_chr(DEgenes,  \(x) paste(id2gene[x], collapse = "; ")),
-    `%` = numDEInCat / numInCat
-  ) %>% 
+```{r tbl-increased-res, eval = n_enrich > 0, echo = n_enrich > 0}
+tbl <- increased_enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  dplyr::slice(seq_len(100)) %>%
+  dplyr::select(-any_of(c("gene_id"))) %>% 
   dplyr::select(
-    `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to DB Windows` = gene_name
+    gs_name, genes_with_hits, contains("gene"), everything()
   ) %>% 
   reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list(
-      "Gene Set" = colDef(
-        minWidth = 150,
-        cell = \(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          value %>% 
-            str_replace_all("_", " ") %>% 
-            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
-        ),
-        html = TRUE
-      ),
-      Description = colDef(
-        minWidth = 150,
-        cell = \(value) with_tooltip(value, width = 100)
-      ),
-      "%" = colDef(
-        name = "% DB",
-        maxWidth = 80,
-        cell = \(value) percent(value, 0.1)
-      ),
-      numDEInCat = colDef(name = "Total Mapped To DB", maxWidth = 80),
-      numInCat = colDef(
-        name = "Total Mapped",
-        maxWidth = 80,
-        cell = \(value) comma(value, 1)
-      ),
-      p = colDef(
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE, 
+    columns = enrich_cols[colnames(.)],
+    details =  function(index){
+      htmltools::div(
+        htmltools::tags$pre(
+          str_wrap(
+            paste(capture.output(increased_enrich_df$genes_with_hits[index]), collapse = "\n"),
+            width = 120
           )
-        },
-        maxWidth = 70
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
-          )
-        },
-        maxWidth = 70
-      ),
-      "Genes Mapped to DB Windows" = colDef(
-        cell = \(value) with_tooltip(value, width = 100),
-        minWidth = 200
+        )
       )
-    )
+    },
+    elementId = "increased-enrich-res-table"
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
+cp <- htmltools::em(
+  glue(
+    "
+    Enrichment results for regions showing consistently increased signal for 
+    {target}, using direction of change along with an adjusted p-value 
+    ({adj_method}) < {enrich_params$alpha} to determine significance. 
+    The backround to determine relative enrichment was the entire set of tested 
+    sites. In the case of large numbers of significant gene-sets, results are 
+    limited to the 100  most highly ranked. For gene-sets where the analysis has
+    returned a p-value of zero, the value <2e-16 will be printed.
+    "
+  )
 )
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('increased-enrich-res-table',
+      '{target}_increased_enrich_res.csv')"
+    )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('increased-enrich-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('increased-enrich-res-table', [])"
+  ),
+  tbl,
+  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
-`r ifelse(plot_network_diff, "#### Network Plot", "")`
+`r if (n_increased_enrich > min_network_size) "#### Network Plot"`
 
-```{r plot-network-diff, eval = plot_network_diff, echo = plot_network_diff, fig.cap=glue("*Network plot showing gene-sets enriched amongst those differential signal for {target}.*")}
-tg_diff %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
+```{r increased-network, echo = n_increased_enrich > min_network_size, eval = n_increased_enrich > min_network_size, fig.cap = glue("*The {n_increased_enrich} most highly ranked gene sets from enrichment analysis using only the sites showing consistently increasing signal. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with changed {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+tg_increased_enrich %>% 
+  ggraph(layout = net_layout, weights = oc) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
+    aes(
+      fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+    ),
     shape = 21
   ) +
   geom_node_text(
-    aes(label = label),
+    aes(label = label, alpha = prop),
     colour = "black", size = 3, 
     data = . %>%
       mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+        label = str_replace_all(label, "_", " ") %>% 
+          str_trunc(60) %>% 
+          str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_diff) / 4, 0)),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_increased_enrich) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_alpha(range = c(0.5, 1), trans = "sqrt") +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha = "none", edge_width = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+  labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
   theme_void() 
 ```
 
-### Windows With Increased `r target` Signal {.tabset}
+### Any Decreased Site {.tabset}
 
-```{r goseq-up, fig.show='hide'}
-pwf_up <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
-  left_join(mapped_ids, by = "gene_id") %>% 
-  dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = increased)
-goseq_up <- tibble(
-  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
+```{r enrich-decreased}
+enrich_args <- list(
+  test_ranges = filter(results, status == "Decreased"),
+  db = msigdb, gtf = gtf_gene, bg = results, genome = ucsc$build,
+  threads = threads, adj_method = adj_method, min_sig = enrich_params$min_sig,
+  params = region_params$promoters
 )
-if (sum(pwf_up$diff) > 0) {
-  goseq_up <- dplyr::select(pwf_up, gene_id, DEgenes = diff) %>% 
-    as.data.frame() %>% 
-    column_to_rownames("gene_id") %>% 
-    goseq_hyper(gene2cat = gs_by_geneid) %>% 
-    mutate(adj_p = p.adjust(pval, adj_method)) %>% 
-    dplyr::filter(numDEInCat >= min_sig)
-}
-any_goseq_up <- sum(goseq_up$adj_p < enrich_alpha) > 0
-tg_up <- make_tbl_graph(
-  goseq_up, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, subset(pwf_up, diff)$gene_id) %>%
-    .[map_int(., length) > 0]
-)
-plot_network_up <- length(tg_up) >= min_network_size
+if (enrich_method == "great")
+  decreased_enrich_df <- do.call(".great_enrich", enrich_args)
+if (enrich_method == "gene_id")
+  decreased_enrich_df <- do.call(".geneid_enrich", enrich_args)
+n_decreased_enrich <- sum(decreased_enrich_df$adj_p < enrich_params$alpha)
+tg_decreased_enrich <- decreased_enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  mutate(
+    p = ifelse(p > 0, p, 1e-16),
+    prop = observed_gene_hits / gene_set_size 
+  ) %>% 
+  make_tbl_graph(
+    gs = .$gene_id, 
+    alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+    hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+    min_dist = network_params$max_distance, max_gs = max(network_params$size)
+  )
 ```
 
 
-`r ifelse(!any_goseq_up, glue("No enrichment was found amongst genes mapped to sites showing increased {target} signal"), "#### Results Table")`
+When testing for enrichment in the `r comma(sum(grepl("Decreased", results$status)))` sites (`r percent(mean(grepl("Decreased", results$status)), 0.1)`) showing evidence of any *decreased* signal, `r comma(n_changed_enrich)` pathways were considered to be enriched using an adjusted p-value < `r enrich_params$alpha` as the criteria for considering a pathway as enriched.
 
 
-```{r tbl-goseq-up, eval = any_goseq_up, echo = any_goseq_up}
-cp <- htmltools::tags$caption(
-  htmltools::em(
-    glue(
-      "
-    All {sum(goseq_up$adj_p < enrich_alpha)} gene sets considered as 
-    significantly enriched (p
-    "
-    ),
-    htmltools::tags$sub("adj"),
-    htmltools::em(
-      glue(
-        "
-         < {enrich_alpha}) amongst the windows showing evidence of increased 
-        {target} signal. Genes mapped to an increasing window were 
-        compared to those mapped to any merged window. A standard (unbiased)
-        hypergeomtric test was used to test for enrichment.
-        "
-      )
-    )
-  )
-)
-tbl <- goseq_up %>%
-  dplyr::filter(adj_p < enrich_alpha) %>%
-  left_join(
-    distinct(msigdb, gs_name, gs_url, gs_description),
-    by = "gs_name"
-  ) %>% 
-  mutate(
-    gene_name = map_chr(DEgenes, \(x) paste(id2gene[x], collapse = "; ")),
-    `%` = numDEInCat / numInCat
-  ) %>% 
+
+`r if (n_decreased_enrich > 0) "#### Results Table"`
+
+```{r tbl-decreased-res, eval = n_enrich > 0, echo = n_enrich > 0}
+tbl <- decreased_enrich_df %>% 
+  dplyr::filter(adj_p < enrich_params$alpha) %>%
+  dplyr::slice(seq_len(100)) %>%
+  dplyr::select(-any_of(c("gene_id"))) %>% 
   dplyr::select(
-    `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to Increasing Windows` = gene_name
+    gs_name, genes_with_hits, contains("gene"), everything()
   ) %>% 
   reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list(
-      "Gene Set" = colDef(
-        minWidth = 150,
-        cell = \(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          value %>% 
-            str_replace_all("_", " ") %>% 
-            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
-        ),
-        html = TRUE
-      ),
-      Description = colDef(
-        minWidth = 150,
-        cell = \(value) with_tooltip(value, width = 100)
-      ),
-      "%" = colDef(
-        name = "% Gained",
-        cell = \(value) percent(value, 0.1),
-        maxWidth = 80
-      ),
-      numDEInCat = colDef(name = "Mapped to Increasing Windows", maxWidth = 80),
-      numInCat = colDef(
-        name = "Total Mapped",
-        maxWidth = 80,
-        cell = \(value) comma(value, 1)
-      ),
-      p = colDef(
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
+    sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE, 
+    columns = enrich_cols[colnames(.)],
+    details =  function(index){
+      htmltools::div(
+        htmltools::tags$pre(
+          str_wrap(
+            paste(capture.output(decreased_enrich_df$genes_with_hits[index]), collapse = "\n"),
+            width = 120
           )
-        },
-        maxWidth = 70
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
-          )
-        },
-        maxWidth = 70
-      ),
-      "Genes Mapped to Increasing Windows" = colDef(
-        cell = \(value) with_tooltip(value, width = 100),
-        minWidth = 200
+        )
       )
-    )
+    },
+    elementId = "decreased-enrich-res-table"
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
+cp <- htmltools::em(
+  glue(
+    "
+    Enrichment results for regions showing consistently decreased signal for 
+    {target}, using direction of change along with an adjusted p-value 
+    ({adj_method}) < {enrich_params$alpha} to determine significance. 
+    The backround to determine relative enrichment was the entire set of tested 
+    sites. In the case of large numbers of significant gene-sets, results are 
+    limited to the 100  most highly ranked. For gene-sets where the analysis has
+    returned a p-value of zero, the value <2e-16 will be printed.
+    "
+  )
 )
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('decreased-enrich-res-table',
+      '{target}_decreased_enrich_res.csv')"
+    )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = "Reactable.toggleAllRowsExpanded('decreased-enrich-res-table')"
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('decreased-enrich-res-table', [])"
+  ),
+  tbl,
+  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
-`r ifelse(plot_network_up, "#### Network Plot", "")`
+`r if (n_decreased_enrich > min_network_size) "#### Network Plot"`
 
-```{r plot-network-up, eval = plot_network_up, echo = plot_network_up, fig.cap=glue("*Network plot showing  gene-sets enriched amongst those showing increased signal for {target}.*")}
-tg_up %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
+```{r decreased-network, echo = n_decreased_enrich > min_network_size, eval = n_decreased_enrich > min_network_size, fig.cap = glue("*The {n_decreased_enrich} most highly ranked gene sets from enrichment analysis using the sites showing constent decrease in signal. Edge thickness denotes simiarity between connected nodes. Lighter node colours indicate increased significance. Label transparency and the outline thickness of each node also represent the proportion of each gene set mapped to a range with changed {target}. Node size indicates the number of genes mapped to a range. Networks are capped at a maximum of {max(network_params$size)} gene sets*")}
+tg_decreased_enrich %>% 
+  ggraph(layout = net_layout, weights = oc) +
   geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
   geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
+    aes(
+      fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+    ),
     shape = 21
   ) +
   geom_node_text(
-    aes(label = label),
+    aes(label = label, alpha = prop),
     colour = "black", size = 3, 
     data = . %>%
       mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
+        label = str_replace_all(label, "_", " ") %>% 
+          str_trunc(60) %>% 
+          str_wrap(width = 18)
       ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_up) / 4, 0)),
+    repel = TRUE, max.overlaps = max(10, round(length(tg_decreased_enrich) / 4, 0)),
     bg.color = "white", bg.r = 0.1, 
   ) +
   scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
   scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
+  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+  scale_alpha(range = c(0.5, 1), trans = "sqrt") +
   scale_size_continuous(range = c(1, 10)) +
   scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
   scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha = "none", edge_width = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
+  guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+  labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
   theme_void() 
 ```
 
 
-### Windows With Decreased `r target` Signal {.tabset}
 
-```{r goseq-down, fig.show='hide'}
-pwf_down <- tibble(gene_id  = unique(gtf_gene$gene_id)) %>% 
-  left_join(mapped_ids, by = "gene_id") %>% 
-  dplyr::filter(!is.na(n_peaks)) %>% 
-  mutate(diff = decreased)
-goseq_down <- tibble(
-  gs_name = character(), pval = numeric(), adj_p = numeric(), DEgenes = list()
-)
-if (sum(pwf_down$diff) > 0) {
-  goseq_down <- dplyr::select(pwf_down, gene_id, DEgenes = diff) %>% 
-    as.data.frame() %>% 
-    column_to_rownames("gene_id") %>% 
-    goseq_hyper(gene2cat = gs_by_geneid) %>% 
-    mutate(adj_p = p.adjust(pval, adj_method)) %>% 
-    dplyr::filter(numDEInCat >= min_sig)
-}
-any_goseq_down <- sum(goseq_down$adj_p < enrich_alpha) > 0
-tg_down <- make_tbl_graph(
-  goseq_down, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, subset(pwf_down, diff)$gene_id) %>%
-    .[map_int(., length) > 0]
-)
-plot_network_down <- length(tg_down) >= min_network_size
-```
-
-
-`r ifelse(!any_goseq_down, glue("No enrichment was found amongst genes mapped to sites showing decreased {target} signal"), "#### Results Table")`
-
-
-```{r tbl-goseq-down, eval = any_goseq_down, echo = any_goseq_down}
-cp <- htmltools::tags$caption(
-  htmltools::em(
-    glue(
-      "
-    All {sum(goseq_down$adj_p < enrich_alpha)} gene sets considered as 
-    significantly enriched (p
-    "
-    ),
-    htmltools::tags$sub("adj"),
-    htmltools::em(
-      glue(
-        "
-         < {enrich_alpha}) amongst the windows showing evidence of decreased 
-        {target} signal. Genes mapped to a decreasing window were 
-        compared to those mapped to any merged window. A standard (unbiased)
-        hypergeomtric test was used to test for enrichment.
-        "
-      )
-    )
-  )
-)
-tbl <- goseq_down %>% 
-  dplyr::filter(adj_p < enrich_alpha) %>%
-  left_join(
-    distinct(msigdb, gs_name, gs_url, gs_description),
-    by = "gs_name"
-  ) %>% 
-  mutate(
-    gene_name = map_chr(DEgenes, \(x) paste(id2gene[x], collapse = "; ")),
-    `%` = numDEInCat / numInCat
-  ) %>% 
-  dplyr::select(
-    `Gene Set` = gs_name, Description = gs_description,
-    `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to Decreasing Windows` = gene_name
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list(
-      "Gene Set" = colDef(
-        minWidth = 150,
-        cell = \(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          value %>% 
-            str_replace_all("_", " ") %>% 
-            str_replace_all("^(GO|HALLMARK|KEGG|REACTOME|WP)", "\\1:")
-        ),
-        html = TRUE
-      ),
-      Description = colDef(
-        minWidth = 150,
-        cell = \(value) with_tooltip(value, width = 100)
-      ),
-      "%" = colDef(
-        name = "% Decreased",
-        cell = \(value) percent(value, 0.1),
-        maxWidth = 80
-      ),
-      numDEInCat = colDef(name = "Mapped to Decreasing Windows", maxWidth = 90),
-      numInCat = colDef(
-        name = "Total Mapped",
-        maxWidth = 80,
-        cell = \(value) comma(value, 1)
-      ),
-      p = colDef(
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
-          )
-        },
-        maxWidth = 70
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = \(value) {
-          ifelse(
-            value < 0.001, sprintf("%.2e", value), sprintf("%.3f", value)
-          )
-        },
-        maxWidth = 70
-      ),
-      "Genes Mapped to Decreasing Windows" = colDef(
-        cell = \(value) with_tooltip(value, width = 100),
-        minWidth = 200
-      )
-    )
-  )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
-)
-```
-
-`r ifelse(plot_network_down, "#### Network Plot", "")`
-
-```{r plot-network-down, eval = plot_network_down, echo = plot_network_down, fig.cap=glue("*Network plot showing gene-sets enriched amongst those showing decreased signal for {target}.*")}
-tg_down %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
-  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_down) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-  guides(edge_alpha = "none", edge_width = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
-  theme_void() 
-```
 
 # CHECK RNASEQ MODULE
 
