@@ -76,7 +76,7 @@ rule create_macs2_summary_rmd:
 rule create_differential_signal_rmd:
     input:
         chk = ALL_CHECKS,
-        counts = os.path.join(peak_path, "{target}", "{target}_counts.rds"),
+        counts = os.path.join(counts_path, "{target}_counts.rds"),
         module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
         r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
     output:

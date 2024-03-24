@@ -147,7 +147,7 @@ if len(diff_sig_param):
 all_contrasts.sort()
 
 ## Turn of all Diff Signal & Pairwise comps by uncommenting this line
-all_contrasts = []
+# all_contrasts = []
 
 ## use the contrasts to define all pairwise comparisons
 pairs = []
@@ -242,6 +242,8 @@ RMD = expand(
 	cont = all_contrasts
 )
 ALL_OUTPUTS.extend(RMD)
+
+all_contrasts = []
 
 
 # Differential Signal
