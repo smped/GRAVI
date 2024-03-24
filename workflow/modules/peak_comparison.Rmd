@@ -35,6 +35,7 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 panderOptions("big.mark", ",")
+panderOptions("table.split.table", Inf)
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 source(here::here("workflow/scripts/enrichment_funs.R"))
@@ -137,9 +138,31 @@ Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of
 Given that `r n_targets` were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across all targets, but where signal was detected in at least `r n_targets - 1` targets.
 This ensures any individual targets with broader peaks do not lead to unrealistically broad common regions.
 
+```{r tbl-peak-summary}
+consensus_peaks %>% 
+  lapply(
+    \(x) tibble(
+      `Consensus Peaks` = length(x),
+      `Median Width` = median(width(x)),
+      Q25 = quantile(width(x), 0.25),
+      Q75 = quantile(width(x), 0.75),
+      `Smallest Peak` = min(width(x)),
+      `Broadest Peak` = max(width(x))
+    )
+  ) %>% 
+  bind_rows(.id = "Target") %>% 
+  mutate(IQR = glue("[{comma(Q25)}, {comma(Q75)}]")) %>% 
+  dplyr::select(-starts_with("Q")) %>% 
+  pander(
+    justify = "lrrrrr", 
+    caption = "Summary of consensus peaks obtained within each target."
+  )
+```
+
+
 ### Overlapping Regions
 
-```{r plot-overlaps, fig.width = ifelse(n_targets > 2, fh, fw), fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
+```{r plot-overlaps, fig.width = ifelse(n_targets > 2, fw, fh), fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
 plotType <- ifelse(n_targets > 2, "upset", "venn")
 plotOverlaps(
   consensus_peaks, type = plotType, set_col = colours$target, exp_sets = 0.3

@@ -42,7 +42,7 @@ cat_list(all_wildcards, "wildcards", sep = ":")
 cat_list(all_params, "params")
 
 ## Solidify file paths
-all_input <- lapply(all_input, here::here)
+# all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
 
 cat_time("Loading packages")

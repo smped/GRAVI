@@ -1,3 +1,4 @@
+
 ```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
 ```
 
@@ -153,6 +154,9 @@ if (has_features)
     colours$features, str_sep_to_title(names(colours$features))
   )
 
+hic <- file.path(all_paths$annotation, "hic.rds") %>% read_rds()
+has_hic <- length(hic) > 0
+
 gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
 regions <- map_chr(gene_regions, \(x) unique(x$region))
@@ -181,87 +185,15 @@ has_rnaseq <- FALSE ## To be added in again later
 ```
 
 
-```{r load-hic}
-hic <- GInteractions()
-hic_path <- here::here(config$external$hic)
-if (length(hic_path) > 0)
-  if (file.exists(hic_path)) {
-    has_hic <- TRUE
-    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
-    reg_combs <- expand.grid(regions, regions) %>% 
-      as.matrix() %>% 
-      apply(
-        MARGIN = 1, 
-        \(x) {
-          x <- sort(factor(x, levels = regions))
-          paste(as.character(x), collapse = " - ")
-        }
-      ) %>% 
-      unique()
-    hic$regions <- anchors(hic) %>% 
-      vapply(
-        bestOverlap,
-        y = GRangesList(lapply(gene_regions, granges)),
-        character(length(hic))
-      ) %>% 
-      apply(MARGIN = 2, \(x) regions[x]) %>% 
-      apply(
-        MARGIN = 1, 
-        \(x) {
-          x <- sort(factor(x, levels = regions))
-          paste(as.character(x), collapse = " - ")
-        }
-      ) %>% 
-      factor(levels = reg_combs) %>%
-      fct_relabel(
-        str_replace_all,
-        pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
-      )
-    if (has_features) {
-      feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>% 
-        as.matrix() %>% 
-        apply(
-          MARGIN = 1, 
-          \(x) {
-            x <- sort(factor(x, levels = names(feature_colours)))
-            paste(as.character(x), collapse = " - ")
-          }
-        ) %>% 
-        unique()
-      hic$features <- vapply(
-        anchors(hic),
-        \(x) bestOverlap(
-          x, external_features, var = "feature", missing = "no_feature"
-        ),
-        character(length(hic))
-      )  %>% 
-        apply(
-          MARGIN = 1, 
-          \(x) {
-            x <- sort(factor(x, levels = names(feature_colours)))
-            paste(as.character(x), collapse = " - ")
-          }
-        ) %>% 
-        factor(levels = feat_combs) %>%
-        fct_relabel(str_sep_to_title, pattern = "_")
-    }
-  }
-stopifnot(is(hic, "GInteractions"))
-seqlevels(hic) <- seqlevels(sq)
-seqinfo(hic) <- sq
-hic <- hic[!overlapsAny(hic, exclude_gr)]
-has_hic <- as.logical(length(hic))
-```
-
 
 ```{r define-outputs}
-out_path <- here::here("output", "differential_signal", target)
+out_path <- file.path(all_paths$diff_signal, target)
 comp <- glue("{target}_{treat_levels[[1]]}_{treat_levels[[2]]}")
 all_out <- list(
   results = file.path(out_path, glue("{comp}-differential_signal.rds")),
   csv = file.path(out_path, glue("{comp}-differential_signal.csv.gz")),
-  up_regions = file.path(out_path, glue("{comp}-up.bed")),
-  down_regions = file.path(out_path, glue("{comp}-down.bed")),
+  up_regions = file.path(out_path, glue("{comp}-increased.bed")),
+  down_regions = file.path(out_path, glue("{comp}-decreased.bed")),
   # de_genes = file.path(out_path, glue("{comp}-DE_genes.csv")),
   enrichment = file.path(out_path, glue("{comp}-enrichment.csv")),
   # rna_enrichment = file.path(out_path, glue("{comp}-rnaseq_enrichment.csv")),
@@ -545,6 +477,7 @@ fit <- fitAssayDiff(
 ) 
 pcols <- c("PValue", "p_mu0")
 if (win_type == "sliding") {
+  #### Need to map genes, features & regions ####
   results <- mergeByHMP(
     fit, pval = pcols, merge_within = floor(1 + 2 * params$window_size / 3),
     hm_pre = ""
@@ -571,63 +504,26 @@ n_sig <- sum(results$FDR < params$alpha)
 ```
 
 
-### Mapping Windows To Genes
+<!-- ### Mapping Windows To Genes -->
 
-```{r map-to-regions}
-results$region <- bestOverlap(results, unlist(gene_regions), var = "region") %>% 
-  factor(levels = regions)
-feat_prom <- GRanges()
-feat_enh <- GRanges()
-if (has_features) {
-  results <- results %>% 
-    mutate(
-      feature = bestOverlap(
-        ., external_features, "feature", missing = "no_feature"
-      ) %>% 
-        factor(levels = names(colours$features)) %>% 
-        fct_relabel(str_sep_to_title)
-    )
-  if ("feature" %in% colnames(mcols(external_features))) {
-    feat_prom <- external_features %>%
-      subset(str_detect(feature, "[Pp]rom")) %>%
-      granges()
-    feat_enh <- external_features %>%
-      subset(str_detect(feature, "[Ee]nhanc")) %>%
-      granges()
-  }
-}
-results <- results %>%
-  mapByFeature(
-    genes = gtf_gene, 
-    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
-    enh = feat_enh,
-    gi = hic, 
-    gr2gene = mapping_params$gr2gene,
-    prom2gene = mapping_params$prom2gene,
-    enh2gene = mapping_params$enh2gene,
-    gi2gene = mapping_params$gi2gene
-  )
-```
+<!-- In addition to statistical analysis, all ranges were first mapped to the gene-centric region with the largest overlap. -->
+<!-- `r ifelse(has_features, "Ranges were then mapped to the external features provided in the same manner", "")`, followed by mapping to all annotated genes. -->
 
-In addition to statistical analysis, all ranges were first mapped to the gene-centric region with the largest overlap.
-`r ifelse(has_features, "Ranges were then mapped to the external features provided in the same manner", "")`, followed by mapping to all annotated genes.
+<!-- During mapping to genes, promoters were defined as the union of all potential promoter regions defined earlier, and any external features which were detected as promoters using string matching in the `feature` column. -->
+<!-- `r ifelse(has_features, glue("Enhancers were any regions defined in {basename(config$external$features)} as enhancers."), glue(""))` -->
+<!-- `r ifelse(length(hic) > 0, glue("A set of {comma(length(hic))} HiC-interactions was also included to enable the use of long-range interactions during the mappig process."), "")` -->
 
-During mapping to genes, promoters were defined as the union of all potential promoter regions defined earlier, and any external features which were detected as promoters using string matching in the `feature` column.
-`r ifelse(has_features, glue("Enhancers were any regions defined in {basename(config$external$features)} as enhancers."), glue(""))`
-`r ifelse(length(hic) > 0, glue("A set of {comma(length(hic))} HiC-interactions was also included to enable the use of long-range interactions during the mappig process."), "")`
+<!-- These features were used to map ranges to features using the process defined in the function `extraChIPs::mapByFeature()`: -->
 
-These features were used to map ranges to features using the process defined in the function `extraChIPs::mapByFeature()`:
+<!-- 1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(mapping_params$prom2gene == 0, "directly overlapping", paste("within", mapping_params$prom2gene, "bp of"))` that specific promoter -->
+<!-- 2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(mapping_params$enh2gene == 0, "directly overlapping", paste("within", round(mapping_params$enh2gene/1e3, 1), "kb of"))` the enhancer -->
+<!-- 3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(mapping_params$gi2gene == 0, "directly overlapping", paste("within", round(mapping_params$gi2gene/1e3, 1), "kb of"))` either end of the interaction -->
+<!-- 4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(mapping_params$gr2gene/1e3, 1)`kb -->
 
-1. Ranges *overlapping a promoter* are assigned to genes `r ifelse(mapping_params$prom2gene == 0, "directly overlapping", paste("within", mapping_params$prom2gene, "bp of"))` that specific promoter
-2. Ranges *overlapping an enhancer* are assigned to all genes `r ifelse(mapping_params$enh2gene == 0, "directly overlapping", paste("within", round(mapping_params$enh2gene/1e3, 1), "kb of"))` the enhancer
-3. Ranges *overlapping a long-range interaction* are assigned to all genes `r ifelse(mapping_params$gi2gene == 0, "directly overlapping", paste("within", round(mapping_params$gi2gene/1e3, 1), "kb of"))` either end of the interaction
-4. Ranges with *no gene assignment from the previous steps* are assigned to all overlapping genes, or the nearest gene within `r round(mapping_params$gr2gene/1e3, 1)`kb
-
-Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3.
-For visualisation purposes, only genes which were considered as detected in any provided RNA-Seq data will be shown as the mapping targets.
+<!-- Notably, genes are only passed to step 4 if no gene assignment has been made in steps 1, 2 or 3. -->
+<!-- For visualisation purposes, only genes which were considered as detected in any provided RNA-Seq data will be shown as the mapping targets. -->
 
 ## Results 
-
 
 ### Result Tables {.tabset}
 

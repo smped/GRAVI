@@ -253,8 +253,9 @@ if (win_type == "fixed") {
   seqinfo(se) <- sq
 
   cat_time("Updating row/colData...")
-  rowRanges(se) <- rowData(se)$union_peak
+  # rowData(se) <- mcols(fw_peaks)
   rowData(se)$centred_peak <- granges(fw_peaks)
+  rowRanges(se) <- colToRanges(rowRanges(se), "union_peak")
   colData(se) <- colData(se)[c("bam.files", "totals", "ext", "rlen")] %>%
     as_tibble(rownames = "sample") %>%
     left_join(samples, by = "sample") %>%
