@@ -62,7 +62,7 @@ sink(log)
 #   motifs = "output/annotations/motif_list.rds",
 #   packages = "output/checks/r-packages.chk",
 #   params = "config/params.yml",
-#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.bed.gz"
+#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.rds"
 # )
 #
 # all_output <- list(
@@ -122,12 +122,10 @@ genome(sq) <- ucsc$build
 seqinfo(gene_regions) <- sq
 
 cat_time("Reading Peaks...")
-peaks <- importPeaks(all_input$peaks, type = "bed", seqinfo = sq) |>
-  unlist() |>
-  granges() |>
-  unname() |>
+peaks <- read_rds(all_input$peaks) |>
+  mutate(centre = paste0(seqnames, ":", centre)) |>
+  colToRanges("centre") |>
   resize(width = all_params$peak_width, fix = "center")
-peaks$region <- bestOverlap(peaks, gene_regions)
 cat_time("Read", comma(length(peaks)), "peaks")
 
 cat_time("Getting peak sequences...")

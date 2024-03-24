@@ -32,10 +32,13 @@ rule filter_merged_peaks:
 rule make_consensus_peaks:
     input:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        features = os.path.join(annotation_path, "features.rds"),
+        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
         greylist = lambda wildcards: expand(
             os.path.join(grey_path, "{f}_greylist.bed.gz"),
             f = set(df[df.target == wildcards.target]['input'])
         ),
+        hic = os.path.join(annotation_path, "hic.rds"),
         peaks = lambda wildcards: expand(
             os.path.join(
                 peak_path, "{{target}}",
@@ -43,11 +46,16 @@ rule make_consensus_peaks:
             ),
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
+        yaml = os.path.join("config", "params.yml"),
     output:
         peaks = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
-        )
+        ),
+        rds =  os.path.join(
+            peak_path, "{target}", "{target}_consensus_peaks.rds"
+        ),
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_peaks", "{target}.log")

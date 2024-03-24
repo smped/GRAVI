@@ -47,10 +47,17 @@ sink(log, split = TRUE)
 #         "../GRAVI_testing/output/peak_analysis/AR/AR_E2_filtered_peaks.narrowPeak"
 #     ),
 #     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
-#     greylist = "../GRAVI_testing/output/annotations/SRR8315192_greylist.bed.gz"
+#     blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
+#     features = "../GRAVI_testing/output/annotations/features.rds",
+#     greylist = "../GRAVI_testing/output/greylist/SRR8315192_greylist.bed.gz",
+#     gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
+#     hic = "../GRAVI_testing/output/annotations/hic.rds",
+#     regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
+#     yaml = "../GRAVI_testing/config/params.yml"
 # )
 # all_output <- list(
-#     peaks = "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz"
+#     peaks = "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#     rds = "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.rds"
 # )
 # all_wildcards <- list(target = "AR")
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
@@ -61,7 +68,7 @@ config <- slot(snakemake, "config")
 all_wildcards <- slot(snakemake, "wildcards")
 
 cat_list(all_input, "input")
-cat_list(all_wildcards, "wildcards", ":")
+cat_list(all_wildcards, "wildcards:", "=")
 cat_list(all_output, "output")
 
 ## Solidify file paths
@@ -72,6 +79,7 @@ cat_time("Loading packages...\n")
 library(tidyverse)
 library(extraChIPs)
 library(plyranges)
+library(yaml)
 
 cat_time("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
@@ -84,12 +92,64 @@ exclude_ranges <- all_input$greylist %>%
     GenomicRanges::reduce()
 
 cat_time("Loading peaks...\n")
-cons_peaks <- all_input$peaks %>%
-    importPeaks(seqinfo = sq, blacklist = exclude_ranges, nameRanges = FALSE) %>%
-  makeConsensus(var = "score") %>%
-  mutate(score = map_dbl(score, max)) %>%
-  select(score)
-  
+filtered_peaks <- all_input$peaks %>%
+  importPeaks(
+    seqinfo = sq, blacklist = exclude_ranges, nameRanges = FALSE, centre = TRUE
+  )
+cons_peaks <- filtered_peaks %>%
+  makeConsensus(var = c("score", "centre")) %>%
+  mutate(
+    # Take the highest scoring treatment group as representative
+    score = map_dbl(score, max),
+    # Include the centre for setting fw_peaks
+    centre = map_int(centre, \(x) floor(median(x)))
+  ) %>%
+  select(score, centre)
+
 cat_time("Writing", length(cons_peaks), "peaks to", all_output$peaks, "\n")
-write_bed(cons_peaks, all_output$peaks)
+write_bed(select(cons_peaks, score), all_output$peaks)
 cat_time("Done\n")
+
+## Map to genes, feature & regions
+cat_time("Loading all annotations")
+gtf_gene <- read_rds(all_input$gtf_gene)
+gene_regions <- read_rds(all_input$regions)
+region_levels <- map_chr(gene_regions, \(x) x$region[1]) %>%
+  setNames(names(gene_regions))
+features <- read_rds(all_input$features)
+hic <- read_rds(all_input$hic)
+mapping_params <- all_input$yaml %>%
+  read_yaml() %>%
+  pluck("mapping")
+
+## Find if there are any regions in the features which can be matched
+## to promoters or enhancers
+cat_time("Checking for promoters/enhancers in the features")
+which_prom <- grepl("prom", str_to_lower(names(features)))
+feat_prom <- features[which_prom] %>%
+  unlist() %>%
+  GenomicRanges::reduce()
+
+which_enh <- grepl("enhanc", str_to_lower(names(features)))
+feat_enh <- features[which_enh] %>%
+  unlist() %>%
+  GenomicRanges::reduce()
+
+cat_time("Mapping peaks to regions and features")
+cons_peaks$region <- bestOverlap(cons_peaks, gene_regions)
+cons_peaks$region <- factor(region_levels[cons_peaks$region], unname(region_levels))
+if (length(features)) cons_peaks$feature <- bestOverlap(cons_peaks, features)
+
+cat_time("Mapping peaks to genes")
+cons_peaks <- mapByFeature(
+  cons_peaks, gtf_gene,
+  prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+  enh = feat_enh,
+  gi = hic,
+  gr2gene = mapping_params$gr2gene,
+  prom2gene = mapping_params$prom2gene,
+  enh2gene = mapping_params$enh2gene,
+  gi2gene = mapping_params$gi2gene
+)
+cat_time("Writing mapped peaks to", all_output$rds)
+cat_time("Done")

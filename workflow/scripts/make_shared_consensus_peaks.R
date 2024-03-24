@@ -39,15 +39,21 @@ sink(log, split = TRUE)
 
 ## For testing
 # all_input <- list(
+#   features = "output/annotations/features.rds",
+#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   hic = "output/annotations/hic.rds",
+#   regions = "output/annotations/gene_regions.rds",
 #   peaks = c(
 #     "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
 #     "../GRAVI_testing/output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
 #     "../GRAVI_testing/output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
 #   ),
-#   sq = "../GRAVI_testing/output/annotations/seqinfo.rds"
+#   sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
+#   yaml = "../GRAVI_testing/config/params.yml"
 # )
 # all_output <- list(
-#   peaks = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.bed.gz"
+#   peaks = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.bed.gz",
+#   rds = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.rds"
 # )
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 
@@ -70,14 +76,61 @@ sq <- read_rds(all_input$sq)
 
 cat_time("Loading peaks...\n")
 n_targets <- length(all_input$peaks)
-cons_peaks <- all_input$peaks %>%
+shared_peaks <- all_input$peaks %>%
   importPeaks(seqinfo = sq, type = "bed") %>%
   setNames(str_remove(names(.), "_consensus.+"))
 ## NB: for n = 2, this will be the union peaks
-shared_peaks <- cons_peaks %>%
+shared_peaks <- shared_peaks %>%
   makeConsensus(p = 1 - 1 / n_targets, method = "coverage") %>%
   filter(n == n_targets)
-  
+
 cat_time("Writing", length(shared_peaks), "peaks to", all_output$peaks, "\n")
 write_bed(shared_peaks, all_output$peaks)
 cat_time("Done\n")
+
+## Map to genes, feature & regions
+cat_time("Loading all annotations")
+gtf_gene <- read_rds(all_input$gtf_gene)
+gene_regions <- read_rds(all_input$regions)
+region_levels <- map_chr(gene_regions, \(x) x$region[1]) %>%
+  setNames(names(gene_regions))
+features <- read_rds(all_input$features)
+hic <- read_rds(all_input$hic)
+mapping_params <- all_input$yaml %>%
+  read_yaml() %>%
+  pluck("mapping")
+
+## Find if there are any regions in the features which can be matched
+## to promoters or enhancers
+cat_time("Checking for promoters/enhancers in the features")
+which_prom <- grepl("prom", str_to_lower(names(features)))
+feat_prom <- features[which_prom] %>%
+  unlist() %>%
+  GenomicRanges::reduce()
+
+which_enh <- grepl("enhanc", str_to_lower(names(features)))
+feat_enh <- features[which_enh] %>%
+  unlist() %>%
+  GenomicRanges::reduce()
+
+cat_time("Mapping peaks to regions and features")
+shared_peaks$region <- bestOverlap(shared_peaks, gene_regions)
+shared_peaks$region <- factor(region_levels[shared_peaks$region], unname(region_levels))
+if (length(features)) shared_peaks$feature <- bestOverlap(shared_peaks, features)
+
+cat_time("Mapping peaks to genes")
+shared_peaks <- mapByFeature(
+  shared_peaks, gtf_gene,
+  prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
+  enh = feat_enh,
+  gi = hic,
+  gr2gene = mapping_params$gr2gene,
+  prom2gene = mapping_params$prom2gene,
+  enh2gene = mapping_params$enh2gene,
+  gi2gene = mapping_params$gi2gene
+)
+cat_time("Writing mapped peaks to", all_output$rds)
+cat_time("Done")
+
+
+

@@ -7,7 +7,7 @@ rule run_motif_analysis:
 		motifs = os.path.join(annotation_path, "motif_list.rds"),
 		packages = os.path.join(check_path, "r-packages.chk"),
 		peaks = os.path.join(
-			peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
+			peak_path, "{target}", "{target}_consensus_peaks.rds"
 		),
 		script = os.path.join("workflow", "scripts", "motif_analysis.R"),
 	output:

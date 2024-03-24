@@ -47,7 +47,7 @@
   if (length(test_ids) == 0 | all(bg_ids %in% test_ids)) return(res)
 
   if (method == "Wallenius") {
-
+    library(goseq)
     ## This is classic goseq
     gs_list <- split(db$gs_name, db$ensembl_gene)
     tbl <- tibble::tibble(gene_id = gtf$gene_id, w = width(gtf))
@@ -56,11 +56,11 @@
     tbl <- tbl[!duplicated(tbl$gene_id),]
     de <- tbl$gene_id %in% test_ids
     names(de) <- tbl$gene_id
-    pwf <- goseq::nullp(
+    pwf <- nullp(
       de, genome = genome, bias.data = log10(tbl$w), plot.fit = FALSE
     )
     if (sum(pwf$DEgenes) == 0) return(res)
-    res <- goseq::goseq(
+    res <- goseq(
       pwf = pwf, genome = genome, gene2cat = gs_list, method = method
     )
     res <- as_tibble(res)

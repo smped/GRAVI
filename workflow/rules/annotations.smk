@@ -12,6 +12,7 @@ rule create_annotations:
         exons = os.path.join(annotation_path, "gtf_exon.rds"),
         features = os.path.join(annotation_path, "features.rds"),
         genes = os.path.join(annotation_path, "gtf_gene.rds"),
+        hic = os.path.join(annotation_path, "hic.rds"),
         motifs = os.path.join(annotation_path, "motif_list.rds"),
         motif_uri = os.path.join(annotation_path, "motif_uri.rds"),
         msigdb = os.path.join(annotation_path, "msigdb.rds"),
@@ -33,6 +34,8 @@ rule create_annotations:
     script:
         "../scripts/create_annotations.R"
 
+## These might need to be renamed as they're the N-rich regions rather than
+## blacklisted. Very useful for motif analysis
 rule make_exclude_ranges:
     input:
         here = os.path.join(check_path, "here.chk"),

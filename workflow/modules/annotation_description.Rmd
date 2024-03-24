@@ -611,14 +611,11 @@ div(class = "table",
 # HiC Data {.tabset}
 
 ```{r has-hic, echo = FALSE}
-hic_path <- here::here(config$external$hic)
-has_hic <- FALSE
-if (length(hic_path) > 0)
-  if (file.exists(hic_path)) has_hic <- TRUE
+hic <- read_rds(all_out$hic)
+has_hic <- length(hic) > 0
 ```
 
 ```{r load-hic, eval = has_hic, echo = has_hic}
-hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
 reg_combs <- expand.grid(regions, regions) %>% 
   as.matrix() %>% 
   apply(

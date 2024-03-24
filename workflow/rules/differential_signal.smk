@@ -32,12 +32,8 @@ rule count_windows:
         macs2_qc = os.path.join(
             macs2_path, "{target}", "{target}_qc_samples.tsv"
         ),
-        peaks = lambda wildcards: expand(
-            os.path.join(
-                peak_path, "{{target}}",
-                "{{target}}_{treat}_filtered_peaks.narrowPeak"
-            ),
-            treat = set(df['treat'][df['target'] == wildcards.target])
+        peaks = os.path.join(
+            peak_path, "{target}", "{target}_consensus_peaks.rds"
         ),
         script = os.path.join("workflow", "scripts", "make_counts.R"),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),

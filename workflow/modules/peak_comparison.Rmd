@@ -112,79 +112,6 @@ heat_col <- c(
 )
 ```
 
-```{r load-hic}
-hic <- GInteractions()
-hic_path <- here::here(config$external$hic)
-if (length(hic_path) > 0)
-  if (file.exists(hic_path)) {
-    has_hic <- TRUE
-    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
-    reg_combs <- expand.grid(regions, regions) %>% 
-      as.matrix() %>% 
-      apply(
-        MARGIN = 1, 
-        \(x) {
-          x <- sort(factor(x, levels = regions))
-          paste(as.character(x), collapse = " - ")
-        }
-      ) %>% 
-      unique()
-    hic$regions <- anchors(hic) %>% 
-      vapply(
-        bestOverlap,
-        y = GRangesList(lapply(gene_regions, granges)),
-        character(length(hic))
-      ) %>% 
-      apply(MARGIN = 2, \(x) regions[x]) %>% 
-      apply(
-        MARGIN = 1, 
-        \(x) {
-          x <- sort(factor(x, levels = regions))
-          paste(as.character(x), collapse = " - ")
-        }
-      ) %>% 
-      factor(levels = reg_combs) %>%
-      fct_relabel(
-        str_replace_all,
-        pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
-      )
-    if (has_features) {
-      feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>% 
-        as.matrix() %>% 
-        apply(
-          MARGIN = 1, 
-          \(x) {
-            x <- sort(factor(x, levels = names(feature_colours)))
-            paste(as.character(x), collapse = " - ")
-          }
-        ) %>% 
-        unique()
-      hic$features <- vapply(
-        anchors(hic),
-        \(x) bestOverlap(
-          x, external_features, var = "feature", missing = "no_feature"
-        ),
-        character(length(hic))
-      )  %>% 
-        apply(
-          MARGIN = 1, 
-          \(x) {
-            x <- sort(factor(x, levels = names(feature_colours)))
-            paste(as.character(x), collapse = " - ")
-          }
-        ) %>% 
-        factor(levels = feat_combs) %>%
-        fct_relabel(str_sep_to_title, pattern = "_")
-    }
-  }
-stopifnot(is(hic, "GInteractions"))
-seqlevels(hic) <- seqlevels(sq)
-seqinfo(hic) <- sq
-# hic <- hic[!overlapsAny(hic, exclude_gr)]
-has_hic <- as.logical(length(hic))
-```
-
-
 
 ## Introduction
 
@@ -196,63 +123,15 @@ Comparisons were performed in a treatment-agnostic manner, using the sets of con
 
 ```{r load-peaks}
 consensus_peaks <- all_paths$peaks %>% 
-  file.path("{targets}", "{targets}_consensus_peaks.bed.gz") %>% 
+  file.path("{targets}", "{targets}_consensus_peaks.rds") %>% 
   glue() %>% 
-  importPeaks(seqinfo = sq, type = "bed") %>% 
-  setNames(str_remove(names(.), "_consensus.+"))
+  lapply(read_rds) %>% 
+  setNames(targets) %>% 
+  GRangesList()
 ## NB: for n = 2, this will be the union peaks
-shared_peaks <- file.path(all_paths$peaks, "shared", "shared_consensus_peaks.bed.gz") %>% 
-  importPeaks(seqinfo = sq, type = "bed") %>% 
-  setNames(str_remove(names(.), "_consensus.+")) %>% 
-  unlist() %>% 
-  unname() %>% 
-  granges()
+shared_peaks <- file.path(all_paths$peaks, "shared", "shared_consensus_peaks.rds") %>%
+  read_rds()
 ```
-
-```{r map-peaks}
-feat_prom <- GRanges(seqinfo = sq)
-feat_enh <- GRanges(seqinfo = sq)
-if (has_features) {
-  consensus_peaks <- consensus_peaks %>% 
-    mutate(
-      feature = bestOverlap(., external_features, missing = "no_feature") %>% 
-        factor(levels = names(colours$features)) %>% 
-        fct_relabel(str_sep_to_title)
-    )
-  which_prom <- grepl("prom", str_to_lower(names(external_features)))
-  feat_prom <- external_features[which_prom] %>%
-    unlist() %>%
-    GenomicRanges::reduce()
-  which_enh <- grepl("enhanc", str_to_lower(names(external_features)))
-  feat_enh <- external_features[which_enh] %>%
-    unlist() %>%
-    GenomicRanges::reduce()
-}
-consensus_peaks <- consensus_peaks %>%
-  endoapply(
-    mapByFeature,
-    genes = gtf_gene, 
-    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
-    enh = feat_enh,
-    gi = hic, 
-    gr2gene = mapping_params$gr2gene,
-    prom2gene = mapping_params$prom2gene,
-    enh2gene = mapping_params$enh2gene,
-    gi2gene = mapping_params$gi2gene
-  )
-shared_peaks <- mapByFeature(
-  shared_peaks,
-  genes = gtf_gene, 
-  prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
-  enh = feat_enh,
-  gi = hic, 
-  gr2gene = mapping_params$gr2gene,
-  prom2gene = mapping_params$prom2gene,
-  enh2gene = mapping_params$enh2gene,
-  gi2gene = mapping_params$gi2gene
-)
-```
-
 
 Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of common regions found.
 Given that `r n_targets` were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across all targets, but where signal was detected in at least `r n_targets - 1` targets.
@@ -492,18 +371,13 @@ tg_enrich_genomic %>%
 
 ```{r enrich-targets-bg}
 bg <- consensus_peaks %>% 
-  unlist() %>% 
-  reduce() %>% 
-  mapByFeature(
-    genes = gtf_gene, 
-    prom = reduce(c(feat_prom, granges(gene_regions$promoter))),
-    enh = feat_enh,
-    gi = hic, 
-    gr2gene = mapping_params$gr2gene,
-    prom2gene = mapping_params$prom2gene,
-    enh2gene = mapping_params$enh2gene,
-    gi2gene = mapping_params$gi2gene
-  )
+  lapply(select, gene_id) %>% 
+  lapply(as_tibble) %>% 
+  lapply(unchop, gene_id) %>% 
+  bind_rows() %>% 
+  distinct(range, gene_id) %>% 
+  colToRanges("range") %>% 
+  reduceMC()
 enrich_arg_list <- list(
   test_ranges = shared_peaks, db = msigdb, gtf = gtf_gene, bg = bg, 
   genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 

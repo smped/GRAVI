@@ -6,7 +6,7 @@
 #' target. This will only create any changes where >2 treatments are present,
 #' however considerable time will be saved where the same files would previously
 #' have been counted several times.
-#' 
+#'
 #' Required input files are:
 #'   - All bam files for the target
 #'   - All bam indexes
@@ -19,7 +19,7 @@
 #'
 #' Required output files are:
 #'   - The counts (put somewhere. Maybe in the peak_analysis folder?)
-#' 
+#'
 #' Required parameters are
 #'   - win_type
 #'   - win_size
@@ -65,8 +65,7 @@ sink(log, split = TRUE)
 #     "data", "bam", paste0("SRR83151", 74:79, ".bam.bai")
 #   ),
 #   peaks = file.path(
-#     "output", "peak_analysis", "AR",
-#     paste0("AR_", c("E2", "E2DHT") ,"_filtered_peaks.narrowPeak")
+#     "output", "peak_analysis", "AR", "AR_consensus_peaks.rds"
 #   ),
 #   macs2_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
 #   macs2_logs = file.path(
@@ -84,7 +83,7 @@ sink(log, split = TRUE)
 # )
 # all_params <- list(
 #   filter_q = 0.7,
-#   win_size =  180, 
+#   win_size =  180,
 #   win_step = 60,
 #   win_type = "sliding",
 #   contrasts = list(c("E2", "E2DHT"))
@@ -139,8 +138,8 @@ cat_time("Done")
 #' Setup the key config elements
 #'
 cat_time("Setting treat_levels")
-treat_levels <- all_params$contrasts %>% 
-  unlist() %>% 
+treat_levels <- all_params$contrasts %>%
+  unlist() %>%
   unique()
 samples <- all_input$macs2_qc %>%
   read_tsv() %>%
@@ -155,7 +154,7 @@ cat_time("Loading seqinfo")
 sq <- read_rds(all_input$seqinfo)
 cat_time("Defining black and greylists")
 blacklist <- read_rds(all_input$blacklist)
-greylist <- all_input$greylist %>% 
+greylist <- all_input$greylist %>%
   unlist() %>%
   importPeaks(type = "bed", seqinfo = sq) %>%
   unlist() %>%
@@ -167,11 +166,8 @@ cat_time("Done")
 ## estimated centres which will be used to recentre & resize the peaks (if reqd)
 cat_time("Importing peaks")
 peaks <- all_input$peaks %>%
-  importPeaks(blacklist = exclude_gr, seqinfo = sq, centre = TRUE) %>%
-  unlist() %>%
-  select(centre) %>%
-  reduceMC() %>%
-  mutate(centre = vapply(centre, \(x) as.integer(mean(x)), integer(1)))
+  read_rds() %>%
+  mutate(centre = paste0(seqnames, ":", centre))
 
 #'
 #' Prepare the BamFileList and check for paired reads/duplicates
@@ -179,8 +175,8 @@ peaks <- all_input$peaks %>%
 #'
 cat_time("Defining BamFileList")
 bfl <- BamFileList(c(all_input$bam, all_input$input_bam))
-ids <- path(bfl) %>% 
-  basename() %>% 
+ids <- path(bfl) %>%
+  basename() %>%
   str_remove_all(".bam$")
 names(bfl) <- ids
 stopifnot(all(file.exists(path(bfl))))
@@ -244,11 +240,8 @@ if (win_type == "fixed") {
 
   cat_time("Centering & resizing peaks at ", all_params$win_size, "bp")
   fw_peaks <- peaks %>%
-    mutate(
-      range = paste(seqnames, centre, sep = ":"),
-      union_peak = granges(.)
-    ) %>%
-    colToRanges("range") %>%
+    mutate(union_peak = granges(.)) %>%
+    colToRanges("centre") %>%
     resize(width = all_params$win_size, fix = "center") %>%
     filter_by_non_overlaps(exclude_gr)
 
@@ -316,9 +309,10 @@ if (win_type == "sliding") {
   cat_time("Updating metadata")
   colData(filtered_counts) <- droplevels(colData(filtered_counts))
   cat_time(
-    "Reduced inital ", comma(nrow(window_counts)), " windows to ", 
+    "Reduced inital ", comma(nrow(window_counts)), " windows to ",
     comma(nrow(filtered_counts)), "filtered windows"
   )
+  ## NB: These counts will not be mapped to genes, regeions, features etc
 
   cat_time("Writing filtered counts to ", all_output$rds)
   write_rds(filtered_counts, all_output$rds, compress = "gz")

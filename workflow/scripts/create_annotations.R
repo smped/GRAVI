@@ -66,6 +66,7 @@ library(extraChIPs)
 library(MotifDb)
 library(universalmotif)
 library(msigdbr)
+library(GenomicInteractions)
 params <- read_yaml(all_input$yaml)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
@@ -172,6 +173,7 @@ cat_time("Exporting gene_regions...\n")
 write_rds(gene_regions, all_output$regions, compress = "gz")
 
 #### Features ####
+cat_time("Preparing external features")
 feat <- GRangesList()
 seqinfo(feat) <- sq
 if (!is.null(config$external$features)) {
@@ -198,6 +200,80 @@ if (!is.null(config$external$features)) {
 }
 write_rds(feat, all_output$features, compress = "gz")
 cat_time("done\n")
+
+#### HiC ####
+cat_time("Preparing HiC Interactions")
+hic <- GInteractions()
+hic_path <- here::here(config$external$hic)
+if (length(hic_path) > 0) {
+  if (file.exists(hic_path)) {
+    has_hic <- TRUE
+    hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
+    ## Revisit ASAP. Taken from an Rmd so not built within this file...
+    ## This maps anchors to regions & features. Not really sure it's needed
+    # reg_combs <- expand.grid(regions, regions) %>%
+    #   as.matrix() %>%
+    #   apply(
+    #     MARGIN = 1,
+    #     \(x) {
+    #       x <- sort(factor(x, levels = regions))
+    #       paste(as.character(x), collapse = " - ")
+    #     }
+    #   ) %>%
+    #   unique()
+    # hic$regions <- anchors(hic) %>%
+    #   vapply(
+    #     bestOverlap,
+    #     y = GRangesList(lapply(gene_regions, granges)),
+    #     character(length(hic))
+    #   ) %>%
+    #   apply(MARGIN = 2, \(x) regions[x]) %>%
+    #   apply(
+    #     MARGIN = 1,
+    #     \(x) {
+    #       x <- sort(factor(x, levels = regions))
+    #       paste(as.character(x), collapse = " - ")
+    #     }
+    #   ) %>%
+    #   factor(levels = reg_combs) %>%
+    #   fct_relabel(
+    #     str_replace_all,
+    #     pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
+    #   )
+    # if (has_features) {
+    #   feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>%
+    #     as.matrix() %>%
+    #     apply(
+    #       MARGIN = 1,
+    #       \(x) {
+    #         x <- sort(factor(x, levels = names(feature_colours)))
+    #         paste(as.character(x), collapse = " - ")
+    #       }
+    #     ) %>%
+    #     unique()
+    #   hic$features <- vapply(
+    #     anchors(hic),
+    #     \(x) bestOverlap(x, external_features, missing = "no_feature"),
+    #     character(length(hic))
+    #   )  %>%
+    #     apply(
+    #       MARGIN = 1,
+    #       \(x) {
+    #         x <- sort(factor(x, levels = names(feature_colours)))
+    #         paste(as.character(x), collapse = " - ")
+    #       }
+    #     ) %>%
+    #     factor(levels = feat_combs) %>%
+    #     fct_relabel(str_sep_to_title, pattern = "_")
+    # }
+  }
+}
+stopifnot(is(hic, "GInteractions"))
+seqlevels(hic) <- seqlevels(sq)
+seqinfo(hic) <- sq
+write_rds(hic, all_output$hic, compress = "gz")
+cat_time("done\n")
+
 
 #### Motifs ####
 motif_params <- params$motifdb
@@ -324,6 +400,7 @@ ln <- glue(
 	  gtf_exon: \"{{all_output$exons}}\"
 	  gtf_gene: \"{{all_output$genes}}\"
 	  gtf_transcript: \"{{all_output$transcripts}}\"
+	  hic: \"{{all_output$hic}}\"
 	  motif_list: \"{{all_output$motifs}}\"
 	  motif_uri: \"{{all_output$motif_uri}}\"
 	  seqinfo: \"{{all_output$seqinfo}}\"
