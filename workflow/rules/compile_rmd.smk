@@ -143,3 +143,49 @@ rule compile_peak_comparison_rmd:
         R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
         """
 
+rule compile_differential_signal_html:
+    input:
+        annotations = ALL_RDS,
+        counts = os.path.join(counts_path, "{target}_counts.rds"),
+        ihw = os.path.join("workflow", "modules", "ihw.Rmd"),
+        rmd = os.path.join(
+            rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
+        ),
+    output:
+        bed = expand(
+            os.path.join(
+                diff_path, "{{target}}", 
+                "{{target}}_{{ref}}_{{treat}}-{f}.bed"
+            ),
+            f = ['increased', 'decreased']
+        ),
+        html = "docs/{target}_{ref}_{treat}_differential_signal.html",
+        fig_path = directory(
+            os.path.join(
+                "docs", "{target}_{ref}_{treat}_differential_signal_files",
+                "figure-html"
+            )
+        ),
+        results = expand(
+            os.path.join(
+                diff_path, "{{target}}", 
+                "{{target}}_{{ref}}_{{treat}}-differential_signal.{suf}"
+            ),
+            suf = ['rds']#, 'csv.gz']
+        ),
+        renv = temp(
+            os.path.join(
+                "output", "envs",
+                "{target}_{ref}_{treat}-differential_signal.RData"
+            )
+        ),
+    conda: "../envs/rmarkdown.yml"
+    threads: 8
+    resources:
+        mem_mb = 65536,
+        runtime = "1h"
+    log: os.path.join(log_path, "compile_rmd", "{target}_{ref}_{treat}_differential_signal.log")
+    shell:
+        """
+        R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
+        """

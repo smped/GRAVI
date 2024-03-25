@@ -328,7 +328,7 @@ desc_quantro <- paste(
 ```
 
 
-`r desc_quantro`
+`r if(check_norm) desc_quantro`
 
 
 ```{r normalise-logcpm}
@@ -2390,20 +2390,20 @@ tg_down %>%
 
 # CHECK RNASEQ MODULE
 
-```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_differential.Rmd')}
+```{r add-rna, eval = FALSE, child = here::here('workflow/modules/rnaseq_differential.Rmd')}
 ```
 
 
 ## Data Export
 
-```{r export-diff-by-gene}
+```{r export-diff-by-gene, eval = FALSE}
 results %>% 
   as_tibble() %>%
   unnest(all_of("gene_id")) %>%
   mutate(gene_name = id2gene[gene_id]) %>% 
   dplyr::select(
     gene_id, gene_name, range, logCPM, logFC, PValue, !!sym(fdr_column), 
-    status, any_of(c("region", "feature")), macs2_peak = overlaps_ref,
+    status, any_of(c("region", "feature")), 
   ) %>% 
   mutate(
     distance_to_gene = distance(
@@ -2419,8 +2419,6 @@ results %>%
 
 ```{r data-export, results='hide'}
 write_rds(results, all_out$results, compress = "gz")
-file.create(all_out$de_genes)
-if (has_rnaseq) write_csv(de_genes_db_regions, all_out$de_genes)
 
 file.create(all_out$up_regions)
 if (sum(results$status == "Increased") > 0) {
@@ -2437,45 +2435,9 @@ if (sum(results$status == "Decreased") > 0) {
     granges() %>% 
     export.bed(all_out$up_regions)
 }
+
 ## Enrichment results need a bit of tweaking to match the tables
-list2(
-  `All Differentially Bound` = goseq_diff,
-  "All Increased {target}" := goseq_up,
-  "All Decreased {target}" := goseq_down
-) %>% 
-  bind_rows(.id = 'group') %>% 
-  dplyr::filter(adj_p < enrich_alpha) %>% 
-  left_join(
-    dplyr::select(msigdb, gs_name, gene_name, gene_id, gs_url, gs_description),
-    by = "gs_name"
-  ) %>% 
-  dplyr::filter(
-    gene_id %in% unlist(subset(results, status != "Unchanged")$gene_id)
-  ) %>% 
-  dplyr::select(-gene_id) %>% 
-  chop(gene_name) %>% 
-  mutate(
-    gene_name = map_chr(gene_name, paste, collapse = ": "),
-    `%` = numDEInCat / numInCat,
-  ) %>% 
-  dplyr::select(
-    group,
-    `Gene Set` = gs_name, Description = gs_description, URL = gs_url,
-    `%`, numDEInCat, numInCat, p = pval, adj_p, 
-    `Genes Mapped to DB Windows` = gene_name
-  ) %>% 
-  write_csv(all_out$enrichment)
-list2(
-  `All Differentially Bound` = cmn_diff,
-  "All Increased {target}" := cmn_up,
-  "All Decreased {target}" := cmn_down
-) %>% 
-  bind_rows(.id = "group") %>% 
-  mutate(
-    genes = map_chr(leadingEdge, paste, collapse = "; "),
-    leadingEdge = map_chr(leadingEdge, paste, collapse = "; "),
-  ) %>% 
-  write_csv(all_out$rna_enrichment)
+
 ## Save key memory on the HDD
 gc()
 save.image(all_out$renv)

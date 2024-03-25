@@ -28,7 +28,7 @@ rule run_motif_analysis:
 	retries: 2
 	resources:
 		disk_mb = 10000,
-		mem_mb = lambda wildcards, attempt: attempt * 48000,
+		mem_mb = lambda wildcards, attempt: attempt * 64000,
 		runtime = lambda wildcards, attempt: attempt * 120,
 	log: os.path.join(log_path, "motif_analysis", "{target}_motif_analysis.log")
 	conda: "../envs/rmarkdown.yml"
