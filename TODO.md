@@ -21,11 +21,11 @@
   
 ## Annotation Setup
 
-- [ ] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
+- [x] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
   
 ## Peak Analysis
 
-- [ ] Add goseq as well as GREAT
+- [x] Add goseq as well as GREAT
 
 ## Differential Signal
 
@@ -35,7 +35,11 @@
     3. Fixed width using TMM/RLE (after quantro)
 - [x] Update main differential signal module
 - [x] Update IHW
+- [ ] Shift analysis to a separate script & only reporting in the Rmd/HTML
+    + This will allow motif/regioner analysis of diff_sig peaks to be included
+    + Add params used to the metadata of the results
 - [ ] Update RNA-Seq module
+    + Wrangle multiple files
 - [ ] Rewrite script/rules for creating diff_signal Rmds with updated params
 - [ ] Redefine config settings to have a default, with optional overwrite using the target 
 
@@ -45,7 +49,7 @@
 - [ ] Add 3-way comparisons
 - [ ] Additional modules
   - [ ] ROSE
-  - [ ] Nucleosome Free Regions
+  - [ ] Nucleosome Free Regions (Try HisTrader)
 
 ## Bugs
 
@@ -55,7 +59,5 @@
 
 ## Additional Notes
 
-- Add `rGREAT` analysis as the default enrichment for all modules?
-- `IHW` is currently not installable using conda with Bioc 3.18. Checks for updates may be prudent
 - The package simplifyEnrichment also looks useful for comparing across targets. Examples here: https://jokergoo.github.io/rGREAT_suppl/compare_online_and_local.html
 
