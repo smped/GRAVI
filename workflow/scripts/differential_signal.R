@@ -55,11 +55,11 @@ all_input <- list(
   gtf_gene = "output/annotations/gtf_gene.rds",
   hic = "output/annotations/hic.rds",
   features = "output/annotations/features.rds",
-  peaks = map_chr(
+  peaks = vapply(
     c("AR", "ER", "H3K27ac"),
     \(x) file.path(
       "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
-    )
+    ), character(1)
   ),
   regions = "output/annotations/gene_regions.rds",
   sq = "output/annotations/seqinfo.rds",
@@ -69,7 +69,6 @@ all_output <- list(
   decreased = "output/differential_signal/ER/ER_E2_E2DHT-decreased.bed.gz",
   increased = "output/differential_signal/ER/ER_E2_E2DHT-increased.bed.gz",
   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
-  qtest = "output/differential_signal/ER/ER_E2_E2DHT-qtest.rds",
   rds = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds"
 )
 all_params <- list(
@@ -163,6 +162,7 @@ if (!"logCPM" %in% assayNames(counts)) {
 }
 
 cat_time("Checking count distributions using quantro")
+quantro_p <- NULL
 if (norm != "none") {
   registerDoParallel(threads)
   qtest <- quantro(assay(counts, "counts"), counts$treat, B = 1e3)
@@ -364,6 +364,63 @@ metadata(results) <- c(
   )
 ) %>%
   .[sort(names(.))]
+metadata(results)$description <- glue(
+    "Differential Signal for {all_wildcards$target} was assessed using {win_type} windows of {all_params$window_size}bp ",
+    ifelse(
+        win_type == "sliding",
+        "with a step-size of {all_params$window_step}. Windows were merged after testing using the
+        harmonic-mean p-value [@Wilson2019-ln] to obtain a representative p-value for merged regions. ",
+        "centred at the estimated peak-centres returned by `macs2 callpeak` [@Zhang18798982]. "
+    ),
+    ifelse(
+        !is.null(quantro_p),
+        glue(
+            "Distributions of counts between treatment groups were checked using quantro [@HicksQuantro2015] and ",
+            ifelse(
+                any(quantro_p < 0.05),
+                "counts were found to be from different distributions. ",
+                "no difference in the underlying distributions of counts was found. "
+            )
+        ),
+        ""
+    ),
+    ifelse(norm == "none", "No normalisation was applied. ", "{norm}-normalisation was applied "),
+    case_when(
+        norm == "sq" ~ "[@HicksSQN2017]. ",
+        norm == "RLE" ~ "[@Anders2010-sd]. ",
+        str_detect(norm, "TMM") ~ "[@Robinson2010-qp]. ",
+        TRUE ~ ""
+    ),
+    "Read totals across the complete genome were always taken as the representative library size for each sample. ",
+    ifelse(is.null(pair_col), "", "Samples were nested within {pair_col}. "),
+    "\n\nStatistical analysis was performed using ",
+    case_when(
+        method == "qlf" ~ "Quasi-Likelihood fits [@LunSmythGLMQL2017] on counts ",
+        method == "lt" ~ "Limma-Trend [@LawVoom2014] on normalised logCPM values ",
+    ),
+    ifelse(
+        all_params$fc > 0,
+        "and a range-based H~0~, setting changed signal within the range [-{round(log2(all_params$fc), 3)}, {round(log2(all_params$fc), 3)}] as not being of interest [@McCarthyTreat2009]. ",
+        "and a conventional H~0~, testing whether any change in signal is zero or non-zero. "
+    ),
+    "The analysis tested the treatment {all_wildcards$treat} against the baseline condition of {all_wildcards$ref}. ",
+    ifelse(
+        ihw_method == "none", "",
+        sprintf(
+            "P-values after all testing were then weighted using IHW [@IgnatiadisIHW2016] setting overlap with %s as the covariate. ",
+            case_when(
+                ihw_method == "regions" ~ "genomic regions",
+                ihw_method == "targets" ~ "consensus peaks from alternative targets",
+                ihw_method == "features" ~ "supplied features"
+            )
+        )
+    ),
+    sprintf(
+        "Significant differential signal was determined using %s-adjusted p-values < {fdr_alpha} along with direction of change.",
+        ifelse(ihw_method == "none", "FDR", "FDR~IHW~")
+    )
+)
+
 
 ## Think a bit more carefully here. Maybe just update in the Rmd
 # cat_time("Exporting counts with updated assays")
