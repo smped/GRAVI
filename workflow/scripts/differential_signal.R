@@ -50,52 +50,52 @@ message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
 
 ## For testing
-all_input <- list(
-  counts = "output/counts/ER_counts.rds",
-  gtf_gene = "output/annotations/gtf_gene.rds",
-  hic = "output/annotations/hic.rds",
-  features = "output/annotations/features.rds",
-  peaks = vapply(
-    c("AR", "ER", "H3K27ac"),
-    \(x) file.path(
-      "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
-    ), character(1)
-  ),
-  regions = "output/annotations/gene_regions.rds",
-  sq = "output/annotations/seqinfo.rds",
-  yaml = "config/params.yml"
-)
-all_output <- list(
-  decreased = "output/differential_signal/ER/ER_E2_E2DHT-decreased.bed.gz",
-  increased = "output/differential_signal/ER/ER_E2_E2DHT-increased.bed.gz",
-  ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
-  rds = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds"
-)
-all_params <- list(
-  alpha = 0.05,
-  contrasts = structure(c("E2", "E2DHT"), dim = 1:2),
-  fc = 1.2,
-  filter_q = NULL,
-  ihw = "targets",
-  method = "qlf",
-  norm = "TMM",
-  pair_column = NULL,
-  rna_toptable = "data/external/ZR75_DHT_StrippedSerum_RNASeq_topTable.tsv",
-  window_type = "fixed",
-  window_size = 400L,
-  window_step = NULL,
-  target = "ER"
-)
-all_wildcards <- list(target = "ER", ref = "E2", treat = "E2DHT")
-config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
-threads <- 4
+# all_input <- list(
+#   counts = "output/counts/ER_counts.rds",
+#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   hic = "output/annotations/hic.rds",
+#   features = "output/annotations/features.rds",
+#   peaks = vapply(
+#     c("AR", "ER", "H3K27ac"),
+#     \(x) file.path(
+#       "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
+#     ), character(1)
+#   ),
+#   regions = "output/annotations/gene_regions.rds",
+#   sq = "output/annotations/seqinfo.rds",
+#   yaml = "config/params.yml"
+# )
+# all_output <- list(
+#   decreased = "output/differential_signal/ER/ER_E2_E2DHT-decreased.bed.gz",
+#   increased = "output/differential_signal/ER/ER_E2_E2DHT-increased.bed.gz",
+#   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
+#   rds = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds"
+# )
+# all_params <- list(
+#   alpha = 0.05,
+#   contrasts = structure(c("E2", "E2DHT"), dim = 1:2),
+#   fc = 1.2,
+#   filter_q = NULL,
+#   ihw = "targets",
+#   method = "qlf",
+#   norm = "TMM",
+#   pair_column = NULL,
+#   rna_toptable = "data/external/ZR75_DHT_StrippedSerum_RNASeq_topTable.tsv",
+#   window_type = "fixed",
+#   window_size = 400L,
+#   window_step = NULL,
+#   target = "ER"
+# )
+# all_wildcards <- list(target = "ER", ref = "E2", treat = "E2DHT")
+# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+# threads <- 4
 
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# config <- slot(snakemake, "config")
-# all_wildcards <- slot(snakemake, "wildcards")
-# all_params <- slot(snakemake, "params")$diff_sig_params
-# threads <- slot(snakemake, "threads")
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+config <- slot(snakemake, "config")
+all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")$diff_sig_params
+threads <- slot(snakemake, "threads")
 
 cat_list(all_input, "input")
 cat_list(all_output, "output")

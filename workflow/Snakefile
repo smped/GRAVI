@@ -211,6 +211,17 @@ ALL_RDS = expand(
 		'motif_uri', 'msigdb'
 	]
 )
+diff_sig_rds_pre = []
+for i in all_contrasts:
+	tgt = re.split("_", i)[0]
+	diff_sig_rds_pre.extend([tgt + "/" + i])
+
+ALL_RDS.extend(
+	expand(
+		os.path.join(diff_path, "{f}-differential-signal.rds"), 
+		f = diff_sig_rds_pre
+	)
+)
 ALL_OUTPUTS.extend(ALL_RDS)
 
 #######################
