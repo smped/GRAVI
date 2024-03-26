@@ -73,16 +73,16 @@ rule create_macs2_summary_rmd:
     script:
         "../scripts/create_macs2_summary.R"
 
-	    ihw: \"{all_input$ihw}\"
-	    results: \"{all_input$results}\"
-
 rule create_differential_signal_rmd:
     input:
         chk = ALL_CHECKS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
-        ihw = os.path.join(diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"),
+        ihw = os.path.join(
+            diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
+        ),
         results = os.path.join(
-          diff_path, "{target}", "{target}_{ref}_{treat}-differential-signal.rds"
+            diff_path, "{target}", 
+            "{target}_{ref}_{treat}-differential-signal.rds"
         ),
         module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
         r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
