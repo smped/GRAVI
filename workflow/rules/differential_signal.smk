@@ -38,7 +38,7 @@ rule count_windows:
         script = os.path.join("workflow", "scripts", "make_counts.R"),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
     output:
-        rds = os.path.join(counts_path, "{target}_counts.rds")
+        rds = os.path.join(diff_path, "{target}", "{target}_counts.rds")
     conda: "../envs/rmarkdown.yml"
     log: os.path.join(log_path, "count_windows", "{target}_make_counts.log")
     retries: 1
@@ -57,7 +57,7 @@ rule count_windows:
 
 rule differential_signal_analysis:
     input:
-        counts = os.path.join(counts_path, "{target}_counts.rds"),
+        counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
         hic = os.path.join(annotation_path, "hic.rds"),
         features = os.path.join(annotation_path, "features.rds"),
@@ -67,10 +67,10 @@ rule differential_signal_analysis:
                 ),
                 target = targets
         ),
-        regions = os.path.join(annotation_path, "gene_region.rds"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
         script = os.path.join("workflow", "scripts", "differential_signal.R"),
         sq = os.path.join(annotation_path, "seqinfo.rds"),
-        yaml = os.path.join("config", "params.yaml"),
+        yaml = os.path.join("config", "params.yml"),
     output:
         decreased = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-decreased.bed.gz"
@@ -79,11 +79,11 @@ rule differential_signal_analysis:
             diff_path, "{target}", "{target}_{ref}_{treat}-increased.bed.gz"
         ),
         ihw = os.path.join(
-            diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds
+            diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
         ),
         rds = os.path.join(
             diff_path, "{target}", 
-            "{target}_{ref}_{treat}-differential-signal.rds
+            "{target}_{ref}_{treat}-differential-signal.rds"
         ),
     params:
         diff_sig_params = lambda wildcards: diff_sig_param[wildcards.target]

@@ -139,9 +139,11 @@ ihw_method <- match.arg(
 fdr_alpha <- all_params$alpha
 
 cat_time("Loading annotations")
+gtf_gene <- read_rds(all_input$gtf_gene)
 sq <- read_rds(all_input$sq)
 regions <- read_rds(all_input$regions)
 features <- read_rds(all_input$features)
+has_features <- length(features) > 0
 hic <- read_rds(all_input$hic)
 mapping_params <- all_input$yaml %>%
   read_yaml() %>%
@@ -170,7 +172,7 @@ if (norm != "none") {
     perm = quantroPvalPerm(qtest),
     anova = anova(qtest)[["Pr(>F)"]][[1]]
   )
-  cat(sprintf("Lowest p-value is %.3e", min(quantro_p)))
+  cat(sprintf("Lowest p-value is %.3e \n", min(quantro_p)))
 } else {
   cat_time("Q-test not required (norm = 'none')")
 }

@@ -146,7 +146,7 @@ rule compile_peak_comparison_rmd:
 rule compile_differential_signal_html:
     input:
         annotations = ALL_RDS,
-        counts = os.path.join(counts_path, "{target}_counts.rds"),
+        counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         ihw = os.path.join("workflow", "modules", "ihw.Rmd"),
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
