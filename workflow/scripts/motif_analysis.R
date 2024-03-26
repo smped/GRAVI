@@ -62,13 +62,13 @@ sink(log, split = TRUE)
 #   motifs = "output/annotations/motif_list.rds",
 #   packages = "output/checks/r-packages.chk",
 #   params = "config/params.yml",
-#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.rds"
+#   peaks = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.rds"
 # )
-#
+
 # all_output <- list(
-#   enrich = "output/peak_analysis/AR/AR_motif_enrichment.tsv.gz",
-#   pos = "output/peak_analysis/AR/AR_motif_position.tsv.gz",
-#   matches = "output/peak_analysis/AR/AR_matches.rds"
+#   enrich = "output/peak_analysis/H3K27ac/H3K27ac_motif_enrichment.tsv.gz",
+#   pos = "output/peak_analysis/H3K27ac/H3K27ac_motif_position.tsv.gz",
+#   matches = "output/peak_analysis/H3K27ac/H3K27ac_matches.rds"
 # )
 # all_params = list(
 #   abs = TRUE,
@@ -119,10 +119,6 @@ library(pkg, character.only = TRUE)
 
 cat_time("Reading gene_regions")
 gene_regions <- read_rds(all_input$gene_regions)
-map_regions <- setNames(
-  names(gene_regions), vapply(gene_regions, \(x) x$region[1], character(1))
-  )
-cat_time("Made map of region names")
 sq <- seqinfo(gene_regions)
 ## Convert to the same as the BSgenome package
 genome(sq) <- ucsc$build
@@ -132,12 +128,16 @@ cat_time("Reading Peaks...")
 peaks <- read_rds(all_input$peaks)
 if (!"centre" %in% colnames(mcols(peaks)))
   peaks$centre <- floor(start(peaks) + 0.5 * width(peaks))
+genome(peaks) <- ucsc$build
 
+cat_time("Resizing and recentering peaks")
 peaks <- peaks |>
   mutate(centre = paste0(seqnames, ":", centre)) |>
   colToRanges("centre", seqinfo = sq) |>
-  resize(width = all_params$peak_width, fix = "center")
-peaks$region <- map_regions[as.character(peaks$region)]
+  resize(width = all_params$peak_width, fix = "center") 
+## Recentering may have moved some of these
+cat_time("Remapping peaks to regions")
+peaks$region <- bestOverlap(peaks, gene_regions)
 cat_time("Read", comma(length(peaks)), "peaks")
 
 cat_time("Getting peak sequences...")
@@ -146,6 +146,11 @@ test_seq <- getSeq(bs_genome, peaks)
 names(test_seq) <- as.character(peaks)
 n_seq <- length(test_seq)
 cat_time("done")
+
+cat_time("Removing sequences with Ns")
+has_n <- letterFrequency(test_seq, "N")[,1] > 0
+test_seq <- test_seq[!has_n]
+cat_time("Found", sum(has_n), "sequences with Ns")
 
 motif_list <- read_rds(all_input$motifs)
 cat_time("Checking for low frequency matches")
@@ -185,7 +190,7 @@ exclude_ranges <- read_rds(all_input$exclude_ranges)
 
 cat_time("Generating RMRanges based on provided gene_regions")
 rm_ranges <- makeRMRanges(
-  split(peaks, peaks$region), gene_regions, exclude = exclude_ranges,
+  splitAsList(peaks, peaks$region), gene_regions, exclude = exclude_ranges,
   n_iter = all_params$iterations, mc.cores = threads
 )
 cat_time("Sampled", comma(length(rm_ranges)), "RMRanges\n")
