@@ -147,31 +147,27 @@ rule compile_differential_signal_html:
     input:
         annotations = ALL_RDS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
-        ihw = os.path.join("workflow", "modules", "ihw.Rmd"),
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
         ),
     output:
-        bed = expand(
-            os.path.join(
-                diff_path, "{{target}}", 
-                "{{target}}_{{ref}}_{{treat}}-{f}.bed"
-            ),
-            f = ['increased', 'decreased']
-        ),
         html = "docs/{target}_{ref}_{treat}_differential_signal.html",
+        enrichment = expand(
+            os.path.join(
+                diff_path, "{{target}}",
+                "{{target}}_{{ref}}_{{treat}}-{f}-enrichment.csv"
+            ),
+            f = ['changed', 'increased', 'decreased']
+        ),
         fig_path = directory(
             os.path.join(
                 "docs", "{target}_{ref}_{treat}_differential_signal_files",
                 "figure-html"
             )
         ),
-        results = expand(
-            os.path.join(
-                diff_path, "{{target}}", 
-                "{{target}}_{{ref}}_{{treat}}-differential_signal.{suf}"
-            ),
-            suf = ['rds']#, 'csv.gz']
+        results = os.path.join(
+            diff_path, "{{target}}",
+            "{{target}}_{{ref}}_{{treat}}-differential_signal.csv.gz"
         ),
         renv = temp(
             os.path.join(

@@ -73,18 +73,23 @@ rule create_macs2_summary_rmd:
     script:
         "../scripts/create_macs2_summary.R"
 
+	    ihw: \"{all_input$ihw}\"
+	    results: \"{all_input$results}\"
+
 rule create_differential_signal_rmd:
     input:
         chk = ALL_CHECKS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
+        ihw = os.path.join(diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"),
+        results = os.path.join(
+          diff_path, "{target}", "{target}_{ref}_{treat}-differential-signal.rds"
+        ),
         module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
         r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
     output:
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
         )
-    params:
-        diff_sig_params = lambda wildcards: diff_sig_param[wildcards.target]
     conda: "../envs/rmarkdown.yml"
     localrule: True
     log: os.path.join(log_path, "create_rmd", "{target}_{ref}_{treat}_differential_signal.log")
