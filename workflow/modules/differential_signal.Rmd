@@ -1403,14 +1403,6 @@ if (!is.null(config$external$coverage)) {
       )
     ),
     ifelse(
-      .gr$overlaps_ref,
-      paste(
-        "A union peak overlapping this region was identified by",
-        "`macs2 callpeak` when using merged samples."
-      ),
-      "No union peak was identified using `macs2 callpeak`."
-    ),
-    ifelse(
       length(gn) > 0,
       paste0(
         "Using the above mapping strategy, this range is likely to regulate ",
