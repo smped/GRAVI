@@ -176,9 +176,9 @@ rule compile_differential_signal_html:
             )
         ),
     conda: "../envs/rmarkdown.yml"
-    threads: 4
+    threads: 6
     resources:
-        mem_mb = 32000,
+        mem_mb = 48000,
         runtime = "1h"
     log: os.path.join(log_path, "compile_rmd", "{target}_{ref}_{treat}_differential_signal.log")
     shell:

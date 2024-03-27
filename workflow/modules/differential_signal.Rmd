@@ -34,7 +34,7 @@ library(parallel)
 library(tidygraph)
 library(ggraph)
 library(BiocParallel)
-# library(plyranges)
+library(plyranges)
 # library(quantro)
 # library(Rsamtools)
 # library(statmod)
@@ -59,29 +59,24 @@ ucsc <- get_ucsc(config$genome$build)
 ```
 
 ```{r load-data}
+target <- params$target
+treat_levels <- params$treat_levels
 counts <- here::here(params$counts) %>% 
   read_rds() 
 counts <- counts[, counts$treat %in% treat_levels]
 colData(counts) <- droplevels(colData(counts))
 n_max <- min(5e5, nrow(counts))
-
 results <- here::here(params$results) %>% read_rds()
-diff_sig_params <- metadata(results)
-fdr_column <- ifelse(
-  "fdr_ihw" %in% colnames(mcols(results)), "fdr_ihw", "FDR"
-)
-fdr_alpha <- diff_sig_params$alpha
-
-has_features <- "feature" %in% colnames(mcols(results))
-n_sig <- sum(mcols(results)[[fdr_column]] < fdr_alpha)
 ihw <- here::here(params$ihw) %>% read_rds()
 ```
 
-
-
 ```{r set_params, echo = FALSE, eval=TRUE}
-target <- params$target
-treat_levels <- params$treat_levels
+diff_sig_params <- metadata(results)
+fdr_alpha <- diff_sig_params$alpha
+fdr_column <- ifelse(
+  "fdr_ihw" %in% colnames(mcols(results)), "fdr_ihw", "FDR"
+)
+n_sig <- sum(mcols(results)[[fdr_column]] < fdr_alpha)
 comp <- params$results %>% 
   basename() %>% 
   str_remove_all("-differential-signal.rds")
@@ -106,8 +101,6 @@ region_params <- here::here("config", "params.yml") %>%
 ```
 
 
-
-
 ```{r load-annotations}
 gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
@@ -115,6 +108,7 @@ id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
 colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
   lapply(unlist)
 
+has_features <- "feature" %in% colnames(mcols(results))
 feature_colours <- setNames(
   colours$features, str_sep_to_title(names(colours$features))
 )
@@ -132,7 +126,6 @@ direction_colours <- colours$direction %>%
   setNames(str_to_title(names(.))) %>% 
   .[names(.) %in% c("Increased", "Decreased", "Unchanged", "Ambiguous")]
 treat_colours <- colours$treat[treat_levels]
-
 full_palette <- c(
   feature_colours, region_colours, direction_colours, treat_colours,
   colours$target,
@@ -167,6 +160,10 @@ Differential Signal Analysis (DSA) was performed in a standalone R script prior 
 The initial stages of this page describe the data as important QC steps, before moving onto the results from DSA.
 All steps rely heavily on the functions implemented in the Bioconductor package [extraChIPs](https://bioconductor.org/packages/release/bioc/html/extraChIPs.html).
 
+The complete set of parameters for DSA were set as
+
+`r pander(jsonlite::fromJSON("config/json/differential_signal_param.json")[[target]] %>% .[map_int(., length) > 0 & names(.) != "contrasts"])`
+
 
 <!-- ### Enrichment Analysis -->
 
@@ -189,7 +186,7 @@ All steps rely heavily on the functions implemented in the Bioconductor package 
 
 ```{r build-required-assays}
 norm <- ifelse(diff_sig_params$norm == "sq", "none", diff_sig_params$norm)
-dge <- calcNormFactors(counts, method = diff_sig_params$norm)
+dge <- calcNormFactors(counts, method = norm)
 dge$samples$lib.size <- counts$totals
 lcpm <- cpm(dge, log = TRUE) 
 rownames(lcpm) <- NULL
@@ -661,7 +658,7 @@ if (interactive()) {
 ```{r make-heatmaps}
 region_type <- str_to_lower(region_type)
 bw_type <- match.arg(heat_params$bw_type, c("FE", "coverage"))
-fill_type <- c(coverage = "logCPM", FE = "Fold-Enrichment")[bw_type]
+fill_type <- c(coverage = "logCPM", FE = "log Enrichment")[bw_type]
 bwfl <- file.path(
   all_paths$macs2, target, ifelse(
     bw_type == "coverage",
@@ -690,8 +687,7 @@ for (i in names(sig_profiles)) {
     temp_gr <- temp_gr[sort(sample.int(n, heat_params$max_ranges))]
   sig_profiles[[i]] <- getProfileData(
     bwfl, temp_gr, upstream = heat_params$width / 2, 
-    log = bw_type == "coverage", bins = heat_params$n_bins, 
-    BPPARAM = bpparam()
+    bins = heat_params$n_bins, BPPARAM = bpparam()
   )
   rm(temp_gr)
 }
@@ -738,7 +734,7 @@ if (length(sig_profiles) > 0) {
 
 #### MA Plot
 
-```{r plot-ma, fig.cap = glue("*MA plot showing the status of all {type} under consideration. The two most extreme {type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve.*")}
+```{r plot-ma, fig.cap = glue("*MA plot showing the status of all {region_type} under consideration. The two most extreme {region_type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve.*")}
 if (!"Ambiguous" %in% levels(results$status)) 
   direction_colours <- direction_colours[names(direction_colours) != "Ambiguous"]
 results %>% 
@@ -774,7 +770,7 @@ results %>%
 
 #### Volcano Plot
 
-```{r plot-volcano, fig.cap = glue("*Volcano plot showing {type} with evidence of differential {target} signal. The most significant {type} are labelled along with any genes these regions are mapped to.*")}
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing {region_type} with evidence of differential {target} signal. The most significant {region_type} are labelled along with any genes these regions are mapped to.*")}
 results %>% 
   as_tibble() %>% 
   ggplot(aes(logFC, -log10(PValue))) +

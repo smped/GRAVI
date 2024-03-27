@@ -54,19 +54,16 @@ treat <- all_wildcards$treat
 
 cat_time("Writing file header")
 glue(
-    "
-	---
-	title: '{target} Differential Signal: {treat} Vs. {ref}'
-	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
-	bibliography: references.bib
-	link-citations: true
-	params:
-	    counts: \"{all_input$counts}\"
-	    ihw: \"{all_input$ihw}\"
-	    results: \"{all_input$results}\"
-	    target: \"{target}\"
-	    treat_levels: [\"{ref}\", \"{treat}\"]
-  ---\n\n"
+    "---\ntitle: '{target} Differential Signal: {treat} Vs. {ref}'
+date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
+bibliography: references.bib
+link-citations: true
+params:
+  counts: \"{all_input$counts}\"
+  ihw: \"{all_input$ihw}\"
+  results: \"{all_input$results}\"
+  target: \"{target}\"
+  treat_levels: [\"{ref}\", \"{treat}\"]\n---\n\n"
 ) %>%
     write_lines(all_output$rmd)
 
