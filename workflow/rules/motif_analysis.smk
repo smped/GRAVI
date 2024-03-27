@@ -1,13 +1,21 @@
-## Is there a better way of handling 'i'?
-## Maybe add 'shared' to the list of valid possible wildcards?
+def get_peak_type(wildcards):
+	if motif_param[wildcards.target]['nfr']:
+		peak_type = "nfr"
+	else:
+		peak_type = "peaks"
+	return(peak_type)
+
 rule run_motif_analysis:
 	input:
 		exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
 		gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
 		motifs = os.path.join(annotation_path, "motif_list.rds"),
 		packages = os.path.join(check_path, "r-packages.chk"),
-		peaks = os.path.join(
-			peak_path, "{target}", "{target}_consensus_peaks.rds"
+		peaks = lambda wildcards: expand(
+			os.path.join(
+				peak_path, "{{target}}", "{{target}}_consensus_{f}.rds"
+			),
+			f = get_peak_type
 		),
 		script = os.path.join("workflow", "scripts", "motif_analysis.R"),
 	output:

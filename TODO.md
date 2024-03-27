@@ -52,7 +52,7 @@
 - [ ] Nucleosome Free Regions (Try HisTrader)
   + Where should this be turned on in `config.yml`
   + When called:
-    1. Use for motif analysis instead of peaks
+    1. Use for motif analysis instead of peaks 
     2. Use for Regioner *as well* as peaks
     3. Use for differential binding, but should this be additional?
   + Find within treatment group (using filtered peaks) then find consensus NFR

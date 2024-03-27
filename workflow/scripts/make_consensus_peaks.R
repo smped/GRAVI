@@ -91,23 +91,36 @@ exclude_ranges <- all_input$greylist %>%
     c(bl) %>%
     GenomicRanges::reduce()
 
-cat_time("Loading peaks...\n")
+cat_time("Checking peak type")
+peak_type <- "narrow"
+var <- c("score", "centre")
+if (any(str_detect(all_input$peaks, "(bed|bed.gz)$"))) {
+  peak_type <- "bed"
+  vars <- "score"
+}
+
+cat_time("Loading peaks/ranges using type =", peak_type)
 filtered_peaks <- all_input$peaks %>%
   importPeaks(
-    seqinfo = sq, blacklist = exclude_ranges, nameRanges = FALSE, centre = TRUE
+    type = peak_type, seqinfo = sq, blacklist = exclude_ranges,
+    nameRanges = FALSE, centre = TRUE
   )
-cons_peaks <- filtered_peaks %>%
-  makeConsensus(var = c("score", "centre")) %>%
-  mutate(
-    # Take the highest scoring treatment group as representative
-    score = map_dbl(score, max),
-    # Include the centre for setting fw_peaks
-    centre = map_int(centre, \(x) floor(median(x)))
-  ) %>%
-  select(score, centre)
+cons_peaks <- filtered_peaks %>% makeConsensus(var = vars)
 
-cat_time("Writing", length(cons_peaks), "peaks to", all_output$peaks, "\n")
-write_bed(select(cons_peaks, score), all_output$peaks)
+if ("score" %in% vars) {
+  cat_time("Taking the maximum score for each peak")
+  cons_peaks$score <- map_dbl(cons_peaks$score, max)
+}
+if ("centre" %in% vars) {
+  cat_time("Taking the median centre for each peak")
+  cons_peaks$centre <- floor(map_int(cons_peaks$centre, median))
+}
+cons_peaks <- plyranges::select(cons_peaks, any_of(vars))
+
+cat_time("Writing", length(cons_peaks), "ranges to", all_output$peaks, "\n")
+cons_peaks %>%
+  plyranges::select(any_of("score")) %>%
+  write_bed(all_output$peaks)
 cat_time("Done\n")
 
 ## Map to genes, feature & regions
@@ -138,7 +151,7 @@ feat_enh <- features[which_enh] %>%
 cat_time("Mapping peaks to regions and features")
 cons_peaks$region <- bestOverlap(cons_peaks, gene_regions)
 cons_peaks$region <- factor(region_levels[cons_peaks$region], unname(region_levels))
-if (length(features)) 
+if (length(features))
   cons_peaks$feature <- bestOverlap(cons_peaks, features, missing = "no_feature")
 
 cat_time("Mapping peaks to genes")

@@ -24,13 +24,6 @@ peak_qc:
     outlier_threshold: 10
     allow_zero: false
     min_prop_reps: 0.5
-    
-nfr:
-  default:
-    filter: 1000 # Discard NFRs larger than this
-    merge_within: 300 # Merge peaks within ~300 bp (i.e. 2 x nucleosomes)
-    min_size: 500 # Don't call NFRs in peaks below this size
-    p_max: 0 # Ignore signal regions within a peak with < p_max of the max signal for that peak
 
 motif_analysis:
   default:
@@ -38,10 +31,11 @@ motif_analysis:
     adj: "fdr"
     alpha: 0.05
     binwidth: 10
-    peak_width: 400
     ignore_below: 0.01
     iterations: 100
     model: "quasipoisson"
+    peak_width: 400
+    nfr: false
 
 ## Set the defaults across all targets here and set any changes as desired
 ## for any specific target
