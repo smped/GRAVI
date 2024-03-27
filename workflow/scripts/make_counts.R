@@ -10,7 +10,7 @@
 #' Required input files are:
 #'   - All bam files for the target
 #'   - All bam indexes
-#'   - macs2_qc (to determine valid samples)
+#'   - peak_qc (to determine valid samples)
 #'   - macs2 logs (fragment length)
 #'   - All consensus peaks
 #'   - Checks (packages & here)
@@ -67,7 +67,7 @@ sink(log, split = TRUE)
 #   peaks = file.path(
 #     "output", "peak_analysis", "AR", "AR_consensus_peaks.rds"
 #   ),
-#   macs2_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
+#   peak_qc = file.path("output", "macs2", "AR", "AR_qc_samples.tsv"),
 #   macs2_logs = file.path(
 #     "output", "macs2", "AR", paste0(
 #       "AR_", c("E2", "E2DHT"), "_merged_callpeak.log"
@@ -141,7 +141,7 @@ cat_time("Setting treat_levels")
 treat_levels <- all_params$contrasts %>%
   unlist() %>%
   unique()
-samples <- all_input$macs2_qc %>%
+samples <- all_input$peak_qc %>%
   read_tsv() %>%
   dplyr::filter(qc == "pass") %>%
   mutate(treat = fct(treat, levels = treat_levels)) %>%

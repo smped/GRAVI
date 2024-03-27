@@ -19,7 +19,7 @@ rule filter_merged_peaks:
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
         )
     params:
-        min_prop = lambda wildcards: macs2_qc_param[wildcards.target]['min_prop_reps']
+        min_prop = lambda wildcards: peak_qc_param[wildcards.target]['min_prop_reps']
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "filter_merged_peaks", "{target}_{treat}.log")

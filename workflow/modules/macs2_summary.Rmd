@@ -75,7 +75,7 @@ motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
 macs2_params <- here::here("config", "json", "macs2_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)
-macs2_qc_params <- here::here("config", "json", "macs2_qc_param.json") %>%
+peak_qc_params <- here::here("config", "json", "peak_qc_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
@@ -225,7 +225,7 @@ This section provides a simple series of visualisations to enable detection of a
 
 - Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak` [@Zhang18798982]
 - GC Content: Most variation in GC-content should have been identified prior to performing alignments, using common tools such as [FastQC](https://github.com/s-andrews/FastQC), MultiQC [@EwelsMultiQC2016] or `ngsReports` [@WardNgsReports2019]. However, these plots may still be informative for detection of potential sequencing issues not previously addressed
-- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `macs2_qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r macs2_qc_params$outlier_threshold`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
+- Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `peak_qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r peak_qc_params$outlier_threshold`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
 - Cross Correlations: Shows the cross-correlation coefficients between read positions across a series of intervals [@LunSmythCsaw2014]. Weak cross-correlations can also indicate low-quality samples. These values are also used to estimate fragment length within each sample, as the peak value of the cross-correlations
 - Fraction Of Reads In Peaks (FRIP): This plot shows the proportion of the alignments which fall within peaks identified by `macs2 callpeak`, with the remainder of alignments being assumed to be background [@Landt01092012]. This can provide guidance as to the success of the IP protocol, and the common-use threshold of 1% is indicated as a horizontal line. This value is not enforced as a hard QC criteria, but may be used to manually exclude samples from the file `samples.tsv` of deemed to be appropriate.
 
@@ -253,7 +253,7 @@ macs2_logs %>%
         glue(
           "Samples shown in italics were marked for exclusion from ",
           "downstream analysis as they identified a number of peaks beyond ",
-          "+/- {macs2_qc_params$outlier_threshold}-fold the median number of ",
+          "+/- {peak_qc_params$outlier_threshold}-fold the median number of ",
           "peaks amongst all samples within the relevant treatment group.",
         ),
         glue(
@@ -781,7 +781,7 @@ individual_peaks %>%
 A set of treatment-specific `r target` peaks was defined for each of `r pander(treat_levels)` by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
 Replicates which failed the previous QC steps were omitted during peak-calling.
 
-Peaks detected when merging samples, and which overlapped a peak in more than `r percent(macs2_qc_params$min_prop_reps)` of the *individual replicates passing QC* in each treatment group, were retained.
+Peaks detected when merging samples, and which overlapped a peak in more than `r percent(peak_qc_params$min_prop_reps)` of the *individual replicates passing QC* in each treatment group, were retained.
 Those additionally overlapping any black- or grey-listed regions were also removed as viable peaks.
 
 ```{r tab-treatment-peak}
@@ -805,7 +805,7 @@ treat_levels %>%
     caption = glue(
       "Treatment-specific peaks detected by merging samples within each",
       "treatment group. Peaks were only retained if detected in at least",
-      "{percent(macs2_qc_params$min_prop_reps)} of the qc-passing samples for each treatment group,",
+      "{percent(peak_qc_params$min_prop_reps)} of the qc-passing samples for each treatment group,",
       "as described above.",
       .sep = " "
     )

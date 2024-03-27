@@ -49,7 +49,28 @@
 - [ ] Add 3-way comparisons
 - [ ] Additional modules
   - [ ] ROSE
-  - [ ] Nucleosome Free Regions (Try HisTrader)
+- [ ] Nucleosome Free Regions (Try HisTrader)
+  + Where should this be turned on in `config.yml`
+  + When called:
+    1. Use for motif analysis instead of peaks
+    2. Use for Regioner *as well* as peaks
+    3. Use for differential binding, but should this be additional?
+  + Find within treatment group (using filtered peaks) then find consensus NFR
+    + First merge as a bed file then use the relevant `.bdg` file
+    + Set the `prefix` using the `--out` argument
+    + Mark the `*.nuc.bed`, `*.missing.bed` and `*.idx` files with `temp()`
+    + Compress the output
+    + Also, *re-centre consensus peaks* at the NFR closest to the peak centre
+  + Key params:
+    + merge_within: 300 # Merge peaks within ~300 bp (i.e. 2 x nucleosomes)
+    + min_size: 500 # Don't call NFRs in peaks below this size
+    + p_max: 0 # Ignore regions within a peak with < p_max of the max signal for that peak
+    + filter: 1000 # Discard NFRs larger than this
+  + Thus the key rules will be:
+    1. Merge filtered narrowPeaks to produce pseudo-broadPeak .bed
+    2. Call NFRs
+    3. Compress `*.nuc.bed`
+
 
 ## Bugs
 

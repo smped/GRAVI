@@ -29,7 +29,7 @@ rule count_windows:
             ),
             treat_levels = set(df['treat'][df['target'] == wildcards.target])
         ),
-        macs2_qc = os.path.join(
+        peak_qc = os.path.join(
             macs2_path, "{target}", "{target}_qc_samples.tsv"
         ),
         peaks = os.path.join(

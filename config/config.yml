@@ -16,13 +16,32 @@ macs2:
   default:
     gsize: "hs"
     fdr: 0.05
-    keep_duplicates: "all"
+    keep_dup: "all"
+    extra: ""
 
-macs2_qc:
+peak_qc:
   default:
     outlier_threshold: 10
     allow_zero: false
     min_prop_reps: 0.5
+    
+nfr:
+  default:
+    filter: 1000 # Discard NFRs larger than this
+    merge_within: 300 # Merge peaks within ~300 bp (i.e. 2 x nucleosomes)
+    min_size: 500 # Don't call NFRs in peaks below this size
+    p_max: 0 # Ignore signal regions within a peak with < p_max of the max signal for that peak
+
+motif_analysis:
+  default:
+    abs: true
+    adj: "fdr"
+    alpha: 0.05
+    binwidth: 10
+    peak_width: 400
+    ignore_below: 0.01
+    iterations: 100
+    model: "quasipoisson"
 
 ## Set the defaults across all targets here and set any changes as desired
 ## for any specific target

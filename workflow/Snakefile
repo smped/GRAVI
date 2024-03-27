@@ -99,9 +99,9 @@ macs2_param = set_params(config['macs2'], targets)
 with open(os.path.join(json_path, "macs2_param.json"), 'w') as fp:
 	json.dump(macs2_param, fp, indent = 4)
 
-macs2_qc_param = set_params(config['macs2_qc'], targets)
-with open(os.path.join(json_path, "macs2_qc_param.json"), 'w') as fp:
-	json.dump(macs2_qc_param, fp, indent = 4)
+peak_qc_param = set_params(config['peak_qc'], targets)
+with open(os.path.join(json_path, "peak_qc_param.json"), 'w') as fp:
+	json.dump(peak_qc_param, fp, indent = 4)
 
 motif_param = set_params(config['motif_analysis'], targets_ext)
 with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:

@@ -53,7 +53,7 @@ rule macs2_individual:
         cp {log} {output.log}
         """
 
-rule macs2_qc:
+rule peak_qc:
     input:
         bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
@@ -85,16 +85,16 @@ rule macs2_qc:
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
     params:
-        allow_zero = lambda wildcards: macs2_qc_param[wildcards.target]['allow_zero'],
-        outlier_threshold = lambda wildcards: macs2_qc_param[wildcards.target]['outlier_threshold']
+        allow_zero = lambda wildcards: peak_qc_param[wildcards.target]['allow_zero'],
+        outlier_threshold = lambda wildcards: peak_qc_param[wildcards.target]['outlier_threshold']
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
         mem_mb = 16384,
     retries: 1
-    log: os.path.join(log_path, "macs2_qc", "{target}_macs2_qc.log")
+    log: os.path.join(log_path, "peak_qc", "{target}_peak_qc.log")
     script:
-        "../scripts/macs2_qc.R"
+        "../scripts/peak_qc.R"
 
 rule macs2_merged:
     input:
@@ -144,7 +144,8 @@ rule macs2_merged:
         prefix = "{target}_{treat}_merged",
         gsize = lambda wildcards: macs2_param[wildcards.target]['gsize'],
         fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
-        keep_duplicates = lambda wildcards: macs2_param[wildcards.target]['keep_duplicates']
+        keep_dup = lambda wildcards: macs2_param[wildcards.target]['keep_dup']
+        extra = lambda wildcards: macs2_param[wildcards.target]['extra']
     threads: 1
     resources:
         mem_mb = 8192	
@@ -163,10 +164,11 @@ rule macs2_merged:
             -c $INPUT \
             -f BAM \
             -g {params.gsize} \
-            --keep-dup {params.keep_duplicates} \
+            --keep-dup {params.keep_dup} \
             -q {params.fdr} \
             -n {params.prefix} \
             --bdg --SPMR \
+            {params.extra} \
             --outdir {params.outdir} 2> {log}
         cp {log} {output.log}
         """
