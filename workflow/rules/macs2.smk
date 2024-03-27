@@ -32,9 +32,12 @@ rule macs2_individual:
         fdr = lambda wildcards: macs2_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
         ]['fdr'],
-        keep_duplicates = lambda wildcards: macs2_param[
+        keep_dup = lambda wildcards: macs2_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
-        ]['keep_duplicates']
+        ]['keep_dup'],
+        extra = lambda wildcards: macs2_param[
+            list(df[df['sample'] == wildcards.sample]['target'])[0]
+        ]['extra']
     threads: 1
     resources:
         mem_mb = 8192
@@ -49,6 +52,7 @@ rule macs2_individual:
             -q {params.fdr} \
             -n {wildcards.sample} \
             --bdg --SPMR \
+            {params.extra} \
             --outdir {params.outdir} 2> {log}
         cp {log} {output.log}
         """
@@ -144,7 +148,7 @@ rule macs2_merged:
         prefix = "{target}_{treat}_merged",
         gsize = lambda wildcards: macs2_param[wildcards.target]['gsize'],
         fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
-        keep_dup = lambda wildcards: macs2_param[wildcards.target]['keep_dup']
+        keep_dup = lambda wildcards: macs2_param[wildcards.target]['keep_dup'],
         extra = lambda wildcards: macs2_param[wildcards.target]['extra']
     threads: 1
     resources:

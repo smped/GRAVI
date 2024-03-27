@@ -1,9 +1,14 @@
-def get_peak_type(wildcards):
+def get_peak_file(wildcards):
 	if motif_param[wildcards.target]['nfr']:
 		peak_type = "nfr"
 	else:
 		peak_type = "peaks"
-	return(peak_type)
+	return(
+		os.path.join(
+			peak_path, wildcards.target, 
+			wildcards.target + "_consensus_" + peak_type + ".rds"
+		)
+	)
 
 rule run_motif_analysis:
 	input:
@@ -11,12 +16,7 @@ rule run_motif_analysis:
 		gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
 		motifs = os.path.join(annotation_path, "motif_list.rds"),
 		packages = os.path.join(check_path, "r-packages.chk"),
-		peaks = lambda wildcards: expand(
-			os.path.join(
-				peak_path, "{{target}}", "{{target}}_consensus_{f}.rds"
-			),
-			f = get_peak_type
-		),
+		peaks = get_peak_file,
 		script = os.path.join("workflow", "scripts", "motif_analysis.R"),
 	output:
 		enrich = os.path.join(
