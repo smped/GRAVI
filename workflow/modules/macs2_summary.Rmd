@@ -146,6 +146,8 @@ region_colours <- c(colours$regions, colours$features) %>%
       TRUE ~ str_sep_to_title(names(.))
     )
   )
+rna <- read_rds(file.path(all_paths$annotation, "rna.rds"))
+has_rna <- length(rna) > 0
 ## bands_df
 cb <- config$genome$build %>%
   str_to_lower() %>% 
@@ -1083,6 +1085,56 @@ htmltools::tagList(
   )
 )  
 ```
+
+`r if (has_rna) ## Relationship to RNA Data`
+
+```{r tbl-rna, echo = has_rna}
+if (has_rna) {
+  lapply(
+    rna,
+    \(x) {
+      tibble(
+        gene_id = gtf_gene$gene_id,
+        detected = gene_id %in% x$gene_id,
+        has_peak = gene_id %in% unlist(consensus_peaks$gene_id)
+      ) %>% 
+        summarise(
+          n = dplyr::n(), .by = c(detected, has_peak)
+        ) %>% 
+        pivot_wider(names_from = "has_peak", values_from = "n", names_prefix = "peak_")
+    }
+  ) %>% 
+    lapply(
+      \(x) {
+        mat <- as.matrix(x[-1])
+        p <- fisher.test(mat)$p.value
+        tibble(
+          Detected = sum(mat[2,]),
+          `Detected With Peak` = mat[2, 2],
+          `% With Peak` = percent(`Detected With Peak` / Detected, 0.1),
+          p
+        )
+      }
+    ) %>% 
+    bind_rows(.id = "Dataset") %>% 
+    mutate(
+      p = ifelse(p < 0.001, sprintf("%.2e", p), sprintf("%.3f", p))
+    ) %>% 
+    pander(
+      justify = "lrrrr",
+      caption = glue(
+        "
+        Relationship of RNA data to genes with peaks mapped to them.
+        Fisher's Exact Test was performed to determine any association, as reported 
+        by the p-value. Any significant association implies that {target} is likely
+        to be playing a regulatory role within that dataset. A total of 
+        {comma(length(gtf_gene))} genes are contained in the provided GTF.
+        "
+      )
+    )
+}
+```
+
 
 ## Gene-Set Enrichment
 
