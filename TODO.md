@@ -26,6 +26,7 @@
 ## Peak Analysis
 
 - [x] Add goseq as well as GREAT
+- [x] Add RNA comparison
 
 ## Differential Signal
 
