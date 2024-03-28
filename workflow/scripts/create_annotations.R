@@ -207,9 +207,9 @@ hic <- GInteractions()
 hic_path <- here::here(config$external$hic)
 if (length(hic_path) > 0) {
   if (file.exists(hic_path)) {
-    has_hic <- TRUE
     hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
   }
+  cat_time("Parsed", length(hic), "HiC Interactions")
 }
 stopifnot(is(hic, "GInteractions"))
 seqlevels(hic) <- seqlevels(sq)
@@ -345,12 +345,44 @@ gs_url <- msigdb %>%
   pull(gs_url)
 msigdb$gs_url <- gs_url[msigdb$gs_name]
 
-cat_time("Exporting to", all_output$msigdb)
+cat_time("Exporting msigdb to", all_output$msigdb)
 write_rds(msigdb, all_output$msigdb, compress = "gz")
 cat_time("Done")
 
-cat_time("Data export completed")
+#### RNA ####
+## Set this up to take multiple files, which can be named in the YAML
+## If not named, use the basename as the name with a snipped suffix
+## This file should also be checked during the check_files step
+rna <- list()
+rna_files <- config$external$rna
+if (!is.null(rna_files)) {
+  cat_time("Importing", length(rna_files), "RNA datasets")
+  rna <- lapply(
+    rna_files,
+    \(x) {
+      ln <- readLines(x, 1)
+      fn <- paste0("read_", ifelse(grepl("\\t", ln), "tsv", "csv"))
+      fn <- match.fun(fn)
+      df <- fn(x)
+      ## The key columns are 'gene_id', 'logFC', and 'FDR'
+      ## These should be checked earlier
+      gn_col <- intersect(c("gene_id", "Geneid"), names(df))[[1]]
+      fc_col <- intersect(c("logFC", "logfc"), names(df))[[1]]
+      fdr_col <- intersect(c("fdr", "FDR", "adjP", "adj_p"), names(df))[[1]]
+      dplyr::select(
+        df, gene_id = !!sym(gn_col), logFC = !!sym(fc_col), FDR = !!sym(fdr_col)
+      )
+    }
+  )
+  if (is.null(names(rna)))
+    names(rna) <- str_remove_all(basename(rna_files), "\\.(tsv|csv).*$")
+}
+cat_time("Exporting RNA to", all_output$rna)
+write_rds(rna, all_output$rna, compress = "gz")
+cat_time("Done")
 
+
+cat_time("Data export completed")
 #### Prepare the RMD ####
 cat_time("Forming annotation_description.Rmd")
 all_output <- lapply(

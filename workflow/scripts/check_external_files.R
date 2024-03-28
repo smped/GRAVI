@@ -105,19 +105,24 @@ cat_time("done\n")
 ## Now passed for each differential_signal comparison specifically, and can be
 ## multiple files. Might also need to check for fdr columns?
 cat_time("Checking RNA-Seq data...")
-all_rna <- config$differential_signal %>%
-  lapply(pluck, "rna_toptable") %>%
-  unlist() %>%
-  unique() %>%
-  here::here()
-if (!is.null(all_rna)) {
-  for (f in all_rna) {
+rna_files <- here::here(config$external$rna)
+if (length(rna_files)) {
+  for (f in rna_files) {
     cat_time("Checking", f)
     suffix <- str_replace_all(f, ".+(txt|tsv|csv)($|.gz$|.zip$)", "\\1")
     read_fun <- match.fun(paste0("read_", strsplit(suffix, "")[[1]][1],"sv"))
     tbl <- read_fun(f)
-    if (!"gene_id" %in% colnames(tbl)) {
+    cols <- colnames(tbl)
+    if (!any(c("gene_id", "Geneid") %in% cols)) {
       cat("'gene_id' not found in columns provided in", f)
+      stop()
+    }
+    if (!any(c("logFC", "logfc") %in% cols)) {
+      cat("'logFC' not found in columns provided in", f)
+      stop()
+    }
+    if (!any(c("fdr", "FDR", "adjP", "adj_p") %in% cols)) {
+      cat("'FDR' column not found in in", f)
       stop()
     }
     shared_ids <- intersect(tbl$gene_id, gtf$gene_id)

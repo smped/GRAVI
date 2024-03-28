@@ -18,6 +18,7 @@ rule create_annotations:
         msigdb = os.path.join(annotation_path, "msigdb.rds"),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
+        rna = os.path.join(rmd_path, "rna.rds"),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
         transcripts = os.path.join(annotation_path, "gtf_transcript.rds"),
         trans_models = os.path.join(annotation_path, "trans_models.rds"),
