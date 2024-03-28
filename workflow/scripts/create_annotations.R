@@ -209,63 +209,6 @@ if (length(hic_path) > 0) {
   if (file.exists(hic_path)) {
     has_hic <- TRUE
     hic <- makeGenomicInteractionsFromFile(hic_path, type = "bedpe")
-    ## Revisit ASAP. Taken from an Rmd so not built within this file...
-    ## This maps anchors to regions & features. Not really sure it's needed
-    # reg_combs <- expand.grid(regions, regions) %>%
-    #   as.matrix() %>%
-    #   apply(
-    #     MARGIN = 1,
-    #     \(x) {
-    #       x <- sort(factor(x, levels = regions))
-    #       paste(as.character(x), collapse = " - ")
-    #     }
-    #   ) %>%
-    #   unique()
-    # hic$regions <- anchors(hic) %>%
-    #   vapply(
-    #     bestOverlap,
-    #     y = GRangesList(lapply(gene_regions, granges)),
-    #     character(length(hic))
-    #   ) %>%
-    #   apply(MARGIN = 2, \(x) regions[x]) %>%
-    #   apply(
-    #     MARGIN = 1,
-    #     \(x) {
-    #       x <- sort(factor(x, levels = regions))
-    #       paste(as.character(x), collapse = " - ")
-    #     }
-    #   ) %>%
-    #   factor(levels = reg_combs) %>%
-    #   fct_relabel(
-    #     str_replace_all,
-    #     pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
-    #   )
-    # if (has_features) {
-    #   feat_combs <- expand.grid(names(feature_colours), names(feature_colours)) %>%
-    #     as.matrix() %>%
-    #     apply(
-    #       MARGIN = 1,
-    #       \(x) {
-    #         x <- sort(factor(x, levels = names(feature_colours)))
-    #         paste(as.character(x), collapse = " - ")
-    #       }
-    #     ) %>%
-    #     unique()
-    #   hic$features <- vapply(
-    #     anchors(hic),
-    #     \(x) bestOverlap(x, external_features, missing = "no_feature"),
-    #     character(length(hic))
-    #   )  %>%
-    #     apply(
-    #       MARGIN = 1,
-    #       \(x) {
-    #         x <- sort(factor(x, levels = names(feature_colours)))
-    #         paste(as.character(x), collapse = " - ")
-    #       }
-    #     ) %>%
-    #     factor(levels = feat_combs) %>%
-    #     fct_relabel(str_sep_to_title, pattern = "_")
-    # }
   }
 }
 stopifnot(is(hic, "GInteractions"))
@@ -276,15 +219,45 @@ cat_time("done\n")
 
 
 #### Motifs ####
+## If provided in external, ignore all settings in params.yml & use that
+## Only MEME and JASPAR format are supported for manually provided files
+db <- NULL
+if (!is.null(config$external$motifdb)) {
+
+  f <- config$external$motifdb[[1]] # Ignore all but the first
+  ln <- read_lines(f, n_max = 1)
+
+  ## Check MEME format by looking for MEME in the first line
+  if (grepl("MEME", ln))  {
+    db <- read_meme(f) |> to_df()
+    cat_time("Imported", nrow(db), "motifs in MEME format")
+  }
+
+  ## Check for JASPAR format by looking for `>` at the start of every 5th line
+  if (is.null(db) & grepl("^>", ln))  {
+    db <- read_jaspar(f) |> to_df()
+    cat_time("Imported", nrow(db), "motifs in JASPAR format")
+  }
+
+  if (is.null(db))
+    cat_time("Unable to determine motif format. Using settings from params")
+
+}
+
 motif_params <- params$motifdb
-cat_time("Converting to Universal Motif format\n")
-db <- convert_motifs(MotifDb) |> to_df()
-if (is.null(motif_params$data_source))
-  stop("No data source provided for transription factors")
-db <- subset(db, dataSource %in% motif_params$data_source)
-if (!is.null(motif_params$organism))
-  db <- subset(db, organism %in% motif_params$organism)
-cat_time("Database has been subset to", nrow(db), "motifs\n")
+
+if (is.null(db)) {
+
+  cat_time("Converting to Universal Motif format from MotifDb\n")
+  db <- convert_motifs(MotifDb) |> to_df()
+  if (is.null(motif_params$data_source))
+    stop("No data source provided for transcription factors")
+  db <- subset(db, dataSource %in% motif_params$data_source)
+  if (!is.null(motif_params$organism))
+    db <- subset(db, organism %in% motif_params$organism)
+  cat_time("Database has been subset to", nrow(db), "motifs\n")
+
+}
 
 cat_time("Calculating correlations between motifs...")
 cormat <- db |>

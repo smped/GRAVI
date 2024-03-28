@@ -446,6 +446,8 @@ tf_db <- read_rds(all_out$motif_list) %>%
   as_tibble() %>% 
   mutate(cluster = fct_infreq(cluster))
 top3 <- levels(tf_db$cluster)[1:3]
+if (!is.null(config$external$motifdb)) 
+  motif_params$data_source <- basename(config$external$motifdb)
 ```
 
 Transcription factor binding motifs (TFBMs) were prepared from `r pander(motif_params$data_source)` with `r nrow(tf_db)` motifs prepared for downstream analysis.
