@@ -35,13 +35,14 @@
     3. Fixed width using TMM/RLE (after quantro)
 - [x] Update main differential signal module
 - [x] Update IHW
-- [ ] Shift analysis to a separate script & only reporting in the Rmd/HTML
+- [x] Shift analysis to a separate script & only reporting in the Rmd/HTML
     + This will allow motif/regioner analysis of diff_sig peaks to be included
     + Add params used to the metadata of the results
+- [x] Rewrite script/rules for creating diff_signal Rmds with updated params
+- [x] Redefine config settings to have a default, with optional overwrite using the target 
+- [ ] Add NFR module
 - [ ] Update RNA-Seq module
     + Wrangle multiple files
-- [ ] Rewrite script/rules for creating diff_signal Rmds with updated params
-- [ ] Redefine config settings to have a default, with optional overwrite using the target 
 
 
 ## Features (Unlikely)
@@ -53,23 +54,8 @@
   + Where should this be turned on in `config.yml`
   + When called:
     1. Use for motif analysis instead of peaks 
-    2. Use for Regioner *as well* as peaks
-    3. Use for differential binding, but should this be additional?
-  + Find within treatment group (using filtered peaks) then find consensus NFR
-    + First merge as a bed file then use the relevant `.bdg` file
-    + Set the `prefix` using the `--out` argument
-    + Mark the `*.nuc.bed`, `*.missing.bed` and `*.idx` files with `temp()`
-    + Compress the output
-    + Also, *re-centre consensus peaks* at the NFR closest to the peak centre
-  + Key params:
-    + merge_within: 300 # Merge peaks within ~300 bp (i.e. 2 x nucleosomes)
-    + min_size: 500 # Don't call NFRs in peaks below this size
-    + p_max: 0 # Ignore regions within a peak with < p_max of the max signal for that peak
-    + filter: 1000 # Discard NFRs larger than this
-  + Thus the key rules will be:
-    1. Merge filtered narrowPeaks to produce pseudo-broadPeak .bed
-    2. Call NFRs
-    3. Compress `*.nuc.bed`
+    2. Use for Regioner *as well* as peaks. Just check it exists & use? This would place motif analysis as a required input to trigger the NFR detection
+    3. Maybe use for diff binding are representative of the wider region? That way we're still testing for any change in the region, but only using the NFR called regions? Or maybe it's a separate module we just automatically call within the differential signal, if the file exists!
 
 
 ## Bugs
