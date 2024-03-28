@@ -52,7 +52,7 @@ sink(log, split = TRUE)
 #   yaml = "../GRAVI_testing/config/params.yml"
 # )
 # all_output <- list(
-#   peaks = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.bed.gz",
+#   bed = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.bed.gz",
 #   rds = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.rds"
 # )
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
@@ -85,8 +85,8 @@ shared_peaks <- shared_peaks %>%
   makeConsensus(p = 1 - 1 / n_targets, method = "coverage") %>%
   filter(n == n_targets)
 
-cat_time("Writing", length(shared_peaks), "peaks to", all_output$peaks, "\n")
-write_bed(shared_peaks, all_output$peaks)
+cat_time("Writing", length(shared_peaks), "peaks to", all_output$bed, "\n")
+write_bed(shared_peaks, all_output$bed)
 cat_time("Done\n")
 
 ## Map to genes, feature & regions

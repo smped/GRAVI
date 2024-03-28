@@ -56,7 +56,7 @@ sink(log, split = TRUE)
 #     yaml = "../GRAVI_full/config/params.yml"
 # )
 # all_output <- list(
-#     peaks = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#     bed = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
 #     rds = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.rds"
 # )
 # all_wildcards <- list(target = "AR")
@@ -94,10 +94,8 @@ exclude_ranges <- all_input$greylist %>%
 cat_time("Checking peak type")
 peak_type <- "narrow"
 vars <- c("score", "centre")
-if (any(str_detect(all_input$peaks, "(bed|bed.gz)$"))) {
-  peak_type <- "bed"
-  vars <- "score"
-}
+if (any(str_detect(all_input$peaks, "(bed|bed.gz)$"))) peak_type <- "bed"
+
 
 cat_time("Loading peaks/ranges using type =", peak_type)
 filtered_peaks <- all_input$peaks %>%
@@ -105,6 +103,7 @@ filtered_peaks <- all_input$peaks %>%
     type = peak_type, seqinfo = sq, blacklist = exclude_ranges,
     nameRanges = FALSE, centre = TRUE
   )
+vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
 cons_peaks <- filtered_peaks %>% makeConsensus(var = vars)
 
 if ("score" %in% vars) {
@@ -117,10 +116,14 @@ if ("centre" %in% vars) {
 }
 cons_peaks <- plyranges::select(cons_peaks, any_of(vars))
 
-cat_time("Writing", length(cons_peaks), "ranges to", all_output$peaks, "\n")
-cons_peaks %>%
-  plyranges::select(any_of("score")) %>%
-  write_bed(all_output$peaks)
+cat_time("Writing", length(cons_peaks), "ranges to", all_output$bed, "\n")
+if ("score" %in% colnames(mcols(cons_peaks))) {
+  cons_peaks %>%
+    plyranges::select(any_of("score")) %>%
+    write_bed(all_output$bed)
+} else {
+    write_bed(granges(cons_peaks), all_output$bed)
+}
 cat_time("Done\n")
 
 ## Map to genes, feature & regions

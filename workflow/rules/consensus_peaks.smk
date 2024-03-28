@@ -51,7 +51,7 @@ rule make_consensus_peaks:
         sq = os.path.join(annotation_path, "seqinfo.rds"),
         yaml = os.path.join("config", "params.yml"),
     output:
-        peaks = os.path.join(
+        bed = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
         ),
         rds =  os.path.join(
@@ -82,7 +82,7 @@ rule make_shared_consensus_peaks:
         sq = os.path.join(annotation_path, "seqinfo.rds"),
         yaml = os.path.join("config", "params.yml"),
     output:
-        peaks = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
+        bed = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
         rds =  os.path.join(peak_path, "shared", "shared_peaks.rds"),        
     conda: "../envs/rmarkdown.yml"
     threads: 1

@@ -12,18 +12,13 @@ rule macs2_individual:
             macs2_path, "{sample}", "{sample}_peaks.narrowPeak"
         ),
         bedgraph = temp(
-            os.path.join(macs2_path, "{sample}", "{sample}_treat_pileup.bdg")
+            os.path.join(macs2_path, "{sample}", "{sample}_treat_pileup.bdg"),
         ),
         log = os.path.join(macs2_path, "{sample}", "{sample}_callpeak.log"),
         summits = os.path.join(macs2_path, "{sample}", "{sample}_summits.bed"),
-        other = temp(
-            expand(
-                os.path.join(macs2_path, "{{sample}}", "{{sample}}{suffix}"),
-                suffix = ['_model.r', '_peaks.xls', '_control_lambda.bdg']
-            )
-        )
     log: os.path.join(log_path, "macs2_individual", "{sample}.log")
     conda: "../envs/macs2.yml"
+    shadow: 'minimal'
     params:
         outdir = os.path.join(macs2_path, "{sample}"),
         gsize = lambda wildcards: macs2_param[
@@ -40,7 +35,7 @@ rule macs2_individual:
         ]['extra']
     threads: 1
     resources:
-        mem_mb = 8192
+        mem_mb = 8192,
     shell:
         """
         macs2 callpeak \
@@ -48,7 +43,7 @@ rule macs2_individual:
             -c {input.control[0]} \
             -f BAM \
             -g {params.gsize} \
-            --keep-dup {params.keep_duplicates} \
+            --keep-dup {params.keep_dup} \
             -q {params.fdr} \
             -n {wildcards.sample} \
             --bdg --SPMR \
@@ -95,7 +90,6 @@ rule peak_qc:
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
         mem_mb = 16384,
-    retries: 1
     log: os.path.join(log_path, "peak_qc", "{target}_peak_qc.log")
     script:
         "../scripts/peak_qc.R"
@@ -140,6 +134,7 @@ rule macs2_merged:
         log = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_merged_callpeak.log"
         )
+    shadow: 'shallow'
     log: os.path.join(log_path, "macs2_merged", "{target}_{treat}_merged.log")
     conda: "../envs/macs2.yml"
     params:

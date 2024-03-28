@@ -52,10 +52,10 @@ rule call_nfr:
           --pMax {params.p_max} \
           --minSize {params.min_size} \
           --filter {params.max_nfr} \
-          --out {params.pre} 2> {log}
+          --out {params.pre} > {log}
         """
 
-rule strip_nfr_bed:
+rule strip_bed:
     input: "{f}.bed"
     output: "{f}.bed.gz"
     threads: 1
