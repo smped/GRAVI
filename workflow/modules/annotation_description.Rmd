@@ -609,6 +609,39 @@ div(class = "table",
 )
 ```
 
+# RNA Datasets
+
+```{r has-rna, echo=FALSE}
+rna <- read_rds(all_out$rna)
+has_rna <- length(rna) > 0
+txt <- ifelse(
+  has_rna,
+  paste(
+    length(rna), "transcriptomic datasets were provided, as summarised below.",
+    "Note that no differentially expressed (DE) genes are required for data integration."
+  ),
+  "No transcriptomic datasets were provided"
+)
+```
+
+`r txt`
+
+```{r show-rna, eval = has_rna, echo = has_rna}
+rna %>% 
+  bind_rows(.id = "Dataset") %>% 
+  summarise(
+    Detected = dplyr::n(), 
+    `Up-Regulated` = sum(logFC > 0 & FDR < 0.05),
+    `Down-Regulated` = sum(logFC < 0 & FDR < 0.05),
+    `Total DE` = `Up-Regulated` + `Down-Regulated`,
+    .by = Dataset
+  ) %>% 
+  pander(
+    justify = "lrrrr",
+    caption = "Summary of all provided transcriptomic datasets"
+  )
+```
+
 
 # HiC Data {.tabset}
 

@@ -408,6 +408,7 @@ ln <- glue(
 	  hic: \"{{all_output$hic}}\"
 	  motif_list: \"{{all_output$motifs}}\"
 	  motif_uri: \"{{all_output$motif_uri}}\"
+	  rna: \"{{all_output$rna}}\"
 	  seqinfo: \"{{all_output$seqinfo}}\"
 	  trans_models: \"{{all_output$trans_models}}\"
 	  tss: \"{{all_output$tss}}\"
