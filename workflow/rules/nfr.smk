@@ -4,7 +4,6 @@ rule merge_filtered_peaks:
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
         ),
         script = os.path.join("workflow", "scripts", "merge_filtered_peaks.R"),
-        yaml = os.path.join("config", "params.yml")
     output:
         bed = os.path.join(
             peak_path, "{target}", "{target}_{treat}_merged_peaks.bed"
