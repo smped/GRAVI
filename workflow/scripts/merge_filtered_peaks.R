@@ -28,9 +28,9 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-# log <- slot(snakemake, "log")[[1]]
-# cat("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
+log <- slot(snakemake, "log")[[1]]
+cat("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
 
 ## Setup for testing
 # all_input <- list(

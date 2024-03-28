@@ -43,24 +43,24 @@ sink(log, split = TRUE)
 ## For testing
 # all_input <- list(
 #     peaks = c(
-#         "../GRAVI_testing/output/peak_analysis/AR/AR_E2DHT_filtered_peaks.narrowPeak",
-#         "../GRAVI_testing/output/peak_analysis/AR/AR_E2_filtered_peaks.narrowPeak"
+#         "../GRAVI_full/output/peak_analysis/AR/AR_E2DHT_filtered_peaks.narrowPeak",
+#         "../GRAVI_full/output/peak_analysis/AR/AR_E2_filtered_peaks.narrowPeak"
 #     ),
-#     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
-#     blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
-#     features = "../GRAVI_testing/output/annotations/features.rds",
-#     greylist = "../GRAVI_testing/output/greylist/SRR8315192_greylist.bed.gz",
-#     gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
-#     hic = "../GRAVI_testing/output/annotations/hic.rds",
-#     regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
-#     yaml = "../GRAVI_testing/config/params.yml"
+#     sq = "../GRAVI_full/output/annotations/seqinfo.rds",
+#     blacklist = "../GRAVI_full/output/annotations/blacklist.rds",
+#     features = "../GRAVI_full/output/annotations/features.rds",
+#     greylist = "../GRAVI_full/output/greylist/SRR8315192_greylist.bed.gz",
+#     gtf_gene = "../GRAVI_full/output/annotations/gtf_gene.rds",
+#     hic = "../GRAVI_full/output/annotations/hic.rds",
+#     regions = "../GRAVI_full/output/annotations/gene_regions.rds",
+#     yaml = "../GRAVI_full/config/params.yml"
 # )
 # all_output <- list(
-#     peaks = "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
-#     rds = "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.rds"
+#     peaks = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#     rds = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.rds"
 # )
 # all_wildcards <- list(target = "AR")
-# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+# config <- yaml::read_yaml("../GRAVI_full/config/config.yml")
 
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
@@ -93,7 +93,7 @@ exclude_ranges <- all_input$greylist %>%
 
 cat_time("Checking peak type")
 peak_type <- "narrow"
-var <- c("score", "centre")
+vars <- c("score", "centre")
 if (any(str_detect(all_input$peaks, "(bed|bed.gz)$"))) {
   peak_type <- "bed"
   vars <- "score"
@@ -113,7 +113,7 @@ if ("score" %in% vars) {
 }
 if ("centre" %in% vars) {
   cat_time("Taking the median centre for each peak")
-  cons_peaks$centre <- floor(map_int(cons_peaks$centre, median))
+  cons_peaks$centre <- floor(map_dbl(cons_peaks$centre, median))
 }
 cons_peaks <- plyranges::select(cons_peaks, any_of(vars))
 

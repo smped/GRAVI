@@ -14,6 +14,7 @@ rule merge_filtered_peaks:
     conda: "../envs/rmarkdown.yml"
     resources:
         mem_mb = 8192,
+        runtime = "5m"
     log: os.path.join(log_path, "merge_filtered_peaks", "{target}_{treat}.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -30,12 +31,10 @@ rule call_nfr:
         script = os.path.join("workflow", "scripts", "HisTrader.pl")
     output:
         nfr = temp(
-            os.path.join(
-                peak_path, "{target}", "{target}_{treat}.nfr.bed"
-            )
+            os.path.join(peak_path, "{target}", "{target}_{treat}.nfr.bed")
         ),
     params:
-        pre = "{target}_{treat}",
+        pre = os.path.join(peak_path, "{target}", "{target}_{treat}"),
         p_max = 0.1,
         max_nfr = 1000,
         min_size = 500,
@@ -53,7 +52,7 @@ rule call_nfr:
           --pMax {params.p_max} \
           --minSize {params.min_size} \
           --filter {params.max_nfr} \
-          --out {params.pre}
+          --out {params.pre} 2> {log}
         """
 
 rule strip_nfr_bed:
