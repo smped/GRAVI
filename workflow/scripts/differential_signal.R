@@ -79,7 +79,7 @@ sink(log, split = TRUE)
 #   ihw = "targets",
 #   method = "qlf",
 #   norm = "TMM",
-#   pair_column = NULL,
+#   nesting = NULL,
 #   rna_toptable = "data/external/ZR75_DHT_StrippedSerum_RNASeq_topTable.tsv",
 #   window_type = "fixed",
 #   window_size = 400L,
@@ -190,25 +190,25 @@ if (norm == "sq") {
 }
 
 cat_time("Defining model parameters")
-pair_col <- NULL
-if (!is.null(all_params$pair_column)) {
-  pair_col <- match.arg(all_params$pair_column, colnames(colData(counts)))
+nesting <- NULL
+if (!is.null(all_params$nesting)) {
+  nesting <- match.arg(all_params$nesting, colnames(colData(counts)))
 }
 fm <- as.formula(
-  ifelse(is.null(pair_col), "~treat", paste("~", pair_col, "+treat"))
+  ifelse(is.null(nesting), "~treat", paste("~", nesting, "+treat"))
 )
 cat_time("Model formula set as", as.character(fm))
 X <- model.matrix(fm, data = colData(counts))
 colnames(X) <- str_remove_all(colnames(X), "treat")
 colData(counts)$design <- X
 paired_cors <- block <- txt <- NULL
-if (!is.null(pair_col) & method == "lt") {
+if (!is.null(nesting) & method == "lt") {
   ## These will be passed to fitAssayDiff. This in turn passes these to
   ## lmFit, although when method is qlf they will be passed to glmQLFit.
   ## As they are not parameters for that modelling approach, they will be
   ## ignored
   cat_time("Calculating correlations")
-  block <- colData(counts)[[pair_col]]
+  block <- colData(counts)[[nesting]]
   set.seed(1e6)
   ind <- sample.int(nrow(counts), n_max, replace = FALSE)
   paired_cors <- duplicateCorrelation(
@@ -355,7 +355,7 @@ if (ihw_method != "none") {
 }
 cat_time("Updating metadata")
 vals <- c(
-  "alpha", "fc", "filter_q", "method", "pair_column", "window_type",
+  "alpha", "fc", "filter_q", "method", "nesting", "window_type",
   "window_size","window_step"
 )
 metadata(results) <- c(
@@ -394,7 +394,7 @@ metadata(results)$description <- glue(
         TRUE ~ ""
     ),
     "Read totals across the complete genome were always taken as the representative library size for each sample. ",
-    ifelse(is.null(pair_col), "", "Samples were nested within {pair_col}. "),
+    ifelse(is.null(nesting), "", "Samples were nested within {nesting}. "),
     "\n\nStatistical analysis was performed using ",
     case_when(
         method == "qlf" ~ "Quasi-Likelihood fits [@LunSmythGLMQL2017] on counts ",
