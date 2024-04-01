@@ -51,12 +51,22 @@
 - [ ] Add 3-way comparisons
 - [ ] Additional modules
   - [ ] ROSE
-- [ ] Nucleosome Free Regions (Try HisTrader)
-  + Where should this be turned on in `config.yml`
-  + When called:
-    1. Use for motif analysis instead of peaks 
-    2. Use for Regioner *as well* as peaks. Just check it exists & use? This would place motif analysis as a required input to trigger the NFR detection
-    3. Maybe use for diff binding are representative of the wider region? That way we're still testing for any change in the region, but only using the NFR called regions? Or maybe it's a separate module we just automatically call within the differential signal, if the file exists!
+
+
+### NFR
+
+- Turn on as a module in `config.yml` which creates a new drop-down menu item in `_site.yml`
+- Equivalent to signal_summary with:
+  - Comparison back to broader peaks
+  - Motif analysis
+  - RegioneR analysis
+  - **No enrichment analysis required**
+- Will also determine required output files in `Snakefile`
+- Unclear how to best integrate with Differential Signal
+  - Maybe still perform DSA on main target & then look at NFRs which overlap, rather than performing DSA on NFRs
+  - This way all analysis is done, but without requiring more complicated signalling
+  - Can be written as a module to be inserted into DSA when present
+
 
 
 ## Bugs
