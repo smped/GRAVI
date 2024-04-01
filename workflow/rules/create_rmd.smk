@@ -55,23 +55,23 @@ rule create_index_rmd:
         cat {input.rmd} > {output}
         """
 
-rule create_peaks_summary_rmd:
+rule create_signal_summary_rmd:
     input:
         here = rules.check_here_file.output,
-        module = "workflow/modules/peaks_summary.Rmd",
+        module = "workflow/modules/signal_summary.Rmd",
         packages = rules.check_r_packages.output,
-        script = os.path.join("workflow", "scripts", "create_peaks_summary.R"),
+        script = os.path.join("workflow", "scripts", "create_signal_summary.R"),
     output:
-        rmd = os.path.join(rmd_path, "{target}_peaks_summary.Rmd")
+        rmd = os.path.join(rmd_path, "{target}_signal_summary.Rmd")
     conda: "../envs/rmarkdown.yml"
     threads: 1
     localrule: True
-    log: os.path.join(log_path, "create_rmd", "create_{target}_peaks_summary.log")
+    log: os.path.join(log_path, "create_rmd", "create_{target}_signal_summary.log")
     resources:
         mem_mb = 1024,
         runtime = "5m",
     script:
-        "../scripts/create_peaks_summary.R"
+        "../scripts/create_signal_summary.R"
 
 rule create_differential_signal_rmd:
     input:

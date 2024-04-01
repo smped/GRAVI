@@ -1811,7 +1811,7 @@ all_out <- list(
     "output", "results", target, glue("{target}_localz.tsv")
   ),
   renv = file.path(
-    here::here("output/envs"), glue("{target}_peaks_summary.RData")
+    here::here("output/envs"), glue("{target}_signal_summary.RData")
   )
 )
 out_paths <- vapply(all_out, dirname, character(1)) %>% unique()

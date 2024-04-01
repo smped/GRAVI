@@ -194,7 +194,7 @@ site_yaml$navbar$left <- list(
       all_targets,
       function(x) {
         list(
-          text = x, href = glue("{x}_peaks_summary.html")
+          text = x, href = glue("{x}_signal_summary.html")
         )
       }
     ) %>% 
