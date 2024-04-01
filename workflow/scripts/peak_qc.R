@@ -11,7 +11,7 @@
 #' `true/false` in config.yml
 #'
 #' Additionally, the cross-correlation between reads is calculated with a tsv
-#' generated for later inclusion in differential_signal and macs2_summary
+#' generated for later inclusion in differential_signal and peaks_summary
 #' workflows
 #'
 #' Handle any conda weirdness

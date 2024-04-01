@@ -189,12 +189,12 @@ site_yaml$navbar$left <- list(
   ),
   ## MACS2 Results
   list(
-    text = "Peak Calling",
+    text = "Signal Detection",
     menu = lapply(
       all_targets,
       function(x) {
         list(
-          text = x, href = glue("{x}_macs2_summary.html")
+          text = x, href = glue("{x}_peaks_summary.html")
         )
       }
     ) %>% 

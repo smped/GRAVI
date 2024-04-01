@@ -47,7 +47,7 @@ rule compile_annotations_html:
         """
 
 
-rule compile_macs2_summary_html:
+rule compile_peaks_summary_html:
     input:
         annotations = ALL_RDS,
         assets = os.path.join("docs", "assets"),
@@ -71,13 +71,13 @@ rule compile_macs2_summary_html:
                 'regions_localz.rds', 'consensus_peaks.bed.gz'
                 ]
         ),
-        rmd = os.path.join(rmd_path, "{target}_macs2_summary.Rmd"),
+        rmd = os.path.join(rmd_path, "{target}_peaks_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
     output:
-        html = os.path.join("docs", "{target}_macs2_summary.html"),
+        html = os.path.join("docs", "{target}_peaks_summary.html"),
         fig_path = directory(
-            os.path.join("docs", "{target}_macs2_summary_files", "figure-html")
+            os.path.join("docs", "{target}_peaks_summary_files", "figure-html")
         ),
         great = os.path.join(
             "output", "results", "{target}", "{target}_great_results.tsv.gz"
@@ -86,14 +86,14 @@ rule compile_macs2_summary_html:
             "output", "results", "{target}", "{target}_localz.tsv"
         ),
         renv = temp(
-            os.path.join("output", "envs", "{target}_macs2_summary.RData")
+            os.path.join("output", "envs", "{target}_peaks_summary.RData")
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
     resources:
         mem_mb = 16384,
         runtime = "30m",
-    log: os.path.join(log_path, "compile_rmd", "compile_{target}_macs2_summary.log")
+    log: os.path.join(log_path, "compile_rmd", "compile_{target}_peaks_summary.log")
     shell:
         """
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

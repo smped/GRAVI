@@ -216,7 +216,7 @@ enrich_res |>
   write_tsv(all_output$enrich)
 cat_time("Done")
 
-## Sets of matches can exceed 2GB which makes loading during the macs2_summary
+## Sets of matches can exceed 2GB which makes loading during the peaks_summary
 ## compilation very difficult. Best to manually find the matches for just the
 ## top motifs within the document itself
 # all_sig <- c(

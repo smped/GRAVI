@@ -44,7 +44,7 @@ library(glue)
 ln <- glue(
 	"
 	---
-	title: '{{all_wildcards$target}}: MACS2 Summary'
+	title: '{{all_wildcards$target}}: Summary of Detected Signal'
 	date: \"`r format(Sys.Date(), '%d %B, %Y')`\"
 	bibliography: references.bib
 	link-citations: true
