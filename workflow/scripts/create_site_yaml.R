@@ -5,8 +5,8 @@
 #' @details
 #' Uses the information provided in the config file to update the navigation
 #' bar
-#' 
-#' 
+#'
+#'
 #' Handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
 if (conda_pre != "") {
@@ -62,10 +62,10 @@ all_targets <- sort(all_params$targets)
 
 cat_time("Defining comparisons...\n")
 ## Sort out the TF comparisons
-comparisons <- diff_sig_yaml <- NULL
+comparisons <- diff_signal_yaml <- NULL
 if (length(all_params$diff_sig)) {
   comparisons <- all_params$diff_sig %>%
-    lapply(pluck, "contrasts") %>% 
+    lapply(pluck, "contrasts") %>%
     lapply(
       matrix, byrow = TRUE, ncol = 2, dimnames = list(c(), c("ref", "treat"))
     ) %>%
@@ -174,10 +174,31 @@ pairs_yaml <- NULL
 #   )
 # }
 
+cat_time("Checking for additional modules...")
+module_yaml <- NULL
+add_modules <- vapply(config$modules, \(x) any(x %in% all_targets), logical(1))
+if (any(add_modules)) {
+  module_yaml <- add_modules %>%
+      which() %>%
+      names() %>%
+      lapply(
+        \(x) {
+          list(
+            text = str_to_upper(x),
+            menu = lapply(
+              config$modules[[x]],
+              \(i) list(text = i, href = glue("{i}_{x}.html"))
+            )
+          )
+        }
+      )
+}
+
+
 cat_time("Finalising yaml structure...\n")
 shared <- NULL
 if (length(all_targets) > 1) {
-  shared <- list(list(text = "All Targets", href = "peak_comparison.html"))
+  shared <- list(list(text = "All Targets", href = "signal_comparison.html"))
 }
 site_yaml <- rmd$rmarkdown_site
 site_yaml$navbar$left <- list(
@@ -197,8 +218,9 @@ site_yaml$navbar$left <- list(
           text = x, href = glue("{x}_signal_summary.html")
         )
       }
-    ) %>% 
-    c(shared)
+    ) %>%
+    c(shared) %>%
+      c(module_yaml)
   ),
 
   ## Differential TF Signal

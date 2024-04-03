@@ -99,7 +99,7 @@ rule compile_signal_summary_html:
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
         """
 
-rule compile_peak_comparison_html:
+rule compile_signal_comparison_html:
     input:
         annotations = ANNOTATION_RDS,
         motif_enrich = os.path.join(
@@ -108,7 +108,7 @@ rule compile_peak_comparison_html:
         motif_pos = os.path.join(
             peak_path, "shared", "shared_motif_position.tsv.gz"
         ),
-        rmd = os.path.join("workflow", "modules", "peak_comparison.Rmd"),
+        rmd = os.path.join("workflow", "modules", "signal_comparison.Rmd"),
         shared_files = expand(
             os.path.join(peak_path, "shared", "shared_{f}"),
             f = [
@@ -123,8 +123,8 @@ rule compile_peak_comparison_html:
             f = ['regions_localz.rds', 'consensus_peaks.bed.gz']
         ),
     output:
-        rmd = os.path.join(rmd_path, "peak_comparison.Rmd"),
-        html = os.path.join("docs", "peak_comparison.html"),
+        rmd = os.path.join(rmd_path, "signal_comparison.Rmd"),
+        html = os.path.join("docs", "signal_comparison.html"),
         tsv = expand(
             os.path.join("output", "results", "shared", "{f}"),
             f = ['shared_enrichment_results_genomic_bg.tsv.gz',
@@ -136,7 +136,7 @@ rule compile_peak_comparison_html:
     resources:
         mem_mb = 16384,
         runtime = "30m",
-    log: os.path.join(log_path, "compile_rmd", "compile_peak_comparison.log")
+    log: os.path.join(log_path, "compile_rmd", "signal_comparison.log")
     shell:
         """
         cp {input.rmd} {output.rmd}
