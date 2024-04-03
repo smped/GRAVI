@@ -11,13 +11,55 @@ threads <- parallel::detectCores() - 1
 plot(cars)
 ```
 
+```{r}
+library(tidyverse)
+library(yaml)
+library(pander)
+config <- read_yaml(here::here("config", "config.yml"))
+all_paths <- here::here("config", "json", "all_paths.json") %>% 
+    jsonlite::fromJSON() %>% 
+    lapply(here::here)
+```
+
+```{r config-params-paths}
+all_params <-  here::here("config", "params.yml") %>% read_yaml() 
+region_params <- all_params$gene_regions
+regioner_params <- all_params$regioner
+motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
+  jsonlite::fromJSON() %>%
+  pluck(target)
+knitr_params <- here::here("config", "rmarkdown.yml") %>% 
+  read_yaml() %>% 
+  pluck("knitr_opts")
+```
+
+```{r read-samples}
+samples <- all_paths$macs2 %>%
+  file.path(target, glue("{target}_qc_samples.tsv")) %>%
+  read_tsv()
+treat_levels <- unique(samples$treat)
+```
+
+
+## Introduction
+
+Nucleosome Free Regions (NFRs) were identified for `r target` using the set of filtered peaks obtained for each treatment (`r pander(treat_levels)`).
+Peaks within 300bp of each other were merged into a single peak, with this distance approximating the distance occupied by 2 nucleosomes, and approximating broader peaks that may have been otherwise called by `macs2` [@Zhang18798982].
+NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group, and any overlapping NFRs merged as consensus NFRs.
+
+- Any merged peaks <500bp were excluded as being too short
+- Any NFRs beyond 1kb were discarded as not being viable NFRs
+- Regions of the peak with signal below 10% of the maximal signal were also not assessed for NFRs as these were more likely to be regions on the other edges of wider peaks.
+
+
+
 In this module the key points are to
 
 - Summarise how many NFR per peak
     + Maybe include distances between NFRs?
 - Present results from a motif analysis
 - Compare to peaks from all other targets using localz
-- No enrichment analysis is required, as that really is coveredby the larger peak analysis
+- No enrichment analysis is required, as that really is covered by the larger peak analysis
 
 
 ## References

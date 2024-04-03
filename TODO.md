@@ -41,7 +41,7 @@
     + Add params used to the metadata of the results
 - [x] Rewrite script/rules for creating diff_signal Rmds with updated params
 - [x] Redefine config settings to have a default, with optional overwrite using the target 
-- [ ] Add NFR module
+- [ ] Fix bug in creating figures
 - [ ] Update RNA-Seq module
     + Wrangle multiple files
 
@@ -55,13 +55,14 @@
 
 ### NFR
 
-- Turn on as a module in `config.yml` which creates a new drop-down menu item in `_site.yml`
-- Equivalent to signal_summary with:
-  - Comparison back to broader peaks
-  - Motif analysis
-  - RegioneR analysis
-  - **No enrichment analysis required**
-- Will also determine required output files in `Snakefile`
+- [x] Turn on as a module in `config.yml` which creates a new drop-down menu item in `_site.yml`
+- [x] Determine required output files in `Snakefile`
+- [ ] Write initial module
+  - Equivalent to signal_summary with:
+    - Comparison back to broader peaks
+    - Motif analysis
+    - RegioneR analysis
+    - **No enrichment analysis required**
 - Unclear how to best integrate with Differential Signal
   - Maybe still perform DSA on main target & then look at NFRs which overlap, rather than performing DSA on NFRs
   - This way all analysis is done, but without requiring more complicated signalling
