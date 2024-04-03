@@ -49,7 +49,7 @@ rule compile_annotations_html:
 
 rule compile_signal_summary_html:
     input:
-        annotations = ALL_RDS,
+        annotations = ANNOTATION_RDS,
         assets = os.path.join("docs", "assets"),
         bw = lambda wildcards: expand(
             os.path.join(
@@ -99,9 +99,9 @@ rule compile_signal_summary_html:
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
         """
 
-rule compile_peak_comparison_rmd:
+rule compile_peak_comparison_html:
     input:
-        annotations = ALL_RDS,
+        annotations = ANNOTATION_RDS,
         motif_enrich = os.path.join(
             peak_path, "shared", "shared_motif_enrichment.tsv.gz"
         ),
@@ -145,7 +145,7 @@ rule compile_peak_comparison_rmd:
 
 rule compile_differential_signal_html:
     input:
-        annotations = ALL_RDS,
+        annotations = ANNOTATION_RDS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"

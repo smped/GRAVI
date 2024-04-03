@@ -39,7 +39,7 @@ rule create_pairwise_comparisons_rmd:
 
 rule compile_pairwise_comparisons_html:
 	input:
-		annotations = ALL_RDS,
+		annotations = ANNOTATION_RDS,
 		blacklist = blacklist,
 		config = "config/config.yml",
 		module_rna = "workflow/modules/rnaseq_pairwise.Rmd",

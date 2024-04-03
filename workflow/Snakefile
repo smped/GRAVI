@@ -201,26 +201,28 @@ ALL_CHECKS = expand(
 ## These are dependent on H3K27Ac being a target. If so, promoters, enhancers
 ## and super-enhancers will be created. If not, only the tss regions will be
 ## created
-ALL_RDS = expand(
+ANNOTATION_RDS = expand(
 	os.path.join(annotation_path, "{file}.rds"),
 	file = [
-		'colours', 'gene_regions', 'seqinfo', 'trans_models','tss', 'gtf_gene',
-		'gtf_transcript', 'gtf_exon', 'blacklist', 'features', 'motif_list',
-		'motif_uri', 'msigdb'
+		'blacklist', 'colours', 
+		'features', 'gene_regions', 
+		'gtf_exon', 'gtf_gene', 'gtf_transcript', 
+		'motif_list', 'motif_uri', 'msigdb',
+		'rna', 'seqinfo', 'trans_models','tss', 
 	]
 )
-diff_sig_rds_pre = []
-for i in all_contrasts:
-	tgt = re.split("_", i)[0]
-	diff_sig_rds_pre.extend([tgt + "/" + i])
-
-ALL_RDS.extend(
-	expand(
-		os.path.join(diff_path, "{f}-differential-signal.rds"), 
-		f = diff_sig_rds_pre
-	)
-)
-ALL_OUTPUTS.extend(ALL_RDS)
+# diff_sig_rds_pre = []
+# for i in all_contrasts:
+# 	tgt = re.split("_", i)[0]
+# 	diff_sig_rds_pre.extend([tgt + "/" + i])
+#
+# ANNOTATION_RDS.extend(
+# 	expand(
+# 		os.path.join(diff_path, "{f}-differential-signal.rds"), 
+# 		f = diff_sig_rds_pre
+# 	)
+# )
+ALL_OUTPUTS.extend(ANNOTATION_RDS)
 
 #######################
 ## Rmarkdown Outputs ##

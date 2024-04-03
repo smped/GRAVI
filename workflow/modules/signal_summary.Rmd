@@ -1086,7 +1086,7 @@ htmltools::tagList(
 )  
 ```
 
-`r if (has_rna) ## Relationship to RNA Data`
+`r if (has_rna) "## Relationship to RNA Data"`
 
 ```{r tbl-rna, echo = has_rna}
 if (has_rna) {
@@ -1780,23 +1780,25 @@ A + B + plot_layout(guides = "collect")
 
 `r if (n_pos > 0) "#### Match Heatmap"`
 
-```{r heatmap-pos, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure.*")}
-top_pos <- motif_pos_res %>% 
-  dplyr::filter(adj_p < motif_params$alpha) %>% 
-  dplyr::slice(1:25) %>% 
-  pull(altname)
-motif_list %>% 
-  dplyr::filter(altname %in% top_pos) %>% 
-  to_list() %>% 
-  getPwmMatches(
-    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
-  ) %>% 
-  plotMatchPos(
-    abs = motif_params$abs, type = "heatmap", cluster = TRUE,
-    use_totals = TRUE,
-    # binwidth = floor(motif_params$binwidth / 2)
-    binwidth = motif_params$binwidth 
-  ) + labs(x = "Bin", fill = "Total\n Matches")
+```{r heatmap-pos, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure when more than two are being displayed.*")}
+if (n_pos > 0) {
+  top_pos <- motif_pos_res %>% 
+    dplyr::filter(adj_p < motif_params$alpha) %>% 
+    dplyr::slice(1:25) %>% 
+    pull(altname)
+  motif_list %>% 
+    dplyr::filter(altname %in% top_pos) %>% 
+    to_list() %>% 
+    getPwmMatches(
+      fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
+    ) %>% 
+    plotMatchPos(
+      abs = motif_params$abs, type = "heatmap", cluster = n_pos > 2,
+      use_totals = TRUE,
+      # binwidth = floor(motif_params$binwidth / 2)
+      binwidth = motif_params$binwidth 
+    ) + labs(x = "Bin", fill = "Total\n Matches")
+}
 ```
 
 
