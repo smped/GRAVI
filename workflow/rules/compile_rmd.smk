@@ -124,6 +124,9 @@ rule compile_signal_comparison_html:
         ),
     output:
         rmd = os.path.join(rmd_path, "signal_comparison.Rmd"),
+        fig_path = directory(
+            os.path.join("docs", "signal_comparison_files", "figure-html")
+        ),        
         html = os.path.join("docs", "signal_comparison.html"),
         tsv = expand(
             os.path.join("output", "results", "shared", "{f}"),
@@ -141,6 +144,26 @@ rule compile_signal_comparison_html:
         """
         cp {input.rmd} {output.rmd}
         R -e "rmarkdown::render_site('{output.rmd}')" &>> {log}
+        """
+
+rule compile_nfr_html:
+    input:
+        annotations = ANNOTATION_RDS,
+        rmd = os.path.join(rmd_path, "{target}_nfr.Rmd"),
+    output:
+        html = os.path.join("docs", "{target}_nfr.html"),
+        fig_path = directory(
+            os.path.join("docs", "{target}_nfr_files", "figure-html")
+        ),
+    conda: "../envs/rmarkdown.yml"
+    threads: 4
+    resources:
+        mem_mb = 16384,
+        runtime = "30m",
+    log: os.path.join(log_path, "compile_rmd", "{target}_nfr.log")
+    shell:
+        """
+        R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
         """
 
 rule compile_differential_signal_html:

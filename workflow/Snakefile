@@ -63,6 +63,7 @@ diff_path = os.path.join("output", "differential_signal")
 grey_path = os.path.join("output", "greylist")
 json_path = os.path.join("config", "json")
 macs2_path = os.path.join("output", "macs2")
+nfr_path = os.path.join("output", "nfr")
 peak_path = os.path.join("output", "peak_analysis")
 rmd_path = "analysis"
 log_path = os.path.join("workflow", "logs")
@@ -241,6 +242,25 @@ HTML_OUT.extend(
 )
 if len(targets) > 1:
 	HTML_OUT.extend([os.path.join("docs", "signal_comparison.html")])
+
+## Any ROSE modules
+# if (config['modules']['rose']):
+# 	HTML_OUT.extend(
+# 		expand(
+# 			os.path.join("docs", "{f}_rose.html"),
+# 			f = config['modules']['rose']
+# 		)
+# 	)
+
+## Any NFR modules
+if (config['modules']['nfr']):
+	HTML_OUT.extend(
+		expand(
+			os.path.join("docs", "{f}_nfr.html"),
+			f = config['modules']['nfr']
+		)
+	)
+
 
 
 ## Try bringing in diffsignal again

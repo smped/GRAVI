@@ -73,6 +73,36 @@ rule create_signal_summary_rmd:
     script:
         "../scripts/create_signal_summary.R"
 
+
+rule create_nfr_rmd:
+    input:
+        here = rules.check_here_file.output,
+        module = "workflow/modules/nfr.Rmd",
+        files = expand(
+            os.path.join(
+                nfr_path, "{{target}}", "{{target}}_consensus_nfr.{suffix}"
+            ),
+            suffix = ['rds', 'bed.gz']
+        ),
+        packages = rules.check_r_packages.output,
+        peaks = expand(
+            os.path.join(
+                peak_path, "{{target}}", "{{target}}_consensus_peaks.{suffix}"
+            ),
+            suffix = ['rds', 'bed.gz']
+        ),
+        script = os.path.join("workflow", "scripts", "create_nfr_rmd.R"),
+    output:
+        rmd = os.path.join(rmd_path, "{target}_nfr.Rmd")
+    threads: 1
+    localrule: True
+    log: os.path.join(log_path, "create_rmd", "create_{target}_nfr.log")
+    resources:
+        mem_mb = 1024,
+        runtime = "5m",
+    script:
+        "../scripts/create_nfr_rmd.R"
+
 rule create_differential_signal_rmd:
     input:
         chk = ALL_CHECKS,

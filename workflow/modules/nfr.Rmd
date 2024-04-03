@@ -1,0 +1,36 @@
+```{r set-knitr-opts, echo=FALSE, child = here::here('analysis/setup_chunk.Rmd')}
+```
+
+
+```{r get-params}
+target <- params$target
+threads <- parallel::detectCores() - 1
+```
+
+```{r plot-cars}
+plot(cars)
+```
+
+In this module the key points are to
+
+- Summarise how many NFR per peak
+    + Maybe include distances between NFRs?
+- Present results from a motif analysis
+- Compare to peaks from all other targets using localz
+- No enrichment analysis is required, as that really is coveredby the larger peak analysis
+
+
+## References
+
+<div id="refs"></div>
+
+<br>
+<button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="sessioninfo" class="collapse">
+```{r session-info, echo=FALSE}
+pander::pander(sessionInfo())
+```
+</div>

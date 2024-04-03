@@ -6,7 +6,7 @@ rule merge_filtered_peaks:
         script = os.path.join("workflow", "scripts", "merge_filtered_peaks.R"),
     output:
         bed = os.path.join(
-            peak_path, "{target}", "{target}_{treat}_merged_peaks.bed"
+            nfr_path, "{target}", "{target}_{treat}_merged_peaks.bed"
         )
     params:
         within = 300
@@ -26,15 +26,15 @@ rule call_nfr:
             macs2_path, "{target}", "{target}_{treat}_merged_treat_pileup.bdg"
         ),
         bed =  os.path.join(
-            peak_path, "{target}", "{target}_{treat}_merged_peaks.bed"
+            nfr_path, "{target}", "{target}_{treat}_merged_peaks.bed"
         ),
         script = os.path.join("workflow", "scripts", "HisTrader.pl")
     output:
         nfr = temp(
-            os.path.join(peak_path, "{target}", "{target}_{treat}.nfr.bed")
+            os.path.join(nfr_path, "{target}", "{target}_{treat}.nfr.bed")
         ),
     params:
-        pre = os.path.join(peak_path, "{target}", "{target}_{treat}"),
+        pre = os.path.join(nfr_path, "{target}", "{target}_{treat}"),
         p_max = 0.1,
         max_nfr = 1000,
         min_size = 500,
@@ -83,16 +83,16 @@ rule make_consensus_nfr:
         yaml = os.path.join("config", "params.yml"),
         peaks = lambda wildcards: expand(
             os.path.join(
-                peak_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
+                nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
             ),
             treat = set(df[df.target == wildcards.target]['treat'])
         )
     output:
         bed = os.path.join(
-            peak_path, "{target}", "{target}_consensus_nfr.bed.gz"
+            nfr_path, "{target}", "{target}_consensus_nfr.bed.gz"
         ),
         rds = os.path.join(
-            peak_path, "{target}", "{target}_consensus_nfr.rds"
+            nfr_path, "{target}", "{target}_consensus_nfr.rds"
         )
     conda: "../envs/rmarkdown.yml"
     threads: 1
