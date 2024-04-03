@@ -49,28 +49,6 @@ rule compile_annotations_html:
 
 rule compile_signal_summary_html:
     input:
-        annotations = ANNOTATION_RDS,
-        assets = os.path.join("docs", "assets"),
-        bw = lambda wildcards: expand(
-            os.path.join(
-                macs2_path, "{{target}}",
-                "{{target}}_{treat}_merged_treat_pileup.bw"
-            ),
-            treat = set(df[df.target == wildcards.target]['treat'])
-        ),
-        external = rules.check_external_files.output,
-        cors = os.path.join(
-            macs2_path, "{target}", "{target}_cross_correlations.tsv"
-        ),
-        peak_files = expand(
-             os.path.join(
-                peak_path, "{{target}}", "{{target}}_{f}"
-            ),
-            f = [
-                'motif_position.tsv.gz', 'motif_enrichment.tsv.gz',
-                'regions_localz.rds', 'consensus_peaks.bed.gz'
-                ]
-        ),
         rmd = os.path.join(rmd_path, "{target}_signal_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
@@ -122,6 +100,8 @@ rule compile_signal_comparison_html:
             tg = targets,
             f = ['regions_localz.rds', 'consensus_peaks.bed.gz']
         ),
+        setup = rules.create_setup_chunk.output,
+        yaml = rules.create_site_yaml.output
     output:
         rmd = os.path.join(rmd_path, "signal_comparison.Rmd"),
         fig_path = directory(
@@ -150,6 +130,8 @@ rule compile_nfr_html:
     input:
         annotations = ANNOTATION_RDS,
         rmd = os.path.join(rmd_path, "{target}_nfr.Rmd"),
+        setup = rules.create_setup_chunk.output,
+        yaml = rules.create_site_yaml.output
     output:
         html = os.path.join("docs", "{target}_nfr.html"),
         fig_path = directory(
@@ -168,11 +150,11 @@ rule compile_nfr_html:
 
 rule compile_differential_signal_html:
     input:
-        annotations = ANNOTATION_RDS,
-        counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
         ),
+        setup = rules.create_setup_chunk.output,
+        yaml = rules.create_site_yaml.output
     output:
         html = "docs/{target}_{ref}_{treat}_differential_signal.html",
         enrichment = expand(
