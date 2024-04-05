@@ -173,7 +173,7 @@ if type(fig_type) is list:
 
 ## These are required input for multiple steps
 def get_gtf(x):
-	gc_vers = re.findall('[M0-9]+$', x['genome']['version'])[0]
+	gc_vers = re.findall('[M0-9]+$', x['genome']['gencode'])[0]
 	if x['external']['gtf']:
 		f = x['external']['gtf']
 	else:
@@ -374,8 +374,8 @@ rule all:
 	input:
 		ALL_OUTPUTS
 
-include: "rules/initial_checks.smk"
 include: "rules/downloads.smk"
+include: "rules/initial_checks.smk"
 include: "rules/annotations.smk"
 include: "rules/samtools.smk"
 include: "rules/nfr.smk"
