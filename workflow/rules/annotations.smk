@@ -28,6 +28,7 @@ rule create_annotations:
     params:
         colours = os.path.join(annotation_path, "colours.rds"),
     threads: 2
+    retries: 1
     resources:
         mem_mb = 16384,
         run_time = "30m"
