@@ -16,6 +16,10 @@ library(tidyverse)
 library(yaml)
 library(pander)
 library(glue)
+library(extraChIPs)
+library(plyranges)
+library(scales)
+theme_set(theme_bw())
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -34,11 +38,20 @@ knitr_params <- here::here("config", "rmarkdown.yml") %>%
   pluck("knitr_opts")
 ```
 
-```{r read-samples}
+```{r load-samples}
 samples <- all_paths$macs2 %>%
   file.path(target, glue("{target}_qc_samples.tsv")) %>%
   read_tsv()
 treat_levels <- unique(samples$treat)
+```
+
+```{r load-annotations}
+sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% read_rds()
+gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
+  read_rds()
+colours <- file.path(all_paths$annotation, "colours.rds") %>% read_rds()
+region_colours <- unlist(colours$regions) %>% 
+  setNames(map_chr(gene_regions, \(x) x$region[[1]])[names(.)])
 ```
 
 
@@ -61,6 +74,104 @@ In this module the key points are to
 - Present results from a motif analysis
 - Compare to peaks from all other targets using localz
 - No enrichment analysis is required, as that really is covered by the larger peak analysis
+
+```{r}
+nfr_by_treat <- all_paths$nfr %>% 
+  file.path(target, "{target}_{treat_levels}.nfr.bed.gz") %>% 
+  glue() %>% 
+  importPeaks(type = "bed", seqinfo = sq) %>% 
+  setNames(treat_levels)
+nfr_consensus <- all_paths$nfr %>% 
+  file.path(target, "{target}_consensus_nfr.rds") %>% 
+  glue() %>% 
+  read_rds()
+consensus_peaks <- all_paths$peaks %>% 
+  file.path(target, "{target}_consensus_peaks.rds") %>% 
+  glue() %>% 
+  read_rds() %>% 
+  mutate(nfr = countOverlaps(., nfr_consensus))
+```
+
+
+```{r}
+plotOverlaps(nfr_by_treat, set_col = unlist(colours$treat[treat_levels]))
+```
+
+```{r}
+nfr_by_treat %>% 
+  plotGrlCol(
+    df = tibble(treat = treat_levels), .id = "treat", fill = treat
+  ) +
+  scale_fill_manual(values = unlist(colours$treat))
+```
+
+```{r}
+consensus_peaks %>% 
+  mutate(w = width) %>% 
+  as_tibble() %>% 
+  ggplot(aes(w, nfr)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(se = FALSE, method = "lm") +
+  geom_label(
+    aes(w, nfr, label = lab) ,
+    data = . %>% 
+      summarise(
+        n = sum(nfr), 
+        w = min(w), nfr = max(nfr),
+        .by = "region"
+      ) %>% 
+      mutate(
+        lab = glue("n = {comma(n, 1)}"),
+        w = min(w), nfr = max(nfr)
+      ),
+    hjust = 0, vjust = 1
+  ) +
+  facet_wrap(~ region) +
+  scale_x_continuous(labels = comma_format(scale = 1e-3)) +
+  labs(
+    x = glue("{target} Peak Width (kb)"),
+    y = "NFR / Peak"
+  )
+```
+
+
+```{r}
+nfr_consensus %>% 
+  sort() %>% 
+  mutate(d = c(0, start[-1] - end[-length(.)])) %>% 
+  subset(d > 0) %>% 
+  as_tibble() %>% 
+  ggplot(aes(d, after_stat(count))) +
+  geom_histogram(fill = "grey70", colour = 'black', bins = 100) +
+  scale_x_log10(labels = comma_format()) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  labs(x = "Distance to nearest NFR (bp)", y = "Count")
+```
+
+
+```{r}
+nfr_consensus %>% 
+  plotPie(fill = region) +
+  scale_fill_manual(values = region_colours)
+```
+
+```{r}
+nfr_consensus %>% 
+  plotPie(fill = feature) +
+  scale_fill_manual(values = unlist(colours$features))
+```
+
+```{r}
+nfr_consensus %>% 
+  plotSplitDonut(
+    inner = 'feature', outer = 'region',
+    inner_palette = unlist(colours$features),
+    outer_palette = region_colours,
+    inner_glue = "{str_wrap(.data[[inner]], 12)}\n{comma(n)}\n{percent(p,0.1)}",
+    outer_glue = "{str_wrap(.data[[outer]], 12)}\n{comma(n)}\n{percent(p,0.1)}"
+  )
+```
+
 
 
 ## References
