@@ -170,9 +170,45 @@ if type(fig_type) is list:
 ###############################
 ## External Annotation Files ##
 ###############################
+
 ## These are required input for multiple steps
-gtf = config['external']['gtf']
-blacklist = config['external']['blacklist']
+def get_gtf(x):
+	gc_vers = re.findall('[M0-9]+$', x['genome']['version'])[0]
+	if x['external']['gtf']:
+		f = x['external']['gtf']
+	else:
+		bld = x['genome']['build'].lower()
+		extra = ''
+		if (bld == 'grch37') | (bld == 'hg19'):
+			extra = 'lift37'
+		f = os.path.join(
+			'data', 'external',
+			'gencode.v' + gc_vers + extra + ".annotation.gtf.gz"
+		)
+	return(f)
+
+gtf = get_gtf(config)
+
+def get_blacklist(x):
+	if x['external']['blacklist']:
+		f = x['external']['blacklist']
+	else:
+		bld = x['genome']['build'].lower()
+		## None is available for mm39
+		pre_map = {
+			'grch37': "hg19", 'grch38': "hg38",
+			'hg19': "hg19", 'hg38': "hg38",
+			'grcm38': 'mm10', 'mm10': 'mm10'
+    	}
+		has_bl = bool(set(pre_map.keys()).intersection([bld]))
+		msg = 'Please supply your own blacklist for ' + x['genome']['build']
+		assert has_bl, msg
+		pre = pre_map[bld]
+		f = os.path.join('data', 'external', pre + '-blacklist.v2.bed.gz')
+	return(f)
+
+blacklist = get_blacklist(config)
+
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
 #####################
@@ -339,6 +375,7 @@ rule all:
 		ALL_OUTPUTS
 
 include: "rules/initial_checks.smk"
+include: "rules/downloads.smk"
 include: "rules/annotations.smk"
 include: "rules/samtools.smk"
 include: "rules/nfr.smk"
