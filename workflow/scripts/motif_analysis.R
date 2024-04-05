@@ -150,6 +150,7 @@ cat_time("done")
 cat_time("Removing sequences with Ns")
 has_n <- letterFrequency(test_seq, "N")[,1] > 0
 test_seq <- test_seq[!has_n]
+peaks <- peaks[!has_n]
 cat_time("Found", sum(has_n), "sequences with Ns")
 
 motif_list <- read_rds(all_input$motifs)
