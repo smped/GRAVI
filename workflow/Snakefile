@@ -175,14 +175,6 @@ gtf = config['external']['gtf']
 blacklist = config['external']['blacklist']
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
-#################################
-## Differential Signal Method ##
-#################################
-
-# Currently LibSize + QuasiLikelihood (ls-ql) or
-# SmoothQuantile + Limma-Trend (sq-lt)
-# db_method = config['comparisons']['method']
-
 #####################
 ## Prepare Outputs ##
 #####################
@@ -349,14 +341,14 @@ rule all:
 include: "rules/initial_checks.smk"
 include: "rules/annotations.smk"
 include: "rules/samtools.smk"
+include: "rules/nfr.smk"
+include: "rules/macs2.smk"
 include: "rules/create_rmd.smk"
 include: "rules/compile_rmd.smk"
-include: "rules/macs2.smk"
 include: "rules/consensus_peaks.smk"
 include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
 include: "rules/regioner.smk"
-include: "rules/nfr.smk"
 include: "rules/motif_analysis.smk"
 include: "rules/differential_signal.smk"
 # include: "rules/pairwise_comparisons.smk"

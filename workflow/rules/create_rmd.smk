@@ -98,19 +98,24 @@ rule create_signal_summary_rmd:
 rule create_nfr_rmd:
     input:
         here = rules.check_here_file.output,
-        module = "workflow/modules/nfr.Rmd",
         files = expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_consensus_nfr.{suffix}"
             ),
             suffix = ['rds', 'bed.gz']
         ),
+        module = os.path.join("workflow", "modules", "nfr.Rmd"),
+        nfr = lambda wildcards: expand(
+            os.path.join(
+                nfr_path, "{{target}}", "{{target}}_{treat}_nfr.bed.gz"
+            ),
+            treat = set(df[df.target == wildcards.target]['treat'])
+        ),
         packages = rules.check_r_packages.output,
         peaks = lambda wildcards: expand(
             os.path.join(
-                nfr_path, "{{target}}", "{{target}}_{treat}_{f}.bed"
+                nfr_path, "{{target}}", "{{target}}_{treat}_merged_peaks.bed"
             ),
-            f = ['merged_peaks', 'nfr'],
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
         script = os.path.join("workflow", "scripts", "create_nfr_rmd.R"),

@@ -15,6 +15,7 @@ plot(cars)
 library(tidyverse)
 library(yaml)
 library(pander)
+library(glue)
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 

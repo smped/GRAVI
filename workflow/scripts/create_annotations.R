@@ -357,13 +357,17 @@ rna <- list()
 rna_files <- config$external$rna
 if (!is.null(rna_files)) {
   cat_time("Importing", length(rna_files), "RNA datasets")
+  if (any(grepl("(xls|xslx|zip|gz)$", rna_files))) {
+    cat("RNA can only be provided as uncompressed csv or tsv files")
+    stop()
+  }
   rna <- lapply(
     rna_files,
     \(x) {
       ln <- readLines(x, 1)
-      fn <- paste0("read_", ifelse(grepl("\\t", ln), "tsv", "csv"))
-      fn <- match.fun(fn)
-      df <- fn(x)
+      sep <- ifelse(grepl("\\t", ln), "\t", ",")
+      df <- read.table(x, sep = sep, header = TRUE)
+      df <- as_tibble(df)
       ## The key columns are 'gene_id', 'logFC', and 'FDR'
       ## These should be checked earlier
       gn_col <- intersect(c("gene_id", "Geneid"), names(df))[[1]]
