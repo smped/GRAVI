@@ -8,7 +8,7 @@ def get_gtf_url(x):
         'mm10': 'mouse', 'mm39': 'mouse'
     }
     sp = sp_map[bld]
-    gc_vers = re.findall('[M0-9]+$', x['version'])[0]
+    gc_vers = re.findall('[M0-9]+$', x['gencode'])[0]
     subdir = ''
     extra = ''
     if (bld == 'grch37') | (bld == 'hg19'):

@@ -31,7 +31,7 @@ rule call_nfr:
         script = os.path.join("workflow", "scripts", "HisTrader.pl")
     output:
         nfr = temp(
-            os.path.join(nfr_path, "{target}", "{target}_{treat}_nfr.bed")
+            os.path.join(nfr_path, "{target}", "{target}_{treat}.nfr.bed")
         ),
     params:
         pre = os.path.join(nfr_path, "{target}", "{target}_{treat}"),
@@ -83,7 +83,7 @@ rule make_consensus_nfr:
         yaml = os.path.join("config", "params.yml"),
         peaks = lambda wildcards: expand(
             os.path.join(
-                nfr_path, "{{target}}", "{{target}}_{treat}_nfr.bed.gz"
+                nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
             ),
             treat = set(df[df.target == wildcards.target]['treat'])
         )
