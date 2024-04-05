@@ -107,7 +107,7 @@ rule create_nfr_rmd:
         module = os.path.join("workflow", "modules", "nfr.Rmd"),
         nfr = lambda wildcards: expand(
             os.path.join(
-                nfr_path, "{{target}}", "{{target}}_{treat}_nfr.bed.gz"
+                nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
             ),
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
