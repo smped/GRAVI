@@ -42,7 +42,7 @@ df = pd.read_table(config['samples']['file'])
 samples = list(set(df['sample']))
 targets = list(set(df['target']))
 targets_ext = targets.copy()
-targets_ext.extend(['shared']) # Enable 'shared' in widlcards
+targets_ext.extend(['shared','nfr']) # Enable 'shared' & 'nfr' for motif params
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
 

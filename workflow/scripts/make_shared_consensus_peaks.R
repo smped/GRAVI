@@ -86,7 +86,7 @@ shared_peaks <- shared_peaks %>%
   filter(n == n_targets)
 
 cat_time("Writing", length(shared_peaks), "peaks to", all_output$bed, "\n")
-write_bed(shared_peaks, all_output$bed)
+write_bed(granges(shared_peaks), all_output$bed)
 cat_time("Done\n")
 
 ## Map to genes, feature & regions
@@ -117,7 +117,7 @@ feat_enh <- features[which_enh] %>%
 cat_time("Mapping peaks to regions and features")
 shared_peaks$region <- bestOverlap(shared_peaks, gene_regions)
 shared_peaks$region <- factor(region_levels[shared_peaks$region], unname(region_levels))
-if (length(features)) 
+if (length(features))
   shared_peaks$feature <- bestOverlap(shared_peaks, features, missing = "no_feature")
 
 save.image(here::here("output/envs/shared_peaks.RData"))

@@ -1512,7 +1512,7 @@ tbl <- motif_enrich_res %>%
         cell = function(value) tags$img(src = value, height = '80px')
       )
     ),
-    elementId = "enrich-res-table"
+    elementId = "motif-enrich-table"
   )
 cp <- htmltools::em(
   glue(
@@ -1528,16 +1528,16 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('enrich-res-table', '{target}_motif_enrich_res.csv')"
+      "Reactable.downloadDataCSV('motif-enrich-table', '{target}_motif_enrich_res.csv')"
     )
   ),
   tags$button(
     "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('enrich-res-table')"
+    onclick = "Reactable.toggleAllRowsExpanded('motif-enrich-table')"
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('enrich-res-table', [])"
+    onclick = "Reactable.setAllFilters('motif-enrich-table', [])"
   ),
   tbl,
   cp
@@ -1692,7 +1692,7 @@ tbl <- motif_pos_res %>%
     ),
     defaultSorted = "adj_p", defaultSortOrder = "asc",
     theme = reactableTheme(style = list(fontSize = 12)),
-    elementId = "pos-res-table"
+    elementId = "motif-pos-table"
   )
 cp <- htmltools::em(
   glue(
@@ -1711,16 +1711,16 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('pos-res-table', '{target}_position_res.csv')"
+      "Reactable.downloadDataCSV('motif-pos-table', '{target}_position_res.csv')"
     )
   ),
   tags$button(
     "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('pos-res-table')"
+    onclick = "Reactable.toggleAllRowsExpanded('motif-pos-table')"
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('pos-res-table', [])"
+    onclick = "Reactable.setAllFilters('motif-pos-table', [])"
   ),
   tbl,
   cp

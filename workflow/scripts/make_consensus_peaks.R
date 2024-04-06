@@ -66,9 +66,11 @@ all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
 all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")
 
 cat_list(all_input, "input")
 cat_list(all_wildcards, "wildcards:", "=")
+cat_list(all_wildcards, "params:", "=")
 cat_list(all_output, "output")
 
 ## Solidify file paths
@@ -104,7 +106,8 @@ filtered_peaks <- all_input$peaks %>%
     nameRanges = FALSE, centre = TRUE
   )
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
-cons_peaks <- filtered_peaks %>% makeConsensus(var = vars)
+cons_params <- list(x = filtered_peaks, var = vars) %>% c(all_params)
+cons_peaks <- do.call("makeConsensus", cons_params)
 
 if ("score" %in% vars) {
   cat_time("Taking the maximum score for each peak")

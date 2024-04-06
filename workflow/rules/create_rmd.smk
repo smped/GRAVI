@@ -105,6 +105,12 @@ rule create_nfr_rmd:
             suffix = ['rds', 'bed.gz']
         ),
         module = os.path.join("workflow", "modules", "nfr.Rmd"),
+        motif_results = expand(
+            os.path.join(
+                nfr_path, "{{target}}", "{{target}}_motif_{f}.tsv.gz"
+            ),
+            f = ['enrichment', 'position']
+        )
         nfr = lambda wildcards: expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"

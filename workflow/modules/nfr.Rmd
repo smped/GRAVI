@@ -7,11 +7,7 @@ target <- params$target
 threads <- parallel::detectCores() - 1
 ```
 
-```{r plot-cars}
-plot(cars)
-```
-
-```{r}
+```{r packages}
 library(tidyverse)
 library(yaml)
 library(pander)
@@ -26,6 +22,13 @@ all_paths <- here::here("config", "json", "all_paths.json") %>%
     lapply(here::here)
 ```
 
+```{r load-samples}
+samples <- all_paths$macs2 %>%
+  file.path(target, glue("{target}_qc_samples.tsv")) %>%
+  read_tsv()
+treat_levels <- unique(samples$treat)
+```
+
 ```{r config-params-paths}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
 region_params <- all_params$gene_regions
@@ -38,12 +41,21 @@ knitr_params <- here::here("config", "rmarkdown.yml") %>%
   pluck("knitr_opts")
 ```
 
-```{r load-samples}
-samples <- all_paths$macs2 %>%
-  file.path(target, glue("{target}_qc_samples.tsv")) %>%
-  read_tsv()
-treat_levels <- unique(samples$treat)
+```{r figure-params}
+fh <- knitr_params$fig.height
+fw <- knitr_params$fig.width
+fig_path <- here::here("docs", "assets", target)
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
+fig_type <- knitr_params$dev[[1]]
+fig_fun <- match.fun(fig_type)
+if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
+  ## These figure types require dpi & resetting to be inches
+  formals(fig_fun)$units <- "in"
+  formals(fig_fun)$res <- 300
+}
 ```
+
+
 
 ```{r load-annotations}
 sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% read_rds()
@@ -75,7 +87,7 @@ In this module the key points are to
 - Compare to peaks from all other targets using localz
 - No enrichment analysis is required, as that really is covered by the larger peak analysis
 
-```{r}
+```{r load-nfr}
 nfr_by_treat <- all_paths$nfr %>% 
   file.path(target, "{target}_{treat_levels}.nfr.bed.gz") %>% 
   glue() %>% 
@@ -90,22 +102,24 @@ consensus_peaks <- all_paths$peaks %>%
   glue() %>% 
   read_rds() %>% 
   mutate(nfr = countOverlaps(., nfr_consensus))
+has_features <- "feature" %in% colnames(mcols(consensus_peaks))
 ```
 
 
-```{r}
+```{r plot-overlaps, fig.width=fh, fig.cap = "*Summary of NFRs identified in each treatment group*"}
 plotOverlaps(nfr_by_treat, set_col = unlist(colours$treat[treat_levels]))
 ```
 
-```{r}
+```{r plot-nfr-width, fig.cap = "*NFR width and numbers by treatment group*"}
 nfr_by_treat %>% 
   plotGrlCol(
     df = tibble(treat = treat_levels), .id = "treat", fill = treat
   ) +
-  scale_fill_manual(values = unlist(colours$treat))
+  scale_fill_manual(values = unlist(colours$treat)) +
+  scale_y_log10()
 ```
 
-```{r}
+```{r plot-nfr-by-peak-width, fig.cap = glue("*Number of NFRs found within each {target} peak, separated by genomic region*")}
 consensus_peaks %>% 
   mutate(w = width) %>% 
   as_tibble() %>% 
@@ -135,7 +149,8 @@ consensus_peaks %>%
 ```
 
 
-```{r}
+```{r plot-dist, fig.cap = '*Distance between each NFR and the nearest upstream NFR*'}
+## This needs revising so it's distToNearest, or performed within larger peak
 nfr_consensus %>% 
   sort() %>% 
   mutate(d = c(0, start[-1] - end[-length(.)])) %>% 
@@ -149,27 +164,31 @@ nfr_consensus %>%
 ```
 
 
-```{r}
+```{r plot-pie, fig.width = fh, fig.cap = glue("*Distribution of NFRs by genomic region, noting that wider {target} peaks will accumulate more NFRs*")}
 nfr_consensus %>% 
-  plotPie(fill = region) +
-  scale_fill_manual(values = region_colours)
+  plotPie(
+    fill = region, hole_width = 0.2,
+    total_size = 4,
+    cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
+    cat_alpha = 0.7, cat_adj = 0.1
+  ) +
+  scale_fill_manual(values = region_colours) +
+  theme(legend.position = "none")
 ```
 
-```{r}
-nfr_consensus %>% 
-  plotPie(fill = feature) +
-  scale_fill_manual(values = unlist(colours$features))
-```
 
-```{r}
-nfr_consensus %>% 
-  plotSplitDonut(
-    inner = 'feature', outer = 'region',
-    inner_palette = unlist(colours$features),
-    outer_palette = region_colours,
-    inner_glue = "{str_wrap(.data[[inner]], 12)}\n{comma(n)}\n{percent(p,0.1)}",
-    outer_glue = "{str_wrap(.data[[outer]], 12)}\n{comma(n)}\n{percent(p,0.1)}"
-  )
+```{r plot-donut, echo = has_features, fig.width = fh, fig.cap = 'Breakdown of NFRs by provided features and genomic region.'}
+if (has_features) {
+  nfr_consensus %>% 
+    plotSplitDonut(
+      inner = 'feature', outer = 'region',
+      inner_palette = unlist(colours$features),
+      outer_palette = region_colours,
+      inner_glue = "{str_wrap(.data[[inner]], 15)}\n{comma(n)}\n{percent(p,0.1)}",
+      outer_glue = "{str_wrap(.data[[outer]], 15)}\n{comma(n)}\n{percent(p,0.1)}",
+      outer_min_p = 0.03
+    )
+}
 ```
 
 
