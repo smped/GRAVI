@@ -97,6 +97,10 @@ rule create_signal_summary_rmd:
 
 rule create_nfr_rmd:
     input:
+        consensus_peaks = expand(
+            os.path.join(peak_path, "{t}", "{t}_consensus_peaks.rds"),
+            t = targets
+        ),
         here = rules.check_here_file.output,
         files = expand(
             os.path.join(

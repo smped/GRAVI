@@ -43,7 +43,7 @@ treat_levels <- unique(samples$treat)
 all_targets <- here::here(config$samples) %>% 
   read_tsv() %>% 
   pull("target") %>% 
-  unique()
+  unique() 
 all_samples <- all_paths$macs2 %>% 
   file.path("{all_targets}", "{all_targets}_qc_samples.tsv") %>% 
   glue() %>% 
@@ -52,17 +52,17 @@ all_samples <- all_paths$macs2 %>%
   dplyr::filter(qc == "pass") %>% 
   dplyr::select(-all_of("qc"))
 all_targets <- unique(all_samples$target)
-stopifnot(target %in% all_targets)
 n_targets <- all_targets
 ```
 
 ```{r config-params-paths}
 all_params <-  here::here("config", "params.yml") %>% read_yaml() 
+enrich_params <- all_params$enrichment
 region_params <- all_params$gene_regions
 regioner_params <- all_params$regioner
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
-  pluck(target)
+  pluck("nfr")
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
@@ -85,13 +85,23 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 
 
 ```{r load-annotations}
+colours <- file.path(all_paths$annotation, "colours.rds") %>% read_rds()
+names(colours$target)[names(colours$target) == target] <- paste0(target, "_NFR")
 sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% read_rds()
 gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
 regions <- map_chr(gene_regions, \(x) x$region[1])
-colours <- file.path(all_paths$annotation, "colours.rds") %>% read_rds()
 region_colours <- unlist(colours$regions) %>% 
   setNames(map_chr(gene_regions, \(x) x$region[[1]])[names(.)])
+## External features
+external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
+## Combine features & regions for testing
+all_regions <- c(gene_regions, external_features) %>% 
+  endoapply(granges)
+all_regions_labs <- c(
+  map_chr(gene_regions, \(x) x$region[[1]]),
+  map_chr(external_features, \(x) x$feature[[1]])
+)
 ```
 
 
@@ -123,10 +133,11 @@ nfr_consensus <- all_paths$nfr %>%
   glue() %>% 
   read_rds()
 consensus_peaks <- all_paths$peaks %>% 
-  file.path("{target}", "{target}_consensus_peaks.rds") %>% 
+  file.path("{all_targets}", "{all_targets}_consensus_peaks.rds") %>% 
   glue() %>% 
-  read_rds()
-has_features <- "feature" %in% colnames(mcols(consensus_peaks))
+  lapply(read_rds) %>% 
+  setNames(all_targets)
+has_features <- "feature" %in% colnames(mcols(consensus_peaks[[target]]))
 ```
 
 ## NFR Summary {.tabset}
@@ -140,7 +151,7 @@ plotOverlaps(nfr_by_treat, set_col = unlist(colours$treat[treat_levels]))
 ### Peak & NFR Width
 
 ```{r plot-width, fig.cap = glue("*A) Relationship between {target} peak width and NFR identification. {target} peaks within 300bp were merged prior to plotting, and B) NFR width and numbers by treatment group.*")}
-A <- consensus_peaks %>% 
+A <- consensus_peaks[[target]] %>% 
   reduce(min.gapwidth = 300) %>% 
   mutate(has_nfr = overlapsAny(., nfr_consensus)) %>% 
   split(.$has_nfr) %>% 
@@ -172,7 +183,7 @@ A + B + plot_annotation(tag_levels = "A") & theme(legend.position = 'none')
 ### NFRs Per Peak
 
 ```{r plot-nfr-by-peak-width, fig.cap = glue("*Number of NFRs found within each {target} peak, separated by genomic region. {target} peaks within 300bp were merged prior ro plotting*")}
-consensus_peaks %>% 
+consensus_peaks[[target]] %>% 
   reduce(min.gapwidth = 300) %>% 
   mutate(
     w = width, 
@@ -211,7 +222,7 @@ consensus_peaks %>%
 nfr_consensus %>% 
   granges() %>% 
   join_overlap_inner(
-    consensus_peaks %>% 
+    consensus_peaks[[target]] %>% 
       reduce(min.gapwidth = 300) %>% 
       mutate(id = seq_along(.))
   ) %>% 
@@ -246,7 +257,7 @@ nfr_consensus %>%
     cat_alpha = 0.7, cat_adj = 0.1
   ) +
   scale_fill_manual(values = region_colours) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") 
 ```
 
 `r if (has_features) "### NFRs By Region and Feature"`
@@ -661,7 +672,8 @@ if (n_pos > 0) {
 
 ## Relationship to Other Targets
 
-```{r}
+```{r load-regioner}
+consensus_peaks[[paste0(target, "_NFR")]] <- nfr_consensus
 localz_regions <- here::here(
   all_paths$peaks, "{all_targets}", "{all_targets}_regions_localz.rds"
 ) %>% 
@@ -672,6 +684,329 @@ localz_regions <- here::here(
   ) %>% 
   setNames(c(all_targets, glue("{target}_NFR"))) %>% 
   lapply(read_rds)
+localz_df <- localz_regions %>%
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(pluck, "resumeTab") %>% 
+  bind_rows(.id = "target") %>% 
+  as_tibble() %>% 
+  dplyr::rename(region = name) %>% 
+  mutate(
+    p_value = 1 - pchisq(norm_zscore^2, 1),
+    adj.p_value = p.adjust(p_value, regioner_params$adj),
+    region = all_regions_labs[region],
+    enrichment = log2(n_overlaps / mean_perm_test),
+    target_peaks = map_int(consensus_peaks, length)[target],
+    prop = n_overlaps / target_peaks
+  ) %>% 
+  dplyr::select(
+    target, region, target_peaks, n_overlaps, prop, Z = norm_zscore, enrichment,
+    ends_with("p_value"), ends_with("perm_test")
+  ) 
+shifted_z <- localz_regions %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(
+    \(x) {
+      tbl <- as_tibble(x$shifed_ZSs)
+      tbl$shift <- x$shifts
+      tbl
+    }
+  ) %>% 
+  bind_rows(.id = "target") %>% 
+  pivot_longer(
+    cols = all_of(names(all_regions)), names_to = "region", values_to = "Z"
+  ) %>% 
+  mutate(
+    n = map_int(consensus_peaks, length)[target],
+    Z = Z / sqrt(n),
+    region = all_regions_labs[region] %>% factor(levels = all_regions_labs)
+  ) 
+## For regioneR analysis
+heat_col <- c(
+  rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
+  RColorBrewer::brewer.pal(9, "YlOrRd")
+)
+```
+
+### Region Comparisons {.tabset}
+
+The package `regionerReloaded` [@Malinverni2023-ee] was again used to compare the NFRs with defined regions, along with regions with detected signal from all targets.
+The following analysis includes the NFRs as well as each target's set of peaks, as analysed in the individual summaries.
+This provides an excellent frame of reference for comparison between targets, and the nature of the NFRs in this context.
+
+
+#### Combined Heatmap
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting peaks for all targets and the NFRs, within a $\\pm$ {slot(localz_regions[[1]], 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
+  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  geom_raster() +
+  facet_grid(cols = vars(target)) +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
+  )
+```
+
+#### Results Table
+
+```{r tbl-localz-regions}
+tbl <- localz_df %>% 
+  arrange(p_value) %>% 
+  dplyr::select(-sd_perm_test, -p_value) %>% 
+  dplyr::select(target, region, target_peaks, mean_perm_test, everything()) %>% 
+  reactable(
+    filterable = TRUE, showPageSizeOptions = TRUE,
+    columns = list(
+      target = colDef("Target"),
+      region = colDef("Region", minWidth = 120),
+      target_peaks = colDef(
+        "N Peaks", format = comma_col, maxWidth = 80, filterMethod = js_greater
+      ),
+      mean_perm_test = colDef(
+        "Expected", format = comma_col, filterMethod = js_greater
+      ),
+      n_overlaps = colDef(
+        "Observed", format = comma_col, maxWidth = 85,
+        filterMethod = js_greater
+      ),
+      prop = colDef(
+        "% Peaks", format = percent_col, maxWidth = 80, 
+        filterMethod = js_greater
+      ),
+      Z = colDef(
+        format = colFormat(digits = 2), maxWidth = 80,
+        style = \(value) list(color = ifelse(value > 0, "black", "red")),
+        filterMethod = js_greater
+      ),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE, 
+        style = \(value) list(color = ifelse(value > 0, "black", "red")),
+        filterMethod = js_greater
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value), maxWidth = 80,
+        style = \(value) list(
+          color = ifelse(
+            value < regioner_params$alpha,
+            "black", colours$direction[["unchanged"]]
+          )
+        ),
+        filterMethod = js_less
+      )
+    ),
+    columnGroups = list(
+      colGroup("Overlaps", columns = c("mean_perm_test", "n_overlaps", "prop"))
+    ),
+    elementId = "localz-res-table"
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    Results for association between all peaks, including NFRs and the pre-defined 
+    genomic regions{ifelse(has_features, ', including the supplied external features.', '.')}
+    Expected overlaps are those obtained through random resampling of the genome
+    to match the consensus peaks. Enrichment is given taking log2 of 
+    the ratio between observed and expected overlapping peaks.
+    "
+  )
+)
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('localz-res-table', 'shared_localz_res.csv')"
+    )
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('localz-res-table', [])"
+  ),
+  tbl,
+  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
+```
+
+### Comparison Between Peaks {.tabset}
+
+```{r load-localz-peaks}
+mlz_list <- all_paths$nfr %>% 
+  here::here(target, glue("{target}_nfr_targets_localz.rds")) %>% 
+  read_rds() 
+dist_df <- mlz_list %>% 
+  lapply(
+    function(x) {
+      mlz <- slot(x, "multiLocalZscores")
+      tbl <- as_tibble(mlz$shifed_ZSs)
+      tbl$shift <- mlz$shifts
+      tbl
+    }
+  ) %>% 
+  bind_rows(.id = "Query") %>% 
+  pivot_longer(
+    cols = any_of(names(consensus_peaks)), names_to = "Target", values_to = "Z"
+  ) %>% 
+  dplyr::filter(!is.na(Z)) %>% 
+  mutate(
+    Target = Target %>% 
+      str_replace_all(target, paste0(target, "_NFR")) %>% 
+      factor(levels = names(consensus_peaks)) %>% 
+      fct_rev(),
+    Query = Query %>% 
+      str_replace_all(target, paste0(target, "_NFR")) %>% 
+      factor(levels = names(consensus_peaks)) %>% 
+      fct_rev(),
+    Z = Z / sqrt(map_int(consensus_peaks, length)[Query]),
+  ) %>% 
+  droplevels()
+pairwise_df <- mlz_list %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(pluck, "resumeTab") %>% 
+  bind_rows(.id = "Query") %>% 
+  dplyr::rename(Target = name) %>% 
+  mutate(
+    Query = str_replace_all(Query, target, paste0(target, "_NFR")),
+    Target = str_replace_all(Target, target, paste0(target, "_NFR")),
+    n_regionA = map_int(consensus_peaks, length)[Query],
+    n_regionB = map_int(consensus_peaks, length)[Target],
+    prop = n_overlaps / map_int(consensus_peaks, length)[Query],
+    enrichment = log2(n_overlaps / mean_perm_test),
+    p_value = 1 - pchisq(norm_zscore^2, 1),
+    adj.p_value = p.adjust(p_value, regioner_params$adj)
+  ) 
+```
+
+### Comparison Between Targets {.tabset}
+
+The NFRs were compared to the set of peaks derived from each target to check for any relationship between their locations on the genome.
+Shifted Z-Scores indicate proximity and fine-grained relative binding patterns, with additional Z-scores derived from any enrichment of direct overlaps above the expected values used to determine the statistical significance of these overlaps compared to random expectations.
+
+#### Shifted Z-Scores
+
+```{r plot-shiftedz, fig.cap = glue("*Distributions of shifted Z-scores for each target relative to NFRs. Narrow peaks indicate close proximity of overlaps, whilst dips around zero indicate very close by not overlapping signal, as may be observed with histone marks and associated transcription factors.*")}
+dist_df %>% 
+  arrange(desc(Z)) %>%
+  mutate(
+    Query = fct_inorder(Query),
+    Target = fct_inorder(Target)
+  ) %>%
+  ggplot(aes(shift, Z, colour = Target)) +
+  geom_line() +
+  facet_wrap(~Query) +
+  scale_x_continuous(
+    labels = \(x) x * 1e-3, name = "Shift (kb)"
+  ) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_colour_manual(values = colours$target)
+```
+
+
+#### Overlap Heatmap
+
+```{r plot-overlap-heatmap, fig.cap = glue("*Heatmap showing the strength of overlaps between each target and the alternative targets, here represented as the Query and Target respectively. Fill colours are derived from Z-scores and indicate the significance of overlaps, with asterisks indicating a formal result passing statistical significance as detailed in the reults table. The proportion of peaks from each query and alternative targets is also shown within each tile.*")}
+pairwise_df %>% 
+  ggplot(aes(Target, fct_rev(Query), fill = norm_zscore)) +
+  geom_raster() +
+  geom_label(
+    aes(label = prop),
+    data = . %>% 
+      mutate(
+        prop = percent(prop, 0.1),
+        prop = case_when(
+          adj.p_value < enrich_params$alpha ~ paste0(prop, "*"),
+          TRUE ~ prop
+        )
+      ),
+    fill = "white", alpha = 0.6
+  ) +
+  scale_x_discrete(expand = expansion(0, 0)) +
+  scale_y_discrete(expand = expansion(0, 0)) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(pairwise_df$norm_zscore)),
+  ) +
+  labs(y = "Query", fill = "Z") +
+  theme(panel.grid = element_blank())
+```
+
+
+#### Results Table
+
+```{r pairwise-tbl}
+tbl <- pairwise_df %>%
+  dplyr::select(
+    Query, Target, n_regionA, n_regionB, prop, n_overlaps, mean_perm_test, 
+    enrichment, norm_zscore, adj.p_value
+  ) %>% 
+  arrange(adj.p_value) %>% 
+  reactable(
+    columns = list(
+      n_regionA = colDef("Query", format = comma_col),
+      n_regionB = colDef("Target", format = comma_col),
+      prop = colDef("% Query", format = colFormat(percent = TRUE, digits = 1)),
+      n_overlaps = colDef("Observed", format = comma_col),
+      mean_perm_test = colDef("Expected", format = comma_col),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE,
+        style = \(value) {
+          text_colour = ifelse(value < 0, colours$direction$decreased, "black")
+          list(color = text_colour)
+        }
+      ),
+      norm_zscore = colDef(
+        "Z", format = colFormat(digits = 2),
+        style = \(value) {
+          text_colour = ifelse(value < 0, colours$direction$decreased, "black")
+          list(color = text_colour)
+        }
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value),
+        style = \(value) {
+          text_colour = ifelse(
+            value < regioner_params$alpha,
+            "black", colours$direction[["unchanged"]]
+          )
+          list(color = text_colour)
+        }
+      )
+    ),
+    columnGroups = list(
+      colGroup(name = "Nbr. Regions", columns = str_subset(names(.), "n_reg")),
+      colGroup(
+        name = "Overlaps", columns = c("prop", "n_overlaps", "mean_perm_test")
+      )
+    ),
+    elementId = 'pairwise-res-table'
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    Results showing significance of the overlap between peaks from each target 
+    and the other targets, including NFRs, defined here as the Query and Target respectively. 
+    Expected values represent those estimated using permutations, with the log2 
+    ratio between the two values expressed as enrichment
+    "
+  )
+)
+tl <- tagList(tbl,cp)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 

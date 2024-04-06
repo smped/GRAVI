@@ -632,7 +632,7 @@ shifted_z <- localz_regions %>%
 
 The package `regionerReloaded` [@Malinverni2023-ee] was again used to compare the peaks sharing signal from all targets against the same set of genomic regions and features as analysed earlier.
 The following analysis includes the *shared-target peaks* as well as each target's set of peaks, as analysed in the individual summaries.
-This provides an excellent frame of reference for comparison between targets, and th nature of the shared-target peaks in this context.
+This provides an excellent frame of reference for comparison between targets, and the nature of the shared-target peaks in this context.
 
 #### Combined Heatmap
 
@@ -709,7 +709,7 @@ cp <- htmltools::em(
   glue(
     "
     Results for association between the all peaks and the pre-defined 
-    genomic regions{ifelse(has_features, ', including the supplied external features.', '.')}.
+    genomic regions{ifelse(has_features, ', including the supplied external features.', '.')}
     Expected overlaps are those obtained through random resampling of the genome
     to match the consensus peaks. Enrichment is given taking log2 of 
     the ratio between observed and expected overlapping peaks.
@@ -885,7 +885,7 @@ cp <- htmltools::em(
   glue(
     "
     Results showing significance of the overlap between peaks from each target 
-    and the other targets, defined in here as the Query and Target respectively. 
+    and the other targets, defined here as the Query and Target respectively. 
     Expected values represent those estimated using permutations, with the log2 
     ratio between the two values expressed as enrichment
     "
