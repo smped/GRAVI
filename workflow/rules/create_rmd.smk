@@ -104,6 +104,12 @@ rule create_nfr_rmd:
             ),
             suffix = ['rds', 'bed.gz']
         ),
+        localz = expand(
+            os.path.join(
+                nfr_path, "{{target}}", "{{target}}_nfr_{f}_localz.rds"
+            ),
+            f = ['regions', 'targets']
+        ),
         module = os.path.join("workflow", "modules", "nfr.Rmd"),
         motif_results = expand(
             os.path.join(

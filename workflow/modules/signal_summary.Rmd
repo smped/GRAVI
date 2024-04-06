@@ -921,29 +921,33 @@ consensus_peaks %>%
 
 `r ifelse(has_features, "#### External Features", "")`
 
-```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
-consensus_peaks %>% 
-  plotPie(
-    fill = "feature", total_size = 4,
-    cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
-    cat_alpha = 0.9, cat_adj = 0.05
-  ) +
-  scale_fill_manual(values = region_colours) +
-  theme(legend.position = "none")
+```{r plot-feature-overlap, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
+if (has_features) {
+  consensus_peaks %>% 
+    plotPie(
+      fill = "feature", total_size = 4,
+      cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
+      cat_alpha = 0.9, cat_adj = 0.05
+    ) +
+    scale_fill_manual(values = colours$features) +
+    theme(legend.position = "none")
+}
 ```
 
 `r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
 
-```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
-consensus_peaks %>% 
-  plotSplitDonut(
-    inner = "feature", outer = "region",
-    inner_palette = colours$features,
-    outer_palette = region_colours,
-    inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
-    outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
-    min_p = 0.03, outer_alpha = 0.8
-  )
+```{r plot-feature-region-overlap, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
+if (has_features) {
+  consensus_peaks %>% 
+    plotSplitDonut(
+      inner = "feature", outer = "region",
+      inner_palette = colours$features,
+      outer_palette = region_colours,
+      inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
+      outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
+      min_p = 0.03, outer_alpha = 0.8
+    )
+}
 ```
 
 
@@ -1783,7 +1787,7 @@ top_matches %>%
   geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
   facet_wrap(~name, labeller = as_labeller(lb)) +
   theme(legend.position = "none") +
-  labs(x = "Dsitance From Sequence Centre", y = "Total Matches")
+  labs(x = "Distance From Sequence Centre", y = "Total Matches")
 ```
 
 `r if (n_pos > 0) "#### Proportional Match Distributions"`
@@ -1809,7 +1813,7 @@ A + B + plot_layout(guides = "collect")
 
 `r if (n_pos > 0) "#### Match Heatmap"`
 
-```{r heatmap-pos, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure when more than two are being displayed.*")}
+```{r heatmap-pos, echo = n_pos > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure when more than two are being displayed. A maximum of 25 motifs are shown in this figure.*")}
 if (n_pos > 0) {
   top_pos <- motif_pos_res %>% 
     dplyr::filter(adj_p < motif_params$alpha) %>% 

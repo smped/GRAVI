@@ -76,47 +76,53 @@ library(readr)
 library(yaml)
 cat_time("done\n")
 
-cat_time("Determining the UCSC compatible reference.. ")
-source(here::here("workflow/scripts/custom_functions.R"))
-ucsc <- get_ucsc(config$genome$build)
-cat_time("done\n")
+mlz_list <- list()
+if (length(all_input$peaks) > 2) {
+  cat_time("2 or more sets of peaks required. No analysis performed")
+} else {
 
-cat_time("Setting genome to be", ucsc$build)
-sq <- read_rds(all_input$sq)
-genome(sq) <- ucsc$build
-cat_time(" done\n")
+  cat_time("Determining the UCSC compatible reference.. ")
+  source(here::here("workflow/scripts/custom_functions.R"))
+  ucsc <- get_ucsc(config$genome$build)
+  cat_time("done\n")
 
-cat_time("Loading peaks from", paste("\n\t", all_input$peaks))
-peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
-names(peaks) <- gsub("_consensus.+", "", names(peaks))
-cat_time(" done\n")
+  cat_time("Setting genome to be", ucsc$build)
+  sq <- read_rds(all_input$sq)
+  genome(sq) <- ucsc$build
+  cat_time(" done\n")
 
-cat_time("Loading enrichment params from", all_input$params)
-regioner_params <- read_yaml(all_input$params)$regioner
-cat_time(" done")
+  cat_time("Loading peaks from", paste("\n\t", all_input$peaks))
+  peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
+  names(peaks) <- gsub("_consensus.+", "", names(peaks))
+  cat_time(" done\n")
 
-threads <- slot(snakemake, "threads")[[1]] - 1
-cat_time("Running multiLocalZscore with", threads, "threads...\n")
-mlz_params <- list(
-  sampling = FALSE, ranFUN = "resampleGenome", evFUN = "numOverlaps", 
-  max_pv = 1, genome = ucsc$build, mc.cores = threads
-)
-mlz_params <- c(mlz_params, regioner_params[c("ntimes", "step", "window")])
-mlz_list <- names(peaks) %>%
-  lapply(
-    \(i) {
-      params <- c(
-        list(
-          A = peaks[[i]], Blist = peaks[setdiff(names(peaks), i)]
-        ),
-        mlz_params
-      )
-      do.call("multiLocalZscore", params)
-    }
-  ) %>%
-  setNames(names(peaks))
-cat_time("Done")
+  cat_time("Loading enrichment params from", all_input$params)
+  regioner_params <- read_yaml(all_input$params)$regioner
+  cat_time(" done")
 
+  threads <- slot(snakemake, "threads")[[1]] - 1
+  cat_time("Running multiLocalZscore with", threads, "threads...\n")
+  mlz_params <- list(
+    sampling = FALSE, ranFUN = "resampleGenome", evFUN = "numOverlaps",
+    max_pv = 1, genome = ucsc$build, mc.cores = threads
+  )
+  mlz_params <- c(mlz_params, regioner_params[c("ntimes", "step", "window")])
+  mlz_list <- names(peaks) %>%
+    lapply(
+      \(i) {
+        params <- c(
+          list(
+            A = peaks[[i]], Blist = peaks[setdiff(names(peaks), i)]
+          ),
+          mlz_params
+        )
+        do.call("multiLocalZscore", params)
+      }
+    ) %>%
+    setNames(names(peaks))
+  cat_time("Done")
+
+}
 
 cat_time("Writing to", all_output$rds, "\n")
 write_rds(mlz_list, all_output$rds, compress = "gz")

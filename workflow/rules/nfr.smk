@@ -142,3 +142,64 @@ rule nfr_motif_analysis:
 	conda: "../envs/rmarkdown.yml"
 	script:
 		"../scripts/motif_analysis.R"
+
+rule nfr_localz_regions:
+	input:
+		checks = ALL_CHECKS,
+		features = os.path.join(annotation_path, "features.rds"),
+		peaks = os.path.join(
+            nfr_path, "{target}", "{target}_consensus_nfr.bed.gz"
+        ),
+		params = os.path.join("config", "params.yml"),
+		regions = os.path.join(annotation_path, "gene_regions.rds"),
+	output:
+		rds = os.path.join(
+            nfr_path, "{target}", "{target}_nfr_regions_localz.rds"
+        )
+	threads: 8
+	retries: 1
+	resources:
+		mem_mb = 32768,
+		run_time = "60m",
+	log: os.path.join(log_path, "regioner", "{target}_nfr_regions_localz.log")
+	conda: "../envs/rmarkdown.yml"
+	script:
+		"../scripts/regioner_localz_regions.R"
+
+def get_nfr_peaks_for_local_z(wildcards):
+    tgts = set(targets).difference(set([wildcards.target]))
+    peaks = []
+    peaks.extend(
+        expand(
+            os.path.join(nfr_path, "{t}", "{t}_consensus_nfr.bed.gz"),
+            t = [wildcards.target]
+        )
+    )
+    peaks.extend(
+        expand(
+            os.path.join(peak_path, "{t}", "{t}_consensus_peaks.bed.gz"),
+            t = set(targets).difference(set([wildcards.target]))
+        )
+    )
+    return(peaks)
+
+
+rule nfr_localz_targets:
+	input:
+		checks = ALL_CHECKS,
+		params = os.path.join("config", "params.yml"),
+		peaks = get_nfr_peaks_for_local_z,
+		sq = os.path.join(annotation_path, "seqinfo.rds")
+	output:
+		rds = os.path.join(
+            nfr_path, "{target}", "{target}_nfr_targets_localz.rds"
+        )
+	threads: 16
+	retries: 1
+	resources:
+		mem_mb = 65536,
+		run_time = "2h",
+	log: os.path.join(log_path, "regioner", "shared", "shared_targets_localz.log")
+	conda: "../envs/rmarkdown.yml"
+	script:
+		"../scripts/regioner_localz_targets.R"
