@@ -15,6 +15,8 @@ library(glue)
 library(extraChIPs)
 library(plyranges)
 library(scales)
+library(patchwork)
+library(parallel)
 theme_set(theme_bw())
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
@@ -61,6 +63,7 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% read_rds()
 gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
+regions <- map_chr(gene_regions, \(x) x$region[1])
 colours <- file.path(all_paths$annotation, "colours.rds") %>% read_rds()
 region_colours <- unlist(colours$regions) %>% 
   setNames(map_chr(gene_regions, \(x) x$region[[1]])[names(.)])
@@ -71,21 +74,18 @@ region_colours <- unlist(colours$regions) %>%
 
 Nucleosome Free Regions (NFRs) were identified for `r target` using the set of filtered peaks obtained for each treatment (`r pander(treat_levels)`).
 Peaks within 300bp of each other were merged into a single peak, with this distance approximating the distance occupied by 2 nucleosomes, and approximating broader peaks that may have been otherwise called by `macs2` [@Zhang18798982].
-NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group, and any overlapping NFRs merged as consensus NFRs.
+NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group with the following settings.
 
 - Any merged peaks <500bp were excluded as being too short
 - Any NFRs beyond 1kb were discarded as not being viable NFRs
 - Regions of the peak with signal below 10% of the maximal signal were also not assessed for NFRs as these were more likely to be regions on the other edges of wider peaks.
 
+Treatment-specific NFRs were merged as consensus NFRs, taking only shared regions between treatment groups which were wider than 75bp and which were identified in all groups.
+Given the inclusive nature of HisTrader, this is a more stringent approach to ensure any overly-inclusive NFR calls were minimised.
 
+Whilst a motif enrichment analysis was performed, along with an assessement of the relationship between NFRs and other targets, no gene-set enrichment testing was performed.
+The mapping from NFR to genes would very closely replicate that of the larger set of `r target` peaks, and as such, this was considered to be a redundant analysis.
 
-In this module the key points are to
-
-- Summarise how many NFR per peak
-    + Maybe include distances between NFRs?
-- Present results from a motif analysis
-- Compare to peaks from all other targets using localz
-- No enrichment analysis is required, as that really is covered by the larger peak analysis
 
 ```{r load-nfr}
 nfr_by_treat <- all_paths$nfr %>% 
@@ -105,23 +105,56 @@ consensus_peaks <- all_paths$peaks %>%
 has_features <- "feature" %in% colnames(mcols(consensus_peaks))
 ```
 
+## NFR Summary {.tabset}
 
-```{r plot-overlaps, fig.width=fh, fig.cap = "*Summary of NFRs identified in each treatment group*"}
+### Shared NFRs
+
+```{r plot-overlaps, fig.width=fh, fig.cap = "*Summary of NFRs identified in each treatment group separately*"}
 plotOverlaps(nfr_by_treat, set_col = unlist(colours$treat[treat_levels]))
 ```
 
-```{r plot-nfr-width, fig.cap = "*NFR width and numbers by treatment group*"}
-nfr_by_treat %>% 
+### Peak & NFR Width
+
+```{r plot-width, fig.cap = glue("*A) Relationship between {target} peak width and NFR identification. {target} peaks within 300bp were merged prior to plotting, and B) NFR width and numbers by treatment group.*")}
+A <- consensus_peaks %>% 
+  reduce(min.gapwidth = 300) %>% 
+  mutate(has_nfr = overlapsAny(., nfr_consensus)) %>% 
+  split(.$has_nfr) %>% 
   plotGrlCol(
-    df = tibble(treat = treat_levels), .id = "treat", fill = treat
+    .id = 'has_nfr', fill = 'has_nfr', q = 0, geom = "violin",
+    draw_quantiles = 0.5, trim = FALSE
+  ) +
+  scale_y_log10(labels = comma) +
+  scale_fill_manual(values = c("indianred", "forestgreen")) +
+  labs(
+    x = "NFR Detected",
+    y = glue("{target} Peak Width (bp)")
+  )
+B <- nfr_by_treat %>% 
+  c(GRangesList(`Consensus NFR` = nfr_consensus)) %>% 
+  plotGrlCol(
+    df = tibble(treat = treat_levels), .id = "treat", fill = treat,
+    geom = 'violin', q = 0, draw_quantiles = 0.5, trim = FALSE
   ) +
   scale_fill_manual(values = unlist(colours$treat)) +
-  scale_y_log10()
+  scale_y_log10(labels = comma) +
+  labs(
+    x = "NFR Group",
+    y = "NFR Width (bp)"
+  ) 
+A + B + plot_annotation(tag_levels = "A") & theme(legend.position = 'none')
 ```
 
-```{r plot-nfr-by-peak-width, fig.cap = glue("*Number of NFRs found within each {target} peak, separated by genomic region*")}
+### NFRs Per Peak
+
+```{r plot-nfr-by-peak-width, fig.cap = glue("*Number of NFRs found within each {target} peak, separated by genomic region. {target} peaks within 300bp were merged prior ro plotting*")}
 consensus_peaks %>% 
-  mutate(w = width) %>% 
+  reduce(min.gapwidth = 300) %>% 
+  mutate(
+    w = width, 
+    region = regions[bestOverlap(., gene_regions)] %>% factor(levels = regions),
+    nfr = countOverlaps(., nfr_consensus)
+  ) %>% 
   as_tibble() %>% 
   ggplot(aes(w, nfr)) +
   geom_point(alpha = 0.7) +
@@ -143,26 +176,42 @@ consensus_peaks %>%
   facet_wrap(~ region) +
   scale_x_continuous(labels = comma_format(scale = 1e-3)) +
   labs(
-    x = glue("{target} Peak Width (kb)"),
+    x = glue("{target} Merged Peak Width (kb)"),
     y = "NFR / Peak"
   )
 ```
 
+### Distance Between NFRs
 
-```{r plot-dist, fig.cap = '*Distance between each NFR and the nearest upstream NFR*'}
-## This needs revising so it's distToNearest, or performed within larger peak
+```{r plot-dist, fig.cap = glue("*Distances between each NFR and the nearest upstream NFR within each broader {target} peak*")}
 nfr_consensus %>% 
-  sort() %>% 
-  mutate(d = c(0, start[-1] - end[-length(.)])) %>% 
-  subset(d > 0) %>% 
-  as_tibble() %>% 
-  ggplot(aes(d, after_stat(count))) +
-  geom_histogram(fill = "grey70", colour = 'black', bins = 100) +
-  scale_x_log10(labels = comma_format()) +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  labs(x = "Distance to nearest NFR (bp)", y = "Count")
+  granges() %>% 
+  join_overlap_inner(
+    consensus_peaks %>% 
+      reduce(min.gapwidth = 300) %>% 
+      mutate(id = seq_along(.))
+  ) %>% 
+  as_tibble(rangeAsChar = FALSE) %>% 
+  split(.$id) %>% 
+  .[map_int(., nrow) > 1] %>% 
+  mclapply(
+    \(x) x$start[-1] - x$end[-nrow(x)], 
+    mc.cores = threads
+  ) %>% 
+  unlist() %>% 
+  as_tibble_col("distance") %>% 
+  ggplot(aes(distance, after_stat(count))) +
+  geom_histogram(
+    fill = "grey70", colour = 'black', bins = 100
+  ) +
+  scale_x_log10() +
+  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  labs(
+    x = "Distance between NFRs", y = "Totals"
+  )
 ```
 
+### NFRs By Region
 
 ```{r plot-pie, fig.width = fh, fig.cap = glue("*Distribution of NFRs by genomic region, noting that wider {target} peaks will accumulate more NFRs*")}
 nfr_consensus %>% 
@@ -176,6 +225,7 @@ nfr_consensus %>%
   theme(legend.position = "none")
 ```
 
+`r if (has_features) "### NFRs By Region and Feature"`
 
 ```{r plot-donut, echo = has_features, fig.width = fh, fig.cap = 'Breakdown of NFRs by provided features and genomic region.'}
 if (has_features) {
@@ -191,7 +241,9 @@ if (has_features) {
 }
 ```
 
+## Motif Analysis
 
+## Relationship to Other Targets
 
 ## References
 
