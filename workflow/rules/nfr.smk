@@ -35,7 +35,7 @@ rule call_nfr:
         ),
     params:
         pre = os.path.join(nfr_path, "{target}", "{target}_{treat}"),
-        p_max = 0.1,
+        p_max = 0.2,
         max_nfr = 1000,
         min_size = 500,
     threads: 1
@@ -98,7 +98,8 @@ rule make_consensus_nfr:
         ## Passed to makeConsensus. This will give stringent, shared NFRs
         method = 'coverage',
         min_width = 75,
-        p = 1
+        p = 1,
+        min.gapwidth = 26
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_nfr", "{target}.log")

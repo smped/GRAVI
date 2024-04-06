@@ -23,6 +23,7 @@ library(universalmotif)
 library(corrplot)
 library(motifTestR)
 library(rlang)
+library(GenomicInteractions)
 source(here::here("workflow/scripts/custom_functions.R"))
 source(here::here("workflow/scripts/table_funs.R"))
 theme_set(theme_bw())
@@ -71,7 +72,7 @@ knitr_params <- here::here("config", "rmarkdown.yml") %>%
 ```{r figure-params}
 fh <- knitr_params$fig.height
 fw <- knitr_params$fig.width
-fig_path <- here::here("docs", "assets", target)
+fig_path <- here::here("docs", "assets", paste0(target, "_NFR"))
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 fig_type <- knitr_params$dev[[1]]
 fig_fun <- match.fun(fig_type)
@@ -102,6 +103,10 @@ all_regions_labs <- c(
   map_chr(gene_regions, \(x) x$region[[1]]),
   map_chr(external_features, \(x) x$feature[[1]])
 )
+hic <- file.path(all_paths$annotation, "hic.rds") %>% read_rds()
+has_hic <- length(hic) > 0
+rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
+has_rna <- length(rna) > 0
 ```
 
 
@@ -113,7 +118,8 @@ NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each trea
 
 - Any merged peaks <500bp were excluded as being too short
 - Any NFRs beyond 1kb were discarded as not being viable NFRs
-- Regions of the peak with signal below 10% of the maximal signal were also not assessed for NFRs as these were more likely to be regions on the other edges of wider peaks.
+- Regions of the peak with signal below 20% of the maximal signal were also not assessed for NFRs as these were more likely to be regions on the other edges of wider peaks.
+- Any NFRs within 52bp of the nearest NFR (approximately 1/3 of a nucleosome) were also merged into a single NFR
 
 Treatment-specific NFRs were merged as consensus NFRs, taking only shared regions between treatment groups which were wider than 75bp and which were identified in all groups.
 Given the inclusive nature of HisTrader, this is a more stringent approach to ensure any overly-inclusive NFR calls were minimised.
@@ -136,7 +142,9 @@ consensus_peaks <- all_paths$peaks %>%
   file.path("{all_targets}", "{all_targets}_consensus_peaks.rds") %>% 
   glue() %>% 
   lapply(read_rds) %>% 
-  setNames(all_targets)
+  setNames(all_targets) %>% 
+  GRangesList()
+consensus_peaks[[paste0(target, "_NFR")]] <- nfr_consensus
 has_features <- "feature" %in% colnames(mcols(consensus_peaks[[target]]))
 ```
 
@@ -673,7 +681,6 @@ if (n_pos > 0) {
 ## Relationship to Other Targets
 
 ```{r load-regioner}
-consensus_peaks[[paste0(target, "_NFR")]] <- nfr_consensus
 localz_regions <- here::here(
   all_paths$peaks, "{all_targets}", "{all_targets}_regions_localz.rds"
 ) %>% 
@@ -837,7 +844,7 @@ if (interactive()) {
 }
 ```
 
-### Comparison Between Peaks {.tabset}
+### Comparison Between Targets {.tabset}
 
 ```{r load-localz-peaks}
 mlz_list <- all_paths$nfr %>% 
@@ -886,7 +893,6 @@ pairwise_df <- mlz_list %>%
   ) 
 ```
 
-### Comparison Between Targets {.tabset}
 
 The NFRs were compared to the set of peaks derived from each target to check for any relationship between their locations on the genome.
 Shifted Z-Scores indicate proximity and fine-grained relative binding patterns, with additional Z-scores derived from any enrichment of direct overlaps above the expected values used to determine the statistical significance of these overlaps compared to random expectations.
@@ -989,6 +995,7 @@ tbl <- pairwise_df %>%
         name = "Overlaps", columns = c("prop", "n_overlaps", "mean_perm_test")
       )
     ),
+    theme = reactableTheme(style = list(fontSize = 12)),
     elementId = 'pairwise-res-table'
   )
 cp <- htmltools::em(
@@ -1008,6 +1015,193 @@ if (interactive()) {
   tl
 }
 ```
+
+## Example NFRs {.tabset}
+
+```{r grl_to_plot}
+grl_to_plot <- consensus_peaks[all_targets] %>% 
+  endoapply(subsetByOverlaps, nfr_consensus) %>% 
+  endoapply(filter, score == max(score)) %>% 
+  .[!duplicated(unlist(.))]
+```
+
+```{r plot-objects}
+cb <- config$genome$build %>% 
+  str_to_lower() %>% 
+  paste0(".cytobands") 
+data(list = cb)
+bands_df <- get(cb)
+stopifnot(
+  colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
+)
+## The coverage
+bwfl <- all_samples %>% 
+  distinct(target, treat) %>% 
+  split(.$target) %>% 
+  lapply(
+    \(x) {
+      file.path(
+        all_paths$macs2, x$target, 
+        paste(x$target, x$treat, "merged_treat_pileup.bw", sep = "_")
+      ) %>% 
+        BigWigFileList() %>% 
+        setNames(x$treat)
+    }
+  )
+line_col <- lapply(bwfl, function(x) unlist(colours$treat[names(x)]))
+## The features track
+feat_gr <- gene_regions %>% 
+  lapply(granges) %>% 
+  GRangesList()
+feature_colours <- colours$regions
+if (has_features) {
+  feat_gr <- list(Regions = feat_gr)
+  feat_gr$Features <- external_features
+  feature_colours <- list(
+    Regions = unlist(colours$regions),
+    Features = unlist(colours$features)
+  )
+}
+## The genes track defaults to transcript models
+hfgc_genes <- read_rds(
+  here::here("output", "annotations", "trans_models.rds")
+)
+gene_col <- "grey"
+if (has_rna) {
+  hfgc_genes <- hfgc_genes %>% 
+    mutate(
+      Detected = ifelse(
+        gene %in% bind_rows(rna)$gene_id, "Detected", "Undetected"
+      )
+    ) %>% 
+    split(.$Detected)
+  gene_col <- c(
+    Detected = colours$direction$unchanged,
+    Undetected = colours$direction$undetected
+  )
+}
+## Ad the NFRs as coverage annotations
+annot <- lapply(
+  all_targets, 
+  \(x) {
+    grl <- GRangesList()
+    seqinfo(grl) <- sq
+    grl
+  }
+)
+names(annot) <- all_targets
+annot[[target]] <- GRangesList(NFR = nfr_consensus)
+## Define the y-limts for consistency across plots
+y_lim <- bwfl %>%
+  lapply(
+    function(x) {
+      gr <- unlist(grl_to_plot) %>% 
+        resize(width = 30 * width(.), fix = 'center')
+      x %>% 
+        lapply(import.bw, which = gr) %>%
+        lapply(function(rng) c(0, max(rng$score))) %>%
+        unlist() %>%
+        range()
+    }
+  )
+```
+
+For each target, the peak with the highest score, and which overlapped one or more NFRs was plotted for the purposes of visual inspection.
+Gene-centric regions and any additional annotations were also included.
+`r if (has_rna) "Genes were split into detected and undetected based on the supplied transcriptomic data."`
+
+```{r plot-nfrs, echo=FALSE}
+.makeCaption <- function(.gr, target) {
+  if (is.null(.gr)) return(NULL)
+  reg <- case_when(
+    str_detect(.gr$region, "Inter") ~ paste("an", .gr$region, "region"),
+    str_detect(.gr$region, "Upstream") ~ paste("an", .gr$region),
+    str_detect(.gr$region, "(Ex|Intr)on") ~ paste("an", .gr$region),
+    str_detect(.gr$region, "^Prom") ~ paste("a", .gr$region)
+  )
+  feat <- c()
+  add_feat <- has_features & .gr$feature != 'no_feature'
+  if (add_feat) 
+    feat <- case_when(
+      str_detect(.gr$feature, "^[AEIOU]") ~ paste("an", .gr$feature),
+      !str_detect(.gr$feature, "^[AEIOU]") ~ paste("a", .gr$feature)
+    )
+  gn <- unlist(.gr$gene_name)
+  cp <- c(
+    glue(
+      "*The {width(.gr)}bp region with the highest score for {target} signal, 
+      and which overlaps one or more NFRs, highlighted as black bars in the 
+      coverage tracks. The range mostly overlapped {reg}, 
+      with all defined regions shown as a contiguous bar in the upper panel. ",
+      ifelse(
+        add_feat,
+        glue(
+          "Using the features supplied this mostly overlapped {feat}, shown as 
+          a separate block beneath the gene-centric regions. "
+        ),
+        glue("")
+      )
+    ),
+    ifelse(
+      length(gn) > 0,
+      paste0(
+        "Using the above mapping strategy, this range is likely to regulate ",
+        collapseGenes(gn, format = ""), "."
+      ),
+      "No genes were able to be assigned to this region."
+    ),
+    paste(
+      "For each sample, the y-axis limits represent the values from the window", 
+      "with the highest signal.*"
+    )
+  )
+  paste(cp, collapse = " ")
+}
+htmltools::tagList(
+  mclapply(
+    names(grl_to_plot),
+    \(i) {
+      ## Export the image
+      img_out <- file.path(fig_path, glue("{i}_NFR.{fig_type}"))
+      fig_fun(filename = img_out, width = fw, height = fh)
+      plotHFGC(
+        grl_to_plot[[i]], 
+        hic = hic,
+        features = feat_gr, featcol = feature_colours, 
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col, 
+        annotation = annot, annotcol = c("NFR" = "black"),
+        cytobands = bands_df, 
+        collapseTranscripts = "auto", maxTrans = 20,
+        ylim = y_lim, zoom = 10, max = 1e4, title.width = 2
+      )
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(.makeCaption(grl_to_plot[[i]], i))
+      tag <- glue("{i} Peak")
+      htmltools::div(
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level3",
+          htmltools::h3(tag),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+    },
+    mc.cores = threads
+  )
+)
+```
+
 
 
 ## References

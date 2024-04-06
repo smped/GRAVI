@@ -113,13 +113,28 @@ filtered_peaks <- all_input$peaks %>%
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
 if (length(vars) == 0) vars <- NULL
 cat_time("Forming consensus peaks")
+valid_args <- list(formals(makeConsensus), formals(reduceMC)) %>%
+  lapply(names) %>%
+  c(
+    list(
+      c(
+        # From  names(Rdpack::S4formals("reduce", c(x = "GenomicRanges")))
+        "x", "drop.empty.ranges", "min.gapwidth", "with.revmap",
+        "with.inframe.attrib", "ignore.strand")
+    )
+  ) %>%
+  unlist() %>%
+  unique() %>%
+  setdiff("...")
 cons_params <- list(
+  ## These all need to be set on a cluster, but not when running interactively
+  ## Don't know why...
   x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE,
   p = 0, method = 'union'
   ) %>%
   .[!names(.) %in% names(all_params)] %>%
   c(all_params) %>%
-  .[names(.) %in% names(formals(makeConsensus))]
+  .[names(.) %in% valid_args]
 cons_peaks <- do.call("makeConsensus", cons_params)
 
 if ("score" %in% vars) {
