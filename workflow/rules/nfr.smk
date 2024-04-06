@@ -109,62 +109,65 @@ rule make_consensus_nfr:
         "../scripts/make_consensus_peaks.R"
     
 rule nfr_motif_analysis:
-	input:
-		exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
-		gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
-		motifs = os.path.join(annotation_path, "motif_list.rds"),
-		packages = os.path.join(check_path, "r-packages.chk"),
-		peaks = os.path.join(
-			nfr_path, "{target}", "{target}_consensus_nfr.rds"
-		),
-		script = os.path.join("workflow", "scripts", "motif_analysis.R"),
-	output:
-		enrich = os.path.join(
-			nfr_path, "{target}", "{target}_motif_enrichment.tsv.gz"
-		),
-		pos = os.path.join(
-			nfr_path, "{target}", "{target}_motif_position.tsv.gz"
-		),
-	params:
-		abs = motif_param['nfr']['abs'],
-		binwidth = motif_param['nfr']['binwidth'],
-		ignore_below = motif_param['nfr']['ignore_below'],
-		iterations = motif_param['nfr']['iterations'],
-		model = motif_param['nfr']['model'],
-		peak_width = motif_param['nfr']['peak_width'],
-	threads: lambda wildcards, attempt: attempt * 8
-	retries: 2
-	resources:
-		disk_mb = 10000,
-		mem_mb = lambda wildcards, attempt: attempt * 64000,
-		runtime = lambda wildcards, attempt: attempt * 120,
-	log: os.path.join(log_path, "motif_analysis", "{target}_nfr_motif_analysis.log")
-	conda: "../envs/rmarkdown.yml"
-	script:
-		"../scripts/motif_analysis.R"
+    input:
+        exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
+        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        packages = os.path.join(check_path, "r-packages.chk"),
+        peaks = os.path.join(
+            nfr_path, "{target}", "{target}_consensus_nfr.rds"
+        ),
+        script = os.path.join("workflow", "scripts", "motif_analysis.R"),
+    output:
+        enrich = os.path.join(
+            nfr_path, "{target}", "{target}_motif_enrichment.tsv.gz"
+        ),
+        pos = os.path.join(
+            nfr_path, "{target}", "{target}_motif_position.tsv.gz"
+        ),
+    params:
+        abs = motif_param['nfr']['abs'],
+        binwidth = motif_param['nfr']['binwidth'],
+        ignore_below = motif_param['nfr']['ignore_below'],
+        iterations = motif_param['nfr']['iterations'],
+        model = motif_param['nfr']['model'],
+        peak_width = motif_param['nfr']['peak_width'],
+    threads: lambda wildcards, attempt: attempt * 8
+    retries: 2
+    resources:
+        disk_mb = 10000,
+        mem_mb = lambda wildcards, attempt: attempt * 64000,
+        runtime = lambda wildcards, attempt: attempt * 120,
+    log: os.path.join(log_path, "motif_analysis", "{target}_nfr_motif_analysis.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/motif_analysis.R"
 
 rule nfr_localz_regions:
-	input:
-		checks = ALL_CHECKS,
-		features = os.path.join(annotation_path, "features.rds"),
-		peaks = os.path.join(
+    input:
+        checks = ALL_CHECKS,
+        features = os.path.join(annotation_path, "features.rds"),
+        peaks = os.path.join(
             nfr_path, "{target}", "{target}_consensus_nfr.bed.gz"
         ),
-		params = os.path.join("config", "params.yml"),
-		regions = os.path.join(annotation_path, "gene_regions.rds"),
-	output:
-		rds = os.path.join(
+        params = os.path.join("config", "params.yml"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        script = os.path.join(
+            "workflow", "scripts", "regioner_localz_regions.R"
+        ),        
+    output:
+        rds = os.path.join(
             nfr_path, "{target}", "{target}_nfr_regions_localz.rds"
         )
-	threads: 8
-	retries: 1
-	resources:
-		mem_mb = 32768,
-		run_time = "60m",
-	log: os.path.join(log_path, "regioner", "{target}_nfr_regions_localz.log")
-	conda: "../envs/rmarkdown.yml"
-	script:
-		"../scripts/regioner_localz_regions.R"
+    threads: 8
+    retries: 1
+    resources:
+        mem_mb = 32768,
+        run_time = "60m",
+    log: os.path.join(log_path, "regioner", "{target}_nfr_regions_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/regioner_localz_regions.R"
 
 def get_nfr_peaks_for_local_z(wildcards):
     tgts = set(targets).difference(set([wildcards.target]))
@@ -185,21 +188,24 @@ def get_nfr_peaks_for_local_z(wildcards):
 
 
 rule nfr_localz_targets:
-	input:
-		checks = ALL_CHECKS,
-		params = os.path.join("config", "params.yml"),
-		peaks = get_nfr_peaks_for_local_z,
-		sq = os.path.join(annotation_path, "seqinfo.rds")
-	output:
-		rds = os.path.join(
+    input:
+        checks = ALL_CHECKS,
+        params = os.path.join("config", "params.yml"),
+        peaks = get_nfr_peaks_for_local_z,
+        script = os.path.join(
+            "workflow", "scripts", "regioner_localz_targets.R"
+        ),
+        sq = os.path.join(annotation_path, "seqinfo.rds")
+    output:
+        rds = os.path.join(
             nfr_path, "{target}", "{target}_nfr_targets_localz.rds"
         )
-	threads: 16
-	retries: 1
-	resources:
-		mem_mb = 65536,
-		run_time = "2h",
-	log: os.path.join(log_path, "regioner", "shared", "shared_targets_localz.log")
-	conda: "../envs/rmarkdown.yml"
-	script:
-		"../scripts/regioner_localz_targets.R"
+    threads: 16
+    retries: 1
+    resources:
+        mem_mb = 65536,
+        run_time = "2h",
+    log: os.path.join(log_path, "regioner", "{target}_nfr_targets_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/regioner_localz_targets.R"

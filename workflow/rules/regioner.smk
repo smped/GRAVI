@@ -1,62 +1,68 @@
 rule localz_regions:
-	input:
-		checks = ALL_CHECKS,
-		features = os.path.join(annotation_path, "features.rds"),
-		peaks = os.path.join(
-			peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
-		),
-		params = os.path.join("config", "params.yml"),
-		regions = os.path.join(annotation_path, "gene_regions.rds"),
-	output:
-		rds = os.path.join(peak_path, "{target}", "{target}_regions_localz.rds")
-	threads: 8
-	retries: 1
-	resources:
-		mem_mb = 32768,
-		run_time = "60m",
-	log: os.path.join(log_path, "regioner", "{target}_regions_localz.log")
-	conda: "../envs/rmarkdown.yml"
-	script:
-		"../scripts/regioner_localz_regions.R"
+    input:
+        checks = ALL_CHECKS,
+        features = os.path.join(annotation_path, "features.rds"),
+        peaks = os.path.join(
+            peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
+        ),
+        params = os.path.join("config", "params.yml"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
+    output:
+        rds = os.path.join(peak_path, "{target}", "{target}_regions_localz.rds")
+    threads: 8
+    retries: 1
+    resources:
+        mem_mb = 32768,
+        run_time = "60m",
+    log: os.path.join(log_path, "regioner", "{target}_regions_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/regioner_localz_regions.R"
 
 rule shared_localz_regions:
-	input:
-		checks = ALL_CHECKS,
-		features = os.path.join(annotation_path, "features.rds"),
-		peaks = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
-		params = os.path.join("config", "params.yml"),
-		regions = os.path.join(annotation_path, "gene_regions.rds"),
-	output:
-		rds = os.path.join(peak_path, "shared", "shared_regions_localz.rds")
-	threads: 8
-	retries: 1
-	resources:
-		mem_mb = 32768,
-		run_time = "60m",
-	log: os.path.join(log_path, "regioner", "shared_regions_localz.log")
-	conda: "../envs/rmarkdown.yml"
-	script:
-		"../scripts/regioner_localz_regions.R"
+    input:
+        checks = ALL_CHECKS,
+        features = os.path.join(annotation_path, "features.rds"),
+        peaks = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
+        params = os.path.join("config", "params.yml"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        script = os.path.join(
+            "workflow", "scripts", "regioner_localz_regions.R"
+        ),
+    output:
+        rds = os.path.join(peak_path, "shared", "shared_regions_localz.rds")
+    threads: 8
+    retries: 1
+    resources:
+        mem_mb = 32768,
+        run_time = "60m",
+    log: os.path.join(log_path, "regioner", "shared_regions_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/regioner_localz_regions.R"
 
 rule localz_targets:
-	input:
-		checks = ALL_CHECKS,
-		params = os.path.join("config", "params.yml"),
-		peaks = expand(
-			os.path.join(
-				peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
-			),
-			target = targets
-		),
-		sq = os.path.join(annotation_path, "seqinfo.rds")
-	output:
-		rds = os.path.join(peak_path, "shared", "shared_targets_localz.rds")
-	threads: 16
-	retries: 1
-	resources:
-		mem_mb = 65536,
-		run_time = "2h",
-	log: os.path.join(log_path, "regioner", "shared", "shared_targets_localz.log")
-	conda: "../envs/rmarkdown.yml"
-	script:
-		"../scripts/regioner_localz_targets.R"
+    input:
+        checks = ALL_CHECKS,
+        params = os.path.join("config", "params.yml"),
+        peaks = expand(
+            os.path.join(
+                peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
+            ),
+            target = targets
+        ),
+        script = os.path.join(
+            "workflow", "scripts", "regioner_localz_targets.R"
+        ),
+        sq = os.path.join(annotation_path, "seqinfo.rds")
+    output:
+        rds = os.path.join(peak_path, "shared", "shared_targets_localz.rds")
+    threads: 16
+    retries: 1
+    resources:
+        mem_mb = 65536,
+        run_time = "2h",
+    log: os.path.join(log_path, "regioner", "shared_targets_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/regioner_localz_targets.R"

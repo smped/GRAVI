@@ -77,7 +77,7 @@ library(yaml)
 cat_time("done\n")
 
 mlz_list <- list()
-if (length(all_input$peaks) > 2) {
+if (length(all_input$peaks) < 2) {
   cat_time("2 or more sets of peaks required. No analysis performed")
 } else {
 
