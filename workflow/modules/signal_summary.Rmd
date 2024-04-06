@@ -74,7 +74,7 @@ motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   pluck(target)
 macs2_params <- here::here("config", "json", "macs2_param.json") %>%
   jsonlite::fromJSON() %>%
-  pluck(target) %>% 
+  pluck(target)
 peak_qc_params <- here::here("config", "json", "peak_qc_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)

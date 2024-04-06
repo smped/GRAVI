@@ -110,7 +110,7 @@ rule create_nfr_rmd:
                 nfr_path, "{{target}}", "{{target}}_motif_{f}.tsv.gz"
             ),
             f = ['enrichment', 'position']
-        )
+        ),
         nfr = lambda wildcards: expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
