@@ -74,7 +74,7 @@ motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   pluck(target)
 macs2_params <- here::here("config", "json", "macs2_param.json") %>%
   jsonlite::fromJSON() %>%
-  pluck(target)
+  pluck(target) %>% 
 peak_qc_params <- here::here("config", "json", "peak_qc_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)
@@ -221,11 +221,40 @@ macs2_logs <- all_paths$macs2 %>%
   ) 
 ```
 
+## Introduction
+
+The strategy for identification of genomic regions with detectable `r target` signal (i.e. peaks), was to run `macs2 calpeak` [@Zhang18798982] on each individual sample, as well as on all samples within each treatment group (`r pander(treat_levels)`).
+The settings for `macs2 callpeak` were:
+
+`r pander(macs2_params)`
+
+with the additional specification of identifying narrow peaks.
+Bedgraph files were produced for each sample to return values scaled using the `--SPMR` flag, as signal per million reads, which is analogous to the common Counts Per Million (CPM) value.
+Where required, this were converted to BigWig files in order to save storage space & speed up analysis.
+
+### Individual Sample QC settings
+
+For individual samples, any sample with > `r peak_qc_params$outlier_threshold`x the median number of peaks found across all samples within that treatment group were marked as failing QC and excluded from further analysis.
+Any samples with no detected peaks was `r ifelse(peak_qc_params$allow_zero, 'retained', 'excluded')`.
+
+### Filtered Peaks
+
+A set of *filtered peaks* was defined within each treatment group, based on the peaks identified when merging samples.
+Any peak which was not found in >`r percent(peak_qc_params$min_prop_reps)` of individual samples within that treatment group was then discarded.
+
+Peaks which overlapped any blacklisted or greylisted regions were also discarded.
+
+### Consensus Peaks
+
+Consensus peaks across all treatment groups were then produced by combining all sets of filtered (i.e. treatment-specific) peaks.
+These peaks were defined as the union of all peaks across all treatment groups.
+Overlapping peaks between treatment groups were merged to create a peak encompassing the range identified in all treatment groups.
+
 ## QC {.tabset}
 
 This section provides a simple series of visualisations to enable detection of any problematic samples.
 
-- Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak` [@Zhang18798982]
+- Library Sizes: These are the total number of alignments contained in each `bam` file, as passed to `macs2 callpeak`
 - GC Content: Most variation in GC-content should have been identified prior to performing alignments, using common tools such as [FastQC](https://github.com/s-andrews/FastQC), MultiQC [@EwelsMultiQC2016] or `ngsReports` [@WardNgsReports2019]. However, these plots may still be informative for detection of potential sequencing issues not previously addressed
 - Peaks Detected: The number of peaks detected within each individual replicate are shown here, and provide clear guidance towards any samples where the IP may have been less successful, or there may be possible sample mis-labelling. Using the settings provided in `config.yml` (i.e. `peak_qc:outlier_threshold`), any replicates where the number of peaks falls outside the range defined by $\pm$ `r peak_qc_params$outlier_threshold`-fold of the median peak number within each treatment group **will be marked as failing QC**. Whilst most cell-line generated data-sets are consistent, organoid or solid-tissue samples are far more prone to high variability in the success of the IP step.
 - Cross Correlations: Shows the cross-correlation coefficients between read positions across a series of intervals [@LunSmythCsaw2014]. Weak cross-correlations can also indicate low-quality samples. These values are also used to estimate fragment length within each sample, as the peak value of the cross-correlations
@@ -1452,9 +1481,9 @@ For this step peaks were set to a fixed width of `r motif_params$peak_width`bp, 
 
 A simple enrichment analysis was performed by selecting a set of `r comma(motif_enrich_res$sequences[[1]] * motif_enrich_res$n_iter[[1]])` *background sequences* matched by genomic regions to the `r comma(motif_enrich_res$sequences[[1]])` *test sequences*.
 This gave a set of genomically matched control sequences to gauge enrichment by.
-Analysis was performed using the `motifTestR` package and the `r motif_params$model`.
+Analysis was performed using the `motifTestR` package and the `r motif_params$model` model.
 
-Whilst testing was two-sided, only enriched motifs (i.e. observed > expected) are shown in the results below, with `r n_enrich` of the `r comma(nrow(motif_list))` included motifs matching the criteria for being considered as enriched.
+Whilst statistical testing was two-sided, only enriched motifs (i.e. observed > expected) are shown in the results below, with `r n_enrich` of the `r comma(nrow(motif_list))` included motifs matching the criteria for being considered as enriched.
 
 `r if (n_enrich > 0) "#### Enrichment Table"`
 

@@ -36,31 +36,36 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
+## For testing
+all_input <- list(
+    peaks = c(
+        "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2.nfr.bed.gz",
+        "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2DHT.nfr.bed.gz"
+    ),
+    sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
+    blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
+    features = "../GRAVI_testing/output/annotations/features.rds",
+    greylist = "../GRAVI_testing/output/greylist/SRR8315192_greylist.bed.gz",
+    gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
+    hic = "../GRAVI_testing/output/annotations/hic.rds",
+    regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
+    yaml = "../GRAVI_testing/config/params.yml"
+)
+all_output <- list(
+    bed = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
+    rds = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.rds"
+)
+all_wildcards <- list(target = "H3K27ac")
+all_params <- list(
+  method = 'coverage',
+  min_width = 75,
+  p = 1
+)
+config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
-
-## For testing
-# all_input <- list(
-#     peaks = c(
-#         "../GRAVI_full/output/peak_analysis/AR/AR_E2DHT_filtered_peaks.narrowPeak",
-#         "../GRAVI_full/output/peak_analysis/AR/AR_E2_filtered_peaks.narrowPeak"
-#     ),
-#     sq = "../GRAVI_full/output/annotations/seqinfo.rds",
-#     blacklist = "../GRAVI_full/output/annotations/blacklist.rds",
-#     features = "../GRAVI_full/output/annotations/features.rds",
-#     greylist = "../GRAVI_full/output/greylist/SRR8315192_greylist.bed.gz",
-#     gtf_gene = "../GRAVI_full/output/annotations/gtf_gene.rds",
-#     hic = "../GRAVI_full/output/annotations/hic.rds",
-#     regions = "../GRAVI_full/output/annotations/gene_regions.rds",
-#     yaml = "../GRAVI_full/config/params.yml"
-# )
-# all_output <- list(
-#     bed = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
-#     rds = "../GRAVI_full/output/peak_analysis/AR/AR_consensus_peaks.rds"
-# )
-# all_wildcards <- list(target = "AR")
-# config <- yaml::read_yaml("../GRAVI_full/config/config.yml")
 
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
@@ -70,8 +75,8 @@ all_params <- slot(snakemake, "params")
 
 cat_list(all_input, "input")
 cat_list(all_wildcards, "wildcards:", "=")
-cat_list(all_wildcards, "params:", "=")
-cat_list(all_output, "output")
+cat_list(all_params, "params:", "=")
+cat_list(all_output, "output:", "=")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -106,7 +111,15 @@ filtered_peaks <- all_input$peaks %>%
     nameRanges = FALSE, centre = TRUE
   )
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
-cons_params <- list(x = filtered_peaks, var = vars) %>% c(all_params)
+if (length(vars) == 0) vars <- NULL
+cat_time("Forming consensus peaks")
+cons_params <- list(
+  x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE,
+  p = 0, method = 'union'
+  ) %>%
+  .[!names(.) %in% names(all_params)] %>%
+  c(all_params) %>%
+  .[names(.) %in% names(formals(makeConsensus))]
 cons_peaks <- do.call("makeConsensus", cons_params)
 
 if ("score" %in% vars) {
