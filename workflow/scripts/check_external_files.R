@@ -114,7 +114,7 @@ if (length(rna_files)) {
     tbl <- read_fun(f)
     cols <- colnames(tbl)
     if (!any(
-      c("gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id")% in% cols
+      c("gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id") %in% cols
     )) {
       cat("'gene_id' not found in columns provided in", f)
       stop()
