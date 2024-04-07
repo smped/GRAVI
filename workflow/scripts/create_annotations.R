@@ -45,6 +45,7 @@ all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
 config <- slot(snakemake, "config")
+threads <- slot(snakemake, "threads")
 
 cat_list(all_input, "input:")
 cat_list(all_output, "output:")
@@ -67,10 +68,13 @@ library(MotifDb)
 library(universalmotif)
 library(msigdbr)
 library(GenomicInteractions)
+library(BiocParallel)
 params <- read_yaml(all_input$yaml)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
 
+cat("Running with", threads, "threads")
+bpparam <- MulticoreParam(threads)
 
 #### Seqinfo ####
 sq <- all_input$bam %>%
@@ -185,7 +189,7 @@ if (!is.null(config$external$features)) {
   seqlevels(feat) <- seqlevels(sq)
   seqinfo(feat) <- sq
   cat_time("Finding overlap with gene regions...")
-  ol <- lapply(gene_regions, \(x) propOverlap(feat, x))
+  ol <- bplapply(gene_regions, \(x) propOverlap(feat, x), BPPARAM = bpparam)
   mcols(feat) <- cbind(mcols(feat), DataFrame(ol))
   cat_time("done\n")
   feat <- splitAsList(feat, feat$feature)
@@ -284,7 +288,7 @@ img_path <- tempdir()
 cat_time("Writing motifs to", img_path)
 motif_uri <- db |>
   to_list() |>
-  lapply(
+  bplapply(
     \(x) {
       w <- 30 * ncol(x)
       nm <- slot(x, "altname")
@@ -301,7 +305,8 @@ motif_uri <- db |>
       print(p)
       dev.off()
       knitr::image_uri(png_out)
-    }
+    },
+    BPPARAM = bpparam
   ) |>
   setNames(db$altname)
 cat_time("Removing", img_path)
@@ -361,7 +366,7 @@ if (!is.null(rna_files)) {
     cat("RNA can only be provided as uncompressed csv or tsv files")
     stop()
   }
-  rna <- lapply(
+  rna <- bplapply(
     rna_files,
     \(x) {
       ln <- readLines(x, 1)
@@ -388,7 +393,7 @@ if (!is.null(rna_files)) {
         df, gene_id = !!sym(gn_col), logFC = !!sym(fc_col),
         PValue = !!sym(p_col), FDR = !!sym(fdr_col)
       )
-    }
+    }, BPPARAM = bpparam
   )
   if (is.null(names(rna)))
     names(rna) <- str_remove_all(basename(rna_files), "\\.(tsv|csv).*$")
@@ -397,6 +402,54 @@ cat_time("Exporting RNA to", all_output$rna)
 write_rds(rna, all_output$rna, compress = "gz")
 cat_time("Done")
 
+## GSEA for all RNA-datasets. Preparing here will save time in all downstream
+## workflows
+rna_gsea_dir <- rna_gsea_sig <- c()
+if (!is.null(rna_files)) {
+  cat_time("Preparing GSEA results from RNA")
+  enrich_params <- params$enrichment
+  library(fgsea)
+  gs_list <- msigdb %>%
+    split(.$gs_name) %>%
+    bplapply(pull, "ensembl_gene", BPPARAM = bpparam)
+  cat_time("Preparing directional GSEA results")
+  rna_gsea_dir <- rna %>%
+    lapply(
+      \(x) setNames(-sign(x$logFC) * log10(x$PValue), x$gene_id)
+    ) %>%
+    lapply(
+      \(x) fgseaMultilevel(
+        gs_list, x, BPPARAM = bpparam, nPermSimple = 1e4,
+        minSize = min(msigdb_params$size)
+      )
+    ) %>%
+    lapply(mutate, padj = p.adjust(pval, enrich_params$adj)) %>%
+    lapply(
+      dplyr::filter, size >= enrich_params$min_sig, !is.na(pval)
+    ) %>%
+    lapply(dplyr::select, starts_with("p"), NES, size, leadingEdge)
+  cat_time("Preparing non-directional GSEA results")
+  rna_gsea_sig <- rna %>%
+    lapply(
+      \(x) setNames(-log10(x$PValue), x$gene_id)
+    ) %>%
+    lapply(
+      \(x) fgseaMultilevel(
+        gs_list, x, BPPARAM = bpparam, nPermSimple = 1e4,
+        minSize = min(msigdb_params$size)
+      )
+    ) %>%
+    lapply(mutate, padj = p.adjust(pval, enrich_params$adj)) %>%
+    lapply(
+      dplyr::filter, size >= enrich_params$min_sig, !is.na(pval)
+    ) %>%
+    lapply(dplyr::select, starts_with("p"), NES, size, leadingEdge)
+}
+cat_time("Exporting GSEA results to", all_output$gsea_dir)
+write_rds(rna_gsea_dir, all_output$gsea_dir, compress = "gz")
+cat_time("Exporting GSEA results to", all_output$gsea_sig)
+write_rds(rna_gsea_sig, all_output$gsea_sig, compress = "gz")
+cat_time("Done")
 
 cat_time("Data export completed")
 #### Prepare the RMD ####
