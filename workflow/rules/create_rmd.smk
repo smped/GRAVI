@@ -152,6 +152,13 @@ rule create_nfr_rmd:
 rule create_differential_signal_rmd:
     input:
         annotations = ANNOTATION_RDS,
+        bigwig = lambda wildcards: expand(
+            os.path.join(
+                macs2_path, "{{target}}", "{{target}}_{treat}_merged_{bw}.bw"
+            ),
+            bw = ['FE', 'treat_pileup']
+            treat = [wildcards.ref, wildcards.treat]
+        ),
         chk = ALL_CHECKS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         ihw = os.path.join(

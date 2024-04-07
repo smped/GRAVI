@@ -12,6 +12,8 @@ rule create_annotations:
         exons = os.path.join(annotation_path, "gtf_exon.rds"),
         features = os.path.join(annotation_path, "features.rds"),
         genes = os.path.join(annotation_path, "gtf_gene.rds"),
+        gsea_dir = os.path.join(annotation_path, "gsea_dir.rds"),
+        gsea_sig = os.path.join(annotation_path, "gsea_sig.rds"),
         hic = os.path.join(annotation_path, "hic.rds"),
         motifs = os.path.join(annotation_path, "motif_list.rds"),
         motif_uri = os.path.join(annotation_path, "motif_uri.rds"),
@@ -27,7 +29,7 @@ rule create_annotations:
     conda: "../envs/rmarkdown.yml"
     params:
         colours = os.path.join(annotation_path, "colours.rds"),
-    threads: 2
+    threads: 4
     retries: 1
     resources:
         mem_mb = 16384,
