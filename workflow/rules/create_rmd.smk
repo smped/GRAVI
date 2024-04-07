@@ -156,7 +156,7 @@ rule create_differential_signal_rmd:
             os.path.join(
                 macs2_path, "{{target}}", "{{target}}_{treat}_merged_{bw}.bw"
             ),
-            bw = ['FE', 'treat_pileup']
+            bw = ['FE', 'treat_pileup'],
             treat = [wildcards.ref, wildcards.treat]
         ),
         chk = ALL_CHECKS,
