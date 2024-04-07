@@ -80,6 +80,7 @@ rule compile_signal_summary_html:
 rule compile_signal_comparison_html:
     input:
         annotations = ANNOTATION_RDS,
+        bigwig = MERGED_BW,
         motif_enrich = os.path.join(
             peak_path, "shared", "shared_motif_enrichment.tsv.gz"
         ),

@@ -19,6 +19,8 @@ sink(log)
 cat("libPaths set to\n", .libPaths(),"\n\n")
 config <- slot(snakemake, "config")
 
+all_params <- slot(snakemake, "params")
+
 ## Include motifTestR at the start as this cannot be installed using conda
 cat_time("Installing motifTestR")
 BiocManager::install(
@@ -72,14 +74,13 @@ if (length(not_installable))
 cat_time("All required packages have been installed")
 
 ## Set the minimum version for extraChIPs
-min_vers <- "1.7.7"
-updateEC <- packageVersion("extraChIPs") < min_vers
+updateEC <- packageVersion("extraChIPs") < all_params$min_extrachips
 if (updateEC) {
   cat_time("Updating extraChIPs to a suitable version")
   BiocManager::install(
     "smped/extraChIPs", ref = "devel", update = FALSE, force = FALSE
   )
-  stopifnot(packageVersion("extraChIPs") >= min_vers)
+  stopifnot(packageVersion("extraChIPs") >= all_params$min_extrachips)
 }
 
 cat_time("Writing check file")
