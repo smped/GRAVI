@@ -471,6 +471,8 @@ ln <- glue(
 	  colours: \"{{all_params$colours}}\"
 	  features: \"{{all_output$features}}\"
 	  gene_regions: \"{{all_output$regions}}\"
+	  gsea_dir: \"{{all_output$gsea_dir}}\"
+	  gsea_sig: \"{{all_output$gsea_sig}}\"
 	  gtf_exon: \"{{all_output$exons}}\"
 	  gtf_gene: \"{{all_output$genes}}\"
 	  gtf_transcript: \"{{all_output$transcripts}}\"

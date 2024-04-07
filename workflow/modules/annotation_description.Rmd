@@ -29,6 +29,7 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 source(here::here("workflow", "scripts", "custom_functions.R"))
+source(here::here("workflow", "scripts", "table_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON()
@@ -42,6 +43,8 @@ motif_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("motifdb")
 msigdb_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("msigdb")
+enrich_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("enrichment")
 colours <- read_yaml(here::here("config", "colours.yml"))
 treat_levels <- config$comparisons$contrasts %>% 
   unlist() %>% 
@@ -609,10 +612,12 @@ div(class = "table",
 )
 ```
 
-# RNA Datasets
+# Transcriptomic Datasets
 
 ```{r has-rna, echo=FALSE}
 rna <- read_rds(all_out$rna)
+gsea_dir <- read_rds(all_out$gsea_dir)
+gsea_sig <- read_rds(all_out$gsea_sig)
 has_rna <- length(rna) > 0
 txt <- ifelse(
   has_rna,
@@ -622,6 +627,14 @@ txt <- ifelse(
   ),
   "No transcriptomic datasets were provided"
 )
+if (has_rna) {
+  gsea_dir <- gsea_dir %>% 
+    lapply(dplyr::filter, padj < enrich_params$alpha) %>% 
+    .[map_int(., nrow) > 0]
+  gsea_sig <- gsea_sig %>% 
+    lapply(dplyr::filter, padj < enrich_params$alpha) %>% 
+    .[map_int(., nrow) > 0]
+}
 ```
 
 `r txt`
@@ -641,6 +654,87 @@ rna %>%
     caption = "Summary of all provided transcriptomic datasets"
   )
 ```
+
+`r if (length(gsea_dir) > 0) "## Directional GSEA {.tabset}"`
+
+```{r table-gsea-dir, eval = length(gsea_dir) > 0, echo = FALSE}
+htmltools::tagList(
+  names(gsea_dir) %>% 
+    lapply(
+      \(x) {
+        id <- paste0('gsea-dir-', str_replace_all(str_to_lower(x), "_", "-"))
+        tbl <- gsea_dir[[x]] %>% 
+          dplyr::select(-leadingEdge) %>% 
+          reactable(
+            columns = list(
+              pathway = colDef(cell = \(value) str_replace_all(value, "_", " ")),
+              pval = colDef(show = FALSE),
+              padj = colDef(cell = \(value) sprint_pval(value)),
+              NES = colDef(format = colFormat(digits = 2))
+            ),
+            elementId = id
+          )
+        cp = htmltools::tags$em(
+          paste(
+            "Taking genes ranked by significance and incorporating direction,",
+            "the following gene sets were returned as significant using GSEA."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = id,
+            class = "section level3",
+            htmltools::h3(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+`r if (length(gsea_sig) > 0) "## Non-Directional GSEA {.tabset}"`
+
+```{r table-gsea-sig, eval = length(gsea_sig) > 0, echo = FALSE}
+htmltools::tagList(
+  names(gsea_sig) %>% 
+    lapply(
+      \(x) {
+        id <- paste0('gsea-sig-', str_replace_all(str_to_lower(x), "_", "-"))
+        tbl <- gsea_sig[[x]] %>% 
+          dplyr::select(-leadingEdge) %>% 
+          reactable(
+            columns = list(
+              pathway = colDef(cell = \(value) str_replace_all(value, "_", " ")),
+              pval = colDef(show = FALSE),
+              padj = colDef(cell = \(value) sprint_pval(value)),
+              NES = colDef(format = colFormat(digits = 2))
+            ),
+            elementId = id
+          )
+        cp = htmltools::tags$em(
+          paste(
+            "Taking genes ranked only by significance and without incorporating direction,",
+            "the following gene sets were returned as significant using GSEA."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = id,
+            class = "section level3",
+            htmltools::h3(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    )
+)
+```
+
 
 
 # HiC Data {.tabset}
