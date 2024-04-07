@@ -121,8 +121,6 @@ valid_args <- list(formals(makeConsensus), formals(reduceMC)) %>%
   unlist() %>%
   unique() %>%
   setdiff("...")
-## Python cannot handle params with a dot, so check if there are any
-## reduce_args with an underscore & correct these
 cons_params <- list(
   ## These all need to be set on a cluster, but not when running interactively
   ## Don't know why...

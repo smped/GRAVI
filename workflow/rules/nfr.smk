@@ -102,7 +102,7 @@ rule make_consensus_nfr:
         min_gapwidth = 52
     conda: "../envs/rmarkdown.yml"
     threads: 1
-    log: os.path.join(log_path, "make_consensus_nfr", "{target}.log")
+    log: os.path.join(log_path, "make_consensus_peaks", "{target}_nfr.log")
     resources:
         mem_mb = 4096,
         runtime = "10m"

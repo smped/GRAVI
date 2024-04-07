@@ -35,6 +35,7 @@ library(tidygraph)
 library(ggraph)
 library(BiocParallel)
 library(plyranges)
+library(magrittr)
 # library(quantro)
 # library(Rsamtools)
 # library(statmod)
@@ -808,7 +809,7 @@ results %>%
 
 ```{r plot-all-profile-heatmaps, echo = FALSE}
 htmltools::tagList(
-  mclapply(
+  lapply(
     seq_along(profile_heatmaps),
     \(i) {
       ## Export the image
@@ -853,8 +854,7 @@ htmltools::tagList(
           )
         )
       )
-    },
-    mc.cores = threads
+    }
   )
 )
 ```
@@ -1152,7 +1152,7 @@ if (!is.null(config$external$coverage)) {
   paste(cp, collapse = " ")
 }
 htmltools::tagList(
-  mclapply(
+  lapply(
     seq_along(grl_to_plot),
     \(i) {
       ## Export the image
@@ -1205,8 +1205,7 @@ htmltools::tagList(
           )
         )
       )
-    },
-    mc.cores = threads
+    }
   )
 )
 ```

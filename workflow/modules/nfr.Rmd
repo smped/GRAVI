@@ -1158,7 +1158,7 @@ Gene-centric regions and any additional annotations were also included.
   paste(cp, collapse = " ")
 }
 htmltools::tagList(
-  mclapply(
+  lapply(
     names(grl_to_plot),
     \(i) {
       ## Export the image
@@ -1196,8 +1196,7 @@ htmltools::tagList(
           )
         )
       )
-    },
-    mc.cores = threads
+    }
   )
 )
 ```
