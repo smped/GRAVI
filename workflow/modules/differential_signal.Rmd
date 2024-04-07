@@ -99,6 +99,9 @@ network_params <- here::here("config", "params.yml") %>%
 region_params <- here::here("config", "params.yml") %>%
   read_yaml() %>%
   pluck("gene_regions")
+dsa_json <- here::here("config", "json", "differential_signal_param.json") %>% 
+  jsonlite::fromJSON() %>% 
+  pluck(target)
 ```
 
 
@@ -124,8 +127,7 @@ regions <- map_chr(gene_regions, \(x) unique(x$region))
 region_colours <- setNames(colours$regions, regions[names(colours$regions)])
 
 direction_colours <- colours$direction %>% 
-  setNames(str_to_title(names(.))) %>% 
-  .[names(.) %in% c("Increased", "Decreased", "Unchanged", "Ambiguous")]
+  setNames(str_to_title(names(.)))
 treat_colours <- colours$treat[treat_levels]
 full_palette <- c(
   feature_colours, region_colours, direction_colours, treat_colours,
@@ -151,7 +153,8 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 fig_path <- here::here("docs", "assets", comp)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 
-has_rnaseq <- FALSE ## To be added in again later
+rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
+has_rna <- length(rna) > 0
 ```
 
 
@@ -163,7 +166,7 @@ All steps rely heavily on the functions implemented in the Bioconductor package 
 
 The complete set of parameters for DSA were set as
 
-`r pander(jsonlite::fromJSON("config/json/differential_signal_param.json")[[target]] %>% .[map_int(., length) > 0 & names(.) != "contrasts"])`
+`r pander(dsa_json[names(dsa_json) != 'contrasts'])`
 
 
 <!-- ### Enrichment Analysis -->
@@ -942,8 +945,6 @@ bands_df <- get(cb)
 stopifnot(
   colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
 )
-trans_models <- file.path(all_paths$annotation, "trans_models.rds") %>% 
-  read_rds() 
 ```
 
 
@@ -953,24 +954,34 @@ trans_models <- file.path(all_paths$annotation, "trans_models.rds") %>%
 grl_to_plot <- GRangesList(
   
   top_inc_by_fdr = results %>% 
-    filter(logFC > 0, !!sym(fdr_column) < params$alpha) %>% 
-    arrange(PValue) %>% 
-    .[min(1, length(.))],
-  top_inc_by_lfc = filter(results, logFC == max(logFC)),
+    filter(status == "Increased") %>% 
+    filter(PValue == min(PValue)),
+  
+  top_inc_by_lfc = results %>% 
+    filter(logFC == max(logFC), logFC > 0),
   
   top_dec_by_fdr = results %>% 
-    filter(logFC < 0, !!sym(fdr_column) < params$alpha) %>% 
-    arrange(PValue) %>% 
-    .[min(1, length(.))],
-  top_dec_by_lfc = filter(results, logFC == min(logFC))
+    filter(status == "Decreased") %>% 
+    filter(PValue == min(PValue)),
+  
+  top_dec_by_lfc = results %>% 
+    filter(logFC == min(logFC), logFC < 0),
+  
+  lowest_inc_by_fdr = results %>% 
+    filter(status == "Increased") %>% 
+    filter(PValue == max(PValue)),
+  
+  lowest_dec_by_fdr = results %>% 
+    filter(status == "Decreased") %>% 
+    filter(PValue == max(PValue))
   
 ) %>% 
   unlist() %>% 
   .[!duplicated(.)] %>%
   splitAsList(names(.)) %>% 
-  lapply(setNames, c()) %>% 
-  lapply(\(x) x[1]) %>%
-  GRangesList()
+  endoapply(setNames, c()) %>% 
+  endoapply(\(x) x[1]) %>% 
+  .[sort(names(.), decreasing = TRUE)]
 ```
 
 
@@ -1021,80 +1032,50 @@ if (has_features) {
 }
 
 ## The genes track
-hfgc_genes <- trans_models
+## The genes track defaults to transcript models
+hfgc_genes <- here::here("output", "annotations", "trans_models.rds") %>% 
+  read_rds()
 gene_col <- "grey"
-# if (has_rnaseq) {
-#   if (!is.na(rna_lfc_col) & !is.na(rna_fdr_col)) {
-#     hfgc_genes <- trans_models %>% 
-#       mutate(
-#         status = case_when(
-#           !gene %in% rnaseq$gene_id ~ "Undetected",
-#           gene %in% dplyr::filter(
-#             rnaseq, !!sym(rna_lfc_col) > 0, !!sym(rna_fdr_col) < params$alpha
-#           )$gene_id ~ "Up",
-#           gene %in% dplyr::filter(
-#             rnaseq, !!sym(rna_lfc_col) < 0, !!sym(rna_fdr_col) < params$alpha
-#           )$gene_id ~ "Down",
-#           gene %in% dplyr::filter(
-#             rnaseq, !!sym(rna_fdr_col) >= params$alpha
-#           )$gene_id ~ "Unchanged",
-#         )
-#       ) %>% 
-#       splitAsList(.$status) %>% 
-#       lapply(select, -status) %>% 
-#       GRangesList()
-#     gene_col <- colours$direction %>% 
-#       setNames(str_to_title(names(.)))
-#   }
-# }
-
-## External Coverage (Optional)
-if (!is.null(config$external$coverage)) {
-  ext_cov_path <- config$external$coverage %>% 
-    lapply(unlist) %>% 
-    lapply(\(x) setNames(here::here(x), names(x)))
-  bwfl <- c(
-    bwfl[target],
-    lapply(ext_cov_path, \(x) setNames(BigWigFileList(x), names(x)))
-  )
-  line_col <- c(
-    line_col[target],
-    ext_cov_path %>% 
-      lapply(
-        \(x) {
-          missing <- setdiff(names(x), names(colours$treat))
-          cmn <- intersect(names(x), names(colours$treat))
-          col <- setNames(character(length(names(x))), names(x))
-          if (length(cmn) > 0) col[cmn] <- colours$treat[cmn]
-          if (length(missing) > 0) 
-            col[missing] <- hcl.colors(
-              max(5, length(missing)), "Zissou 1")[seq_along(missing)]
-          col
-        }
+collapseTrans <- "auto"
+if (has_rna) {
+  rna_status <- rna %>% 
+    lapply(addDiffStatus) %>% 
+    bind_rows() %>% 
+    summarise(
+      status = case_when(
+        all(status == "Unchanged") ~ "Unchanged",
+        any(status == "Increased") & any(status == "Decreased") ~ "Ambiguous",
+        any(status == "Increased") ~ "Increased",
+        any(status == "Decreased") ~ "Decreased"
+      ),
+      .by = gene_id
+    ) %>% 
+    bind_rows(
+      tibble(
+        gene_id = gtf_gene$gene_id, status = "Undetected"
       )
+    ) %>% 
+    mutate(status = factor(
+      status, levels = c(names(direction_colours), "Undetected"))
+    ) %>% 
+    arrange(status) %>% 
+    distinct(gene_id, .keep_all = TRUE) %>% 
+    droplevels() %>% 
+    split(.$status) %>% 
+    lapply(pull, "gene_id")
+  hfgc_genes <- rna_status %>% 
+    lapply(
+      \(x) subset(hfgc_genes, gene %in% x)
+    ) %>% 
+    GRangesList()
+  gene_col <- setNames(
+    colours$direction,
+    str_to_title(names(colours$direction))
   )
-  
-  y_ranges <- grl_to_plot %>% 
-    unlist() %>% 
-    granges() %>% 
-    resize(w = 10 * width(.), fix = 'center')
-  
-  y_lim <- c(
-    y_lim[target],
-    bwfl[names(bwfl) != target] %>% 
-      lapply(
-        \(x) {
-          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
-            unlist() %>% 
-            filter(score == max(score)) %>% 
-            mcols() %>% 
-            .[["score"]] %>% 
-            c(0) %>% 
-            range()
-        }
-      )
-  )
-  
+  collapseTrans <- list(
+    Increased = "auto", Decreased = "auto", Undetected = "meta",
+    Unchanged = "meta", Ambiguous = "meta"
+  )[names(hfgc_genes)]
 }
 ```
 
@@ -1112,8 +1093,9 @@ if (!is.null(config$external$coverage)) {
   )
   feat <- c()
   if (has_features) feat <- case_when(
-    str_detect(.gr$feature, "^[AEIOU]") ~ paste("an", .gr$feature),
-    !str_detect(.gr$feature, "^[AEIOU]") ~ paste("a", .gr$feature)
+    str_detect(.gr$feature, "^no") ~ "no supplied feature",
+    str_detect(.gr$feature, "^[AEIOUaeiou]") ~ paste("an", .gr$feature),
+    !str_detect(.gr$feature, "^[AEIOUaeiou]") ~ paste("a", .gr$feature)
   )
   gn <- unlist(.gr$gene_name)
   fdr <- mcols(.gr)[[fdr_column]]
@@ -1122,7 +1104,7 @@ if (!is.null(config$external$coverage)) {
   )
   cp <- c(
     glue(
-      "*The {width(.gr)}bp region showing {dir} {target} signal in response to ", 
+      "The {width(.gr)}bp region showing {dir} {target} signal in response to ", 
       "{treat_levels[[2]]} treatment (FDR = {fdr}). ",
       "The range mostly overlapped with {reg}, with all ",
       "defined regions shown as a contiguous bar in the upper panel. ",
@@ -1130,8 +1112,8 @@ if (!is.null(config$external$coverage)) {
         has_features,
         glue(
           "Using the features supplied in {basename(config$external$features)}, ",
-          "this mostly overlapped {feat}, shown as a separate block ",
-          "with the gene-centric regions. "
+          "this overlapped {feat}, with any nearby features shown as a separate block ",
+          "beneath the gene-centric regions. "
         ),
         glue("")
       )
@@ -1146,7 +1128,7 @@ if (!is.null(config$external$coverage)) {
     ),
     paste(
       "For each sample, the y-axis limits represent the values from the window", 
-      "with the highest signal.*"
+      "with the highest signal."
     )
   )
   paste(cp, collapse = " ")
@@ -1175,13 +1157,9 @@ htmltools::tagList(
         hic = hic,
         features = feat_gr, featcol = feat_col_hfgc, featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
-        coverage = bwfl, linecol = line_col,
-        annotation = annot, 
-        annotcol = direction_colours,
-        cytobands = bands_df,
-        zoom = 10,
-        max = 8e3,
-        ylim = y_lim,
+        coverage = bwfl, linecol = line_col, ylim = y_lim,
+        annotation = annot, annotcol = direction_colours,
+        cytobands = bands_df, zoom = 20, max = 8e3,
         col.title = "black", background.title = "white", showAxis = FALSE,
         rotation.title = 90
       )
@@ -1357,7 +1335,7 @@ Three primary sets of genomic regions are tested for enrichment relative to back
 
 All p-values will be adjusted using the `r adj_method` correction during testing.
 
-### Any Changed Site {.tabset}
+### All Changed Sites {.tabset}
 
 ```{r enrich-changed}
 enrich_args <- list(
@@ -1492,7 +1470,7 @@ if (n_changed_enrich > min(network_params$size)) {
 ```
 
 
-### Any Increased Site {.tabset}
+### All Increased Sites {.tabset}
 
 ```{r enrich-increased}
 enrich_args <- list(
@@ -1630,7 +1608,7 @@ if (n_increased_enrich > min(network_params$size)) {
 }
 ```
 
-### Any Decreased Site {.tabset}
+### All Decreased Sites {.tabset}
 
 ```{r enrich-decreased}
 enrich_args <- list(
@@ -1772,7 +1750,7 @@ if (n_decreased_enrich > min(network_params$size)) {
 
 
 
-# CHECK RNASEQ MODULE
+## CHECK RNASEQ MODULE
 
 ```{r add-rna, eval = FALSE, child = here::here('workflow/modules/rnaseq_differential.Rmd')}
 ```
@@ -1819,9 +1797,7 @@ increased_enrich_df %>%
   write_csv(all_out$increased)
 decreased_enrich_df %>% 
   dplyr::select(-gene_id) %>% 
-  write_csv(all_out$increased)
-## Save key memory on the HDD
-gc()
+  write_csv(all_out$decreased)
 save.image(all_out$renv)
 ```
 

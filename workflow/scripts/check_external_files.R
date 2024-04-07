@@ -113,16 +113,24 @@ if (length(rna_files)) {
     read_fun <- match.fun(paste0("read_", strsplit(suffix, "")[[1]][1],"sv"))
     tbl <- read_fun(f)
     cols <- colnames(tbl)
-    if (!any(c("gene_id", "Geneid") %in% cols)) {
+    if (!any(
+      c("gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id")% in% cols
+    )) {
       cat("'gene_id' not found in columns provided in", f)
       stop()
     }
-    if (!any(c("logFC", "logfc") %in% cols)) {
+    if (!any(c("logFC", "logfc", "lfc", "log2FoldChange") %in% cols)) {
       cat("'logFC' not found in columns provided in", f)
       stop()
     }
-    if (!any(c("fdr", "FDR", "adjP", "adj_p") %in% cols)) {
-      cat("'FDR' column not found in in", f)
+    if (!any(
+      c("PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue") %in% cols)
+    ) {
+      cat("'PValue' column not found in", f)
+      stop()
+    }
+    if (!any(c("fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj") %in% cols)) {
+      cat("'FDR' column not found in", f)
       stop()
     }
     shared_ids <- intersect(tbl$gene_id, gtf$gene_id)
@@ -137,7 +145,7 @@ if (length(rna_files)) {
 }
 
 
-## FEATURES ##
+#### FEATURES ####
 if (!is.null(all_external$features)) {
   cat_time("Checking features...")
   feat_exists <- file.exists(all_external$features)
@@ -180,10 +188,18 @@ if (!is.null(all_external$features)) {
   cat_time("No features provided\n")
 }
 
-## HIC ##
-## Write checks for a bedpe file...
+#### HIC ####
+# if (!is.null(all_external$hic)) {
+#   cat_time("Checking HiC data...")
+#   hic_exists <- file.exists(all_external$hic)
+#   if (any(!feat_exists))
+#     stop("Couldn't find specified HiC file at ", all_external$hic[!hic_exists], "\n")
+#   cat_time("Found HiC files:\n\t", paste0(all_external$hic, "\n\t"))
+#
+#
+# }
 
-## COVERAGE ##
+#### COVERAGE ####
 ## Write checks for bw files
 
 cat_time("All checks passed. Writing ", all_output[[1]], "\n")

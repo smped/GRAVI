@@ -370,11 +370,23 @@ if (!is.null(rna_files)) {
       df <- as_tibble(df)
       ## The key columns are 'gene_id', 'logFC', and 'FDR'
       ## These should be checked earlier
-      gn_col <- intersect(c("gene_id", "Geneid"), names(df))[[1]]
-      fc_col <- intersect(c("logFC", "logfc"), names(df))[[1]]
-      fdr_col <- intersect(c("fdr", "FDR", "adjP", "adj_p"), names(df))[[1]]
+      gn_col <- intersect(
+        c("gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id"),
+        names(df)
+      )[[1]]
+      fc_col <- intersect(
+        c("logFC", "logfc", "lfc", "log2FoldChange"), names(df)
+      )[[1]]
+      p_col <- intersect(
+        c("PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"),
+        names(df)
+      )[[1]]
+      fdr_col <- intersect(
+        c("fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj"), names(df)
+      )[[1]]
       dplyr::select(
-        df, gene_id = !!sym(gn_col), logFC = !!sym(fc_col), FDR = !!sym(fdr_col)
+        df, gene_id = !!sym(gn_col), logFC = !!sym(fc_col),
+        PValue = !!sym(p_col), FDR = !!sym(fdr_col)
       )
     }
   )
