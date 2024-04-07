@@ -43,8 +43,8 @@ source(here::here("workflow/scripts/table_funs.R"))
 source(here::here("workflow/scripts/enrichment_funs.R"))
 config <- here::here("config", "config.yml") %>% read_yaml()
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
-    jsonlite::fromJSON() %>% 
-    lapply(here::here)
+  jsonlite::fromJSON() %>% 
+  lapply(here::here)
 threads <- detectCores() - 1
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
@@ -62,11 +62,6 @@ regioner_params <- all_params$regioner
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck("shared")
-figure_params <- here::here("config", "rmarkdown.yml") %>%
-  read_yaml() %>% 
-  pluck("knitr_opts")
-fw <- figure_params$fig.width
-fh <- figure_params$fig.height
 targets <- here::here(config$samples) %>% 
   read_tsv() %>% 
   pull("target") %>% 
@@ -99,6 +94,9 @@ all_regions_labs <- c(
   map_chr(gene_regions, \(x) x$region[[1]]),
   map_chr(external_features, \(x) x$feature[[1]])
 )
+rna <- read_rds(file.path(all_paths$annotation, "rna.rds"))
+has_rna <- length(rna) > 0
+hic <- read_rds(file.path(all_paths$annotation, "hic.rds"))
 colours <- file.path(all_paths$annotation, "colours.rds") %>% 
   read_rds()
 region_colours <- c(colours$regions, colours$features) %>%
@@ -108,6 +106,7 @@ region_colours <- c(colours$regions, colours$features) %>%
       TRUE ~ names(.)
     )
   )
+colours$target <- c(colours$target, c("Shared" = "black"))
 ## For regioneR analysis
 heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
@@ -115,12 +114,30 @@ heat_col <- c(
 )
 ```
 
+```{r fig-params}
+figure_params <- here::here("config", "rmarkdown.yml") %>%
+  read_yaml() %>% 
+  pluck("knitr_opts")
+fw <- figure_params$fig.width
+fh <- figure_params$fig.height
+fig_path <- here::here("docs", "assets", "shared")
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
+fig_type <- figure_params$dev[[1]]
+fig_fun <- match.fun(fig_type)
+if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
+  ## These figure types require dpi & resetting to be inches
+  formals(fig_fun)$units <- "in"
+  formals(fig_fun)$res <- 300
+}
+```
 
-## Introduction
+
+## Outline
 
 After performing individual analyses on the provided targets, this analysis performs a comparison of the regions with detected signal across all targets.
 Comparisons were performed in a treatment-agnostic manner, using the sets of consensus peaks defined across all conditions, making this approach an analysis of the larger universe of regulation and pathways present within the cell type of interest,
 
+In addition, as set of *shared peaks* was defined as the genomic regions with detected signal in *m = max(n - 1, 2)* targets, where *n* represents the total number of targets
 
 ## Peak Comparisons {.tabset}
 
@@ -194,7 +211,7 @@ consensus_peaks %>%
 
 ### Distance to TSS 
 
-```{r plot-shared-dist-to-tss-hist, fig.height = 0.75 * fh, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Shared peaks were removed from each set of consensus peaks to highlight any potential differences, and so that each peak is only included in one category.")}
+```{r plot-shared-dist-to-tss-hist, fig.height = 0.75 * fh, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Shared peaks were removed from each set of consensus peaks to highlight any potential differences, and so that each peak is only included in one category.*")}
 df <- consensus_peaks %>% 
   endoapply(filter_by_non_overlaps, shared_peaks) %>% 
   c(GRangesList(Shared = shared_peaks)) %>% 
@@ -212,7 +229,7 @@ df <- consensus_peaks %>%
     q = seq_along(d) / dplyr::n(), .by = all_of("target")
   )
 A <- df %>% 
-  ggplot(aes(d / 1e3, colour = target)) +
+  ggplot(aes(d / 1e3, colour = target, linetype = target != "Shared")) +
   geom_density() +
   coord_cartesian(xlim = c(-50, 50)) +
   scale_colour_manual(values = colours$target) +
@@ -222,7 +239,7 @@ A <- df %>%
   ) + 
   theme(legend.position = "none")
 B <- df %>% 
-  ggplot(aes(abs(d) / 1e3, q, colour = target)) +
+  ggplot(aes(abs(d) / 1e3, q, colour = target, linetype = target != "Shared")) +
   geom_line() +
   geom_vline(
     xintercept = max(unlist(region_params$promoters)) / 1e3, 
@@ -235,11 +252,12 @@ B <- df %>%
   ) +
   scale_colour_manual(values = colours$target) +
   scale_y_continuous(labels = percent, breaks = seq(0, 1, by = 0.2)) +
-  scale_x_continuous(breaks = seq(0, 100, by = 20))
+  scale_x_continuous(breaks = seq(0, 100, by = 20)) +
+  guides(linetype = "none")
 A + B + plot_annotation(tag_levels = "A")
 ```
 
-#### Gene-Centric Regions
+### Gene-Centric Regions
 
 ```{r plot-region-overlap, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*Proportions of shared peaks which overlap gene-centric features.*")}
 shared_peaks %>% 
@@ -252,7 +270,7 @@ shared_peaks %>%
   theme(legend.position = "none")
 ```
 
-`r ifelse(has_features, "#### External Features", "")`
+`r ifelse(has_features, "### External Features", "")`
 
 ```{r plot-feature-overlap, eval = has_features, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of shared peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
 shared_peaks %>% 
@@ -265,7 +283,7 @@ shared_peaks %>%
   theme(legend.position = "none")
 ```
 
-`r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
+`r ifelse(has_features, "### External Features And Gene-Centric Regions", "")`
 
 ```{r plot-feature-region-overlap, eval = has_features, echo = has_features, fig.cap = glue("*The total number of shared peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
 shared_peaks %>% 
@@ -279,6 +297,253 @@ shared_peaks %>%
   )
 ```
 
+## Example Peaks
+
+
+```{r prepare-plot-objects}
+cb <- config$genome$build %>%
+  str_to_lower() %>% 
+  paste0(".cytobands") 
+data(list = cb)
+bands_df <- get(cb)
+## The coverage
+bwfl <- samples %>% 
+  distinct(target, treat) %>% 
+  split(.$target) %>% 
+  lapply(
+    \(x) {
+      fl <- file.path(
+        all_paths$macs2, x$target,
+        glue("{x$target}_{x$treat}_merged_treat_pileup.bw")
+      )
+      setNames(BigWigFileList(fl), x$treat)
+    }
+  )
+line_col <- lapply(bwfl, function(x) unlist(colours$treat[names(x)]))
+
+## The features track
+feat_gr <- gene_regions %>% 
+  lapply(granges) %>% 
+  GRangesList()
+feature_colours <- colours$regions
+if (has_features) {
+  feat_gr <- list(Regions = feat_gr)
+  feat_gr$Features <- external_features
+  feature_colours <- list(
+    Regions = unlist(colours$regions),
+    Features = unlist(colours$features)
+  )
+}
+## The genes track defaults to transcript models
+hfgc_genes <- read_rds(
+  here::here("output", "annotations", "trans_models.rds")
+)
+gene_col <- "grey"
+collapseTrans <- "auto"
+if (has_rna) {
+  hfgc_genes <- hfgc_genes %>% 
+    mutate(
+      Detected = ifelse(
+        gene %in% bind_rows(rna)$gene_id, "Detected", "Undetected"
+      )
+    ) %>% 
+    split(.$Detected)
+  gene_col <- c(
+    Detected = colours$direction[["unchanged"]],
+    Undetected = colours$direction[["undetected"]]
+  )
+  collapseTrans <- list(Detected = "auto", Undetected = "meta")
+}
+
+## External Coverage (Optional)
+if (!is.null(config$external$coverage)) {
+  ext_cov_path <- config$external$coverage %>% 
+    lapply(unlist) %>% 
+    lapply(function(x) setNames(here::here(x), names(x)))
+  bwfl <- c(
+    bwfl[target],
+    config$external$coverage %>% 
+      lapply(
+        function(x) {
+          BigWigFileList(here::here(unlist(x))) %>% 
+            setNames(names(x))
+        }
+      )
+  )
+}
+```
+
+In order to asses peak calling a series of shared peaks are visualised below choosing the most highly ranked region for each target, followed by the lowest ranked region for each target, taking the score from `macs2 callpeak` [@Zhang18798982] as the ranking statistic.
+It is assumed that all remaining peaks will fall somewhere between these peaks, with regard to quality.
+
+### Highly Scoring Peaks {.tabset}
+
+```{r select-high-ranked}
+grl_to_plot <- consensus_peaks %>% 
+  endoapply(subsetByOverlaps, shared_peaks) %>% 
+  endoapply(filter, score == max(score)) %>% 
+  endoapply(\(x) subsetByOverlaps(shared_peaks, x)[1])
+y_lim <- bwfl %>%
+  lapply(
+    function(x) {
+      gr <- unlist(grl_to_plot) %>% 
+        resize(width = 30 * width(.), fix = 'center')
+      x %>% 
+        lapply(import.bw, which = gr) %>%
+        lapply(function(rng) c(0, max(rng$score))) %>%
+        unlist() %>%
+        range()
+    }
+  )
+```
+
+
+```{r plot-high-ranked}
+htmltools::tagList(
+  lapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      nm <- names(grl_to_plot)[[x]]
+      ## Export the figure
+      fig_out <- file.path(
+        fig_path, paste0(nm, "_highlyranked.", fig_type)
+      )
+      fig_fun(filename = fig_out, width = fw, height = fh)
+      plotHFGC(
+        grl_to_plot[[x]],
+        hic = hic,
+        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 10, ylim = y_lim,
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10
+      )
+      dev.off()
+      
+      ## Define the caption
+      gn <- unlist(grl_to_plot[[x]]$gene_name)
+      reg <- grl_to_plot[[x]]$region
+      reg_pre <- ifelse(grepl("^[AEIOU]", reg), "an", "a")
+      cp <- htmltools::tags$em(
+        glue(
+          "The most highly ranked peak for {nm} which is also a shared peak. ",
+          "This is most likely to be involved in the regulation of ",
+          collapseGenes(gn), ", and is associated with {reg_pre} {reg}. ",
+          "Y-axes for each coverage track are set to the most highly ranked peak
+          across all conditions.
+          "
+        )
+      )
+      
+      ## Create html tags
+      fig_link <- str_extract(fig_out, "assets.+")
+      htmltools::div(
+        htmltools::div(
+          id = paste0(nm, "-highlyranked"),
+          class = "section level4",
+          htmltools::h4(
+            paste("Top Ranked", nm, "Peak")
+          ),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = "caption", htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    }
+  )
+)  
+```
+
+### Low Scoring Peaks {.tabset}
+
+```{r select-low-ranked}
+grl_to_plot <- consensus_peaks %>% 
+  endoapply(subsetByOverlaps, shared_peaks) %>% 
+  endoapply(filter, score == min(score)) %>% 
+  endoapply(\(x) subsetByOverlaps(shared_peaks, x)[1])
+y_lim <- bwfl %>%
+  lapply(
+    function(x) {
+      gr <- unlist(grl_to_plot) %>% 
+        resize(width = 30 * width(.), fix = 'center')
+      x %>% 
+        lapply(import.bw, which = gr) %>%
+        lapply(function(rng) c(0, max(rng$score))) %>%
+        unlist() %>%
+        range()
+    }
+  )
+```
+
+```{r plot-low-ranked}
+htmltools::tagList(
+  lapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      nm <- names(grl_to_plot)[[x]]
+      ## Export the figure
+      fig_out <- file.path(
+        fig_path, paste0(nm, "_lowranked.", fig_type)
+      )
+      fig_fun(filename = fig_out, width = fw, height = fh)
+      plotHFGC(
+        grl_to_plot[[x]],
+        hic = hic,
+        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 10, ylim = y_lim,
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10
+      )
+      dev.off()
+      
+      ## Define the caption
+      gn <- unlist(grl_to_plot[[x]]$gene_name)
+      reg <- grl_to_plot[[x]]$region
+      reg_pre <- ifelse(grepl("^[AEIOU]", reg), "an", "a")
+      cp <- htmltools::tags$em(
+        glue(
+          "The most low-ranked peak for {nm} which is also a shared peak. ",
+          "This is most likely to be involved in the regulation of ",
+          collapseGenes(gn), ", and is associated with {reg_pre} {reg}. ",
+          "Y-axes for each coverage track are set to the most highly ranked peak
+          across all conditions.
+          "
+        )
+      )
+      
+      ## Create html tags
+      fig_link <- str_extract(fig_out, "assets.+")
+      htmltools::div(
+        htmltools::div(
+          id = paste0(nm, "-lowranked"),
+          class = "section level4",
+          htmltools::h4(
+            paste("Top Ranked", nm, "Peak")
+          ),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = "caption", htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    }
+  )
+)  
+```
 
 ## Gene-Set Enrichment
 
@@ -644,7 +909,7 @@ shifted_z %>%
   scale_x_continuous(
     expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
   ) +
-  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL, labels = label_wrap(20)) +
   scale_fill_gradientn(
     colours = heat_col,
     limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))

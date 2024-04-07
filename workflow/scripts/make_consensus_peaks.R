@@ -37,31 +37,32 @@ cat_time <- function(...){
 }
 
 ## For testing
-all_input <- list(
-    peaks = c(
-        "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2.nfr.bed.gz",
-        "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2DHT.nfr.bed.gz"
-    ),
-    sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
-    blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
-    features = "../GRAVI_testing/output/annotations/features.rds",
-    greylist = "../GRAVI_testing/output/greylist/SRR8315192_greylist.bed.gz",
-    gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
-    hic = "../GRAVI_testing/output/annotations/hic.rds",
-    regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
-    yaml = "../GRAVI_testing/config/params.yml"
-)
-all_output <- list(
-    bed = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
-    rds = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.rds"
-)
-all_wildcards <- list(target = "H3K27ac")
-all_params <- list(
-  method = 'coverage',
-  min_width = 75,
-  p = 1
-)
-config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+# all_input <- list(
+#     peaks = c(
+#         "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2.nfr.bed.gz",
+#         "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2DHT.nfr.bed.gz"
+#     ),
+#     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
+#     blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
+#     features = "../GRAVI_testing/output/annotations/features.rds",
+#     greylist = "../GRAVI_testing/output/greylist/SRR8315192_greylist.bed.gz",
+#     gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
+#     hic = "../GRAVI_testing/output/annotations/hic.rds",
+#     regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
+#     yaml = "../GRAVI_testing/config/params.yml"
+# )
+# all_output <- list(
+#     bed = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
+#     rds = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.rds"
+# )
+# all_wildcards <- list(target = "H3K27ac")
+# all_params <- list(
+#   method = 'coverage',
+#   min_width = 75,
+#   p = 1,
+#   min_gapwidth = 52
+# )
+# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -112,29 +113,26 @@ filtered_peaks <- all_input$peaks %>%
   )
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
 if (length(vars) == 0) vars <- NULL
-cat_time("Forming consensus peaks")
+
+cat_time("Checking params")
+# From  names(Rdpack::S4formals("reduce", c(x = "GenomicRanges")))
 valid_args <- list(formals(makeConsensus), formals(reduceMC)) %>%
   lapply(names) %>%
-  c(
-    list(
-      c(
-        # From  names(Rdpack::S4formals("reduce", c(x = "GenomicRanges")))
-        "x", "drop.empty.ranges", "min.gapwidth", "with.revmap",
-        "with.inframe.attrib", "ignore.strand")
-    )
-  ) %>%
   unlist() %>%
   unique() %>%
   setdiff("...")
+## Python cannot handle params with a dot, so check if there are any
+## reduce_args with an underscore & correct these
 cons_params <- list(
   ## These all need to be set on a cluster, but not when running interactively
   ## Don't know why...
   x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE,
   p = 0, method = 'union'
-  ) %>%
+) %>%
   .[!names(.) %in% names(all_params)] %>%
   c(all_params) %>%
   .[names(.) %in% valid_args]
+cat_time("Forming consensus peaks")
 cons_peaks <- do.call("makeConsensus", cons_params)
 
 if ("score" %in% vars) {

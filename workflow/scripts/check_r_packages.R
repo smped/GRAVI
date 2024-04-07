@@ -72,13 +72,14 @@ if (length(not_installable))
 cat_time("All required packages have been installed")
 
 ## Set the minimum version for extraChIPs
-updateEC <- packageVersion("extraChIPs") < "1.7.1"
+min_vers <- "1.7.7"
+updateEC <- packageVersion("extraChIPs") < min_vers
 if (updateEC) {
   cat_time("Updating extraChIPs to a suitable version")
   BiocManager::install(
     "smped/extraChIPs", ref = "devel", update = FALSE, force = FALSE
   )
-  stopifnot(packageVersion("extraChIPs") >= "1.7.1")
+  stopifnot(packageVersion("extraChIPs") >= min_vers)
 }
 
 cat_time("Writing check file")

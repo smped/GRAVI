@@ -99,7 +99,7 @@ rule make_consensus_nfr:
         method = 'coverage',
         min_width = 75,
         p = 1,
-        min.gapwidth = 26
+        min_gapwidth = 52
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_nfr", "{target}.log")
@@ -108,7 +108,7 @@ rule make_consensus_nfr:
         runtime = "10m"
     script:
         "../scripts/make_consensus_peaks.R"
-    
+
 rule nfr_motif_analysis:
     input:
         exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
@@ -155,7 +155,7 @@ rule nfr_localz_regions:
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_regions.R"
-        ),        
+        ),
     output:
         rds = os.path.join(
             nfr_path, "{target}", "{target}_nfr_regions_localz.rds"

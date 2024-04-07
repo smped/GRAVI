@@ -148,12 +148,7 @@ region_colours <- c(colours$regions, colours$features) %>%
   )
 rna <- read_rds(file.path(all_paths$annotation, "rna.rds"))
 has_rna <- length(rna) > 0
-## bands_df
-cb <- config$genome$build %>%
-  str_to_lower() %>% 
-  paste0(".cytobands") 
-data(list = cb)
-bands_df <- get(cb)
+hic <- read_rds(file.path(all_paths$annotation, "hic.rds"))
 ```
 
 ```{r figure-params}
@@ -221,34 +216,47 @@ macs2_logs <- all_paths$macs2 %>%
   ) 
 ```
 
-## Introduction
+## Outline
 
-The strategy for identification of genomic regions with detectable `r target` signal (i.e. peaks), was to run `macs2 calpeak` [@Zhang18798982] on each individual sample, as well as on all samples within each treatment group (`r pander(treat_levels)`).
+The strategy for identification of genomic regions with detectable `r target` signal (i.e. peaks), was to run `macs2 callpeak` [@Zhang18798982] on each individual sample, as well as on all samples within each treatment group (`r pander(treat_levels)`).
 The settings for `macs2 callpeak` were:
 
 `r pander(macs2_params)`
 
-with the additional specification of identifying narrow peaks.
+with the additional specification of identifying *narrow peaks*.
+
 Bedgraph files were produced for each sample to return values scaled using the `--SPMR` flag, as signal per million reads, which is analogous to the common Counts Per Million (CPM) value.
-Where required, this were converted to BigWig files in order to save storage space & speed up analysis.
+Where required, these were converted to BigWig files in order to save storage space & speed up analysis.
 
-### Individual Sample QC settings
+### Identification of Peaks and QC Description
 
-For individual samples, any sample with > `r peak_qc_params$outlier_threshold`x the median number of peaks found across all samples within that treatment group were marked as failing QC and excluded from further analysis.
-Any samples with no detected peaks was `r ifelse(peak_qc_params$allow_zero, 'retained', 'excluded')`.
+#### Individual Sample QC settings
 
-### Filtered Peaks
+For individual samples, any sample with > `r peak_qc_params$outlier_threshold`x the median number of peaks found across all samples within that treatment group would be marked as failing QC and excluded from further analysis.
+Any samples with no detected peaks would also be `r ifelse(peak_qc_params$allow_zero, 'retained, to account for any cytoplasmic-nuclear shift in response to treatment', 'excluded')`.
 
-A set of *filtered peaks* was defined within each treatment group, based on the peaks identified when merging samples.
-Any peak which was not found in >`r percent(peak_qc_params$min_prop_reps)` of individual samples within that treatment group was then discarded.
+#### Filtered Peaks
+
+A set of *treatment-specific* filtered peaks was defined for each treatment group, based on the peaks identified when running `macs2 callpeak` on all samples within a treatment group.
+Any peak which was not found in >`r percent(peak_qc_params$min_prop_reps)` of *individual samples* within that treatment group was then discarded.
 
 Peaks which overlapped any blacklisted or greylisted regions were also discarded.
 
-### Consensus Peaks
+#### Consensus Peaks
 
-Consensus peaks across all treatment groups were then produced by combining all sets of filtered (i.e. treatment-specific) peaks.
+Consensus peaks across all treatment groups were then produced by combining all sets of filtered (i.e. *treatment-specific*) peaks.
 These peaks were defined as the union of all peaks across all treatment groups.
 Overlapping peaks between treatment groups were merged to create a peak encompassing the range identified in all treatment groups.
+
+### Additional Analysis
+
+After identification of peaks
+
+- A selection of highly-ranked peaks were plotted
+- The relationship to detected genes within any transcriptomic data was assessed
+- Enrichment of binding sites within gene-sets was assessed
+- The relationship of binding sites to genomic regions and any features was assessed
+- Motif analysis was performed, checking for general motif enrichment as well as any association between motifs and peak centres (i.e. positional bias)
 
 ## QC {.tabset}
 
@@ -950,24 +958,14 @@ if (has_features) {
 }
 ```
 
-
-## Highly Ranked Peaks {.tabset}
-
-```{r grl-to-plot}
-grl_to_plot <- GRangesList()
-grl_to_plot$consensus <- consensus_peaks %>% 
-  subset(score == max(score)) %>% 
-  granges()
-for (i in treat_levels) {
-  grl_to_plot[[i]] <- filtered_peaks[[i]] %>% 
-    filter_by_non_overlaps(unlist(grl_to_plot)) %>% 
-    subset(score == max(score)) %>% 
-    granges() %>% 
-    unname()
-}
-```
+## Peak Visualisation
 
 ```{r prepare-plot-objects}
+cb <- config$genome$build %>%
+  str_to_lower() %>% 
+  paste0(".cytobands") 
+data(list = cb)
+bands_df <- get(cb)
 ## The coverage
 bwfl <- list2(
   "{target}" := all_paths$macs2 %>%
@@ -975,6 +973,7 @@ bwfl <- list2(
     BigWigFileList() %>% 
     setNames(treat_levels)
 )
+line_col <- lapply(bwfl, function(x) unlist(colours$treat[names(x)]))
 ## The features track
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
@@ -993,6 +992,21 @@ hfgc_genes <- read_rds(
   here::here("output", "annotations", "trans_models.rds")
 )
 gene_col <- "grey"
+collapseTrans <- "auto"
+if (has_rna) {
+  hfgc_genes <- hfgc_genes %>% 
+    mutate(
+      Detected = ifelse(
+        gene %in% bind_rows(rna)$gene_id, "Detected", "Undetected"
+      )
+    ) %>% 
+    split(.$Detected)
+  gene_col <- c(
+    Detected = colours$direction[["unchanged"]],
+    Undetected = colours$direction[["undetected"]]
+  )
+  collapseTrans <- list(Detected = "auto", Undetected = "meta")
+}
 
 ## External Coverage (Optional)
 if (!is.null(config$external$coverage)) {
@@ -1010,7 +1024,24 @@ if (!is.null(config$external$coverage)) {
       )
   )
 }
-line_col <- lapply(bwfl, function(x) colours$treat[names(x)])
+```
+
+
+### Highly Ranked Peaks {.tabset}
+
+```{r select-highly-ranked}
+grl_to_plot <- GRangesList()
+grl_to_plot$consensus <- consensus_peaks %>% 
+  subset(score == max(score)) %>% 
+  granges()
+for (i in treat_levels) {
+  grl_to_plot[[i]] <- filtered_peaks[[i]] %>% 
+    filter_by_non_overlaps(filtered_peaks[names(filtered_peaks) != i]) %>% 
+    subset(score == max(score)) %>% 
+    granges() %>% 
+    unname() %>% 
+    .[1]
+}
 y_lim <- bwfl %>%
   lapply(
     function(x) {
@@ -1025,8 +1056,9 @@ y_lim <- bwfl %>%
   )
 ```
 
+
 Coverage for a small set of highly ranked peaks are shown below.
-These are the most highly ranked Consensus Peak (by `score`) and the most highly ranked peak for each of `r pander(treat_levels)` after incrementally stepping through and excluding any already selected peak.
+These are the most highly ranked Consensus Peak (by `score`) and the most highly ranked peak for each of `r pander(treat_levels)` which was unique to that set of filtered peaks, without being identified in any other treatment group.
 
 
 ```{r plot-highly-ranked}
@@ -1043,27 +1075,18 @@ htmltools::tagList(
           paste0("_topranked.", fig_type)
       )
       fig_fun(filename = fig_out, width = fw, height = fh)
-      ## Automatically collapse Transcripts if more than 20
-      ct <- FALSE
-      gh <- 1
-      ol_trans <- subsetByOverlaps(hfgc_genes, grl_to_plot)$transcript
-      if (length(unique(ol_trans)) > 20) {
-        ct <- "meta"
-        gh <- 0.5
-      }
       ## Generate the plot
       plotHFGC(
         grl_to_plot[[x]],
+        hic = hic,
         features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
-        rotation.title = 90,
-        zoom = 30,
-        ylim = y_lim,
-        collapseTranscripts = ct, genesize = gh,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 30, ylim = y_lim,
         col.title = "black", background.title = "white", 
-        showAxis = FALSE
+        rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
       dev.off()
       
@@ -1101,8 +1124,8 @@ htmltools::tagList(
             str_replace_all(" ", "-") %>% 
             str_to_lower() %>% 
             paste0("-topranked"),
-          class = "section level3",
-          htmltools::h3(
+          class = "section level4",
+          htmltools::h4(
             paste("Top Ranked", nm, "Peak")
           ),
           htmltools::div(
@@ -1119,7 +1142,113 @@ htmltools::tagList(
 )  
 ```
 
-`r if (has_rna) "## Relationship to RNA Data"`
+
+### Low Ranked Peaks {.tabset}
+
+```{r select-low-ranked}
+grl_to_plot <- GRangesList()
+grl_to_plot$consensus <- consensus_peaks %>% 
+  subset(score == min(score)) %>% 
+  granges() %>% 
+  .[sample.int(length(.), 1)]
+for (i in treat_levels) {
+  grl_to_plot[[i]] <- filtered_peaks[[i]] %>% 
+    filter_by_non_overlaps(filtered_peaks[names(filtered_peaks) != i]) %>% 
+    subset(score == min(score)) %>% 
+    granges() %>% 
+    unname() %>% 
+    .[1]
+}
+```
+
+As a counter to the highly ranked peaks, coverage for a small set of low ranked peaks are shown below.
+These are the most low-ranked consensus peak (by `score`) and the most low-ranked peak for each of `r pander(treat_levels)` which was unique to that set of filtered peaks, without being identified in any other treatment group.
+These effectively represent the low-probability peaks calls, and it may be assumed that the majority of peaks lie somewhere between the highly-ranked and low-ranked peaks.
+
+
+```{r plot-low-ranked}
+htmltools::tagList(
+  lapply(
+    seq_along(grl_to_plot),
+    function(x) {
+      nm <- names(grl_to_plot)[[x]]
+      ## Export the figure
+      fig_out <- file.path(
+        fig_path,
+        nm %>% 
+          str_replace_all(" ", "_") %>% 
+          paste0("_lowranked.", fig_type)
+      )
+      fig_fun(filename = fig_out, width = fw, height = fh)
+      ## Generate the plot
+      plotHFGC(
+        grl_to_plot[[x]],
+        hic = hic,
+        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
+        genes = hfgc_genes, genecol = gene_col,
+        coverage = bwfl, linecol = line_col,
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 30, ylim = y_lim,
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10
+      )
+      dev.off()
+      
+      ## Define the caption
+      gr <- join_nearest(grl_to_plot[[x]], gtf_gene, distance = TRUE)
+      d <- gr$distance
+      gn <- gr$gene_name
+      peak_desc <- ifelse(
+        nm == "union",
+        "union peak by combined score across all treatments.",
+        paste(
+          "treatment-peak unique to the merged", nm, "samples."
+        )
+      )
+      cp <- htmltools::tags$em(
+        glue(
+          "The most low-ranked {peak_desc} ",
+          ifelse(
+            d == 0,
+            paste('The peak directly overlaps', gn),
+            paste0("The nearest gene was ", gn, ", ", round(d/1e3, 1), "kb away")
+          ),
+          "
+          . Y-axes for each coverage track are set to the most highly ranked peak
+          across all conditions.
+          "
+        )
+      )
+      
+      ## Create html tags
+      fig_link <- str_extract(fig_out, "assets.+")
+      htmltools::div(
+        htmltools::div(
+          id = nm %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-lowranked"),
+          class = "section level4",
+          htmltools::h4(
+            paste("Low Ranked", nm, "Peak")
+          ),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = 960),
+            htmltools::p(
+              class = "caption", htmltools::tags$em(cp)
+            )
+          )
+        )
+      )
+    }
+  )
+)  
+```
+
+
+`r if (has_rna) "## Relationship to Transcriptomic Data"`
 
 ```{r tbl-rna, echo = has_rna}
 if (has_rna) {
@@ -1157,11 +1286,11 @@ if (has_rna) {
       justify = "lrrrr",
       caption = glue(
         "
-        Relationship of RNA data to genes with peaks mapped to them.
+        *Relationship of RNA data to genes with peaks mapped to them.
         Fisher's Exact Test was performed to determine any association, as reported 
         by the p-value. Any significant association implies that {target} is likely
         to be playing a regulatory role within that dataset. A total of 
-        {comma(length(gtf_gene))} genes are contained in the provided GTF.
+        {comma(length(gtf_gene))} genes are contained in the provided GTF.*
         "
       )
     )
@@ -1169,7 +1298,7 @@ if (has_rna) {
 ```
 
 
-## Gene-Set Enrichment
+## Gene-Set Enrichment Testing
 
 ```{r setup-enrichment}
 ## Set parameters for enabling networks, handling possible NULLs
