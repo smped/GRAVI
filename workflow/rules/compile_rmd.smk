@@ -157,29 +157,29 @@ rule compile_differential_signal_html:
         yaml = rules.create_site_yaml.output
     output:
         html = "docs/{target}_{ref}_{treat}_differential_signal.html",
-        enrichment = expand(
-            os.path.join(
-                diff_path, "{{target}}",
-                "{{target}}_{{ref}}_{{treat}}-{f}-enrichment.csv"
-            ),
-            f = ['changed', 'increased', 'decreased']
-        ),
-        fig_path = directory(
-            os.path.join(
-                "docs", "{target}_{ref}_{treat}_differential_signal_files",
-                "figure-html"
-            )
-        ),
-        results = os.path.join(
-            diff_path, "{{target}}",
-            "{{target}}_{{ref}}_{{treat}}-differential_signal.csv.gz"
-        ),
-        renv = temp(
-            os.path.join(
-                "output", "envs",
-                "{target}_{ref}_{treat}-differential_signal.RData"
-            )
-        ),
+        # enrichment = expand(
+        #     os.path.join(
+        #         diff_path, "{{target}}",
+        #         "{{target}}_{{ref}}_{{treat}}-{f}-enrichment.csv"
+        #     ),
+        #     f = ['changed', 'increased', 'decreased']
+        # ),
+        # fig_path = directory(
+        #     os.path.join(
+        #         "docs", "{target}_{ref}_{treat}_differential_signal_files",
+        #         "figure-html"
+        #     )
+        # ),
+        # results = os.path.join(
+        #     diff_path, "{{target}}",
+        #     "{{target}}_{{ref}}_{{treat}}-differential_signal.csv.gz"
+        # ),
+        # renv = temp(
+        #     os.path.join(
+        #         "output", "envs",
+        #         "{target}_{ref}_{treat}-differential_signal.RData"
+        #     )
+        # ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
     resources:

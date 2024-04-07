@@ -112,20 +112,24 @@ filtered_peaks <- all_input$peaks %>%
   )
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
 if (length(vars) == 0) vars <- NULL
-cat_time("Forming consensus peaks")
+cat_time("Checking params")
+# From  names(Rdpack::S4formals("reduce", c(x = "GenomicRanges")))
+reduce_args <- c(
+    "x", "drop.empty.ranges", "min.gapwidth", "with.revmap",
+    "with.inframe.attrib", "ignore.strand"
+    )
 valid_args <- list(formals(makeConsensus), formals(reduceMC)) %>%
   lapply(names) %>%
-  c(
-    list(
-      c(
-        # From  names(Rdpack::S4formals("reduce", c(x = "GenomicRanges")))
-        "x", "drop.empty.ranges", "min.gapwidth", "with.revmap",
-        "with.inframe.attrib", "ignore.strand")
-    )
-  ) %>%
+  c(list(reduce_args)) %>%
   unlist() %>%
   unique() %>%
   setdiff("...")
+## Python cannot handle params with a dot, so check if there are any
+## reduce_args with an underscore & correct these
+dot_to_underscore <- names(all_params) %in% gsub("\\.", "_", reduce_args)
+names(all_params)[dot_to_underscore] <- gsub(
+  "_", ".", names(all_params)[dot_to_underscore]
+)
 cons_params <- list(
   ## These all need to be set on a cluster, but not when running interactively
   ## Don't know why...
@@ -135,6 +139,7 @@ cons_params <- list(
   .[!names(.) %in% names(all_params)] %>%
   c(all_params) %>%
   .[names(.) %in% valid_args]
+cat_time("Forming consensus peaks")
 cons_peaks <- do.call("makeConsensus", cons_params)
 
 if ("score" %in% vars) {
