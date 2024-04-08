@@ -6,7 +6,7 @@ rule create_site_yaml:
         yml = "config/rmarkdown.yml",
     output:
         yml = os.path.join(rmd_path, "_site.yml")
-    log: os.path.join(log_path, "scripts", "create_site_yaml.log")
+    log: os.path.join(log_path, "create_rmd", "site_yaml.log")
     params:
         targets = targets,
         diff_sig = diff_sig_param,
@@ -28,7 +28,7 @@ rule create_setup_chunk:
         yml = "config/rmarkdown.yml",
     output:
         rmd = "analysis/setup_chunk.Rmd"
-    log: os.path.join(log_path, "scripts", "create_setup_chunk.log")
+    log: os.path.join(log_path, "create_rmd", "setup_chunk.log")
     threads: 1
     localrule: True
     resources:
@@ -55,6 +55,43 @@ rule create_index_rmd:
         cat {input.rmd} > {output}
         """
 
+rule create_annotations_rmd:
+    input:
+        chrom_sizes = chrom_sizes,
+        features = os.path.join(annotation_path, "features.rds"),
+        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        gsea_dir = os.path.join(annotation_path, "gsea_dir.rds"),
+        gsea_sig = os.path.join(annotation_path, "gsea_sig.rds"),
+        gtf_exon = os.path.join(annotation_path, "gtf_exon.rds"),
+        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
+        gtf_transcript = os.path.join(annotation_path, "gtf_transcript.rds"),
+        hic = os.path.join(annotation_path, "hic.rds"),
+        module = os.path.join(
+            "workflow", "modules", "annotation_description.Rmd"
+        ),
+        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        motif_uri = os.path.join(annotation_path, "motif_uri.rds"),        
+        rna = os.path.join(annotation_path, "rna.rds"),        
+        script = os.path.join(
+            "workflow", "scripts", "create_annotations_rmd.R"
+        ),
+        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        trans_models = os.path.join(annotation_path, "trans_models.rds"),
+        tss = os.path.join(annotation_path, "tss.rds"),
+    output:
+        rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
+    params:
+        colours = os.path.join(annotation_path, "colours.rds"),
+    conda: "../envs/rmarkdown.yml"
+    threads: 1
+    localrule: True
+    log: os.path.join(log_path, "create_rmd", "annotation_description.log")
+    resources:
+        mem_mb = 1024,
+        runtime = "5m",
+    script:
+        "../scripts/create_annotations_rmd.R"
+
 rule create_signal_summary_rmd:
     input:
         annotations = ANNOTATION_RDS,
@@ -68,7 +105,6 @@ rule create_signal_summary_rmd:
         cors = os.path.join(
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
-        external = rules.check_external_files.output,
         here = rules.check_here_file.output,
         module = "workflow/modules/signal_summary.Rmd",
         packages = rules.check_r_packages.output,
