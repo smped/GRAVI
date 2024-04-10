@@ -154,6 +154,8 @@ fig_path <- here::here("docs", "assets", comp)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 
 rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
+gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
+gsea_sig <- file.path(all_paths$annotation, "gsea_sig.rds") %>% read_rds()
 has_rna <- length(rna) > 0
 ```
 

@@ -27,9 +27,9 @@ donuts <- rna %>%
     status.x = str_replace_na(status.x, "Undetected"),
     status.y = str_replace_na(status.y, "Undetected"),
   ) %>% 
-  # lapply(
-  #   dplyr::filter, !grepl("detected", status.x) & !grepl("detected", status.y)
-  # ) %>%
+  lapply(
+    dplyr::filter, !grepl("detected", status.x) 
+  ) %>%
   lapply(
     dplyr::rename, RNA = status.x, "{target}" := status.y
   ) %>% 
@@ -39,15 +39,87 @@ donuts <- rna %>%
     inner_palette = direction_colours, outer_palette = direction_colours,
     inner_glue = "{inner}\n{.data[[inner]]}\n{comma(n, 1)}\n{percent(p,0.1)}",
     inner_label_alpha = 0.8, inner_min_p = 0.025,
-    outer_glue = "{outer} {.data[[outer]]}\n{comma(n, 1)}",
-    outer_min_p = 0.0005, #outer_label_colour = "palette", #outer_pattern = "creased",
-    # outer_rotate = TRUE, 
+    outer_glue = "{.data[[outer]]} {comma(n, 1)}",
+    outer_min_p = 0.001, outer_label_colour = "palette", 
+    outer_rotate = TRUE,
     outer_label = "text"
   ) 
-donuts <- names(donuts) %>% 
-  lapply(\(x) donuts[[x]] + plot_annotation(title = x)) %>% 
-  setNames(names(rna))
 donuts[[1]]
+pw_pl <- c(
+  direction_colours[["Unchanged"]], RColorBrewer::brewer.pal(8, "Paired")
+)
+names(pw_pl) <- paste(
+  target, 
+  c(
+    "Unchanged - RNA Unchanged",
+    "Unchanged - RNA Decreased", "Decreased - RNA Decreased", 
+    "Decreased - RNA Unchanged", "Increased - RNA Unchanged", 
+    "Unchanged - RNA Increased", "Increased - RNA Increased", 
+    "Increased - RNA Decreased", "Decreased - RNA Increased"
+  ) 
+)
+
+lfc_plots <- rna %>% 
+  lapply(
+    \(x) {
+      results %>% 
+        as_tibble() %>% 
+        dplyr::select(-any_of(c("gene_name"))) %>% 
+        unnest(gene_id) %>% 
+        inner_join(x, by = "gene_id") %>% 
+        mutate(
+          status.x = fct_relabel(status.x, \(x) paste(target, x)), 
+          status.y = fct_relabel(status.y, \(x) paste("RNA", x)), 
+          status = fct_cross(status.x, status.y, sep = " - ") %>% fct_rev(),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        rename_with(
+          \(x) str_replace_all(x, "\\.x$", paste0(" ", target))
+        ) %>% 
+        rename_with(
+          \(x) str_replace_all(x, "\\.y$", " RNA")
+        ) %>% 
+        arrange(desc(`logFC RNA`), !!sym(glue("PValue {target}"))) %>% 
+        distinct(gene_id, .keep_all = TRUE) %>% 
+        ggplot(aes(!!sym(glue("logFC {target}")), `logFC RNA`)) +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = 0) +
+        geom_point(
+          data = . %>% dplyr::filter(grepl("Unchanged.+Unchanged", status)),
+          colour = direction_colours[["Unchanged"]], alpha = 0.5
+        ) +
+        geom_point(
+          aes(colour = status),
+          data = . %>% dplyr::filter(!grepl("Unchanged.+Unchanged", status)),
+        ) +
+        geom_text(
+          aes(label = lab),
+          data = . %>% 
+            dplyr::summarise(
+              cor = cor(!!sym(glue("logFC {target}")), `logFC RNA`),
+              "logFC {target}" := max(!!sym(glue("logFC {target}"))),
+              `logFC RNA` = min(`logFC RNA`),
+              lab = glue("rho == {round(cor, 3)}")
+            ),
+          hjust = 1, vjust = 0, parse = TRUE
+        ) +
+        geom_label_repel(
+          aes(label = gene_name, colour = status),
+          data = . %>% 
+            dplyr::filter(!grepl("Unchanged.+Unchanged", status)) %>% 
+            dplyr::filter(
+              (!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2 > 1
+            ) %>% 
+            dplyr::arrange(
+              desc((!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2)
+            ) %>% 
+            dplyr::slice(1:7, .by = status),
+          show.legend = FALSE, size = 3, fontface = "italic"
+        ) +
+        scale_colour_manual(values = pw_pl)
+    }
+  )
+lfc_plots[[1]]
 
 
 
@@ -62,47 +134,6 @@ Gene-centric regions were as defined previously.
 
 
 
-### Detected Genes By `r target` Signal
-
-```{r plot-region-detected, fig.height = 6, fig.cap = glue("*Distribution of {target} windows by region, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
-merged_results %>%
-  mutate(
-    RNASeq = ifelse(
-      vapply(gene_name, length, integer(1)) > 1, "Detected", "Undetected"
-    )
-  ) %>% 
-  as_tibble() %>% 
-  dplyr::rename(Region = region) %>%   
-  plotSplitDonut(
-      inner = "RNASeq", outer = "Region", min_p = 0.02, r_outer = 0.7,
-      label_alpha = 0.7,
-      inner_glue = "{.data[[inner]]}\n{percent(p, 0.1)}\nn = {comma(n, 1)}",
-      outer_glue = "{str_wrap(.data[[outer]], 12)}\n{percent(p, 0.1)}\nn = {comma(n, 1)}",
-      inner_palette = as.character(colours$qc),
-      outer_palette = region_colours
-  )  
-```
-
-`r ifelse(has_features, "### Detected Genes By Feature", "")`
-
-```{r plot-feature-detected, eval = has_features, echo = has_features, fig.height = 6, fig.cap = glue("*Distribution of {target} windows by externally-defined features from {basename(config$external$features)}, according to whether the window is mapped to a detected gene in the RNA-Seq dataset.*")}
-merged_results %>%
-  mutate(
-    RNASeq = ifelse(
-      vapply(gene_name, length, integer(1)) > 1, "Detected", "Undetected"
-    )
-  ) %>% 
-  as_tibble() %>% 
-  dplyr::rename(Feature = feature) %>%   
-  plotSplitDonut(
-      inner = "RNASeq", outer = "Feature", min_p = 0.02, r_outer = 0.7,
-      label_alpha = 0.7,
-      inner_glue = "{.data[[inner]]}\n{percent(p, 0.1)}\nn = {comma(n, 1)}",
-      outer_glue = "{str_wrap(.data[[outer]], 12)}\n{percent(p, 0.1)}\nn = {comma(n, 1)}",
-      inner_palette = as.character(colours$qc),
-      outer_palette = feature_colours
-  ) 
-```
 
 
 ## Relationship With Differentially Expressed Genes {.tabset}

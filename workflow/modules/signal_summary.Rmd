@@ -1298,6 +1298,71 @@ if (has_rna) {
 ```
 
 
+```{r}
+if (has_rna) {
+  rna %>% 
+    lapply(
+      \(x) {
+        consensus_peaks %>% 
+          as_tibble() %>% 
+          dplyr::select(region, gene_id) %>% 
+          unnest(gene_id) %>% 
+          bind_rows(
+            tibble(
+              region = "No Detected Peak",
+              gene_id = setdiff(gtf_gene$gene_id, .$gene_id)
+            ) 
+          ) %>% 
+          left_join(x, by = "gene_id") %>% 
+          mutate(
+            detected = !is.na(logFC),
+            region = factor(region, levels = c(regions, "No Detected Peak"))
+          ) %>% 
+          distinct(gene_id, region, .keep_all = TRUE) %>% 
+          summarise(
+            total_mapped = length(unique(gene_id)),
+            detected = sum(detected),
+            prop = detected / total_mapped,
+            .by = c(region)
+          ) %>% 
+          arrange(region) 
+      }
+    )
+}
+```
+
+```{r}
+if (has_rna & has_features) {
+  rna %>% 
+    lapply(
+      \(x) {
+        consensus_peaks %>% 
+          as_tibble() %>% 
+          dplyr::select(feature, gene_id) %>% 
+          unnest(gene_id) %>% 
+          bind_rows(
+            tibble(
+              feature = "No Detected Peak",
+              gene_id = setdiff(gtf_gene$gene_id, .$gene_id)
+            ) 
+          ) %>% 
+          left_join(x, by = "gene_id") %>% 
+          mutate(
+            detected = !is.na(logFC),
+          ) %>% 
+          distinct(gene_id, feature, .keep_all = TRUE) %>% 
+          summarise(
+            total_mapped = length(unique(gene_id)),
+            detected = sum(detected),
+            prop = detected / total_mapped,
+            .by = c(feature)
+          ) %>% 
+          arrange(feature) 
+      }
+    )
+}
+```
+
 ## Gene-Set Enrichment Testing
 
 ```{r setup-enrichment}

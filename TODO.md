@@ -22,6 +22,7 @@
 ## Annotation Setup
 
 - [x] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
+- [ ] Tidy up GSEA tables & descriptions to just look nice
   
 ## Peak Analysis
 
@@ -41,7 +42,7 @@
     + Add params used to the metadata of the results
 - [x] Rewrite script/rules for creating diff_signal Rmds with updated params
 - [x] Redefine config settings to have a default, with optional overwrite using the target 
-- [ ] Fix bug in creating figures
+- [x] Fix bug in creating figures
 - [ ] Update RNA-Seq module
     + Wrangle multiple files
 
@@ -57,7 +58,7 @@
 
 - [x] Turn on as a module in `config.yml` which creates a new drop-down menu item in `_site.yml`
 - [x] Determine required output files in `Snakefile`
-- [ ] Write initial module
+- [x] Write initial module
   - Equivalent to signal_summary with:
     - Comparison back to broader peaks
     - Motif analysis
