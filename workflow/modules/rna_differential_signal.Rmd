@@ -45,6 +45,9 @@ donuts <- rna %>%
     outer_label = "text"
   ) 
 donuts[[1]]
+```
+
+```{r}
 pw_pl <- c(
   direction_colours[["Unchanged"]], RColorBrewer::brewer.pal(8, "Paired")
 )
@@ -58,10 +61,10 @@ names(pw_pl) <- paste(
     "Increased - RNA Decreased", "Decreased - RNA Increased"
   ) 
 )
-
-lfc_plots <- rna %>% 
+lfc_by_region <- names(rna) %>% 
   lapply(
-    \(x) {
+    \(i) {
+      x <- rna[[i]]
       results %>% 
         as_tibble() %>% 
         dplyr::select(-any_of(c("gene_name"))) %>% 
@@ -91,7 +94,9 @@ lfc_plots <- rna %>%
         geom_point(
           aes(colour = status),
           data = . %>% dplyr::filter(!grepl("Unchanged.+Unchanged", status)),
+          alpha = 0.7
         ) +
+        geom_smooth(se = FALSE, method = MASS::rlm, colour = "grey20") +
         geom_text(
           aes(label = lab),
           data = . %>% 
@@ -99,7 +104,12 @@ lfc_plots <- rna %>%
               cor = cor(!!sym(glue("logFC {target}")), `logFC RNA`),
               "logFC {target}" := max(!!sym(glue("logFC {target}"))),
               `logFC RNA` = min(`logFC RNA`),
-              lab = glue("rho == {round(cor, 3)}")
+              lab = glue("rho == {round(cor, 3)}"),
+              .by = region
+            ) %>% 
+            mutate(
+              "logFC {target}" := max(!!sym(glue("logFC {target}"))),
+              `logFC RNA` = min(`logFC RNA`)
             ),
           hjust = 1, vjust = 0, parse = TRUE
         ) +
@@ -113,78 +123,315 @@ lfc_plots <- rna %>%
             dplyr::arrange(
               desc((!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2)
             ) %>% 
-            dplyr::slice(1:7, .by = status),
+            dplyr::slice(1:3, .by = all_of(c("region", "status"))),
           show.legend = FALSE, size = 3, fontface = "italic"
         ) +
-        scale_colour_manual(values = pw_pl)
+        facet_wrap(~region) +
+        scale_colour_manual(values = pw_pl) +
+        labs(
+          x = glue("logFC ({target})", y = "logFC (RNA)")
+        ) +
+        theme(legend.position = "bottom")
     }
   )
-lfc_plots[[1]]
-
-
-
-
+lfc_by_region[[1]]
 ```
 
-## Distribution Of Detected Genes {.tabset}
+```{r}
+lfc_by_feature <- names(rna) %>% 
+  lapply(
+    \(i) {
+      x <- rna[[i]]
+      results %>% 
+        as_tibble() %>% 
+        dplyr::select(-any_of(c("gene_name"))) %>% 
+        unnest(gene_id) %>% 
+        inner_join(x, by = "gene_id") %>% 
+        mutate(
+          status.x = fct_relabel(status.x, \(x) paste(target, x)), 
+          status.y = fct_relabel(status.y, \(x) paste("RNA", x)), 
+          status = fct_cross(status.x, status.y, sep = " - ") %>% fct_rev(),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        rename_with(
+          \(x) str_replace_all(x, "\\.x$", paste0(" ", target))
+        ) %>% 
+        rename_with(
+          \(x) str_replace_all(x, "\\.y$", " RNA")
+        ) %>% 
+        arrange(desc(`logFC RNA`), !!sym(glue("PValue {target}"))) %>% 
+        distinct(gene_id, .keep_all = TRUE) %>% 
+        ggplot(aes(!!sym(glue("logFC {target}")), `logFC RNA`)) +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = 0) +
+        geom_point(
+          data = . %>% dplyr::filter(grepl("Unchanged.+Unchanged", status)),
+          colour = direction_colours[["Unchanged"]], alpha = 0.5
+        ) +
+        geom_point(
+          aes(colour = status),
+          data = . %>% dplyr::filter(!grepl("Unchanged.+Unchanged", status)),
+          alpha = 0.7
+        ) +
+        geom_smooth(se = FALSE, method = MASS::rlm, colour = "grey20") +
+        geom_text(
+          aes(label = lab),
+          data = . %>% 
+            dplyr::summarise(
+              cor = cor(!!sym(glue("logFC {target}")), `logFC RNA`),
+              "logFC {target}" := max(!!sym(glue("logFC {target}"))),
+              `logFC RNA` = min(`logFC RNA`),
+              lab = glue("rho == {round(cor, 3)}"),
+              .by = feature
+            ) %>% 
+            mutate(
+              "logFC {target}" := max(!!sym(glue("logFC {target}"))),
+              `logFC RNA` = min(`logFC RNA`)
+            ),
+          hjust = 1, vjust = 0, parse = TRUE
+        ) +
+        geom_label_repel(
+          aes(label = gene_name, colour = status),
+          data = . %>% 
+            dplyr::filter(!grepl("Unchanged.+Unchanged", status)) %>% 
+            dplyr::filter(
+              (!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2 > 1
+            ) %>% 
+            dplyr::arrange(
+              desc((!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2)
+            ) %>% 
+            dplyr::slice(1:3, .by = all_of(c("feature", "status"))),
+          show.legend = FALSE, size = 3, fontface = "italic"
+        ) +
+        facet_wrap(~feature) +
+        scale_colour_manual(values = pw_pl) +
+        labs(
+          x = glue("logFC ({target})", y = "logFC (RNA)")
+        ) +
+        theme(legend.position = "bottom")
+    }
+  )
+lfc_by_feature[[1]]
+```
 
-The distribution of merged windows, where `r target` signal was detected, was firstly compared to genes within the RNA-Seq dataset.
-Genes were simply considered as detected if present in the RNA-Seq data, or undetected if not present.
-Gene-centric regions were as defined previously.
+```{r}
+names(rna) %>% 
+  lapply(
+    \(i) {
+      x <- rna[[i]]
+      tbl <- results %>% 
+        as_tibble() %>% 
+        dplyr::select(-any_of(c("gene_name"))) %>% 
+        unnest(gene_id) %>% 
+        full_join(x, by = "gene_id") %>% 
+        mutate(
+          status.x = fct_na_value_to_level(status.x, "Undetected"),
+          status.y = fct_na_value_to_level(status.y, "Undetected")
+        ) %>% 
+        arrange(PValue.x) %>% 
+        distinct(gene_id, .keep_all = TRUE) %>% 
+        dplyr::select(gene_id, starts_with("status")) %>% 
+        summarise(
+          n = dplyr::n(), .by = starts_with("status")
+        ) %>%
+        pivot_wider(names_from = "status.y", values_from = "n", values_fill = 0) %>% 
+        dplyr::select(
+          starts_with("status"), any_of(c("Increased", "Decreased")), 
+          everything()
+        ) %>% 
+        reactable(
+          showPageSizeOptions = FALSE,
+          columns = list(
+            status.x = colDef(glue("{target} Status"), footer = "")
+          ),
+          defaultColDef = colDef(
+            sortable = TRUE, format = comma_col,
+            footer = function(values) comma(sum(values)),
+            footerStyle = list(fontWeight = "bold")
+          ),
+          columnGroups = list(
+            colGroup(
+              "Gene Expression", str_subset(names(.), "ed$")
+            )
+          )
+        )
+      cp <- htmltools::em(
+        glue(
+          "Comparison between {target} status and gene expression in {i}."
+        )
+      )
+      ## Set all the rest of the info for a tagList here
+    }
+  )
+```
 
-
-
-
-
-## Relationship With Differentially Expressed Genes {.tabset}
-
-
-```{r define-genesets}
-rna_dir_ranks <- rnaseq %>% 
-  mutate(
-    ranking_stat = -sign(!!sym(rna_lfc_col))*log10(!!sym(rna_p_col)) %>% 
-      setNames(gene_id)
-  ) %>% 
-  arrange(ranking_stat) %>% 
-  dplyr::filter(!!sym(rna_p_col) < 1) %>% 
-  pull("ranking_stat") 
-rna_sig_ranks <- rna_dir_ranks %>% 
-  abs() %>% 
-  sort()
-dir_gs <- merged_results %>% 
-  select(status, starts_with("gene")) %>% 
-  as_tibble() %>% 
-  mutate(group = glue("{target} {status}")) %>% 
-  split(.$group) %>% 
-  lapply(pull, "gene_id") %>% 
-  lapply(unlist) %>% 
-  lapply(unique) %>% 
-  .[vapply(., length, integer(1)) >= min_gs_size]
-reg_dir_gs <- merged_results %>% 
-  select(
-    overlaps_ref, status, any_of(c("region", "feature")), starts_with("gene")
-  ) %>% 
-  as_tibble() %>% 
-  mutate(group = glue("{region} / {target} {status}")) %>% 
-  split(.$group) %>% 
-  lapply(pull, "gene_id") %>% 
-  lapply(unlist) %>% 
-  lapply(unique) %>% 
-  .[vapply(., length, integer(1)) >= min_gs_size]
-if (has_features) {
-  feat_dir_gs <- merged_results %>% 
-  select(
-    overlaps_ref, status, any_of(c("feature")), starts_with("gene")
-  ) %>% 
-  as_tibble() %>% 
-  mutate(group = glue("{feature} / {target} {status}")) %>% 
-  split(.$group) %>% 
-  lapply(pull, "gene_id") %>% 
-  lapply(unlist) %>% 
-  lapply(unique) %>% 
-  .[vapply(., length, integer(1)) >= min_gs_size]
+```{r}
+any_de <- map_lgl(rna, \(x) any(x$FDR < 0.05))
+if (any(any_de)) {
+  range_js <- JS(
+    "function(values) {
+      var min_val = Math.round(100 * Math.min(...values)) / 100
+      var max_val = Math.round(100 * Math.max(...values)) / 100
+      if (min_val == max_val) {
+        var ret_val = min_val.toString()
+      } else {
+        var ret_val = '[' + min_val.toString() + ', ' + max_val.toString() + ']'
+      }
+      return ret_val
+    }"
+  )
+  max_signal <- max(results$logCPM)
+  fs <- 12
+  names(which(any_de)) %>% 
+    lapply(
+      \(i) {
+        rna[[i]] %>% 
+          dplyr::filter(FDR < 0.05) %>% 
+          mutate(gene_name = id2gene[gene_id]) %>% 
+          inner_join(
+            as_tibble(results) %>% 
+              unnest(gene_id) %>% 
+              dplyr::select(
+                range, any_of(c("region", "feature")), starts_with("log"),
+                FDR = !!sym(fdr_column), status, gene_id
+              ),
+            by = "gene_id"
+          ) %>% 
+          dplyr::select(
+            starts_with("gene"), ends_with(".x"), logCPM, ends_with(".y"), 
+            range, any_of(c("region", "feature")),  
+          ) %>% 
+          reactable(
+            showPageSizeOptions = TRUE, groupBy = "gene_name",
+            filterable = TRUE, sortable = TRUE,
+            columns = list(
+              gene_name = colDef(
+                name = "Gene", maxWidth = fs*11,
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+                  fontSize = fs
+                )
+              ),
+              gene_id = colDef(
+                name = "ID", aggregate = "unique", cell = function(value) "",
+                show = FALSE
+              ),
+              logFC.x = colDef(
+                "logFC", aggregate = "mean", 
+                style = JS(
+                  glue(
+                    "function(rowInfo) {
+                      var value = rowInfo.row['logFC.x']
+                      if (value < 0) {
+                        var color = '{{direction_colours[['Decreased']]}}'
+                      } else if (value > 0) {
+                        var color = '{{direction_colours[['Increased']]}}'
+                      } else {
+                        var color = '#000000'
+                      }
+                      return { color: color, fontSize: 12 }
+                    }",
+                    .open = "{{", .close = "}}"
+                  )
+                ),
+                format = colFormat(digits = 2), maxWidth = fs*6,
+              ),
+              FDR.x = colDef(
+                name = "FDR", aggregate = "min", maxWidth = fs*6,
+                format = colFormat(digits = 4),
+                cell = \(value) sprint_pval(value),
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)", 
+                  fontSize = fs
+                ),
+                filterMethod = js_less
+              ),
+              status.x = colDef("Status", aggregate = "unique", show = FALSE),
+              range = colDef(
+                name = "Signal Location", minWidth = 160,
+                aggregate = JS(
+                  "function(values){
+                      var chrom = [];
+                      var rng = [];
+                      var start = [];
+                      var end = [];
+                      for (i = 0; i < values.length; i++) {
+                        chrom[i] = values[i].split(':')[0];
+                        rng[i] = values[i].split(':')[1];
+                        start[i] = rng[i].split('-')[0];
+                        end[i] = rng[i].split('-')[1];
+                      }
+                      
+                      min_start = Math.min(...start);
+                      max_end = Math.max(...end);
+                      var ret_val = [...new Set(chrom)] + ':' + min_start.toString() + '-' + max_end.toString();
+                      return ret_val
+                    }"
+                )
+              ),
+              region = colDef(
+                name = "Genomic Region", aggregate = "unique"
+              ),
+              feature = colDef(
+                name = "Feature", aggregate = "unique"
+              ),
+              logCPM = colDef(
+                name = "logCPM", maxWidth = fs*6,
+                aggregate = range_js,
+                format = colFormat(digits = 2),
+                style = function(value) bar_style(
+                  width = value / max_signal, fontSize = fs
+                ),
+                filterMethod = js_greater
+              ),
+              logFC.y = colDef(
+                name = "logFC", aggregate = "mean", maxWidth = fs*5,
+                format = colFormat(digits = 2),
+                cell = function(value) sprintf("%.2f", value),
+                style =  JS(
+                  glue(
+                    "function(rowInfo) {
+                      var value = rowInfo.row['logFC.y']
+                      if (value < 0) {
+                        var color = '{{direction_colours[['Decreased']]}}'
+                      } else if (value > 0) {
+                        var color = '{{direction_colours[['Increased']]}}'
+                      } else {
+                        var color = '#000000'
+                      }
+                      return { color: color, fontSize: {{fs}} }
+                    }",
+                    .open = "{{", .close = "}}"
+                  )
+                )
+              ),
+              FDR.y = colDef(
+                name = "FDR",
+                aggregate = "max",
+                maxWidth = 10 + fs*5,
+                format = colFormat(prefix = "< ", digits = 4),
+                cell = \(value) sprint_pval(value),
+                filterMethod = js_less,
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+                  fontSize = fs
+                )
+              ),
+              status.y = colDef("Status", show = FALSE, aggregate = "unique")
+            ),
+            columnGroups = list(
+              colGroup("RNA", str_subset(names(.), "\\.x$")),
+              colGroup(target, c("logCPM", str_subset(names(.), "\\.y$")))
+            ),
+            theme = reactableTheme(style = list(fontSize = fs))
+          )
+        ## Now for the caption etc
+      }
+    )
 }
 ```
+
+
 
 ### DE Genes Associated with Changed `r target`
 

@@ -780,9 +780,7 @@ htmltools::tagList(
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = 960),
-              htmltools::p(
-                class = "caption", htmltools::tags$em(cp)
-              )
+              htmltools::p(class = "caption", cp)
             )
           )
         )
@@ -1297,69 +1295,115 @@ if (has_rna) {
 }
 ```
 
+`r if (has_rna) "### Detected Genes by Signal Region {.tabset}"`
 
-```{r}
+```{r tbl-rna-by-region, echo = has_rna}
 if (has_rna) {
-  rna %>% 
-    lapply(
-      \(x) {
-        consensus_peaks %>% 
-          as_tibble() %>% 
-          dplyr::select(region, gene_id) %>% 
-          unnest(gene_id) %>% 
-          bind_rows(
-            tibble(
-              region = "No Detected Peak",
-              gene_id = setdiff(gtf_gene$gene_id, .$gene_id)
-            ) 
-          ) %>% 
-          left_join(x, by = "gene_id") %>% 
-          mutate(
-            detected = !is.na(logFC),
-            region = factor(region, levels = c(regions, "No Detected Peak"))
-          ) %>% 
-          distinct(gene_id, region, .keep_all = TRUE) %>% 
-          summarise(
-            total_mapped = length(unique(gene_id)),
-            detected = sum(detected),
-            prop = detected / total_mapped,
-            .by = c(region)
-          ) %>% 
-          arrange(region) 
-      }
-    )
-}
-```
-
-```{r}
-if (has_rna & has_features) {
-  rna %>% 
-    lapply(
-      \(x) {
-        consensus_peaks %>% 
-          as_tibble() %>% 
-          dplyr::select(feature, gene_id) %>% 
-          unnest(gene_id) %>% 
-          bind_rows(
-            tibble(
-              feature = "No Detected Peak",
-              gene_id = setdiff(gtf_gene$gene_id, .$gene_id)
-            ) 
-          ) %>% 
-          left_join(x, by = "gene_id") %>% 
-          mutate(
-            detected = !is.na(logFC),
-          ) %>% 
-          distinct(gene_id, feature, .keep_all = TRUE) %>% 
-          summarise(
-            total_mapped = length(unique(gene_id)),
-            detected = sum(detected),
-            prop = detected / total_mapped,
-            .by = c(feature)
-          ) %>% 
-          arrange(feature) 
-      }
-    )
+  tagList(
+    names(rna) %>% 
+      lapply(
+        \(i) {
+          x <- rna[[i]]
+          no_peak <- tibble(
+            region = "No Detected Peak",
+            feature = "No Detected Peak",
+            total = gtf_gene$gene_id %>% 
+              setdiff(unlist(consensus_peaks$gene_id)) %>% 
+              unique() %>% 
+              length(),
+            detected = x$gene_id %>% 
+              setdiff(unlist(consensus_peaks$gene_id)) %>% 
+              unique() %>% 
+              length(),
+            prop = detected / total,
+            undetected = total - detected
+          )
+          tbl <- consensus_peaks %>% 
+            as_tibble() %>% 
+            dplyr::select(any_of(c("region", "feature")), gene_id) %>%
+            unnest(gene_id) %>% 
+            left_join(x, by = "gene_id") %>% 
+            mutate(
+              detected = !is.na(logFC)
+            ) %>%
+            distinct(
+              !!!syms(intersect(c("region", "feature", "gene_id"), colnames(.))),
+              .keep_all = TRUE
+            ) %>% 
+            summarise(
+              total = length(unique(gene_id)),
+              detected = sum(detected),
+              undetected = total - detected,
+              prop = detected / total,
+              .by = any_of(c("feature", "region"))
+            ) %>% 
+            mutate(p = map_dbl(
+              seq_len(nrow(.)), 
+              \(i) fisher.test(
+                bind_rows(.[i,], no_peak)[c("detected", "undetected")])$p.value
+            ),
+            adj_p = p.adjust(p, "fdr")
+            ) %>% 
+            arrange(p) %>% 
+            reactable(
+              showPageSizeOptions = TRUE,
+              columns = list(
+                region = colDef("Region"),
+                feature = colDef("Feature"),
+                total = colDef(
+                  glue("Mapped to {target} Peak"), format = comma_col,
+                  filterMethod = js_greater
+                ),
+                detected = colDef(
+                  "Detected", format = comma_col, filterMethod = js_greater
+                ),
+                undetected = colDef(
+                  "Not Detected", format = comma_col, filterMethod = js_greater
+                ),
+                prop = colDef(
+                  "% Detected", format = percent_col, filterMethod = js_greater
+                ),
+                p = colDef(show = FALSE),
+                adj_p = colDef(
+                  "P<sub>adj</adj>", html = TRUE, 
+                  cell = \(value) sprint_pval(value),
+                  filterMethod = js_less
+                )
+              )[colnames(.)],
+              columnGroups = list(
+                colGroup("Gene Expression", str_subset(names(.), "detected"))
+              ),
+              defaultColDef = colDef(
+                sortable = TRUE, filterable = TRUE, searchable = TRUE
+              )
+            )
+          cp <- htmltools::em(
+            glue(
+              "
+              Genes mapped to {target} peaks broken down by region and any 
+              additional provided features, along with whether they were 
+              detected in the trancriptomic dataset {i}. Fisher's test was 
+              performed for each region by comparing against genes for which no 
+              peak was detected with all p-values being FDR-adjusted. An 
+              additional {comma(no_peak$detected)} genes were detected in this
+              dataset without any evidence of associated {target} signal.
+            "
+            )
+          )
+          htmltools::div(
+            htmltools::div(
+              id = paste(i, "-detected-by-region"),
+              class = "section level4",
+              htmltools::h4(i),
+              htmltools::div(
+                class = "table", tbl,
+                htmltools::p(class = "caption", cp)
+              )
+            )
+          )
+        }
+      )
+  )
 }
 ```
 
