@@ -1,21 +1,21 @@
 #' Handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
 if (conda_pre != "") {
-    conda_lib_path <- file.path(conda_pre, "lib", "R", "library")
-    if (!dir.exists(conda_lib_path)) conda_lib_path <- NULL
-    prev_paths <- .libPaths()
-    paths_to_set <- unique(c(conda_lib_path, prev_paths))
-    .libPaths(paths_to_set)
+  conda_lib_path <- file.path(conda_pre, "lib", "R", "library")
+  if (!dir.exists(conda_lib_path)) conda_lib_path <- NULL
+  prev_paths <- .libPaths()
+  paths_to_set <- unique(c(conda_lib_path, prev_paths))
+  .libPaths(paths_to_set)
 }
 ## A function for printing input
 cat_list <- function(x, slot = NULL, sep = "\n\t"){
-    nm <- setdiff(names(x), "")
-    invisible(
-        lapply(
-            nm,
-            \(i) cat("Received", slot, i, sep, paste0( x[[i]], "\n\t"), "\n")
-        )
+  nm <- setdiff(names(x), "")
+  invisible(
+    lapply(
+      nm,
+      \(i) cat("Received", slot, i, sep, paste0( x[[i]], "\n\t"), "\n")
     )
+  )
 }
 cat_time <- function(...){
   tm <- format(Sys.time(), "%Y-%m-%d %H:%M:%S\t")
@@ -82,51 +82,58 @@ if (!is.null(rna_files)) {
         c("gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id"),
         names(df)
       )[[1]]
-	  if (length(gn_col) == 0) {
-		cat("Couldn't detect gene ids in", x)
-		stop()
-	  }
+      if (length(gn_col) == 0) {
+        cat("Couldn't detect gene ids in", x)
+        stop()
+      }
+
+      exp_col <- intersect(c("AveExpr", "logCPM", "baseMean"), names(df))[[1]]
+      if (length(exp_col) == 0) {
+        cat("Couldn't detect expression column in", x)
+        stop()
+      }
+      if (exp_col == "baseMean") df[[exp_col]] <- log2(df[[exp_col]])
 
       fc_col <- intersect(
         c("logFC", "logfc", "lfc", "log2FoldChange"), names(df)
       )[[1]]
-	  if (length(fc_col) == 0) {
-		cat("Couldn't detect logFC column in", x)
-		stop()
-	  }
+      if (length(fc_col) == 0) {
+        cat("Couldn't detect logFC column in", x)
+        stop()
+      }
 
       p_col <- intersect(
         c("PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"),
         names(df)
       )[[1]]
-	  if (length(p_col) == 0) {
-		cat("Couldn't detect PValue column in", x)
-		stop()
-	  }	  
+      if (length(p_col) == 0) {
+        cat("Couldn't detect PValue column in", x)
+        stop()
+      }
 
       fdr_col <- intersect(
         c("fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj"), names(df)
       )[[1]]
-	  if (length(fdr_col) == 0) {
-		cat("Couldn't detect FDR column in", x)
-		stop()
-	  }	  
+      if (length(fdr_col) == 0) {
+        cat("Couldn't detect FDR column in", x)
+        stop()
+      }
 
       df <- dplyr::select(
-        df, gene_id = !!sym(gn_col), logFC = !!sym(fc_col),
-        PValue = !!sym(p_col), FDR = !!sym(fdr_col)
+        df, gene_id = !!sym(gn_col), logCPM = !!sym(exp_col),
+        logFC = !!sym(fc_col), PValue = !!sym(p_col), FDR = !!sym(fdr_col)
       )
 
-	  shared_ids <- intersect(df$gene_id, gtf$gene_id)
-	  if (length(shared_ids) == 0) {
-		cat("RNA-Seq gene ids do not match those in the GTF")
-		stop()
-	  }
-	
-	  df
+      shared_ids <- intersect(df$gene_id, gtf$gene_id)
+      if (length(shared_ids) == 0) {
+        cat("RNA-Seq gene ids for", x, "do not match those in the GTF")
+        stop()
+      }
 
-    }, 
-	BPPARAM = bpparam
+      df
+
+    },
+    BPPARAM = bpparam
   )
   if (is.null(names(rna)))
     names(rna) <- str_remove_all(basename(rna_files), "\\.(tsv|csv).*$")

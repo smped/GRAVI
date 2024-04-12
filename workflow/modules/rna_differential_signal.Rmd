@@ -38,7 +38,7 @@ donuts <- rna %>%
     inner = !!sym(target), outer = "RNA",
     inner_palette = direction_colours, outer_palette = direction_colours,
     inner_glue = "{inner}\n{.data[[inner]]}\n{comma(n, 1)}\n{percent(p,0.1)}",
-    inner_label_alpha = 0.8, inner_min_p = 0.025,
+    inner_label_alpha = 0.8, inner_min_p = 0.04,
     outer_glue = "{.data[[outer]]} {comma(n, 1)}",
     outer_min_p = 0.001, outer_label_colour = "palette", 
     outer_rotate = TRUE,
@@ -130,8 +130,8 @@ lfc_by_region <- names(rna) %>%
         scale_colour_manual(values = pw_pl) +
         labs(
           x = glue("logFC ({target})", y = "logFC (RNA)")
-        ) +
-        theme(legend.position = "bottom")
+        ) #+
+        # theme(legend.position = "bottom")
     }
   )
 lfc_by_region[[1]]
@@ -207,8 +207,8 @@ lfc_by_feature <- names(rna) %>%
         scale_colour_manual(values = pw_pl) +
         labs(
           x = glue("logFC ({target})", y = "logFC (RNA)")
-        ) +
-        theme(legend.position = "bottom")
+        ) #+
+        # theme(legend.position = "bottom")
     }
   )
 lfc_by_feature[[1]]
@@ -260,14 +260,15 @@ names(rna) %>%
           "Comparison between {target} status and gene expression in {i}."
         )
       )
+      tbl
       ## Set all the rest of the info for a tagList here
     }
   )
 ```
 
 ```{r}
-any_de <- map_lgl(rna, \(x) any(x$FDR < 0.05))
-if (any(any_de)) {
+has_de <- map_lgl(rna, \(x) any(x$FDR < 0.05))
+if (any(has_de) & has_ds) {
   range_js <- JS(
     "function(values) {
       var min_val = Math.round(100 * Math.min(...values)) / 100
@@ -282,14 +283,18 @@ if (any(any_de)) {
   )
   max_signal <- max(results$logCPM)
   fs <- 12
-  names(which(any_de)) %>% 
+  has_de %>% 
+    which() %>% 
+    names() %>% 
     lapply(
       \(i) {
         rna[[i]] %>% 
           dplyr::filter(FDR < 0.05) %>% 
           mutate(gene_name = id2gene[gene_id]) %>% 
+          left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
           inner_join(
             as_tibble(results) %>% 
+              dplyr::filter(grepl("creased", status)) %>% 
               unnest(gene_id) %>% 
               dplyr::select(
                 range, any_of(c("region", "feature")), starts_with("log"),
@@ -297,10 +302,14 @@ if (any(any_de)) {
               ),
             by = "gene_id"
           ) %>% 
+          mutate(
+            d = distance(GRanges(range.x), GRanges(range.y))
+          ) %>% 
           dplyr::select(
             starts_with("gene"), ends_with(".x"), logCPM, ends_with(".y"), 
-            range, any_of(c("region", "feature")),  
+            range = range.y, d, any_of(c("region", "feature"))
           ) %>% 
+          dplyr::select(-range.x) %>% 
           reactable(
             showPageSizeOptions = TRUE, groupBy = "gene_name",
             filterable = TRUE, sortable = TRUE,
@@ -385,7 +394,7 @@ if (any(any_de)) {
                 filterMethod = js_greater
               ),
               logFC.y = colDef(
-                name = "logFC", aggregate = "mean", maxWidth = fs*5,
+                name = "logFC", aggregate = range_js, maxWidth = fs*5,
                 format = colFormat(digits = 2),
                 cell = function(value) sprintf("%.2f", value),
                 style =  JS(
@@ -417,8 +426,12 @@ if (any(any_de)) {
                   fontSize = fs
                 )
               ),
-              status.y = colDef("Status", show = FALSE, aggregate = "unique")
-            ),
+              status.y = colDef("Status", show = FALSE, aggregate = "unique"),
+              d = colDef(
+                "Distance To Peak", maxWidth = fs * 8, format = comma_col,
+                aggregate = range_js
+              )
+            )[colnames(.)],
             columnGroups = list(
               colGroup("RNA", str_subset(names(.), "\\.x$")),
               colGroup(target, c("logCPM", str_subset(names(.), "\\.y$")))
@@ -431,355 +444,29 @@ if (any(any_de)) {
 }
 ```
 
-
-
-### DE Genes Associated with Changed `r target`
-
-```{r any_diff_sites}
-de_genes_db_regions <- tibble()
-any_diff_sites <- sum(mcols(merged_results)[[fdr_column]] < fdr_alpha) > 0
-any_de <- any(rnaseq$DE)
-para <- ""
-if (any_de & any_diff_sites) {
-  ft_data <- rnaseq %>%
-    dplyr::filter(gene_id %in% unlist(diff_windows)) %>% 
-    mutate(
-      window = case_when(
-        gene_id %in% unlist(diff_windows[c("Up", "Down")]) ~ "Diff",
-        TRUE ~ "Unchanged"
-      ) %>%
-        fct_infreq()
-    ) %>% 
-    group_by(DE, window) %>% 
-    tally() %>% 
-    pivot_wider(
-      names_from = "DE", values_from = "n", 
-      names_prefix = "DE_", values_fill = 0
-    ) %>% 
-    as.data.frame() %>% 
-    column_to_rownames("window") %>% 
-    as.matrix()
-  ft <- fisher.test(ft_data)
-  para <- glue(
-    "
-    Using the {comma(length(unique(unlist(diff_windows))))} genes mapped to a 
-    region with detected {target} signal, genes were tested for any association 
-    between sites showing evidence of diferential signal and differential expression.
-    {comma(length(unique(unlist(diff_windows[c('Up', 'Down')]))))} genes were 
-    mapped to at least one site showing differential {target} signal with 
-    {comma(ft_data['Diff', 'DE_TRUE'])} 
-    ({percent(ft_data['Diff', 'DE_TRUE'] / sum(ft_data['Diff',]))}) of these
-    being considered differentially expressed. This compares to 
-    {percent(ft_data['Unchanged', 'DE_TRUE'] / sum(ft_data['Unchanged', ]), 0.1)}
-    of genes where no differential {target} signal was detected. Fisher's 
-    Exact test for any association gave this a p-value of 
-    {ifelse(ft$p.value < 0.01, sprintf('%.2e', ft$p.value), round(ft$p.value, 3))}.
-    "
-  )
-}
-```
-
-`r if (!any_diff_sites) glue("No sites with differential {target} signal were detected.")`
-
-`r if (any_de & any_diff_sites) para`
-
-```{r de-genes-db-regions, eval = any_diff_sites, echo = any_diff_sites}
-cmn_genes <- intersect(
-  rnaseq %>% dplyr::filter(!!sym(rna_fdr_col) < fdr_alpha) %>% pull("gene_id"),
-  merged_results %>% 
-    filter(!!sym(fdr_column) < fdr_alpha) %>% 
-    as_tibble() %>% 
-    pull("gene_id") %>% 
-    unlist()
-)
-de_genes_db_regions <- merged_results %>% 
-  filter(!!sym(fdr_column) < fdr_alpha) %>% 
-  filter(vapply(gene_id, function(x) any(x %in% cmn_genes), logical(1))) %>% 
-  as_tibble() %>% 
-  dplyr::select(
-    range, ChIP_logCPM = AveExpr, ChIP_logFC = logFC, ChIP_FDR := !!sym(fdr_column), overlaps_ref,
-    status, any_of(c("region", "feature")), gene_id
-  ) %>% 
-  unnest(gene_id) %>% 
-  dplyr::filter(gene_id %in% cmn_genes) %>% 
-  left_join(
-    rnaseq %>% 
-      dplyr::filter(gene_id %in% cmn_genes) %>% 
-      dplyr::select(
-        all_of(c("gene_id", "gene_name")), 
-        RNA_logFC := !!sym(rna_lfc_col), RNA_FDR := !!sym(rna_fdr_col)
-      ),
-    by = "gene_id"
-  ) %>% 
-  arrange(RNA_FDR) %>% 
-  # dplyr::slice(1:20) %>%
-  mutate(
-    dist2Gene = mapply(
-      function(x, y) {
-        distance(GRanges(x), subset(gtf_gene, gene_id == y)) 
-      },
-      x = range,
-      y = gene_id
-    )
-  ) %>% 
-  mutate(
-    region = case_when(
-      dist2Gene > extra_params$gene_regions$upstream & str_detect(region, "Promoter|Exon|Intron") ~ paste(
-        str_extract(region, ".*(Promoter|Exon|Intron)"), "(Other Gene)"),
-      TRUE ~ as.character(region)
-    ),
-    region = factor(
-      region, 
-      levels = c(
-        levels(merged_results$region), 
-        paste(
-          str_extract(levels(merged_results$region), ".*(Promoter|Exon|Intron)"), 
-          "(Other Gene)"
+```{r}
+## Add volcano plots
+## We need logCPM in the RNA data though
+names(rna) %>% 
+  lapply(
+    \(i) {
+      rna[[i]] %>% 
+        left_join(
+          as_tibble(results) %>% 
+            dplyr::filter(grepl("creased", status)) %>% 
+            unnest(gene_id) %>% 
+            dplyr::select(
+              range, any_of(c("region", "feature")), starts_with("log"),
+              FDR = !!sym(fdr_column), status, gene_id
+            ),
+          by = "gene_id"
         )
-      ) %>% 
-        unique()
-    )
-  ) %>% 
-  dplyr::select(
-    gene_name, gene_id, starts_with("RNA"), range, dist2Gene, 
-    starts_with("ChIP"), everything()
-  ) %>% 
-  droplevels()
-```
-
-```{r tab-de-genes-db-regions, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0}
-range_js <- JS(
-  "function(values) {
-    var min_val = Math.round(100 * Math.min(...values)) / 100
-    var max_val = Math.round(100 * Math.max(...values)) / 100
-    if (min_val == max_val) {
-      var ret_val = min_val.toString()
-    } else {
-      var ret_val = '[' + min_val.toString() + ', ' + max_val.toString() + ']'
     }
-    return ret_val
-  }"
-)
-max_signal <- max(merged_results$AveExpr)
-feat_def <- NULL
-if (has_features) feat_def = list(
-  feature = colDef (
-    name = "Feature",
-    aggregate = "unique"
   )
-)
-cp <-  htmltools::em(
-  glue(
-    "
-    Differentially Expressed (DE) genes were checked for {target} regions which 
-    showed evidence of changed {target} signal. 
-    {comma(length(unique(de_genes_db_regions$range)), 1)} unique regions were 
-    mapped to {comma(length(unique(de_genes_db_regions$gene_id)), 1)} DE genes. 
-    Data are presented in a gene-centric manner and ranges may map to multiple
-    genes. The full set of ranges considered to be showing evidence of altered 
-    {target} signal are shown for each gene. The summarised range containing 
-    all mapped ranges is given in the collapsed row, along with the range of 
-    distances to gene and the range of signal levels. In the collapsed row, the 
-    value for logFC represents the average across all mapped regions, with the 
-    maximum FDR also shown. If {target} is detected within another gene this 
-    is indicated in the 'Region' column.
-    All sites and genes were exported as {basename(all_out$de_genes)}.
-    "
-  )
-)
-fs <- 12
-tbl <- de_genes_db_regions %>% 
-  reactable(
-    groupBy = "gene_name",
-    filterable = TRUE,
-    borderless = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = c(
-      list(
-        gene_name = colDef(
-          name = "Gene", maxWidth = fs*11,
-          style = list(
-            borderRight = "1px solid rgba(0, 0, 0, 0.1)",
-            fontSize = fs
-          )
-        ),
-        gene_id = colDef(
-          name = "ID", aggregate = "unique", cell = function(value) "",
-          show = FALSE
-        ),
-        RNA_logFC = colDef(
-          name = "logFC",
-          aggregate = "mean", 
-          style = JS(
-            glue(
-            "function(rowInfo) {
-              var value = rowInfo.row['RNA_logFC']
-              if (value < 0) {
-                var color = '{{direction_colours[['Down']]}}'
-              } else if (value > 0) {
-                var color = '{{direction_colours[['Up']]}}'
-              } else {
-                var color = '#000000'
-              }
-              return { color: color, fontSize: {{fs}} }
-            }",
-            .open = "{{", .close = "}}"
-            )
-          ),
-          format = colFormat(digits= 2),
-          maxWidth = fs*6,
-          cell = function(value) ""
-        ),
-        RNA_FDR = colDef(
-          name = "FDR",
-          aggregate = "min",
-          format = colFormat(digits = 4),
-          maxWidth = fs*6,
-          cell = function(value) "",
-          style = list(
-            borderRight = "1px solid rgba(0, 0, 0, 0.1)", 
-            fontSize = fs
-          )
-        ),
-        range = colDef(
-          name = "Range",
-          minWidth = 160,
-          aggregate = JS(
-            "function(values){
-              var chrom = [];
-              var rng = [];
-              var start = [];
-              var end = [];
-              for (i = 0; i < values.length; i++) {
-                chrom[i] = values[i].split(':')[0];
-                rng[i] = values[i].split(':')[1];
-                start[i] = rng[i].split('-')[0];
-                end[i] = rng[i].split('-')[1];
-              }
-              
-              min_start = Math.min(...start);
-              max_end = Math.max(...end);
-              var ret_val = [...new Set(chrom)] + ':' + min_start.toString() + '-' + max_end.toString();
-              
-              return ret_val
-              
-            }"
-          )
-        ),
-        dist2Gene = colDef(
-          name = "Distance to Gene",
-          aggregate = range_js,
-          format = colFormat(digits = 0, separators = TRUE),
-          maxWidth = fs*8,
-          style = list(
-            borderRight = "1px solid rgba(0, 0, 0, 0.1)",
-            fontSize = fs
-          ),
-        ),
-        ChIP_logCPM = colDef(
-          name = "logCPM",
-          maxWidth = fs*6,
-          aggregate = range_js,
-          format = colFormat(digits = 2),
-          style = function(value) bar_style(
-            width = value / max_signal, fontSize = fs
-          )
-        ),
-        ChIP_logFC = colDef(
-          name = "logFC",
-          aggregate = "mean",
-          maxWidth = fs*5,
-          format = colFormat(digits = 2),
-          cell = function(value) sprintf("%.2f", value),
-          style =  JS(
-            glue(
-            "function(rowInfo) {
-              var value = rowInfo.row['ChIP_logFC']
-              if (value < 0) {
-                var color = '{{direction_colours[['Down']]}}'
-              } else if (value > 0) {
-                var color = '{{direction_colours[['Up']]}}'
-              } else {
-                var color = '#000000'
-              }
-              return { color: color, fontSize: {{fs}} }
-            }",
-            .open = "{{", .close = "}}"
-            )
-          )
-        ),
-        ChIP_FDR = colDef(
-          name = "FDR",
-          aggregate = "max",
-          maxWidth = 10 + fs*5,
-          format = colFormat(prefix = "< ", digits = 4),
-          cell = function(value) ifelse(
-            value < 0.001,
-            sprintf("%.2e", value),
-            sprintf("%.3f", value)
-          )
-        ),
-        overlaps_ref = colDef(
-          name = "Macs Peak",
-          show = FALSE,
-          aggregate = "frequency",
-          cell = function(value) ifelse(value, "\u2714 Yes", "\u2716 No"),
-          style = function(value) {
-            color <- ifelse(value, "#008000", "#e00000")
-            list(color = color, fontSize = fs)
-          },
-          maxWidth = fs*5
-        ),
-        status = colDef(
-          name = "Status",
-          aggregate = "frequency",
-          maxWidth = fs*6,
-          cell = function(value) {
-            html_symbol <- ""
-            if (str_detect(value, "Up")) html_symbol <- "\u21E7"
-            if (str_detect(value, "Down")) html_symbol <- "\u21E9"
-            paste(html_symbol, value)
-          },
-          style = JS(
-            glue(
-            "function(rowInfo) {
-              var value = rowInfo.row['ChIP_logFC']
-              if (value < 0) {
-                var color = '{{direction_colours[['Down']]}}'
-              } else if (value > 0) {
-                var color = '{{direction_colours[['Up']]}}'
-              } else {
-                var color = '#000000'
-              }
-              return { color: color, fontSize: {{fs}} }
-            }",
-            .open = "{{", .close = "}}"
-            )
-          )
-        ),
-        region = colDef(
-          name = "Genomic Region",
-          aggregate = "unique"
-        )
-      ),
-      feat_def
-    ),
-    columnGroups = list(
-      colGroup(name = "RNA-Seq", columns = c("RNA_logFC", "RNA_FDR")),
-      colGroup(
-        name = paste(target, "ChIP-Seq"), 
-        columns = c("ChIP_logCPM", "ChIP_logFC", "ChIP_FDR", "status")
-      )
-    ),
-    theme = reactableTheme(style = list(fontSize = fs))
-  )
-div(class = "table",
-  div(class = "table-header",
-      div(class = "caption", cp),
-      tbl
-  )
-)
 ```
+
+
+
 
 
 ### Volcano Plots By `r target` Status

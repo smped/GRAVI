@@ -5,11 +5,11 @@
 
 ```{r set-params, eval = interactive(), echo = FALSE}
 # params <- list(
-#   target = "AR",
-#   treat_levels = c("E2", "E2DHT"), 
-#   results = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
-#   counts = "output/differential_signal/AR/AR_counts.rds",
-#   ihw = "output/differential_signal/AR/AR_E2_E2DHT-ihw.rds"
+#   target = "H3K27ac",
+#   treat_levels = c("E2", "E2DHT"),
+#   results = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
+#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
+#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds"
 # )
 ```
 
@@ -68,6 +68,7 @@ counts <- counts[, counts$treat %in% treat_levels]
 colData(counts) <- droplevels(colData(counts))
 n_max <- min(5e5, nrow(counts))
 results <- here::here(params$results) %>% read_rds()
+has_ds <- any(grepl("(In|De)creased", results$status))
 ihw <- here::here(params$ihw) %>% read_rds()
 ```
 
