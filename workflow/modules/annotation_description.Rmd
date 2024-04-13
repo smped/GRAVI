@@ -623,7 +623,9 @@ txt <- ifelse(
   has_rna,
   paste(
     length(rna), "transcriptomic datasets were provided, as summarised below.",
-    "Note that no differentially expressed (DE) genes are required for data integration."
+    "Note that no differentially expressed (DE) genes are required for data integration.",
+    "For the purposes below, a DE gene is simply considered as one with an",
+    "FDR-adjusted p-value below 0.05."
   ),
   "No transcriptomic datasets were provided"
 )
@@ -632,7 +634,7 @@ if (has_rna) {
     lapply(dplyr::filter, padj < enrich_params$alpha) %>% 
     .[map_int(., nrow) > 0]
   gsea_sig <- gsea_sig %>% 
-    lapply(dplyr::filter, padj < enrich_params$alpha) %>% 
+    lapply(dplyr::filter, padj < enrich_params$alpha & NES > 0) %>% 
     .[map_int(., nrow) > 0]
 }
 ```
@@ -677,7 +679,10 @@ htmltools::tagList(
         cp = htmltools::tags$em(
           paste(
             "Taking genes ranked by significance and incorporating direction,",
-            "the following gene sets were returned as significant using GSEA."
+            "the following gene sets were returned as significant using GSEA.",
+            "A normalised enrichment score (NES) greater than zero indicates",
+            "the pathway was enriched amongst the upregulated genes, whilst for",
+            "a negative NES, enrichment will be amongst the down-regulated genes."
           )
         )
         htmltools::div(
@@ -717,7 +722,10 @@ htmltools::tagList(
         cp = htmltools::tags$em(
           paste(
             "Taking genes ranked only by significance and without incorporating direction,",
-            "the following gene sets were returned as significant using GSEA."
+            "the following gene sets were returned as significant using GSEA.",
+            "This siply tests whether pathways are enriched within genes more",
+            "likely to be differentially expressed, with no preference for up.",
+            "or down-regulation."
           )
         )
         htmltools::div(

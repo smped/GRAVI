@@ -1384,7 +1384,10 @@ if (has_rna) {
               additional provided features, along with whether they were 
               detected in the trancriptomic dataset {i}. Fisher's test was 
               performed for each region by comparing against genes for which no 
-              peak was detected with all p-values being FDR-adjusted. An 
+              peak was detected with all p-values being FDR-adjusted. This 
+              effectively tests H0 that there is no difference in the 
+              association between a gene being detected, and having detectable 
+              {target} signal within that region. An 
               additional {comma(no_peak$detected)} genes were detected in this
               dataset without any evidence of associated {target} signal.
             "

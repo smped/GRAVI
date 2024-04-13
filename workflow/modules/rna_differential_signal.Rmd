@@ -3,10 +3,17 @@
 ```{r define-objects}
 library(fgsea)
 library(metap)
+results_tbl <- results %>% 
+  as_tibble() %>% 
+  dplyr::select(
+    range, logCPM, logFC, PValue, FDR = !!sym(fdr_column), status,
+    gene_id, any_of(c("region", "feature"))
+  ) %>% 
+  unnest(gene_id) %>% 
+  mutate(gene_name = id2gene[gene_id])
 rna <- rna %>% 
   lapply(addDiffStatus)
-dsa_status <- results %>% 
-  as_tibble() %>% 
+dsa_status <- results_tbl %>% 
   dplyr::select(status, gene_id) %>% 
   unnest(gene_id) %>% 
   summarise(
@@ -65,16 +72,12 @@ lfc_by_region <- names(rna) %>%
   lapply(
     \(i) {
       x <- rna[[i]]
-      results %>% 
-        as_tibble() %>% 
-        dplyr::select(-any_of(c("gene_name"))) %>% 
-        unnest(gene_id) %>% 
+      results_tbl %>% 
         inner_join(x, by = "gene_id") %>% 
         mutate(
           status.x = fct_relabel(status.x, \(x) paste(target, x)), 
           status.y = fct_relabel(status.y, \(x) paste("RNA", x)), 
-          status = fct_cross(status.x, status.y, sep = " - ") %>% fct_rev(),
-          gene_name = id2gene[gene_id]
+          status = fct_cross(status.x, status.y, sep = " - ") %>% fct_rev()
         ) %>% 
         rename_with(
           \(x) str_replace_all(x, "\\.x$", paste0(" ", target))
@@ -123,7 +126,7 @@ lfc_by_region <- names(rna) %>%
             dplyr::arrange(
               desc((!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2)
             ) %>% 
-            dplyr::slice(1:3, .by = all_of(c("region", "status"))),
+            dplyr::slice(1:2, .by = all_of(c("region", "status"))),
           show.legend = FALSE, size = 3, fontface = "italic"
         ) +
         facet_wrap(~region) +
@@ -142,10 +145,7 @@ lfc_by_feature <- names(rna) %>%
   lapply(
     \(i) {
       x <- rna[[i]]
-      results %>% 
-        as_tibble() %>% 
-        dplyr::select(-any_of(c("gene_name"))) %>% 
-        unnest(gene_id) %>% 
+      results_tbl %>% 
         inner_join(x, by = "gene_id") %>% 
         mutate(
           status.x = fct_relabel(status.x, \(x) paste(target, x)), 
@@ -200,7 +200,7 @@ lfc_by_feature <- names(rna) %>%
             dplyr::arrange(
               desc((!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2)
             ) %>% 
-            dplyr::slice(1:3, .by = all_of(c("feature", "status"))),
+            dplyr::slice(1:2, .by = all_of(c("feature", "status"))),
           show.legend = FALSE, size = 3, fontface = "italic"
         ) +
         facet_wrap(~feature) +
@@ -219,10 +219,7 @@ names(rna) %>%
   lapply(
     \(i) {
       x <- rna[[i]]
-      tbl <- results %>% 
-        as_tibble() %>% 
-        dplyr::select(-any_of(c("gene_name"))) %>% 
-        unnest(gene_id) %>% 
+      tbl <- results_tbl %>% 
         full_join(x, by = "gene_id") %>% 
         mutate(
           status.x = fct_na_value_to_level(status.x, "Undetected"),
@@ -290,26 +287,18 @@ if (any(has_de) & has_ds) {
       \(i) {
         rna[[i]] %>% 
           dplyr::filter(FDR < 0.05) %>% 
-          mutate(gene_name = id2gene[gene_id]) %>% 
           left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
-          inner_join(
-            as_tibble(results) %>% 
-              dplyr::filter(grepl("creased", status)) %>% 
-              unnest(gene_id) %>% 
-              dplyr::select(
-                range, any_of(c("region", "feature")), starts_with("log"),
-                FDR = !!sym(fdr_column), status, gene_id
-              ),
-            by = "gene_id"
-          ) %>% 
+          inner_join(results_tbl, by = "gene_id") %>% 
           mutate(
             d = distance(GRanges(range.x), GRanges(range.y))
           ) %>% 
-          dplyr::select(
-            starts_with("gene"), ends_with(".x"), logCPM, ends_with(".y"), 
-            range = range.y, d, any_of(c("region", "feature"))
-          ) %>% 
           dplyr::select(-range.x) %>% 
+          dplyr::rename(range = range.y) %>% 
+          dplyr::select(
+            starts_with("gene"), ends_with(".x"), ends_with(".y"), 
+            range, d, any_of(c("region", "feature"))
+          ) %>% 
+          dplyr::select(-starts_with("PValue")) %>% 
           reactable(
             showPageSizeOptions = TRUE, groupBy = "gene_name",
             filterable = TRUE, sortable = TRUE,
@@ -324,6 +313,15 @@ if (any(has_de) & has_ds) {
               gene_id = colDef(
                 name = "ID", aggregate = "unique", cell = function(value) "",
                 show = FALSE
+              ),
+              logCPM.x = colDef(
+                name = "logCPM", maxWidth = fs*6,
+                aggregate = range_js,
+                format = colFormat(digits = 2),
+                style = function(value) bar_style(
+                  width = value / max(.$logCPM.x), fontSize = fs
+                ),
+                filterMethod = js_greater
               ),
               logFC.x = colDef(
                 "logFC", aggregate = "mean", 
@@ -384,7 +382,7 @@ if (any(has_de) & has_ds) {
               feature = colDef(
                 name = "Feature", aggregate = "unique"
               ),
-              logCPM = colDef(
+              logCPM.y = colDef(
                 name = "logCPM", maxWidth = fs*6,
                 aggregate = range_js,
                 format = colFormat(digits = 2),
@@ -434,7 +432,7 @@ if (any(has_de) & has_ds) {
             )[colnames(.)],
             columnGroups = list(
               colGroup("RNA", str_subset(names(.), "\\.x$")),
-              colGroup(target, c("logCPM", str_subset(names(.), "\\.y$")))
+              colGroup(target, str_subset(names(.), "\\.y$"))
             ),
             theme = reactableTheme(style = list(fontSize = fs))
           )
@@ -451,174 +449,71 @@ names(rna) %>%
   lapply(
     \(i) {
       rna[[i]] %>% 
-        left_join(
-          as_tibble(results) %>% 
-            dplyr::filter(grepl("creased", status)) %>% 
-            unnest(gene_id) %>% 
-            dplyr::select(
-              range, any_of(c("region", "feature")), starts_with("log"),
-              FDR = !!sym(fdr_column), status, gene_id
-            ),
-          by = "gene_id"
-        )
+        left_join(results_tbl, by = "gene_id") %>% 
+        mutate(
+          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
+            fct_relabel(\(x) paste(target, x)),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        ggplot(aes(logFC.x, -log10(PValue.x), colour = status.x)) +
+        geom_point(alpha = 0.7) +
+        geom_label_repel(
+          aes(label = gene_name),
+          data = . %>% 
+            dplyr::filter(grepl("creased", status.x)) %>% 
+            distinct(gene_name, status.x, status.y, .keep_all = TRUE) %>% 
+            dplyr::slice(1:3, .by = starts_with("status")),
+          show.legend = FALSE
+        ) +
+        facet_wrap(~status.y) +
+        labs(
+          x = "logFC (RNA)", y = expr(paste(-log[10], "PValue")), 
+          colour = "DE Status"
+        ) +
+        scale_colour_manual(values = direction_colours)
     }
   )
 ```
 
 
-
-
-
-### Volcano Plots By `r target` Status
-
-```{r plot-volcano-by-target, fig.cap = glue("*Volcano plot showing gene expression patterns separated by {target} status. The two most highly ranked genes for up and down regulation are labelled in each panel. Given that some genes may be mapped to multiple {target} sites with different patterns, genes may appear in multiple panels.*")}
-diff_tbl <- diff_windows %>% 
-  lapply(function(x) tibble(gene_id = x)) %>% 
-  bind_rows(.id = "status")
-rnaseq %>% 
-  left_join(diff_tbl) %>% 
-  mutate(
-    status = str_replace_na(status, "Undetected"),
-    status = glue("{target} {status}") %>%
-      factor(levels = paste(target, c("Up", "Down", "Ambiguous", "Unchanged", "Undetected")))
-  ) %>% 
-  left_join(rna_status) %>% 
-  droplevels() %>% 
-  ggplot(
-    aes(!!sym(rna_lfc_col), -log10(!!sym(rna_p_col)), colour = de_status)
-  ) +
-  geom_point() +
-  geom_text_repel(
-    aes(label = gene_name),
-    data = . %>% 
-      dplyr::arrange(!!sym(rna_p_col)) %>% 
-      dplyr::filter(!!sym(rna_lfc_col) > 0, DE) %>% 
-      split(.$status) %>% 
-      lapply(dplyr::slice, 1:2) %>% 
-      bind_rows(),
-    show.legend = FALSE
-  ) +
-  geom_text_repel(
-    aes(label = gene_name),
-    data = . %>% 
-      dplyr::arrange(!!sym(rna_p_col)) %>% 
-      dplyr::filter(!!sym(rna_lfc_col) < 0, DE) %>% 
-      split(.$status) %>% 
-      lapply(dplyr::slice, 1:2) %>% 
-      bind_rows(),
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(label = lab),
-    data = . %>% 
-      group_by(status) %>% 
-      summarise(n = dplyr::n()) %>% 
-      mutate(lab = glue("n = {comma(n)}")),
-    x = min(rnaseq[[rna_lfc_col]]) + 0.9 * diff(range(rnaseq[[rna_lfc_col]])),
-    y = 1,
-    colour = "black",
-    inherit.aes = FALSE,
-    show.legend = FALSE
-  ) +
-  facet_wrap(~status, ncol = 2) +
-  scale_colour_manual(
-    values = direction_colours
-  ) +
-  labs(colour = "DE Status") 
-```
-
-
-### P-Values By `r target` Status
-
-```{r plot-p-target, fig.height = 5, fig.cap = glue("*P-Values for differential expression partitioned by {target} status. Genes were considered as being mapped to a differential {target} site if one or more peaks was considered as showing evidence of changed signal. No IHW procedure was undertaken using this data.*")}
-p <- rnaseq %>% 
-  mutate(
-    mapped = case_when(
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Up", "Down")]) ~ paste(target, "Changed"),
-      gene_id %in% unlist(diff_windows[names(diff_windows) %in% c("Unchanged")]) ~ paste(target, "Unchanged"),
-      TRUE ~ paste(target, "Undetected")
-    )
-  ) %>% 
-  ggplot(
-    aes(!!sym(rna_p_col), stat(density))
-  ) +
-  geom_histogram(
-    colour = "black", fill = "grey", bins = 100
-  ) +
-  facet_wrap(~mapped, nrow = 1) +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  labs(y = "Density", x = "P (Differential Expression)")
-y <- 0.95 * max(layer_scales(p)$y$range$range)
-p  +
-  geom_text(
-    aes(0.8, y, label = lab),
-    data = . %>% 
-      group_by(mapped) %>% 
-      tally() %>% 
-      mutate(lab = glue("N = {comma(n, 1)}"))
-  ) 
-```
-
-
-
-`r if (nrow(de_genes_db_regions) > 0) "### ChIP logFC Vs RNA logFC"`
-
-```{r plot-chip-rna-logfc, eval = nrow(de_genes_db_regions) > 0, echo = nrow(de_genes_db_regions) > 0,  fig.cap = glue("*logFC values for differential {target} sites mapped to DE genes. The most extreme site for each quandrant is labelled showing both the gene and centre of the {target} site. Whilst {target} sites may be mapped to multiple genes, only the most highly ranked site is shown mapped to the most highly ranked DE genes. Points are coloured by differential expression status.*")}
-de_genes_db_regions %>% 
-  dplyr::filter(ChIP_FDR < fdr_alpha) %>% 
-  group_by(gene_name) %>%
-  dplyr::filter(ChIP_FDR == min(ChIP_FDR)) %>%
-  mutate(DE = ifelse(RNA_logFC > 0, "Up", "Down")) %>% 
-  ungroup() %>% 
-  ggplot(
-    aes(ChIP_logFC, RNA_logFC, colour = DE)
-  ) +
-  geom_point() +
-  geom_label_repel(
-    aes(label = lab),
-    data = . %>% 
-      mutate(grp = paste(DE, status)) %>% 
-      arrange(desc(abs(ChIP_logFC) + abs(RNA_logFC))) %>% 
-      split(.$grp) %>% 
-      lapply(dplyr::slice, 1) %>% 
-      bind_rows() %>% 
-      mutate(
-        range = GRanges(range) %>% 
-          resize(width = 1, fix = "center") %>% 
-          as.character(),
-        lab = paste(gene_name, "\n", range)
-      ),
-    show.legend = FALSE,
-    alpha = 0.7
-  ) +
-  geom_text(
-    aes(x, y, label = lab),
-    data = . %>% 
-      group_by(DE, status) %>% 
-      summarise(
-        n = dplyr::n(),
-        lab = glue("n = {comma(n)}"),
-        x = max(abs(ChIP_logFC)) * sign(min(ChIP_logFC)) * 1.05,
-        y = 0 + sign(min(RNA_logFC)) * 0.2,
-        .groups = "drop"
-      ) %>% 
-      group_by(DE) %>% 
-      mutate(y = max(abs(y)) * sign(y)) %>% 
-      ungroup() %>% 
-      group_by(status) %>% 
-      mutate(x = max(abs(x)) * sign(x)),
-    colour = "black"
-  ) +
-  geom_hline(yintercept = 0, colour = "grey20") +
-  geom_vline(xintercept = 0, colour = "grey20") +
-  scale_colour_manual(values = direction_colours[c("Up", "Down")]) +
-  labs(
-    x = glue("logFC ({target} ChIP-Seq)"),
-    y = "logFC (RNA-Seq)",
-    colour = "Differential\nExpression"
+```{r}
+## P-Values by ChIP
+names(rna) %>% 
+  lapply(
+    \(i) {
+      p <- rna[[i]] %>% 
+        left_join(results_tbl, by = "gene_id") %>% 
+        mutate(
+          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
+            fct_relabel(\(x) paste(target, x)),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        ggplot(aes(PValue.x, after_stat(density))) +
+        geom_histogram(
+          fill = "grey70", colour = "black", binwidth = 0.01
+        ) +
+        facet_wrap(~status.y) +
+        scale_y_continuous(expand = expansion(c(0, 0.05)))
+      p +
+        geom_text(
+          aes(y = y, label = label),
+          data = . %>% 
+            summarise(
+              n = dplyr::n(), .by = status.y
+            ) %>% 
+            mutate(
+              PValue.x = 0.02, 
+              y = max(layer_scales(p)$y$range$range),
+              label = paste("n =", comma(n))
+            ),
+          hjust = 0, vjust = 1
+        ) +
+        labs(x = "PValue (RNA)", y = "Density")
+    }
   )
 ```
 
+<!-- Maybe add the Barcode plots in the annotations? -->
 
 ## `r target` Pattern GSEA 
 
