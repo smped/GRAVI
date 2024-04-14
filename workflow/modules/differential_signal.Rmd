@@ -1150,11 +1150,7 @@ htmltools::tagList(
         str_replace_all("Lfc", "logFC") %>% 
         str_replace_all("\\( (.+)$", "(\\1)")
       img_out <- file.path(fig_path, glue("{nm}.{fig_type}"))
-      fig_fun(
-        filename = img_out,
-        width = knitr::opts_current$get("fig.width"), 
-        height = knitr::opts_current$get("fig.height")
-      )
+      fig_fun(filename = img_out, width = fw, height = fh)
       plotHFGC(
         grl_to_plot[[i]],
         hic = hic,
