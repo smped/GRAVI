@@ -71,7 +71,8 @@ rule create_annotations_rmd:
         ),
         motifs = os.path.join(annotation_path, "motif_list.rds"),
         motif_uri = os.path.join(annotation_path, "motif_uri.rds"),        
-        rna = os.path.join(annotation_path, "rna.rds"),        
+        rna = os.path.join(annotation_path, "rna.rds"),    
+        rna_module = os.path.join("workflow", "modules", "rna_description.Rmd"),
         script = os.path.join(
             "workflow", "scripts", "create_annotations_rmd.R"
         ),
