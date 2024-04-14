@@ -85,7 +85,8 @@ make_tbl_graph <- function(
 ) {
   p_col <- match.arg(p_col, colnames(res))
   gs_col <- match.arg(gs_col, colnames(res))
-  res <- dplyr::filter(res, !!sym(p_col) < alpha)
+  # res <- dplyr::filter(res, !!sym(p_col) < alpha)
+  res <- res[res[[p_col]] < alpha,]
   res <- arrange(res, !!sym(p_col))
   ## If the gene sets are identical, retain the first (most-significant) only
   gs <- gs[res[[gs_col]]]

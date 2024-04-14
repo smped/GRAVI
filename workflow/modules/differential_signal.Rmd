@@ -5,11 +5,11 @@
 
 ```{r set-params, eval = interactive(), echo = FALSE}
 # params <- list(
-#   target = "H3K27ac",
+#   target = "AR",
 #   treat_levels = c("E2", "E2DHT"),
-#   results = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
-#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
-#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds"
+#   results = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
+#   counts = "output/differential_signal/AR/AR_counts.rds",
+#   ihw = "output/differential_signal/AR/AR_E2_E2DHT-ihw.rds"
 # )
 ```
 
@@ -36,10 +36,6 @@ library(ggraph)
 library(BiocParallel)
 library(plyranges)
 library(magrittr)
-# library(quantro)
-# library(Rsamtools)
-# library(statmod)
-# library(metap)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -103,12 +99,16 @@ region_params <- here::here("config", "params.yml") %>%
 dsa_json <- here::here("config", "json", "differential_signal_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck(target)
+msigdb_params <- here::here("config", "params.yml") %>%
+  read_yaml() %>%
+  pluck("msigdb")
 ```
 
 
 ```{r load-annotations}
 gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
-id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id)
+id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
+  .[!duplicated(names(.))]
 
 colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
   lapply(unlist)
@@ -155,8 +155,6 @@ fig_path <- here::here("docs", "assets", comp)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 
 rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
-gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
-gsea_sig <- file.path(all_paths$annotation, "gsea_sig.rds") %>% read_rds()
 has_rna <- length(rna) > 0
 ```
 
@@ -939,18 +937,6 @@ if (has_features) {
 
 ### Inspection of Top-Ranked Regions {.tabset}
 
-```{r get-cmn-plot-objects}
-cb <- config$genome$build %>% 
-  str_to_lower() %>% 
-  paste0(".cytobands") 
-data(list = cb)
-bands_df <- get(cb)
-stopifnot(
-  colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
-)
-```
-
-
 ```{r grl-to-plot}
 ## Define a GRL with the key ranges.
 ## Then we can step through it & make all of the requisite plots
@@ -988,7 +974,16 @@ grl_to_plot <- GRangesList(
 ```
 
 
+
 ```{r prepare-plot-objects}
+cb <- config$genome$build %>% 
+  str_to_lower() %>% 
+  paste0(".cytobands") 
+data(list = cb)
+bands_df <- get(cb)
+stopifnot(
+  colnames(bands_df) == c("chrom", "chromStart", "chromEnd", "name", "gieStain")
+)
 ## The coverage
 bwfl <- list2(
   "{target}" := file.path(
@@ -1058,9 +1053,7 @@ if (has_rna) {
         gene_id = gtf_gene$gene_id, status = "Undetected"
       )
     ) %>% 
-    mutate(status = factor(
-      status, levels = c(names(direction_colours), "Undetected"))
-    ) %>% 
+    mutate(status = factor(status, levels = names(direction_colours))) %>% 
     arrange(status) %>% 
     distinct(gene_id, .keep_all = TRUE) %>% 
     droplevels() %>% 
@@ -1748,10 +1741,7 @@ if (n_decreased_enrich > min(network_params$size)) {
 ```
 
 
-
-## CHECK RNASEQ MODULE
-
-```{r add-rna, eval = FALSE, child = here::here('workflow/modules/rnaseq_differential.Rmd')}
+```{r add-rna, eval = has_rna, child = here::here('workflow/modules/rna_differential_signal.Rmd')}
 ```
 
 
