@@ -3,6 +3,7 @@
 ```{r define-rna-objects}
 library(fgsea)
 library(metap)
+library(ggside)
 results_tbl <- results %>% 
   as_tibble() %>% 
   dplyr::select(
@@ -34,7 +35,9 @@ In order to compare DSA results for `r target`, gene-to-range mappings were summ
 Genes with conflicting mappings were considered to be ambiguous, whilst those without any changed regions were assigned as being consistently unchanged.
 These results were applied where summarised results were able to be presented, however, when comparing actual estimates for logFC etc, all DSA ranges were retained.
 
-### Summary Tables
+### Overall Comparison {.tabset}
+
+#### Summary Tables {.tabset}
 
 ```{r tbl-rna-summary}
 htmltools::tagList(
@@ -86,8 +89,8 @@ htmltools::tagList(
         htmltools::div(
           htmltools::div(
             id = id,
-            class = "section level4",
-            htmltools::h4(i),
+            class = "section level5",
+            htmltools::h5(i),
             htmltools::div(
               class = "table", tbl, htmltools::tags$caption(cp)
             )
@@ -99,7 +102,7 @@ htmltools::tagList(
 ```
 
 
-### Summary Plots {.tabset}
+#### Summary Plots {.tabset}
 
 ```{r donut-plots}
 donuts <- rna %>% 
@@ -154,8 +157,8 @@ htmltools::tagList(
               str_remove_all(glue(".{fig_type}$")) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -289,8 +292,8 @@ htmltools::tagList(
               str_remove_all(glue(".{fig_type}$")) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -380,7 +383,6 @@ if (has_features) {
     ) %>% 
     setNames(names(rna))
 }
-lfc_by_feature[[1]]
 ```
 
 ```{r print-lfc-by-feature, echo = FALSE}
@@ -416,8 +418,8 @@ if (has_features) {
                 str_remove_all(glue(".{fig_type}$")) %>% 
                 str_to_lower() %>% 
                 str_replace_all("_", "-"),
-              class = "section level4",
-              htmltools::h4(x),
+              class = "section level5",
+              htmltools::h5(x),
               htmltools::div(
                 class = "figure", style = "text-align: center",
                 htmltools::img(src = fig_link, width = "100%"),
@@ -430,6 +432,241 @@ if (has_features) {
   )
 }
 ```
+
+`r if (any(has_de)) "#### Volcano Plots {.tabset}"`
+
+```{r volcano-plots, echo = any(has_de)}
+if (any(has_de)) {
+  volcanoPlots <- names(which(has_de)) %>% 
+    lapply(
+      \(i) {
+        rna[[i]] %>% 
+          arrange(PValue) %>% 
+          left_join(dsa_status, by = "gene_id") %>% 
+          mutate(
+            status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
+              fct_relabel(\(x) paste(target, x)),
+            gene_name = id2gene[gene_id]
+          ) %>% 
+          droplevels() %>% 
+          ggplot(aes(logFC, -log10(PValue), colour = status.x)) +
+          geom_point(alpha = 0.7) +
+          geom_label_repel(
+            aes(label = gene_name),
+            data = . %>% 
+              dplyr::filter(grepl("creased", status.x)) %>% 
+              distinct(gene_name, status.x, status.y, .keep_all = TRUE) %>% 
+              dplyr::slice(1:2, .by = starts_with("status")),
+            show.legend = FALSE, alpha = 0.7, size = 3, fontface = "italic"
+          ) +
+          geom_text(
+            aes(label = label),
+            data = . %>% 
+              summarise(
+                logFC = max(logFC), PValue = 1,
+                n = dplyr::n(), .by = status.y
+              ) %>% 
+              mutate(
+                logFC = max(logFC), label = paste("n =", comma(n))
+              ),
+            colour = "grey20", hjust = 1, vjust = 0, size = 3.5
+          ) +
+          facet_wrap(~status.y) +
+          labs(
+            x = "logFC (RNA)", y = expr(paste(-log[10], "PValue")), 
+            colour = "DE Status"
+          ) +
+          scale_colour_manual(values = direction_colours)
+      }
+    ) %>% 
+    setNames(names(which(has_de)))
+}
+```
+  
+  
+```{r print-volcano-plots, echo=FALSE}
+if (any(has_de)) {
+  htmltools::tagList(
+    names(volcanoPlots) %>% 
+      lapply(
+        \(x) {
+          ## Export the image
+          img_out <- file.path(fig_path, glue("volcano_{x}.{fig_type}"))
+          fh <- ifelse(
+            length(levels(volcanoPlots[[x]]$data$status.y)) == 3,
+            2 * fh / 3, fh
+          )
+          fig_fun(filename = img_out, width = fw, height = fh)
+          print(volcanoPlots[[x]])
+          dev.off()
+          ## Create html tags
+          fig_link <- str_extract(img_out, "assets.+")
+          cp <- htmltools::tags$em(
+            glue(
+              "Volcano plot for {x} showing genes separated by whether any DSA ",
+              "results corresponded to changed {target} signal. The number of ",
+              "genes in each panel is given in the bottom right corner. ",
+              "Where possible, the two most highly ranked DE genes are labelled."
+            )
+          )
+          htmltools::div(
+            htmltools::div(
+              id = img_out %>% 
+                basename() %>% 
+                str_remove_all(glue(".{fig_type}$")) %>% 
+                str_to_lower() %>% 
+                str_replace_all("_", "-"),
+              class = "section level5",
+              htmltools::h5(x),
+              htmltools::div(
+                class = "figure", style = "text-align: center",
+                htmltools::img(src = fig_link, width = "100%"),
+                htmltools::tags$caption(cp)
+              )
+            )
+          )
+        }
+      )
+  )
+}
+```
+
+#### PValues By `r target` Status {.tabset}
+
+```{r pval-by-dsa}
+pvalHist <- names(rna) %>% 
+  lapply(
+    \(i) {
+      p <- rna[[i]] %>% 
+        left_join(dsa_status, by = "gene_id") %>% 
+        mutate(
+          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
+            fct_relabel(\(x) paste(target, x)),
+        ) %>% 
+        droplevels() %>% 
+        ggplot(aes(PValue, after_stat(density))) +
+        geom_histogram(
+          fill = "grey70", colour = "black", binwidth = 0.01
+        ) +
+        facet_wrap(~status.y) +
+        scale_y_continuous(expand = expansion(c(0, 0.05))) +
+        scale_x_continuous(expand = expansion(0.025))
+      p +
+        geom_text(
+          aes(y = y, label = label),
+          data = . %>% 
+            summarise(
+              n = dplyr::n(), .by = status.y
+            ) %>% 
+            mutate(
+              PValue = 0.02, 
+              y = max(layer_scales(p)$y$range$range),
+              label = paste("n =", comma(n))
+            ),
+          hjust = 0, vjust = 1, size = 3.5
+        ) +
+        labs(x = "PValue (RNA)", y = "Density")
+    }
+  ) %>% 
+  setNames(names(rna))
+```
+
+```{r print-pval-plots, echo=FALSE}
+htmltools::tagList(
+  names(pvalHist) %>% 
+    lapply(
+      \(x) {
+        ## Export the image
+        img_out <- file.path(fig_path, glue("pvals_{x}.{fig_type}"))
+        fh <- ifelse(
+          length(levels(pvalHist[[x]]$data$status.y)) == 3,
+          2 * fh / 3, fh
+        )
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(pvalHist[[x]])
+        dev.off()
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "P-values for {x} separated by {target} status."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>% 
+              basename() %>% 
+              str_remove_all(glue(".{fig_type}$")) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-"),
+            class = "section level5",
+            htmltools::h5(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+```{r}
+names(rna) %>% 
+  lapply(
+    \(i) {
+      rna[[i]] %>% 
+        left_join(dsa_status, by = "gene_id") %>% 
+        mutate(
+          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
+            fct_relabel(\(x) paste(target, x)),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        droplevels() %>% 
+        arrange(1 / PValue) %>% 
+        ggplot(aes(logCPM, logFC)) +
+        geom_point(aes(colour = status.x), alpha = 0.7) +
+        geom_xsideboxplot(
+          aes(logCPM, fct_rev(status.y), fill = status.y), orientation = "y"
+        ) +
+        geom_ysideboxplot(
+          aes(fct_rev(status.y), logFC, fill = status.y), orientation = "x"
+        ) +
+        geom_label_repel(
+          aes(label = gene_name, colour = status.x),
+          data = . %>% 
+            dplyr::filter(grepl("(In|De)creased", status.x)) %>% 
+            arrange(desc(abs(logFC))) %>% 
+            dplyr::slice(1:5, .by = status.x),
+          size = 3, show.legend = FALSE
+        ) +
+        scale_xsidey_discrete(position = "left") +
+        scale_y_continuous(position = "right") +
+        scale_ysidex_discrete(labels = label_wrap(10), position = "top") +
+        scale_colour_manual(values = direction_colours) +
+        scale_fill_manual(
+          values = setNames(
+            direction_colours, paste(target, names(direction_colours))
+          )
+        ) +
+        guides(fill = "none") +
+        labs(colour = "DE Status") +
+        theme(
+          axis.title.x = element_text(hjust = 0.4, vjust = 1),
+          axis.title.y = element_text(hjust = 0.6, vjust = 1),
+          ggside.panel.scale = 0.2, 
+          ggside.axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5),
+          legend.position = "inside",
+          legend.position.inside = c(0.8, 0.8),
+          legend.justification = c(1, 1)
+        ) 
+    }
+  ) %>% 
+  setNames(names(rna))
+```
+
 
 ### List of Genes and Sites {.tabset}
 
@@ -645,186 +882,6 @@ if (any(has_de) & has_ds) {
     )
   )
 }
-```
-
-`r if (any(has_de)) "### Volcano Plots {.tabset}"`
-
-```{r volcano-plots, echo = any(has_de)}
-if (any(has_de)) {
-  volcanoPlots <- names(which(has_de)) %>% 
-    lapply(
-      \(i) {
-        rna[[i]] %>% 
-          arrange(PValue) %>% 
-          left_join(dsa_status, by = "gene_id") %>% 
-          mutate(
-            status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
-              fct_relabel(\(x) paste(target, x)),
-            gene_name = id2gene[gene_id]
-          ) %>% 
-          droplevels() %>% 
-          ggplot(aes(logFC, -log10(PValue), colour = status.x)) +
-          geom_point(alpha = 0.7) +
-          geom_label_repel(
-            aes(label = gene_name),
-            data = . %>% 
-              dplyr::filter(grepl("creased", status.x)) %>% 
-              distinct(gene_name, status.x, status.y, .keep_all = TRUE) %>% 
-              dplyr::slice(1:2, .by = starts_with("status")),
-            show.legend = FALSE, alpha = 0.7, size = 3, fontface = "italic"
-          ) +
-          geom_text(
-            aes(label = label),
-            data = . %>% 
-              summarise(
-                logFC = max(logFC), PValue = 1,
-                n = dplyr::n(), .by = status.y
-              ) %>% 
-              mutate(
-                logFC = max(logFC), label = paste("n =", comma(n))
-              ),
-            colour = "grey20", hjust = 1, vjust = 0, size = 3.5
-          ) +
-          facet_wrap(~status.y) +
-          labs(
-            x = "logFC (RNA)", y = expr(paste(-log[10], "PValue")), 
-            colour = "DE Status"
-          ) +
-          scale_colour_manual(values = direction_colours)
-      }
-    ) %>% 
-    setNames(names(which(has_de)))
-}
-```
-  
-  
-```{r print-volcano-plots, echo=FALSE}
-if (any(has_de)) {
-  htmltools::tagList(
-    names(volcanoPlots) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("volcano_{x}.{fig_type}"))
-          fh <- ifelse(
-            length(levels(volcanoPlots[[x]]$data$status.y)) == 3,
-            2 * fh / 3, fh
-          )
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(volcanoPlots[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Volcano plot for {x} showing genes separated by whether any DSA ",
-              "results corresponded to changed {target} signal. The number of ",
-              "genes in each panel is given in the bottom right corner. ",
-              "Where possible, the two most highly ranked DE genes are labelled."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level4",
-              htmltools::h4(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-### PValues By `r target` Status {.tabset}
-
-```{r pval-by-dsa}
-pvalHist <- names(rna) %>% 
-  lapply(
-    \(i) {
-      p <- rna[[i]] %>% 
-        left_join(dsa_status, by = "gene_id") %>% 
-        mutate(
-          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
-            fct_relabel(\(x) paste(target, x)),
-        ) %>% 
-        droplevels() %>% 
-        ggplot(aes(PValue, after_stat(density))) +
-        geom_histogram(
-          fill = "grey70", colour = "black", binwidth = 0.01
-        ) +
-        facet_wrap(~status.y) +
-        scale_y_continuous(expand = expansion(c(0, 0.05))) +
-        scale_x_continuous(expand = expansion(0.025))
-      p +
-        geom_text(
-          aes(y = y, label = label),
-          data = . %>% 
-            summarise(
-              n = dplyr::n(), .by = status.y
-            ) %>% 
-            mutate(
-              PValue = 0.02, 
-              y = max(layer_scales(p)$y$range$range),
-              label = paste("n =", comma(n))
-            ),
-          hjust = 0, vjust = 1, size = 3.5
-        ) +
-        labs(x = "PValue (RNA)", y = "Density")
-    }
-  ) %>% 
-  setNames(names(rna))
-```
-
-```{r print-pval-plots, echo=FALSE}
-htmltools::tagList(
-  names(pvalHist) %>% 
-    lapply(
-      \(x) {
-        ## Export the image
-        img_out <- file.path(fig_path, glue("pvals_{x}.{fig_type}"))
-        fh <- ifelse(
-          length(levels(pvalHist[[x]]$data$status.y)) == 3,
-          2 * fh / 3, fh
-        )
-        fig_fun(filename = img_out, width = fw, height = fh)
-        print(pvalHist[[x]])
-        dev.off()
-        ## Create html tags
-        fig_link <- str_extract(img_out, "assets.+")
-        cp <- htmltools::tags$em(
-          glue(
-            "P-values for {x} separated by {target} status."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = img_out %>% 
-              basename() %>% 
-              str_remove_all(glue(".{fig_type}$")) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4(x),
-            htmltools::div(
-              class = "figure", style = "text-align: center",
-              htmltools::img(src = fig_link, width = "100%"),
-              htmltools::tags$caption(cp)
-            )
-          )
-        )
-      }
-    )
-)
 ```
 
 
