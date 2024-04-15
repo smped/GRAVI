@@ -3,7 +3,7 @@
 ```
 
 
-```{r set-params, eval = interactive(), echo = FALSE}
+```{r dummy-params, eval = interactive(), echo = FALSE}
 # params <- list(
 #   target = "AR",
 #   treat_levels = c("E2", "E2DHT"),
@@ -68,7 +68,7 @@ has_ds <- any(grepl("(In|De)creased", results$status))
 ihw <- here::here(params$ihw) %>% read_rds()
 ```
 
-```{r set_params, echo = FALSE, eval=TRUE}
+```{r setup-params, echo = FALSE, eval=TRUE}
 diff_sig_params <- metadata(results)
 fdr_alpha <- diff_sig_params$alpha
 fdr_column <- ifelse(
@@ -169,23 +169,6 @@ The complete set of parameters for DSA were set as
 
 `r pander(dsa_json[names(dsa_json) != 'contrasts'])`
 
-
-<!-- ### Enrichment Analysis -->
-
-<!-- Beyond the simple analysis of differential signal, peaks are mapped to genes and enrichment testing is performed on the following: -->
-
-<!-- 1. Genes mapped to any range with detected `r target` are compared to all genes not mapped to any range -->
-<!-- 2. Genes mapped to *all ranges with differential signal* are compared to genes mapped to ranges with no difference in signal -->
-<!-- 3. Genes mapped to ranges with *increasing* `r target` signal are compared to genes mapped to ranges with no difference in signal -->
-<!-- 4. Genes mapped to ranges with *decreasing* `r target` signal are compared to genes mapped to ranges with no difference in signal -->
-
-<!-- Enrichment testing is performed using `goseq` [@YoungGoseq2010] with no term accounting for sampling bias (i.e. the Hypergeometric Distribution), *except when comparing genes mapped to any window.* -->
-<!-- For this case **only**, gene width is used to capture any sampling bias and Wallenius' Non-Central Hypergeometric Distribution is used. -->
-<!-- As RNA-seq data `r ifelse(has_rnaseq, "was", "was not")` provided, the genes considered for enrichment analysis are the `r comma(length(unique(gtf_gene$gene_id)))` `r ifelse(has_rnaseq, "genes considered as detected in the RNA-Seq data", "annotated genes")`. -->
-
-<!-- `r if (has_rnaseq) "### Incorporation with RNA-Seq"` -->
-
-<!-- `r if (has_rnaseq) "Any association between differentially expressed genes and differential signal regions will be assessed using Gene Set Enrichment Analysis [@SubramanianGsea2005], as implemented in the fgsea package [@KorotkevichFgsea2019]. The sets of genes associated with changed signal will be subset by regions and any provided external features, and these novel gene-sets will be used to test for enrichment within the RNA-Seq results. ChIP-seq derived gene-sets will be tested for differential expression using genes ranked directionally and by significance alone. A combined meta-analytic approach using Wilkinson's method will also be used to integration of results from enrichment testing in each standalone dataset."` -->
 
 ## Data Inspection {.tabset}
 

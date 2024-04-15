@@ -1,6 +1,6 @@
 ## Comparison With Transcriptomic Data
 
-```{r define-objects}
+```{r define-rna-objects}
 library(fgsea)
 library(metap)
 results_tbl <- results %>% 
@@ -943,7 +943,7 @@ if (any(any_gsea_dir)) {
 
 ## Combined Enrichment Using Direction of Changed Expression
 
-```{r load-gsea}
+```{r load-gsea-dir}
 gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
 ```
 
@@ -1557,7 +1557,7 @@ if (any(n_decreased_dir_enrich >= min(network_params$size))) {
 
 ## Combined Enrichment Using Only Signficance of Changed Expression
 
-```{r load-gsea}
+```{r load-gsea-sig}
 gsea_sig <- file.path(all_paths$annotation, "gsea_sig.rds") %>% read_rds()
 ```
 

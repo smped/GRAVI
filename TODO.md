@@ -3,15 +3,15 @@
 - [ ] Update all Rmd for RELEASE 3.18
     - [x] annotations
     - [x] macs2
-    - [ ] differential signal
+    - [x] differential signal
     - [ ] pairwise comparisons
 - [x] Update r environment for RELEASE 3.18
 - [x] Change terminology from differential binding to differential signal
 - [ ] Check for compatibility with extraChIPs >= v1.7.1
   - [x] macs2
-  - [ ] differential signal
+  - [x] differential signal
   - [ ] pairwise comparisons
-- [ ] Checks for input file consistency/structure
+- [x] Checks for input file consistency/structure
 - [ ] Shift `cowplot` to `patchwork`
 - [ ] Motif Detection
   - [x] Macs2 Summary
@@ -22,7 +22,7 @@
 ## Annotation Setup
 
 - [x] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
-- [ ] Tidy up GSEA tables & descriptions to just look nice
+- [x] Tidy up GSEA tables & descriptions to just look nice
   
 ## Peak Analysis
 
@@ -43,8 +43,10 @@
 - [x] Rewrite script/rules for creating diff_signal Rmds with updated params
 - [x] Redefine config settings to have a default, with optional overwrite using the target 
 - [x] Fix bug in creating figures
-- [ ] Update RNA-Seq module
+- [x] Update RNA-Seq module
     + Wrangle multiple files
+- [ ] Motif Analysis
+- [ ] NFR incorporation
 
 
 ## Features (Unlikely)
