@@ -171,6 +171,108 @@ htmltools::tagList(
 )
 ```
 
+### MA Plots {.tabset}
+
+```{r ma-plots}
+maPlots <- names(rna) %>% 
+  lapply(
+    \(i) {
+      rna[[i]] %>% 
+        left_join(dsa_status, by = "gene_id") %>% 
+        mutate(
+          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
+            fct_relabel(\(x) paste(target, x)),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        droplevels() %>% 
+        arrange(1 / PValue) %>% 
+        ggplot(aes(logCPM, logFC)) +
+        geom_point(aes(colour = status.x), alpha = 0.7) +
+        geom_xsideboxplot(
+          aes(logCPM, fct_rev(status.y), fill = status.y), orientation = "y",
+          show.legend = FALSE
+        ) +
+        geom_ysideboxplot(
+          aes(fct_rev(status.y), logFC, fill = status.y), orientation = "x"
+        ) +
+        geom_label_repel(
+          aes(label = gene_name, colour = status.x),
+          data = . %>% 
+            dplyr::filter(grepl("(In|De)creased", status.x)) %>% 
+            arrange(desc(abs(logFC))) %>% 
+            dplyr::slice(1:5, .by = status.x),
+          size = 3, show.legend = FALSE
+        ) +
+        annotate(
+          "text", label = "logFC", angle = 90,
+          x = min(rna[[i]]$logCPM) - 0.1 * diff(range(rna[[i]]$logCPM)),
+          y = mean(range(rna[[i]]$logFC))
+        ) +
+        scale_xsidey_discrete(position = "right") +
+        scale_y_continuous(position = "left") +
+        scale_ysidex_discrete(labels = NULL) +
+        scale_colour_manual(values = direction_colours) +
+        scale_fill_manual(
+          values = setNames(
+            direction_colours, paste(target, names(direction_colours))
+          )
+        ) +
+        coord_cartesian(xlim = range(rna[[i]]$logCPM), clip = 'off') +
+        labs(colour = "DE Status", fill = paste(target, "Status"), y = NULL) +
+        theme(
+          axis.title.x = element_text(hjust = 0.4, vjust = 1),
+          axis.title.y = element_text(hjust = 0.6, vjust = 1),
+          ggside.panel.scale = 0.2, 
+          ggside.axis.ticks.x = element_blank(),
+          plot.margin = unit(c(1, 1, 1, 2), "lines")
+          # legend.position = "inside",
+          # legend.position.inside = c(0.8, 0.8),
+          # legend.justification = c(1, 1)
+        ) 
+    }
+  ) %>% 
+  setNames(names(rna))
+```
+
+```{r print-ma-by-region, echo = FALSE}
+htmltools::tagList(
+  names(maPlots) %>% 
+    lapply(
+      \(x) {
+        ## Export the image
+        img_out <- file.path(fig_path, glue("{x}_MA.{fig_type}"))
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(maPlots[[x]])
+        dev.off()
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "MA Plot for {x} with outer boxplots showing the distribution of ",
+            "values for overall expression (logCPM) and logFC by {target} status"
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>% 
+              basename() %>% 
+              str_remove_all(glue(".{fig_type}$")) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-"),
+            class = "section level5",
+            htmltools::h5(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    )
+)
+```
+
 ### logFC Comparison By Region {.tabset}
 
 ```{r lfc-by-region}
@@ -613,59 +715,6 @@ htmltools::tagList(
 )
 ```
 
-```{r}
-names(rna) %>% 
-  lapply(
-    \(i) {
-      rna[[i]] %>% 
-        left_join(dsa_status, by = "gene_id") %>% 
-        mutate(
-          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
-            fct_relabel(\(x) paste(target, x)),
-          gene_name = id2gene[gene_id]
-        ) %>% 
-        droplevels() %>% 
-        arrange(1 / PValue) %>% 
-        ggplot(aes(logCPM, logFC)) +
-        geom_point(aes(colour = status.x), alpha = 0.7) +
-        geom_xsideboxplot(
-          aes(logCPM, fct_rev(status.y), fill = status.y), orientation = "y"
-        ) +
-        geom_ysideboxplot(
-          aes(fct_rev(status.y), logFC, fill = status.y), orientation = "x"
-        ) +
-        geom_label_repel(
-          aes(label = gene_name, colour = status.x),
-          data = . %>% 
-            dplyr::filter(grepl("(In|De)creased", status.x)) %>% 
-            arrange(desc(abs(logFC))) %>% 
-            dplyr::slice(1:5, .by = status.x),
-          size = 3, show.legend = FALSE
-        ) +
-        scale_xsidey_discrete(position = "left") +
-        scale_y_continuous(position = "right") +
-        scale_ysidex_discrete(labels = label_wrap(10), position = "top") +
-        scale_colour_manual(values = direction_colours) +
-        scale_fill_manual(
-          values = setNames(
-            direction_colours, paste(target, names(direction_colours))
-          )
-        ) +
-        guides(fill = "none") +
-        labs(colour = "DE Status") +
-        theme(
-          axis.title.x = element_text(hjust = 0.4, vjust = 1),
-          axis.title.y = element_text(hjust = 0.6, vjust = 1),
-          ggside.panel.scale = 0.2, 
-          ggside.axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5),
-          legend.position = "inside",
-          legend.position.inside = c(0.8, 0.8),
-          legend.justification = c(1, 1)
-        ) 
-    }
-  ) %>% 
-  setNames(names(rna))
-```
 
 
 ### List of Genes and Sites {.tabset}
@@ -885,9 +934,9 @@ if (any(has_de) & has_ds) {
 ```
 
 
-## `r target` Pattern GSEA 
+### `r target` Pattern GSEA 
 
-### GSEA By Direction of Regulation {.tabset}
+#### GSEA By Direction of Regulation {.tabset}
 
 GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r `target` signal regions, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, by significance of the logFC estimates.
 The `R` package `fgsea` [@KorotkevichFgsea2019] was used all downstream GSEA analysis.
@@ -930,75 +979,77 @@ any_gsea_dir <- map_lgl(rna_gsea_dir, \(x) any(x$padj < enrich_params$alpha))
 
 ```{r tbl-gsea-dir, echo=FALSE}
 if (any(any_gsea_dir)) {
-  any_gsea_dir %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        tbl <- rna_gsea_dir[[x]] %>% 
-          dplyr::select(-pathway) %>% 
-          dplyr::filter(padj < enrich_params$alpha) %>% 
-          reactable(
-            sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
-            columns = list(
-              status = colDef(glue("{target} Status"), maxWidth = 100),
-              region = colDef("Region Type", maxWidth = 120),
-              feature = colDef("Feature Type", maxWidth = 100),
-              padj = colDef(
-                "p<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                filterMethod = js_less, html = TRUE, maxWidth = 80
-              ),
-              NES = colDef(
-                "NES", format = colFormat(digits = 2),
-                style = \(value) {
-                  text_colour <- ifelse(
-                    value > 0, 
-                    direction_colours[["Increased"]], 
-                    direction_colours[["Decreased"]]
-                  )
-                  list(color = text_colour)
-                }
-              ),
-              size = colDef("Group Size"),
-              leSize = colDef("LE Size"),
-              leadingEdge = colDef(
-                "Leading Edge", cell = \(value) with_tooltip(value, width = 60),
-                minWidth = 150, maxWidth = 500
-              )
-            )[colnames(.)],
-            defaultColDef = colDef(maxWidth = 80)
-          )
-        cp <- htmltools::em(
-          glue(
-            "GSEA results for {x}, testing an association between up- or down-", 
-            "regulated genes for all {target} DSA groups incorporating all available ", 
-            "annotations and features. A Normalized Enrichment Score (NES) > 0 ", 
-            "indicates an association with up-regulation, with a negative score ",
-            "being associated with down-regulation. The total number of genes ", 
-            "mapped to each type of DSA group is provided along with those found ",
-            "beyond the Leading Edge. Given that multiple peaks may map to a gene, ",
-            "genes may be included in more than one grouping."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = paste0("tbl-gsea-dir", x) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
+  tagList(
+    any_gsea_dir %>% 
+      which() %>% 
+      names() %>% 
+      lapply(
+        \(x) {
+          tbl <- rna_gsea_dir[[x]] %>% 
+            dplyr::select(-pathway) %>% 
+            dplyr::filter(padj < enrich_params$alpha) %>% 
+            reactable(
+              sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+              columns = list(
+                status = colDef(glue("{target} Status"), maxWidth = 100),
+                region = colDef("Region Type", maxWidth = 120),
+                feature = colDef("Feature Type", maxWidth = 100),
+                padj = colDef(
+                  "p<sub>adj</sub>", cell = \(value) sprint_pval(value),
+                  filterMethod = js_less, html = TRUE, maxWidth = 80
+                ),
+                NES = colDef(
+                  "NES", format = colFormat(digits = 2),
+                  style = \(value) {
+                    text_colour <- ifelse(
+                      value > 0, 
+                      direction_colours[["Increased"]], 
+                      direction_colours[["Decreased"]]
+                    )
+                    list(color = text_colour)
+                  }
+                ),
+                size = colDef("Group Size"),
+                leSize = colDef("LE Size"),
+                leadingEdge = colDef(
+                  "Leading Edge", cell = \(value) with_tooltip(value, width = 60),
+                  minWidth = 150, maxWidth = 500
+                )
+              )[colnames(.)],
+              defaultColDef = colDef(maxWidth = 80)
+            )
+          cp <- htmltools::em(
+            glue(
+              "GSEA results for {x}, testing an association between up- or down-", 
+              "regulated genes for all {target} DSA groups incorporating all available ", 
+              "annotations and features. A Normalized Enrichment Score (NES) > 0 ", 
+              "indicates an association with up-regulation, with a negative score ",
+              "being associated with down-regulation. The total number of genes ", 
+              "mapped to each type of DSA group is provided along with those found ",
+              "beyond the Leading Edge. Given that multiple peaks may map to a gene, ",
+              "genes may be included in more than one grouping."
             )
           )
-        )
-      }
-    )
+          htmltools::div(
+            htmltools::div(
+              id = paste0("tbl-gsea-dir", x) %>% 
+                str_to_lower() %>% 
+                str_replace_all("_", "-"),
+              class = "section level5",
+              htmltools::h5(x),
+              htmltools::div(
+                class = "table", tbl, htmltools::tags$caption(cp)
+              )
+            )
+          )
+        }
+      )
+  )
 }
 ```
 
 
-## Combined Enrichment Using Direction of Changed Expression
+### Combined Enrichment Using Direction of Changed Expression
 
 ```{r load-gsea-dir}
 gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
@@ -1086,9 +1137,9 @@ n_increased_dir_enrich <- map_int(increased_dir_enrich, nrow)
 n_decreased_dir_enrich <- map_int(decreased_dir_enrich, nrow)
 ```
 
-### Result Tables {.tabset}
+#### Result Tables {.tabset}
 
-#### All Changed Sites {.tabset}
+##### All Changed Sites {.tabset}
 
 ```{r tbl-all-changed-dir}
 if (any(n_changed_dir_enrich > 0)) {
@@ -1145,8 +1196,8 @@ if (any(n_changed_dir_enrich > 0)) {
                 paste0(x) %>% 
                 str_to_lower() %>% 
                 str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
+              class = "section level6",
+              htmltools::h6(x),
               htmltools::div(
                 class = "table", tbl, htmltools::tags$caption(cp)
               )
@@ -1158,145 +1209,149 @@ if (any(n_changed_dir_enrich > 0)) {
 }
 ```
 
-#### Sites With Increased Signal {.tabset}
+##### Sites With Increased Signal {.tabset}
 
 ```{r tbl-increased-dir}
 if (any(n_increased_dir_enrich > 0)) {
-  n_increased_dir_enrich %>% 
-    as.logical() %>% 
-    setNames(names(gsea_dir)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        tbl <- increased_dir_enrich[[x]] %>% 
-          dplyr::select(-meta_p, cmn_ids) %>% 
-          reactable(
-            showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-            columns = list(
-              pathway = colDef(
-                "Gene Set", minWidth = 180,
-                cell = function(value) htmltools::tags$a(
-                  href = gs_url[[value]],
-                  target = "_blank",
-                  str_replace_all(value, "_", " ")
+  tagList(
+    n_increased_dir_enrich %>% 
+      as.logical() %>% 
+      setNames(names(gsea_dir)) %>% 
+      which() %>% 
+      names() %>% 
+      lapply(
+        \(x) {
+          tbl <- increased_dir_enrich[[x]] %>% 
+            dplyr::select(-meta_p, cmn_ids) %>% 
+            reactable(
+              showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
+              columns = list(
+                pathway = colDef(
+                  "Gene Set", minWidth = 180,
+                  cell = function(value) htmltools::tags$a(
+                    href = gs_url[[value]],
+                    target = "_blank",
+                    str_replace_all(value, "_", " ")
+                  ),
+                  html = TRUE
                 ),
-                html = TRUE
-              ),
-              NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-              adj_p = colDef(
-                "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                html = TRUE, maxWidth = 100, filterMethod = js_less
-              ),
-              n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-              genes = colDef(
-                "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                minWidth = 150
+                NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
+                adj_p = colDef(
+                  "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
+                  html = TRUE, maxWidth = 100, filterMethod = js_less
+                ),
+                n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
+                genes = colDef(
+                  "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
+                  minWidth = 150
+                )
+              )
+            )
+          cp <- htmltools::em(
+            glue(
+              "Enrichment results for increased {target} sites were integrated ",
+              "with GSEA results for {x}, which included the direction of ",
+              "estimated logFC for gene expression. Genes within each gene set ",
+              "which had significant DSA sites mapped to them, as well as being ",
+              "included in the Leading Edge for GSEA were dentified as Shared ",
+              "Genes. Whilst DSA sites were taken as those showing any evidence ", 
+              "of increased signal, a positive Normalised Enrichment Score (NES) ",
+              "indicates an association with up-regulated genes, whilst a ", 
+              "negative score indicates an association with down-regulated genes."
+            )
+          )
+          htmltools::div(
+            htmltools::div(
+              id = "tbl-increased-dir-enrich-" %>% 
+                paste0(x) %>% 
+                str_to_lower() %>% 
+                str_replace_all("_", "-"),
+              class = "section level6",
+              htmltools::h6(x),
+              htmltools::div(
+                class = "table", tbl, htmltools::tags$caption(cp)
               )
             )
           )
-        cp <- htmltools::em(
-          glue(
-            "Enrichment results for increased {target} sites were integrated ",
-            "with GSEA results for {x}, which included the direction of ",
-            "estimated logFC for gene expression. Genes within each gene set ",
-            "which had significant DSA sites mapped to them, as well as being ",
-            "included in the Leading Edge for GSEA were dentified as Shared ",
-            "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-            "of increased signal, a positive Normalised Enrichment Score (NES) ",
-            "indicates an association with up-regulated genes, whilst a ", 
-            "negative score indicates an association with down-regulated genes."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = "tbl-increased-dir-enrich-" %>% 
-              paste0(x) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
-          )
-        )
-      }
-    )
+        }
+      )
+  )
 }
 ```
 
-#### Sites With Decreased Signal {.tabset}
+##### Sites With Decreased Signal {.tabset}
 
 ```{r tbl-decreased-dir}
 if (any(n_decreased_dir_enrich > 0)) {
-  n_decreased_dir_enrich %>% 
-    as.logical() %>% 
-    setNames(names(gsea_dir)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        tbl <- decreased_dir_enrich[[x]] %>% 
-          dplyr::select(-meta_p, cmn_ids) %>% 
-          reactable(
-            showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-            columns = list(
-              pathway = colDef(
-                "Gene Set", minWidth = 180,
-                cell = function(value) htmltools::tags$a(
-                  href = gs_url[[value]],
-                  target = "_blank",
-                  str_replace_all(value, "_", " ")
+  tagList(
+    n_decreased_dir_enrich %>% 
+      as.logical() %>% 
+      setNames(names(gsea_dir)) %>% 
+      which() %>% 
+      names() %>% 
+      lapply(
+        \(x) {
+          tbl <- decreased_dir_enrich[[x]] %>% 
+            dplyr::select(-meta_p, cmn_ids) %>% 
+            reactable(
+              showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
+              columns = list(
+                pathway = colDef(
+                  "Gene Set", minWidth = 180,
+                  cell = function(value) htmltools::tags$a(
+                    href = gs_url[[value]],
+                    target = "_blank",
+                    str_replace_all(value, "_", " ")
+                  ),
+                  html = TRUE
                 ),
-                html = TRUE
-              ),
-              NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-              adj_p = colDef(
-                "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                html = TRUE, maxWidth = 100, filterMethod = js_less
-              ),
-              n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-              genes = colDef(
-                "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                minWidth = 150
+                NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
+                adj_p = colDef(
+                  "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
+                  html = TRUE, maxWidth = 100, filterMethod = js_less
+                ),
+                n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
+                genes = colDef(
+                  "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
+                  minWidth = 150
+                )
+              )
+            )
+          cp <- htmltools::em(
+            glue(
+              "Enrichment results for decreased {target} sites were integrated ",
+              "with GSEA results for {x}, which included the direction of ",
+              "estimated logFC for gene expression. Genes within each gene set ",
+              "which had significant DSA sites mapped to them, as well as being ",
+              "included in the Leading Edge for GSEA were dentified as Shared ",
+              "Genes. Whilst DSA sites were taken as those showing any evidence ", 
+              "of decreased signal, a positive Normalised Enrichment Score (NES) ",
+              "indicates an association with up-regulated genes, whilst a ", 
+              "negative score indicates an association with down-regulated genes."
+            )
+          )
+          htmltools::div(
+            htmltools::div(
+              id = "tbl-decreased-dir-enrich-" %>% 
+                paste0(x) %>% 
+                str_to_lower() %>% 
+                str_replace_all("_", "-"),
+              class = "section level6",
+              htmltools::h6(x),
+              htmltools::div(
+                class = "table", tbl, htmltools::tags$caption(cp)
               )
             )
           )
-        cp <- htmltools::em(
-          glue(
-            "Enrichment results for decreased {target} sites were integrated ",
-            "with GSEA results for {x}, which included the direction of ",
-            "estimated logFC for gene expression. Genes within each gene set ",
-            "which had significant DSA sites mapped to them, as well as being ",
-            "included in the Leading Edge for GSEA were dentified as Shared ",
-            "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-            "of decreased signal, a positive Normalised Enrichment Score (NES) ",
-            "indicates an association with up-regulated genes, whilst a ", 
-            "negative score indicates an association with down-regulated genes."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = "tbl-decreased-dir-enrich-" %>% 
-              paste0(x) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
-          )
-        )
-      }
-    )
+        }
+      )
+  )
 }
 ```
 
 ### Network Plots {.tabset}
 
-#### All Changed Sites
+#### All Changed Sites {.tabset}
 
 ```{r network-changed-dir}
 if (any(n_changed_dir_enrich >= min(network_params$size))) {
@@ -1401,7 +1456,7 @@ if (any(n_changed_dir_enrich >= min(network_params$size))) {
 }
 ```
 
-#### All Increased Sites
+#### All Increased Sites {.tabset}
 
 ```{r network-increased-dir}
 if (any(n_increased_dir_enrich >= min(network_params$size))) {
@@ -1506,7 +1561,7 @@ if (any(n_increased_dir_enrich >= min(network_params$size))) {
 }
 ```
 
-#### All Decreased Sites
+#### All Decreased Sites {.tabset}
 
 ```{r network-decreased-dir}
 if (any(n_decreased_dir_enrich >= min(network_params$size))) {
@@ -1612,7 +1667,7 @@ if (any(n_decreased_dir_enrich >= min(network_params$size))) {
 ```
 
 
-## Combined Enrichment Using Only Signficance of Changed Expression
+### Combined Enrichment Using Only Signficance of Changed Expression
 
 ```{r load-gsea-sig}
 gsea_sig <- file.path(all_paths$annotation, "gsea_sig.rds") %>% read_rds()
@@ -1910,7 +1965,7 @@ if (any(n_decreased_sig_enrich > 0)) {
 
 ### Network Plots {.tabset}
 
-#### All Changed Sites
+#### All Changed Sites {.tabset}
 
 ```{r network-changed-sig}
 if (any(n_changed_sig_enrich >= min(network_params$size))) {
@@ -2015,7 +2070,7 @@ if (any(n_changed_sig_enrich >= min(network_params$size))) {
 }
 ```
 
-#### All Increased Sites
+#### All Increased Sites {.tabset}
 
 ```{r network-increased-sig}
 if (any(n_increased_sig_enrich >= min(network_params$size))) {
@@ -2120,7 +2175,7 @@ if (any(n_increased_sig_enrich >= min(network_params$size))) {
 }
 ```
 
-#### All Decreased Sites
+#### All Decreased Sites {.tabset}
 
 ```{r network-decreased-sig}
 if (any(n_decreased_sig_enrich >= min(network_params$size))) {
@@ -2225,21 +2280,21 @@ if (any(n_decreased_sig_enrich >= min(network_params$size))) {
 }
 ```
 
-## Highly Ranked Genes {.tabset}
+### Highly Ranked Genes {.tabset}
 
 
 ```{r rna-grl-to-plot}
-sig_table <- rna %>% 
-  lapply(left_join, dsa_status, by = "gene_id") %>% 
-  lapply(
-    dplyr::filter, grepl("(In|De)creased", status.y), FDR < 0.05
+grl_to_plot <- rna %>% 
+  lapply(inner_join, results_tbl, by = 'gene_id') %>% 
+  bind_rows(.id = "dataset") %>% 
+  dplyr::filter(grepl("(In|De)creased", status.y)) %>% 
+  mutate(
+    rank = rank(PValue.x) + rank(PValue.y)
   ) %>% 
-  lapply(dplyr::slice_head, n = 5) %>% 
-  lapply(mutate, gene_name = id2gene[gene_id]) %>% 
-  bind_rows(.id = "dataset") 
-grl_to_plot <- results_tbl %>%
-  filter(grepl("(In|De)creased", status)) %>% 
-  dplyr::filter(gene_id %in% sig_table$gene_id) %>% 
+  arrange(rank) %>% 
+  dplyr::filter(
+    gene_id %in% unique(gene_id)[1:5]
+  ) %>% 
   split(.$gene_id) %>% 
   lapply(colToRanges, "range", seqinfo = seqinfo(results)) %>% 
   GRangesList()
@@ -2290,7 +2345,7 @@ htmltools::tagList(
         collapseTranscripts = collapseTrans, maxTrans = 20,
         col.title = "black", background.title = "white", showAxis = FALSE,
         max = max(5e5, width(range(grl_to_plot[[i]])) * 1.1), 
-        rotation.title = 90, zoom = 5, highlight = FALSE
+        rotation.title = 90, zoom = 10, highlight = FALSE
       )
       dev.off()
       ## Create html tags

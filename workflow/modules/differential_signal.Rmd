@@ -4,13 +4,13 @@
 
 
 ```{r dummy-params, eval = interactive(), echo = FALSE}
-# params <- list(
-#   target = "AR",
-#   treat_levels = c("E2", "E2DHT"),
-#   results = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
-#   counts = "output/differential_signal/AR/AR_counts.rds",
-#   ihw = "output/differential_signal/AR/AR_E2_E2DHT-ihw.rds"
-# )
+params <- list(
+  target = "ER",
+  treat_levels = c("E2", "E2DHT"),
+  results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+  counts = "output/differential_signal/ER/ER_counts.rds",
+  ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds"
+)
 ```
 
 ```{r packages}
@@ -640,11 +640,235 @@ if (interactive()) {
 }
 ```
 
-
 ### Summary Plots {.tabset}
 
-```{r make-heatmaps}
+```{r reset-region-type, echo=FALSE}
 region_type <- str_to_lower(region_type)
+```
+
+
+#### MA Plot By Region
+
+```{r plot-ma, fig.cap = glue("*MA plot showing the status of all {region_type} under consideration. The two most extreme {region_type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. Boxplots summarise the distribution of values for both expression and logFC by which region best characterises the {region_type}*")}
+if (!"Ambiguous" %in% levels(results$status)) 
+  direction_colours <- direction_colours[names(direction_colours) != "Ambiguous"]
+results %>% 
+  as_tibble() %>%
+  ggplot(aes(logCPM, logFC)) +
+  geom_point(aes(colour = status), alpha = 0.5) +
+  geom_xsideboxplot(
+    aes(x = logCPM, y = region, fill = region), orientation = "y",
+    show.legend = FALSE
+  ) +
+  geom_ysideboxplot(
+    aes(x = region, y = logFC, fill = region), orientation = "x",
+    show.legend = FALSE
+  ) +
+  geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
+  geom_hline(yintercept = 0) +
+  geom_label_repel(
+    aes(y = logFC, label = annot, colour = status),
+    data = . %>%
+      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
+      arrange(desc(abs(logFC))) %>% 
+      dplyr::slice(1:2, .by = status) %>% 
+      mutate(
+        detected = gene_name %>%
+          lapply(paste, collapse = ", ") %>%
+          unlist() %>%
+          str_replace("^NA$", "") %>%
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
+        range = ifelse(detected == "", range, paste0(range, "\n")),
+        annot = glue("{range}{detected}")
+      ),
+    fill = rgb(1, 1, 1, 0.4),
+    size = 3,
+    show.legend = FALSE
+  ) +
+  annotate(
+    geom = "text",
+    x = min(results$logCPM) - 0.1*diff(range(results$logCPM)),
+    y = mean(range(results$logFC)),
+    label = "logFC", angle = 90
+  ) +
+  annotate(
+    geom = "text",
+    y = min(results$logFC) - 0.15*diff(range(results$logFC)),
+    x = mean(range(results$logCPM)),
+    label = "Ave Signal (logCPM)"
+  ) +
+  coord_cartesian(
+    xlim = range(results$logCPM), 
+    ylim = range(results$logFC),
+    clip = 'off'
+  ) +
+  scale_xsidey_discrete(position = "right") +
+  scale_colour_manual(values = full_palette) +
+  scale_fill_manual(values = region_colours) +
+  labs(x = NULL, y = NULL, colour = "Status") +
+  theme(
+    ggside.panel.scale.x = 0.25 * fw/fh,
+    ggside.panel.scale.y = 0.2,
+    ggside.axis.text.x.bottom = element_text(angle = 90, hjust = 1, vjust = 0.5),
+    plot.margin = unit(c(1, 1, 1, 2), "lines"),
+    legend.position = "inside",
+    legend.position.inside = c(0.55 * 0.75, -0.15), 
+    legend.direction = "horizontal"
+  )
+```
+
+`r if(has_features) "#### MA Plot By Feature"`
+
+```{r ma-by-feature, echo = has_features, fig.cap = glue("*MA plot showing the status of all {region_type} under consideration. The two most extreme {region_type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. Boxplots summarise the distribution of values for both expression and logFC by which feature best characterises the {region_type}*"*")}
+if (has_features) {
+  results %>% 
+    as_tibble() %>%
+    ggplot(aes(logCPM, logFC)) +
+    geom_point(aes(colour = status), alpha = 0.5) +
+    geom_xsideboxplot(
+      aes(x = logCPM, y = feature, fill = feature), orientation = "y",
+      show.legend = FALSE
+    ) +
+    geom_ysideboxplot(
+      aes(x = feature, y = logFC, fill = feature), orientation = "x",
+      show.legend = FALSE
+    ) +
+    geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
+    geom_hline(yintercept = 0) +
+    geom_label_repel(
+      aes(y = logFC, label = annot, colour = status),
+      data = . %>%
+        dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
+        arrange(desc(abs(logFC))) %>% 
+        dplyr::slice(1:2, .by = status) %>% 
+        mutate(
+          detected = gene_name %>%
+            lapply(paste, collapse = ", ") %>%
+            unlist() %>%
+            str_replace("^NA$", "") %>%
+            str_wrap(width = 30) %>% 
+            str_trunc(60),
+          range = ifelse(detected == "", range, paste0(range, "\n")),
+          annot = glue("{range}{detected}")
+        ),
+      fill = rgb(1, 1, 1, 0.4),
+      size = 3,
+      show.legend = FALSE
+    ) +
+    annotate(
+      geom = "text",
+      x = min(results$logCPM) - 0.1*diff(range(results$logCPM)),
+      y = mean(range(results$logFC)),
+      label = "logFC", angle = 90
+    ) +
+    annotate(
+      geom = "text",
+      y = min(results$logFC) - 0.15*diff(range(results$logFC)),
+      x = mean(range(results$logCPM)),
+      label = "Ave Signal (logCPM)"
+    ) +
+    coord_cartesian(
+      xlim = range(results$logCPM), 
+      ylim = range(results$logFC),
+      clip = 'off'
+    ) +
+    scale_xsidey_discrete(position = "right") +
+    scale_colour_manual(values = full_palette) +
+    scale_fill_manual(values = colours$features) +
+    labs(x = NULL, y = NULL, colour = "Status") +
+    theme(
+      ggside.panel.scale.x = 0.25 * fw/fh,
+      ggside.panel.scale.y = 0.2,
+      ggside.axis.text.x.bottom = element_text(angle = 90, hjust = 1, vjust = 0.5),
+      plot.margin = unit(c(1, 1, 1, 2), "lines"),
+      legend.position = "inside",
+      legend.position.inside = c(0.55 * 0.75, -0.15), 
+      legend.direction = "horizontal"
+    )
+}
+```
+
+
+#### Volcano Plot
+
+```{r plot-volcano, fig.cap = glue("*Volcano plot showing {region_type} with evidence of differential {target} signal. The most significant {region_type} are labelled along with any genes these regions are mapped to.*")}
+results %>% 
+  as_tibble() %>% 
+  ggplot(aes(logFC, -log10(PValue))) +
+  geom_point(aes(colour = status), alpha = 0.6) +
+  geom_label_repel(
+    aes(label = annot, colour = status),
+    data = . %>%
+      arrange(PValue) %>%
+      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
+      droplevels() %>% 
+      dplyr::slice(1:2, .by = status) %>% 
+      mutate(
+        detected = gene_name %>%
+          lapply(paste, collapse = ", ") %>%
+          unlist() %>%
+          str_replace("^NA$", "") %>%
+          str_wrap(width = 30) %>% 
+          str_trunc(60),
+        range = ifelse(detected == "", range, paste0(range, "\n")),
+        annot = glue("{range}{detected}")
+      ),
+    fill = rgb(1, 1, 1, 0.4),
+    size = 3,
+    show.legend = FALSE
+  ) +
+  scale_colour_manual(values = full_palette) +
+  labs(
+    x = "logFC",
+    y = expression(paste(-log[10], "p")),
+    colour = "Status"
+  )
+```
+
+
+
+`r if (n_sig > 0) "#### Differential Signal By Region"`
+
+```{r plot-db-regions, echo = n_sig > 0, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all genomic regions.*")}
+if (n_sig > 0) {
+  results %>% 
+    dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
+    as_tibble() %>% 
+    dplyr::rename("{target}" := status, Region = region) %>% 
+    droplevels() %>% 
+    plotSplitDonut(
+      inner = !!sym(target), outer = "Region", min_p = 0.02,
+      inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+      outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+      inner_palette = full_palette, outer_palette = full_palette
+    )
+}
+```
+
+
+`r ifelse(has_features, "#### Differential Signal By Feature", "")`
+
+```{r plot-db-features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all external features.*")}
+if (has_features) {
+  results %>% 
+    dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
+    as_tibble() %>% 
+    mutate(feature = str_sep_to_title(feature)) %>% 
+    dplyr::rename("{target}" := status, Feature = feature) %>% 
+    plotSplitDonut(
+      inner = !!sym(target), outer = "Feature", min_p = 0.01,
+      inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+      outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
+      inner_palette = full_palette,
+      outer_palette = full_palette
+    )
+}
+```
+
+### Profile Heatmaps
+
+```{r make-heatmaps}
 bw_type <- match.arg(heat_params$bw_type, c("FE", "coverage"))
 fill_type <- c(coverage = "logCPM", FE = "log Enrichment")[bw_type]
 bwfl <- file.path(
@@ -720,80 +944,6 @@ if (length(sig_profiles) > 0) {
 ```
 
 
-#### MA Plot
-
-```{r plot-ma, fig.cap = glue("*MA plot showing the status of all {region_type} under consideration. The two most extreme {region_type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve.*")}
-if (!"Ambiguous" %in% levels(results$status)) 
-  direction_colours <- direction_colours[names(direction_colours) != "Ambiguous"]
-results %>% 
-  as_tibble() %>%
-  ggplot(aes(logCPM, logFC)) +
-  geom_point(aes(colour = status), alpha = 0.5) +
-  geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
-  geom_hline(yintercept = 0) +
-  geom_label_repel(
-    aes(y = logFC, label = annot, colour = status),
-    data = . %>%
-      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
-      arrange(desc(abs(logFC))) %>% 
-      dplyr::slice(1:2, .by = status) %>% 
-      mutate(
-        detected = gene_name %>%
-          lapply(paste, collapse = ", ") %>%
-          unlist() %>%
-          str_replace("^NA$", "") %>%
-          str_wrap(width = 30) %>% 
-          str_trunc(60),
-        range = ifelse(detected == "", range, paste0(range, "\n")),
-        annot = glue("{range}{detected}")
-      ),
-    fill = rgb(1, 1, 1, 0.4),
-    size = 3,
-    show.legend = FALSE
-  ) +
-  scale_colour_manual(values = full_palette) +
-  labs(x = "Ave Signal (logCPM)", colour = "Status") 
-```
-
-
-#### Volcano Plot
-
-```{r plot-volcano, fig.cap = glue("*Volcano plot showing {region_type} with evidence of differential {target} signal. The most significant {region_type} are labelled along with any genes these regions are mapped to.*")}
-results %>% 
-  as_tibble() %>% 
-  ggplot(aes(logFC, -log10(PValue))) +
-  geom_point(aes(colour = status), alpha = 0.6) +
-  geom_label_repel(
-    aes(label = annot, colour = status),
-    data = . %>%
-      arrange(PValue) %>%
-      dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>% 
-      droplevels() %>% 
-      dplyr::slice(1:2, .by = status) %>% 
-      mutate(
-        detected = gene_name %>%
-          lapply(paste, collapse = ", ") %>%
-          unlist() %>%
-          str_replace("^NA$", "") %>%
-          str_wrap(width = 30) %>% 
-          str_trunc(60),
-        range = ifelse(detected == "", range, paste0(range, "\n")),
-        annot = glue("{range}{detected}")
-      ),
-    fill = rgb(1, 1, 1, 0.4),
-    size = 3,
-    show.legend = FALSE
-  ) +
-  scale_colour_manual(values = full_palette) +
-  labs(
-    x = "logFC",
-    y = expression(paste(-log[10], "p")),
-    colour = "Status"
-  )
-```
-
-
-
 ```{r plot-all-profile-heatmaps, echo = FALSE}
 htmltools::tagList(
   lapply(
@@ -846,76 +996,6 @@ htmltools::tagList(
 )
 ```
 
-
-#### Signal By Region
-
-```{r boxplot-regions, fig.height = 7, fig.cap = "*Distributions of overall signal (logCPM) and changed signal (logFC) for each genomic region.*"}
-results %>% 
-  select(logCPM, logFC, region) %>% 
-  as_tibble() %>% 
-  mutate(
-    x = fct_relabel(
-      region, str_replace_all, pattern = " \\(", replacement = "\n("
-    ),
-  ) %>% 
-  pivot_longer(cols = c("logCPM", "logFC")) %>% 
-  ggplot(aes(x, value, fill = region)) +
-  geom_boxplot() +
-  facet_grid(rows = vars(name), scales = "free", switch = "y") +
-  scale_fill_manual(values = full_palette) +
-  labs(x = "Region", y = c(), fill = "Overlaps") 
-```
-
-`r if (n_sig > 0) "#### Differential Signal By Region"`
-
-```{r plot-db-regions, eval = n_sig > 0, echo = n_sig > 0, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all genomic regions.*")}
-results %>% 
-  dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
-  as_tibble() %>% 
-  dplyr::rename("{target}" := status, Region = region) %>% 
-  droplevels() %>% 
-  plotSplitDonut(
-    inner = !!sym(target), outer = "Region", min_p = 0.02,
-    inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-    outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-    inner_palette = full_palette, outer_palette = full_palette
-  )
-```
-
-`r ifelse(has_features, "#### Signal By Feature", "")`
-
-```{r boxplot-features, echo = has_features, fig.height = 7, fig.cap = "*Distributions of overall signal (logCPM) and changed signal (logFC) for each external feature.*"}
-if (has_features) {
-  results %>% 
-    select(logCPM, logFC, feature) %>% 
-    as_tibble() %>% 
-    pivot_longer(cols = c("logCPM", "logFC")) %>% 
-    ggplot(aes(feature, value, fill = feature)) +
-    geom_boxplot() +
-    facet_grid(rows = vars(name), scales = "free", switch = "y") +
-    scale_fill_manual(values = colours$features) +
-    labs(x = "Feature", y = c(), fill = "Overlaps") 
-}
-```
-
-`r ifelse(has_features, "#### Differential Signal By Feature", "")`
-
-```{r plot-db-features, echo = has_features, fig.height = 7, fig.cap = glue("*Merged windows considered as showing differential {target} signal across all external features.*")}
-if (has_features) {
-  results %>% 
-    dplyr::filter(!!sym(fdr_column) < fdr_alpha) %>%
-    as_tibble() %>% 
-    mutate(feature = str_sep_to_title(feature)) %>% 
-    dplyr::rename("{target}" := status, Feature = feature) %>% 
-    plotSplitDonut(
-      inner = !!sym(target), outer = "Feature", min_p = 0.01,
-      inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-      outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-      inner_palette = full_palette,
-      outer_palette = full_palette
-    )
-}
-```
 
 
 ### Inspection of Top-Ranked Regions {.tabset}
@@ -997,7 +1077,6 @@ y_lim <- bwfl[[target]] %>%
   range() %>% 
   list() %>% 
   setNames(target)
-
 ## The features track
 feat_gr <- gene_regions %>% 
   lapply(granges) %>% 
@@ -1011,7 +1090,6 @@ if (has_features) {
     Features = unlist(colours$features)
   )
 }
-
 ## The genes track
 ## The genes track defaults to transcript models
 hfgc_genes <- here::here("output", "annotations", "trans_models.rds") %>% 
