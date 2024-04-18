@@ -2317,9 +2317,7 @@ By choosing the 5 most highly ranked genes for differential expression in `r pan
   cp <- glue(
     "The {width(range(.gr))}bp region with all changed peaks mapped to {gn}, ", 
     "as a highly-ranked DE gene in ",
-    glue_collapse(
-      dplyr::filter(sig_table, gene_id == id)$dataset, sep = ", ", last = " & "
-    ),
+    glue_collapse(.gr$dataset, sep = ", ", last = " & "),
     ", and with at least significantly changed DSA region for {target}. ",
     "Regions associated with differential signal are annotated by colour."
   )

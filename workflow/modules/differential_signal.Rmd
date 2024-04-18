@@ -4,13 +4,13 @@
 
 
 ```{r dummy-params, eval = interactive(), echo = FALSE}
-params <- list(
-  target = "ER",
-  treat_levels = c("E2", "E2DHT"),
-  results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
-  counts = "output/differential_signal/ER/ER_counts.rds",
-  ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds"
-)
+# params <- list(
+#   target = "ER",
+#   treat_levels = c("E2", "E2DHT"),
+#   results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+#   counts = "output/differential_signal/ER/ER_counts.rds",
+#   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds"
+# )
 ```
 
 ```{r packages}
@@ -720,7 +720,7 @@ results %>%
 
 `r if(has_features) "#### MA Plot By Feature"`
 
-```{r ma-by-feature, echo = has_features, fig.cap = glue("*MA plot showing the status of all {region_type} under consideration. The two most extreme {region_type} are labelled by region and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. Boxplots summarise the distribution of values for both expression and logFC by which feature best characterises the {region_type}*"*")}
+```{r ma-by-feature, echo = has_features, fig.cap = glue("*MA plot showing the status of all {region_type} under consideration. The two most extreme {region_type} are labelled by feature and any associated genes, whilst the overall pattern of association between signal level (logCPM) and changed signal (logFC) is shown as the blue curve. Boxplots summarise the distribution of values for both expression and logFC by which feature best characterises the {region_type}*")}
 if (has_features) {
   results %>% 
     as_tibble() %>%
