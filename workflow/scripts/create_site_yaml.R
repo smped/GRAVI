@@ -219,9 +219,11 @@ site_yaml$navbar$left <- list(
         )
       }
     ) %>%
-    c(shared) %>%
-      c(module_yaml)
+    c(shared)
   ),
+
+  ## NFR targets (or maybe ROSE eventually)
+  module_yaml[[1]], # Needs to change if ROSE is added
 
   ## Differential TF Signal
   diff_signal_yaml,

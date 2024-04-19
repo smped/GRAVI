@@ -5,11 +5,11 @@
 
 ```{r dummy-params, eval = interactive(), echo = FALSE}
 # params <- list(
-#   target = "ER",
+#   target = "H3K27ac",
 #   treat_levels = c("E2", "E2DHT"),
-#   results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
-#   counts = "output/differential_signal/ER/ER_counts.rds",
-#   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds"
+#   results = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
+#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
+#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds"
 # )
 ```
 
@@ -69,7 +69,7 @@ has_ds <- any(grepl("(In|De)creased", results$status))
 ihw <- here::here(params$ihw) %>% read_rds()
 ```
 
-```{r setup-params, echo = FALSE, eval=TRUE}
+```{r setup-params}
 diff_sig_params <- metadata(results)
 fdr_alpha <- diff_sig_params$alpha
 fdr_column <- ifelse(
@@ -869,6 +869,7 @@ if (has_features) {
 
 ### Profile Heatmaps
 
+
 ```{r make-heatmaps}
 bw_type <- match.arg(heat_params$bw_type, c("FE", "coverage"))
 fill_type <- c(coverage = "logCPM", FE = "log Enrichment")[bw_type]
@@ -882,15 +883,38 @@ bwfl <- file.path(
   glue() %>% 
   BigWigFileList() %>% 
   setNames(treat_levels) 
+rng_col <- c(
+  sliding = "keyval_range", fixed = "centred_peak"
+)[[diff_sig_params$window_type]]
+# Shift peaks if NFRs have been called
+nfr <- GRanges(seqinfo = seqinfo(results))
+nfr_rds <- here::here("output", "nfr", target, glue("{target}_consensus_nfr.rds"))
+if (file.exists(nfr_rds)) {
+    nfr <- nfr_rds %>%
+    read_rds() %>% 
+    granges() 
+}
+nfr$nfr <- as.character(nfr)
 sig_ranges <- results %>% 
   filter(!!sym(fdr_column) < fdr_alpha) %>%
+  join_overlap_left(nfr) %>% 
+  mutate(
+    ## Manage any ranges without an NFR
+    nfr = ifelse(is.na(nfr), as.character(!!sym(rng_col)), nfr),
+    nfr = GRanges(nfr),
+    d = abs(
+      start(nfr) + 0.5 * width(nfr) - (
+        start(!!sym(rng_col)) + 0.5 * width(!!sym(rng_col))
+      )
+    )
+  ) %>% 
+  ## Select the nearest NFR to the centre of the existing range
+  arrange(d) %>% 
+  .[!duplicated(.)] %>% 
+  sort() %>% 
+  colToRanges("nfr") %>% 
   splitAsList(f = .$status) %>% 
   .[map_int(., length) > heat_params$min_ranges] 
-if (diff_sig_params$window_type == "sliding") {
-  sig_ranges <- endoapply(sig_ranges, colToRanges, "keyval_range")
-} else {
-  sig_ranges <- endoapply(sig_ranges, colToRanges, "centred_peak")
-}
 sig_profiles <- lapply(sig_ranges, as.null)
 for (i in names(sig_profiles)) {
   set.seed(threads)
@@ -971,6 +995,7 @@ htmltools::tagList(
         {n_ranges} {region_type} selected as showing {nm} signal. Heatmaps were 
         restricted to a maximum of {comma(heat_params$max_ranges)} {region_type}. Values 
         shown are use the {bw_type}-based bigwig files produced by macs2 callpeak.
+        {ifelse(length(nfr) == 0, '', 'For ranges where NFRs were called, peaks were centred at these positions')}
         "
         )
       )
@@ -1802,6 +1827,7 @@ if (n_decreased_enrich > min(network_params$size)) {
 }
 ```
 
+## Motif Testing
 
 ```{r add-rna, eval = has_rna, child = here::here('workflow/modules/rna_differential_signal.Rmd')}
 ```
@@ -1809,16 +1835,13 @@ if (n_decreased_enrich > min(network_params$size)) {
 
 ## Data Export
 
-
 ```{r define-outputs}
 out_path <- file.path(all_paths$diff_signal, target)
 all_out <- list(
   csv = file.path(out_path, glue("{comp}-differential_signal.csv.gz")),
-  # de_genes = file.path(out_path, glue("{comp}-DE_genes.csv")),
   changed = file.path(out_path, glue("{comp}-changed-enrichment.csv")),
   decreased = file.path(out_path, glue("{comp}-decreased-enrichment.csv")),
   increased = file.path(out_path, glue("{comp}-increased-enrichment.csv")),
-  # rna_enrichment = file.path(out_path, glue("{comp}-rnaseq_enrichment.csv")),
   renv = here::here("output/envs", glue("{comp}-differential_signal.RData"))
 )
 ```
