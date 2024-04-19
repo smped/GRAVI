@@ -36,6 +36,7 @@ rule compile_annotations_html:
         )
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1
     log: os.path.join(log_path, "compile_rmd", "compile_annotations_html.log")
     resources:
         mem_mb = 4096,
@@ -68,6 +69,7 @@ rule compile_signal_summary_html:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
+    retries: 1
     resources:
         mem_mb = 16384,
         runtime = "30m",
@@ -117,6 +119,7 @@ rule compile_signal_comparison_html:
         )
     conda: "../envs/rmarkdown.yml"
     threads: 6
+    retries: 1
     resources:
         mem_mb = 16384,
         runtime = "30m",
@@ -140,6 +143,7 @@ rule compile_nfr_html:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 4
+    retries: 1
     resources:
         mem_mb = 16384,
         runtime = "30m",
@@ -189,6 +193,7 @@ rule compile_differential_signal_html:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
+    retries: 1
     resources:
         mem_mb = 48000,
         runtime = "1h"

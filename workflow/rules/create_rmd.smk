@@ -201,6 +201,7 @@ rule create_differential_signal_rmd:
         ihw = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
         ),
+        nfr = NFR_RDS,
         results = os.path.join(
             diff_path, "{target}", 
             "{target}_{ref}_{treat}-differential-signal.rds"

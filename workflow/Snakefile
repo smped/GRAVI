@@ -285,10 +285,19 @@ if len(targets) > 1:
 # 	)
 
 ## Any NFR modules
+NFR_RDS = []
 if (config['modules']['nfr']):
 	HTML_OUT.extend(
 		expand(
 			os.path.join("docs", "{f}_nfr.html"),
+			f = config['modules']['nfr']
+		)
+	)
+	NFR_RDS.extend(
+		expand(
+			os.path.join(
+				"output", "nfr", "{f}", "{f}_consensus_nfr.rds"
+			),
 			f = config['modules']['nfr']
 		)
 	)
