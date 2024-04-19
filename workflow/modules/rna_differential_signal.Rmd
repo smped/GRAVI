@@ -85,8 +85,8 @@ summary_tables <- names(rna) %>%
       htmltools::div(
         htmltools::div(
           id = id,
-          class = "section level4",
-          htmltools::h4("Summary Table"),
+          class = "section level5",
+          htmltools::h5("Summary Table"),
           htmltools::div(
             class = "table", tbl, htmltools::tags$caption(cp)
           )
@@ -146,8 +146,8 @@ donut_plots <- names(donuts) %>%
             str_remove_all(glue(".{fig_type}$")) %>% 
             str_to_lower() %>% 
             str_replace_all("_", "-"),
-          class = "section level4",
-          htmltools::h4("Donut Plot"),
+          class = "section level5",
+          htmltools::h5("Donut Plot"),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = "100%"),
@@ -238,8 +238,8 @@ ma_plots <- names(rna) %>%
               str_remove_all(glue(".{fig_type}$")) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4("MA Plot"),
+            class = "section level5",
+            htmltools::h5("MA Plot"),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -364,8 +364,8 @@ lfc_by_region <- names(rna) %>%
             str_remove_all(glue(".{fig_type}$")) %>% 
             str_to_lower() %>% 
             str_replace_all("_", "-"),
-          class = "section level4",
-          htmltools::h4("Combined logFC"),
+          class = "section level5",
+          htmltools::h5("Combined logFC"),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = "100%"),
@@ -480,8 +480,8 @@ if (has_features) {
               str_remove_all(glue(".{fig_type}$")) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4("logFC By Feature"),
+            class = "section level5",
+            htmltools::h5("logFC By Feature"),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -565,8 +565,8 @@ if (any(has_de)) {
               str_remove_all(glue(".{fig_type}$")) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4("Volcano Plot"),
+            class = "section level5",
+            htmltools::h5("Volcano Plot"),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -638,8 +638,8 @@ pval_hist <- names(rna) %>%
             str_remove_all(glue(".{fig_type}$")) %>% 
             str_to_lower() %>% 
             str_replace_all("_", "-"),
-          class = "section level4",
-          htmltools::h4("P-Value Histogram"),
+          class = "section level5",
+          htmltools::h5("P-Value Histogram"),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = "100%"),
@@ -820,19 +820,21 @@ if (any(has_de) & has_ds) {
             "Clear All Filters",
             onclick = glue("Reactable.setAllFilters('{id}', [])")
           ),
-          tbl,
-          cp
+          htmltools::div(
+            class = "section level5", 
+            htmltools::h5("DEGs with Diferential Signal"), 
+            tbl,
+            cp
+          )
         )
-        htmltools::div(
-          class = "section level4", 
-          htmltools::h4("DEGs with Diferential Signal"), 
-          tl
-        )
+        tl
       }
     ) %>% 
     setNames(names(which(has_de)))
 }
 ```
+
+### Direct Comparisons
 
 
 ```{r print-tables-and-figures, echo=FALSE}
@@ -843,8 +845,8 @@ tagList(
         tagList(
           list(
             htmltools::div(
-              id = x, class = "section level3 tabset",
-              htmltools::h3(x, class = "tabset"),
+              id = x, class = "section level4 tabset",
+              htmltools::h4(x, class = "tabset"),
               summary_tables[[x]],
               donut_plots[[x]],
               ma_plots[[x]],
@@ -866,8 +868,8 @@ tagList(
 
 #### GSEA By Direction of Regulation {.tabset}
 
-GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r `target` signal regions, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, by significance of the logFC estimates.
-The `R` package `fgsea` [@KorotkevichFgsea2019] was used all downstream GSEA analysis.
+GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r target` signal regions, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, using the significance of the logFC estimates.
+The `R` package `fgsea` [@KorotkevichFgsea2019] was used for all downstream GSEA analysis.
 
 ```{r run-gsea-dir}
 ids_by_status <- results_tbl %>% 
@@ -959,15 +961,13 @@ if (any(any_gsea_dir)) {
             )
           )
           htmltools::div(
+            id = paste0("tbl-gsea-dir", x) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-"),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
-              id = paste0("tbl-gsea-dir", x) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "table", tbl, htmltools::tags$caption(cp)
-              )
+              class = "table", tbl, htmltools::tags$caption(cp)
             )
           )
         }
