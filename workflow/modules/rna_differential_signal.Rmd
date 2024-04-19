@@ -29,6 +29,24 @@ dsa_status <- results_tbl %>%
     .by = gene_id
   ) %>% 
   droplevels()
+enrich_cols$pathway <- enrich_cols$gs_name
+enrich_cols$NES <- colDef(
+  format = colFormat(digits = 2), maxWidth = 100,
+  style = \(value) {
+    text_colour <- ifelse(
+      value > 0, 
+      direction_colours[["Increased"]], 
+      direction_colours[["Decreased"]]
+    )
+    list(color = text_colour)
+  }
+)
+enrich_cols$meta_p <- enrich_cols$p
+enrich_cols$n_cmn <- enrich_cols$observed_gene_hits
+enrich_cols$n_cmn$name <- "Nbr Common"
+enrich_cols$genes <- enrich_cols$genes_with_hits
+enrich_cols$genes$name <- "Common Genes"
+enrich_cols$cmn_ids <- enrich_cols$gene_id
 ```
 
 In order to compare DSA results for `r target`, gene-to-range mappings were summarised such that if a gene was mapped to any DSA results showing increased or decreased binding, they were given this status.
@@ -805,7 +823,9 @@ if (any(has_de) & has_ds) {
             "considered as showing evidence of changed {target} signal. "
           )
         )
-        tl <- tagList(
+        htmltools::div(
+          id = id, class = "section level5", 
+          htmltools::h5("DEGs with Diferential Signal"), 
           tags$button(
             tagList(fontawesome::fa("download"), "Download as CSV"),
             onclick = glue(
@@ -820,14 +840,8 @@ if (any(has_de) & has_ds) {
             "Clear All Filters",
             onclick = glue("Reactable.setAllFilters('{id}', [])")
           ),
-          htmltools::div(
-            class = "section level5", 
-            htmltools::h5("DEGs with Diferential Signal"), 
-            tbl,
-            cp
-          )
+          tbl, tags$caption(cp)
         )
-        tl
       }
     ) %>% 
     setNames(names(which(has_de)))
@@ -865,8 +879,6 @@ tagList(
 
 
 ### `r target` Pattern GSEA 
-
-#### GSEA By Direction of Regulation {.tabset}
 
 GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r target` signal regions, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, using the significance of the logFC estimates.
 The `R` package `fgsea` [@KorotkevichFgsea2019] was used for all downstream GSEA analysis.
@@ -924,21 +936,8 @@ if (any(any_gsea_dir)) {
                 status = colDef(glue("{target} Status"), maxWidth = 100),
                 region = colDef("Region Type", maxWidth = 120),
                 feature = colDef("Feature Type", maxWidth = 100),
-                padj = colDef(
-                  "p<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                  filterMethod = js_less, html = TRUE, maxWidth = 80
-                ),
-                NES = colDef(
-                  "NES", format = colFormat(digits = 2),
-                  style = \(value) {
-                    text_colour <- ifelse(
-                      value > 0, 
-                      direction_colours[["Increased"]], 
-                      direction_colours[["Decreased"]]
-                    )
-                    list(color = text_colour)
-                  }
-                ),
+                padj = enrich_cols$adj_p,
+                NES = enrich_cols$NES,
                 size = colDef("Group Size"),
                 leSize = colDef("LE Size"),
                 leadingEdge = colDef(
@@ -964,8 +963,8 @@ if (any(any_gsea_dir)) {
             id = paste0("tbl-gsea-dir", x) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
+            class = "section level4",
+            htmltools::h4(x),
             htmltools::div(
               class = "table", tbl, htmltools::tags$caption(cp)
             )
@@ -977,633 +976,16 @@ if (any(any_gsea_dir)) {
 ```
 
 
-### Combined Enrichment Using Direction of Changed Expression
+### Combined Enrichment 
 
-```{r load-gsea-dir}
+```{r load-gsea-rds}
 gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
-```
-
-
-```{r integrate-gsea-dir}
-changed_dir_enrich <- gsea_dir %>% 
-  lapply(
-    \(x) {
-      x %>% 
-        inner_join(changed_enrich_df, by = c("pathway" = "gs_name")) %>% 
-        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
-        nest(p = all_of(c("pval", "p"))) %>% 
-        mutate(
-          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
-          adj_p = p.adjust(meta_p, enrich_params$adj),
-          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
-          n_cmn = map_int(cmn_ids, length)
-        ) %>% 
-        arrange(meta_p) %>% 
-        dplyr::filter(
-          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
-        ) %>% 
-        mutate(
-          genes = map_chr(
-            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
-          )
-        ) %>% 
-        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
-    }
-  )
-increased_dir_enrich <- gsea_dir %>% 
-  lapply(
-    \(x) {
-      x %>% 
-        inner_join(increased_enrich_df, by = c("pathway" = "gs_name")) %>% 
-        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
-        nest(p = all_of(c("pval", "p"))) %>% 
-        mutate(
-          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
-          adj_p = p.adjust(meta_p, enrich_params$adj),
-          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
-          n_cmn = map_int(cmn_ids, length)
-        ) %>% 
-        arrange(meta_p) %>% 
-        dplyr::filter(
-          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
-        ) %>% 
-        mutate(
-          genes = map_chr(
-            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
-          )
-        ) %>% 
-        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
-    }
-  )
-decreased_dir_enrich <- gsea_dir %>% 
-  lapply(
-    \(x) {
-      x %>% 
-        inner_join(decreased_enrich_df, by = c("pathway" = "gs_name")) %>% 
-        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
-        nest(p = all_of(c("pval", "p"))) %>% 
-        mutate(
-          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
-          adj_p = p.adjust(meta_p, enrich_params$adj),
-          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
-          n_cmn = map_int(cmn_ids, length)
-        ) %>% 
-        arrange(meta_p) %>% 
-        dplyr::filter(
-          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
-        ) %>% 
-        mutate(
-          genes = map_chr(
-            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
-          )
-        ) %>% 
-        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
-    }
-  )
-n_changed_dir_enrich <- map_int(changed_dir_enrich, nrow)
-n_increased_dir_enrich <- map_int(increased_dir_enrich, nrow)
-n_decreased_dir_enrich <- map_int(decreased_dir_enrich, nrow)
-```
-
-#### Result Tables {.tabset}
-
-##### All Changed Sites {.tabset}
-
-```{r tbl-all-changed-dir}
-if (any(n_changed_dir_enrich > 0)) {
-  tagList(
-    n_changed_dir_enrich %>% 
-      as.logical() %>% 
-      setNames(names(gsea_dir)) %>% 
-      which() %>% 
-      names() %>% 
-      lapply(
-        \(x) {
-          tbl <- changed_dir_enrich[[x]] %>% 
-            dplyr::select(-meta_p, cmn_ids) %>% 
-            reactable(
-              showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-              columns = list(
-                pathway = colDef(
-                  "Gene Set", minWidth = 180,
-                  cell = function(value) htmltools::tags$a(
-                    href = gs_url[[value]],
-                    target = "_blank",
-                    str_replace_all(value, "_", " ")
-                  ),
-                  html = TRUE
-                ),
-                NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-                adj_p = colDef(
-                  "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                  html = TRUE, maxWidth = 100, filterMethod = js_less
-                ),
-                n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-                genes = colDef(
-                  "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                  minWidth = 150
-                )
-              )
-            )
-          cp <- htmltools::em(
-            glue(
-              "Enrichment results for changed {target} sites were integrated ",
-              "with GSEA results for {x}, which included the direction of ",
-              "estimated logFC for gene expression. Genes within each gene set ",
-              "which had significant DSA sites mapped to them, as well as being ",
-              "included in the Leading Edge for GSEA were dentified as Shared ",
-              "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-              "of changed signal, a positive Normalised Enrichment Score (NES) ",
-              "indicates an association with up-regulated genes, whilst a ", 
-              "negative score indicates an association with down-regulated genes."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = "tbl-changed-dir-enrich-" %>% 
-                paste0(x) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level6",
-              htmltools::h6(x),
-              htmltools::div(
-                class = "table", tbl, htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-##### Sites With Increased Signal {.tabset}
-
-```{r tbl-increased-dir}
-if (any(n_increased_dir_enrich > 0)) {
-  tagList(
-    n_increased_dir_enrich %>% 
-      as.logical() %>% 
-      setNames(names(gsea_dir)) %>% 
-      which() %>% 
-      names() %>% 
-      lapply(
-        \(x) {
-          tbl <- increased_dir_enrich[[x]] %>% 
-            dplyr::select(-meta_p, cmn_ids) %>% 
-            reactable(
-              showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-              columns = list(
-                pathway = colDef(
-                  "Gene Set", minWidth = 180,
-                  cell = function(value) htmltools::tags$a(
-                    href = gs_url[[value]],
-                    target = "_blank",
-                    str_replace_all(value, "_", " ")
-                  ),
-                  html = TRUE
-                ),
-                NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-                adj_p = colDef(
-                  "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                  html = TRUE, maxWidth = 100, filterMethod = js_less
-                ),
-                n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-                genes = colDef(
-                  "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                  minWidth = 150
-                )
-              )
-            )
-          cp <- htmltools::em(
-            glue(
-              "Enrichment results for increased {target} sites were integrated ",
-              "with GSEA results for {x}, which included the direction of ",
-              "estimated logFC for gene expression. Genes within each gene set ",
-              "which had significant DSA sites mapped to them, as well as being ",
-              "included in the Leading Edge for GSEA were dentified as Shared ",
-              "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-              "of increased signal, a positive Normalised Enrichment Score (NES) ",
-              "indicates an association with up-regulated genes, whilst a ", 
-              "negative score indicates an association with down-regulated genes."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = "tbl-increased-dir-enrich-" %>% 
-                paste0(x) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level6",
-              htmltools::h6(x),
-              htmltools::div(
-                class = "table", tbl, htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-##### Sites With Decreased Signal {.tabset}
-
-```{r tbl-decreased-dir}
-if (any(n_decreased_dir_enrich > 0)) {
-  tagList(
-    n_decreased_dir_enrich %>% 
-      as.logical() %>% 
-      setNames(names(gsea_dir)) %>% 
-      which() %>% 
-      names() %>% 
-      lapply(
-        \(x) {
-          tbl <- decreased_dir_enrich[[x]] %>% 
-            dplyr::select(-meta_p, cmn_ids) %>% 
-            reactable(
-              showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-              columns = list(
-                pathway = colDef(
-                  "Gene Set", minWidth = 180,
-                  cell = function(value) htmltools::tags$a(
-                    href = gs_url[[value]],
-                    target = "_blank",
-                    str_replace_all(value, "_", " ")
-                  ),
-                  html = TRUE
-                ),
-                NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-                adj_p = colDef(
-                  "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                  html = TRUE, maxWidth = 100, filterMethod = js_less
-                ),
-                n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-                genes = colDef(
-                  "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                  minWidth = 150
-                )
-              )
-            )
-          cp <- htmltools::em(
-            glue(
-              "Enrichment results for decreased {target} sites were integrated ",
-              "with GSEA results for {x}, which included the direction of ",
-              "estimated logFC for gene expression. Genes within each gene set ",
-              "which had significant DSA sites mapped to them, as well as being ",
-              "included in the Leading Edge for GSEA were dentified as Shared ",
-              "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-              "of decreased signal, a positive Normalised Enrichment Score (NES) ",
-              "indicates an association with up-regulated genes, whilst a ", 
-              "negative score indicates an association with down-regulated genes."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = "tbl-decreased-dir-enrich-" %>% 
-                paste0(x) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level6",
-              htmltools::h6(x),
-              htmltools::div(
-                class = "table", tbl, htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-### Network Plots {.tabset}
-
-#### All Changed Sites {.tabset}
-
-```{r network-changed-dir}
-if (any(n_changed_dir_enrich >= min(network_params$size))) {
-  changed_dir_network <- n_changed_dir_enrich %>% 
-    is_weakly_greater_than(min(network_params$size)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        changed_dir_enrich[[x]] %>% 
-          mutate(
-            gene_set_size = msigdb %>% 
-              dplyr::filter(gs_name %in% pathway) %>% 
-              split(.$gs_name) %>% 
-              .[pathway] %>% 
-              map_int(nrow),
-            prop = n_cmn / gene_set_size,
-            cmn_ids = setNames(cmn_ids, pathway)
-          ) %>% 
-          make_tbl_graph(
-            gs = .$cmn_ids,
-            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-            hit_col = "n_cmn", size_col = "gene_set_size",
-            min_dist = network_params$max_distance,
-            max_gs = max(network_params$size)
-          ) %>% 
-          ggraph(layout = net_layout, weights = oc) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(
-              fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop
-            ),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label, alpha = prop),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% 
-                  str_trunc(60) %>% 
-                  str_wrap(width = 18)
-              ),
-            repel = TRUE, bg.color = "white", bg.r = 0.1, 
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-          theme_void() 
-      }
-    ) %>% 
-    setNames(
-      names(which(n_changed_dir_enrich >= min(network_params$size)))
-    )
-}
-```
-
-```{r print-network-changed-dir, echo=FALSE}
-if (any(n_changed_dir_enrich >= min(network_params$size))) {
-  tagList(
-    names(changed_dir_network) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("changed_dir_network_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(changed_dir_network[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Combined enrichment network for {x} and DSA for {target} using ",
-              "all changed {target} sites."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-#### All Increased Sites {.tabset}
-
-```{r network-increased-dir}
-if (any(n_increased_dir_enrich >= min(network_params$size))) {
-  increased_dir_network <- n_increased_dir_enrich %>% 
-    is_weakly_greater_than(min(network_params$size)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        increased_dir_enrich[[x]] %>% 
-          mutate(
-            gene_set_size = msigdb %>% 
-              dplyr::filter(gs_name %in% pathway) %>% 
-              split(.$gs_name) %>% 
-              .[pathway] %>% 
-              map_int(nrow),
-            prop = n_cmn / gene_set_size,
-            cmn_ids = setNames(cmn_ids, pathway)
-          ) %>% 
-          make_tbl_graph(
-            gs = .$cmn_ids,
-            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-            hit_col = "n_cmn", size_col = "gene_set_size",
-            min_dist = network_params$max_distance,
-            max_gs = max(network_params$size)
-          ) %>% 
-          ggraph(layout = net_layout, weights = oc) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(
-              fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop
-            ),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label, alpha = prop),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% 
-                  str_trunc(60) %>% 
-                  str_wrap(width = 18)
-              ),
-            repel = TRUE, bg.color = "white", bg.r = 0.1, 
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-          theme_void() 
-      }
-    ) %>% 
-    setNames(
-      names(which(n_increased_dir_enrich >= min(network_params$size)))
-    )
-}
-```
-
-```{r print-network-increased-dir, echo=FALSE}
-if (any(n_increased_dir_enrich >= min(network_params$size))) {
-  tagList(
-    names(increased_dir_network) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("increased_dir_network_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(increased_dir_network[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Combined enrichment network for {x} and DSA for {target} using ",
-              "all increased {target} sites."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-#### All Decreased Sites {.tabset}
-
-```{r network-decreased-dir}
-if (any(n_decreased_dir_enrich >= min(network_params$size))) {
-  decreased_dir_network <- n_decreased_dir_enrich %>% 
-    is_weakly_greater_than(min(network_params$size)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        decreased_dir_enrich[[x]] %>% 
-          mutate(
-            gene_set_size = msigdb %>% 
-              dplyr::filter(gs_name %in% pathway) %>% 
-              split(.$gs_name) %>% 
-              .[pathway] %>% 
-              map_int(nrow),
-            prop = n_cmn / gene_set_size,
-            cmn_ids = setNames(cmn_ids, pathway)
-          ) %>% 
-          make_tbl_graph(
-            gs = .$cmn_ids,
-            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-            hit_col = "n_cmn", size_col = "gene_set_size",
-            min_dist = network_params$max_distance,
-            max_gs = max(network_params$size)
-          ) %>% 
-          ggraph(layout = net_layout, weights = oc) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(
-              fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop
-            ),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label, alpha = prop),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% 
-                  str_trunc(60) %>% 
-                  str_wrap(width = 18)
-              ),
-            repel = TRUE, bg.color = "white", bg.r = 0.1
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-          theme_void() 
-      }
-    ) %>% 
-    setNames(
-      names(which(n_decreased_dir_enrich >= min(network_params$size)))
-    )
-}
-```
-
-```{r print-network-decreased-dir, echo=FALSE}
-if (any(n_decreased_dir_enrich >= min(network_params$size))) {
-  tagList(
-    names(decreased_dir_network) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("decreased_dir_network_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(decreased_dir_network[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Combined enrichment network for {x} and DSA for {target} using ",
-              "all decreased {target} sites."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-
-### Combined Enrichment Using Only Signficance of Changed Expression
-
-```{r load-gsea-sig}
 gsea_sig <- file.path(all_paths$annotation, "gsea_sig.rds") %>% read_rds()
 ```
 
 
-```{r integrate-gsea-sig}
-changed_sig_enrich <- gsea_sig %>% 
+```{r changed-rna-enrichment}
+changed_rna_enrich <- gsea_sig %>% 
   lapply(
     \(x) {
       x %>% 
@@ -1627,8 +1009,124 @@ changed_sig_enrich <- gsea_sig %>%
         ) %>% 
         dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
     }
-  )
-increased_sig_enrich <- gsea_sig %>% 
+  ) %>% 
+  .[map_int(., nrow) > 0]
+tbl_changed_rna_enrich <- names(changed_rna_enrich) %>% 
+  lapply(
+    \(x) {
+      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+      id <- paste0(id, "-changed-enrich-tbl")
+      df <- changed_rna_enrich[[x]]
+      tbl <- reactable(
+        df, 
+        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+        columns = enrich_cols[colnames(df)],
+        elementId = id
+      )
+      cp <- tags$em(
+        glue(
+          "Results when combining directional GSEA results from {x} ",
+          "with DSA enrichment results from {target}."
+        )
+      )
+      htmltools::div(
+        id = id, class = "section level5",
+        h5("Combined Enrichment: DSA Changed"),
+        tbl, tags$caption(cp)
+      )
+    }
+  ) %>% 
+  setNames(names(changed_rna_enrich))
+network_changed_rna_enrich <- changed_rna_enrich %>% 
+  map_int(nrow) %>% 
+  is_weakly_greater_than(min(network_params$size)) %>% 
+  which() %>% 
+  names() %>%  
+  sapply(
+    \(x) {
+      p <- changed_rna_enrich[[x]] %>% 
+        mutate(
+          gene_set_size = msigdb %>% 
+            dplyr::filter(gs_name %in% pathway) %>% 
+            split(.$gs_name) %>% 
+            .[pathway] %>% 
+            map_int(nrow),
+          prop = n_cmn / gene_set_size,
+          cmn_ids = setNames(cmn_ids, pathway)
+        ) %>% 
+        make_tbl_graph(
+          gs = .$cmn_ids,
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+          hit_col = "n_cmn", size_col = "gene_set_size",
+          min_dist = network_params$max_distance,
+          max_gs = max(network_params$size)
+        ) %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+      
+      ## Export the image
+      img_out <- file.path(
+        fig_path, glue("network_changed_rna_enrich_{x}.{fig_type}")
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "The relationship between gene-sets considered enriched when ",
+          "including GSEA results from {x} and changed sites from {target} ",
+          "DSA analysis."
+        )
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level5",
+        htmltools::h5("Enrichment Network: DSA Changed"),
+        htmltools::div(
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
+        )
+      )
+      
+    }, simplify = FALSE
+  )  
+```
+
+```{r increased-rna-enrichment}
+increased_rna_enrich <- gsea_dir %>% 
   lapply(
     \(x) {
       x %>% 
@@ -1652,8 +1150,124 @@ increased_sig_enrich <- gsea_sig %>%
         ) %>% 
         dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
     }
-  )
-decreased_sig_enrich <- gsea_sig %>% 
+  ) %>% 
+  .[map_int(., nrow) > 0]
+tbl_increased_rna_enrich <- names(increased_rna_enrich) %>% 
+  lapply(
+    \(x) {
+      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+      id <- paste0(id, "-increased-enrich-tbl")
+      df <- increased_rna_enrich[[x]]
+      tbl <- reactable(
+        df, 
+        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+        columns = enrich_cols[colnames(df)],
+        elementId = id
+      )
+      cp <- tags$em(
+        glue(
+          "Results when combining directional GSEA results from {x} ",
+          "with DSA enrichment results from {target}."
+        )
+      )
+      htmltools::div(
+        id = id, class = "section level5",
+        h5("Combined Enrichment: DSA increased"),
+        tbl, tags$caption(cp)
+      )
+    }
+  ) %>% 
+  setNames(names(increased_rna_enrich))
+network_increased_rna_enrich <- increased_rna_enrich %>% 
+  map_int(nrow) %>% 
+  is_weakly_greater_than(min(network_params$size)) %>% 
+  which() %>% 
+  names() %>%  
+  sapply(
+    \(x) {
+      p <- increased_rna_enrich[[x]] %>% 
+        mutate(
+          gene_set_size = msigdb %>% 
+            dplyr::filter(gs_name %in% pathway) %>% 
+            split(.$gs_name) %>% 
+            .[pathway] %>% 
+            map_int(nrow),
+          prop = n_cmn / gene_set_size,
+          cmn_ids = setNames(cmn_ids, pathway)
+        ) %>% 
+        make_tbl_graph(
+          gs = .$cmn_ids,
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+          hit_col = "n_cmn", size_col = "gene_set_size",
+          min_dist = network_params$max_distance,
+          max_gs = max(network_params$size)
+        ) %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+      
+      ## Export the image
+      img_out <- file.path(
+        fig_path, glue("network_increased_rna_enrich_{x}.{fig_type}")
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "The relationship between gene-sets considered enriched when ",
+          "including GSEA results from {x} and increased sites from {target} ",
+          "DSA analysis."
+        )
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level5",
+        htmltools::h5("Enrichment Network: DSA Increased"),
+        htmltools::div(
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
+        )
+      )
+      
+    }, simplify = FALSE
+  )  
+```
+
+```{r decreased-rna-enrichment}
+decreased_rna_enrich <- gsea_dir %>% 
   lapply(
     \(x) {
       x %>% 
@@ -1677,536 +1291,162 @@ decreased_sig_enrich <- gsea_sig %>%
         ) %>% 
         dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
     }
-  )
-n_changed_sig_enrich <- map_int(changed_sig_enrich, nrow)
-n_increased_sig_enrich <- map_int(increased_sig_enrich, nrow)
-n_decreased_sig_enrich <- map_int(decreased_sig_enrich, nrow)
-```
-
-### Result Tables {.tabset}
-
-#### All Changed Sites {.tabset}
-
-```{r tbl-all-changed-sig}
-if (any(n_changed_sig_enrich > 0)) {
-  tagList(
-    n_changed_sig_enrich %>% 
-      as.logical() %>% 
-      setNames(names(gsea_sig)) %>% 
-      which() %>% 
-      names() %>% 
-      lapply(
-        \(x) {
-          tbl <- changed_sig_enrich[[x]] %>% 
-            dplyr::select(-meta_p, cmn_ids) %>% 
-            reactable(
-              showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-              columns = list(
-                pathway = colDef(
-                  "Gene Set", minWidth = 180,
-                  cell = function(value) htmltools::tags$a(
-                    href = gs_url[[value]],
-                    target = "_blank",
-                    str_replace_all(value, "_", " ")
-                  ),
-                  html = TRUE
-                ),
-                NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-                adj_p = colDef(
-                  "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                  html = TRUE, maxWidth = 100, filterMethod = js_less
-                ),
-                n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-                genes = colDef(
-                  "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                  minWidth = 150
-                )
-              )
-            )
-          cp <- htmltools::em(
-            glue(
-              "Enrichment results for changed {target} sites were integrated ",
-              "with GSEA results for {x}, which included the significance of ",
-              "estimated logFC for gene expression. Genes within each gene set ",
-              "which had significant DSA sites mapped to them, as well as being ",
-              "included in the Leading Edge for GSEA were dentified as Shared ",
-              "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-              "of changed signal, a positive Normalised Enrichment Score (NES) ",
-              "indicates an association with up-regulated genes, whilst a ", 
-              "negative score indicates an association with down-regulated genes."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = "tbl-changed-sig-enrich-" %>% 
-                paste0(x) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "table", tbl, htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
+  ) %>% 
+  .[map_int(., nrow) > 0]
+tbl_decreased_rna_enrich <- names(decreased_rna_enrich) %>% 
+  lapply(
+    \(x) {
+      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+      id <- paste0(id, "-decreased-enrich-tbl")
+      df <- decreased_rna_enrich[[x]]
+      tbl <- reactable(
+        df, 
+        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+        columns = enrich_cols[colnames(df)],
+        elementId = id
       )
-  )
-}
-```
-
-#### Sites With Increased Signal {.tabset}
-
-```{r tbl-increased-sig}
-if (any(n_increased_sig_enrich > 0)) {
-  n_increased_sig_enrich %>% 
-    as.logical() %>% 
-    setNames(names(gsea_sig)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        tbl <- increased_sig_enrich[[x]] %>% 
-          dplyr::select(-meta_p, cmn_ids) %>% 
-          reactable(
-            showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-            columns = list(
-              pathway = colDef(
-                "Gene Set", minWidth = 180,
-                cell = function(value) htmltools::tags$a(
-                  href = gs_url[[value]],
-                  target = "_blank",
-                  str_replace_all(value, "_", " ")
-                ),
-                html = TRUE
-              ),
-              NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-              adj_p = colDef(
-                "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                html = TRUE, maxWidth = 100, filterMethod = js_less
-              ),
-              n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-              genes = colDef(
-                "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                minWidth = 150
-              )
-            )
-          )
-        cp <- htmltools::em(
-          glue(
-            "Enrichment results for increased {target} sites were integrated ",
-            "with GSEA results for {x}, which included only the significance of ",
-            "estimated logFC for gene expression. Genes within each gene set ",
-            "which had significant DSA sites mapped to them, as well as being ",
-            "included in the Leading Edge for GSEA were dentified as Shared ",
-            "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-            "of increased signal, a positive Normalised Enrichment Score (NES) ",
-            "indicates an association with up-regulated genes, whilst a ", 
-            "negative score indicates an association with down-regulated genes."
-          )
+      cp <- tags$em(
+        glue(
+          "Results when combining directional GSEA results from {x} ",
+          "with DSA enrichment results from {target}."
         )
+      )
+      htmltools::div(
+        id = id, class = "section level5",
+        h5("Combined Enrichment: DSA Decreased"),
+        tbl, tags$caption(cp)
+      )
+    }
+  ) %>% 
+  setNames(names(decreased_rna_enrich))
+network_decreased_rna_enrich <- decreased_rna_enrich %>% 
+  map_int(nrow) %>% 
+  is_weakly_greater_than(min(network_params$size)) %>% 
+  which() %>% 
+  names() %>%  
+  sapply(
+    \(x) {
+      p <- decreased_rna_enrich[[x]] %>% 
+        mutate(
+          gene_set_size = msigdb %>% 
+            dplyr::filter(gs_name %in% pathway) %>% 
+            split(.$gs_name) %>% 
+            .[pathway] %>% 
+            map_int(nrow),
+          prop = n_cmn / gene_set_size,
+          cmn_ids = setNames(cmn_ids, pathway)
+        ) %>% 
+        make_tbl_graph(
+          gs = .$cmn_ids,
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+          hit_col = "n_cmn", size_col = "gene_set_size",
+          min_dist = network_params$max_distance,
+          max_gs = max(network_params$size)
+        ) %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+      
+      ## Export the image
+      img_out <- file.path(
+        fig_path, glue("network_decreased_rna_enrich_{x}.{fig_type}")
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "The relationship between gene-sets considered enriched when ",
+          "including GSEA results from {x} and decreased sites from {target} ",
+          "DSA analysis."
+        )
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level5",
+        htmltools::h5("Enrichment Network: DSA Decreased"),
         htmltools::div(
-          htmltools::div(
-            id = "tbl-increased-sig-enrich-" %>% 
-              paste0(x) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
+        )
+      )
+      
+    }, simplify = FALSE
+  )  
+```
+
+Enrichment analysis was performed combined transcriptomic data with DSA results.
+A simple strategy we used taking Wilkinson's maximum p-value method, which returns the probability of returning two p-values below the value of the largest p-value.
+Transcriptomic enrichment was taken as the results from GSEA analysis, whilst enrichment results for `r target` were those obtained above.
+Genes within the Leading Edge for GSEA and which were also mapped to the same pathway within DSA enrichment are returned as the common genes.
+
+3 analysis were performed, with results only returned were significant combined enrichment was found for at least one pathway.
+
+1. Enriched pathways within the DSA analysis using all changed sites, and transcriptomic GSEA taking only significance (i.e. non-directional results) to rank pathways
+2. Enriched pathways within the DSA analysis using all increased sites, and transcriptomic GSEA taking directionality and significance to rank pathways
+3. Enriched pathways within the DSA analysis using all decreased sites, and transcriptomic GSEA taking directionality and significance to rank pathways
+
+For DSA enrichment, only the results obtained using the genomic background were used.
+
+
+```{r print-dsa-rna-enrichment, echo=FALSE}
+tagList(
+  names(rna) %>% 
+    lapply(
+      \(x) {
+        tagList(
+          list(
             htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
+              id = x, class = "section level4 tabset",
+              htmltools::h4(x, class = "tabset"),
+              tbl_changed_rna_enrich[[x]],
+              network_changed_rna_enrich[[x]],
+              tbl_increased_rna_enrich[[x]],
+              network_increased_rna_enrich[[x]],
+              tbl_decreased_rna_enrich[[x]],
+              network_decreased_rna_enrich[[x]]
             )
           )
         )
       }
     )
-}
+)
 ```
 
-#### Sites With Decreased Signal {.tabset}
 
-```{r tbl-decreased-sig}
-if (any(n_decreased_sig_enrich > 0)) {
-  n_decreased_sig_enrich %>% 
-    as.logical() %>% 
-    setNames(names(gsea_sig)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        tbl <- decreased_sig_enrich[[x]] %>% 
-          dplyr::select(-meta_p, cmn_ids) %>% 
-          reactable(
-            showPageSizeOptions = TRUE, sortable = TRUE, filterable = TRUE,
-            columns = list(
-              pathway = colDef(
-                "Gene Set", minWidth = 180,
-                cell = function(value) htmltools::tags$a(
-                  href = gs_url[[value]],
-                  target = "_blank",
-                  str_replace_all(value, "_", " ")
-                ),
-                html = TRUE
-              ),
-              NES = colDef("NES", format = colFormat(digits = 2), maxWidth = 100),
-              adj_p = colDef(
-                "P<sub>adj</sub>", cell = \(value) sprint_pval(value),
-                html = TRUE, maxWidth = 100, filterMethod = js_less
-              ),
-              n_cmn = colDef("Nbr Shared", maxWidth = 100, filterMethod = js_greater),
-              genes = colDef(
-                "Shared Genes", cell = \(value) with_tooltip(value, width = 60),
-                minWidth = 150
-              )
-            )
-          )
-        cp <- htmltools::em(
-          glue(
-            "Enrichment results for decreased {target} sites were integrated ",
-            "with GSEA results for {x}, which included only the significance of ",
-            "estimated logFC for gene expression. Genes within each gene set ",
-            "which had significant DSA sites mapped to them, as well as being ",
-            "included in the Leading Edge for GSEA were dentified as Shared ",
-            "Genes. Whilst DSA sites were taken as those showing any evidence ", 
-            "of decreased signal, a positive Normalised Enrichment Score (NES) ",
-            "indicates an association with up-regulated genes, whilst a ", 
-            "negative score indicates an association with down-regulated genes."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = "tbl-decreased-sig-enrich-" %>% 
-              paste0(x) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
-          )
-        )
-      }
-    )
-}
-```
 
-### Network Plots {.tabset}
-
-#### All Changed Sites {.tabset}
-
-```{r network-changed-sig}
-if (any(n_changed_sig_enrich >= min(network_params$size))) {
-  changed_sig_network <- n_changed_sig_enrich %>% 
-    is_weakly_greater_than(min(network_params$size)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        changed_sig_enrich[[x]] %>% 
-          mutate(
-            gene_set_size = msigdb %>% 
-              dplyr::filter(gs_name %in% pathway) %>% 
-              split(.$gs_name) %>% 
-              .[pathway] %>% 
-              map_int(nrow),
-            prop = n_cmn / gene_set_size,
-            cmn_ids = setNames(cmn_ids, pathway)
-          ) %>% 
-          make_tbl_graph(
-            gs = .$cmn_ids,
-            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-            hit_col = "n_cmn", size_col = "gene_set_size",
-            min_dist = network_params$max_distance,
-            max_gs = max(network_params$size)
-          ) %>% 
-          ggraph(layout = net_layout, weights = oc) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(
-              fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop
-            ),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label, alpha = prop),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% 
-                  str_trunc(60) %>% 
-                  str_wrap(width = 18)
-              ),
-            repel = TRUE, bg.color = "white", bg.r = 0.1, 
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-          theme_void() 
-      }
-    ) %>% 
-    setNames(
-      names(which(n_changed_sig_enrich >= min(network_params$size)))
-    )
-}
-```
-
-```{r print-network-changed-sig, echo=FALSE}
-if (any(n_changed_sig_enrich >= min(network_params$size))) {
-  tagList(
-    names(changed_sig_network) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("changed_sig_network_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(changed_sig_network[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Combined enrichment network for {x} and DSA for {target} using ",
-              "all changed {target} sites."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-#### All Increased Sites {.tabset}
-
-```{r network-increased-sig}
-if (any(n_increased_sig_enrich >= min(network_params$size))) {
-  increased_sig_network <- n_increased_sig_enrich %>% 
-    is_weakly_greater_than(min(network_params$size)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        increased_sig_enrich[[x]] %>% 
-          mutate(
-            gene_set_size = msigdb %>% 
-              dplyr::filter(gs_name %in% pathway) %>% 
-              split(.$gs_name) %>% 
-              .[pathway] %>% 
-              map_int(nrow),
-            prop = n_cmn / gene_set_size,
-            cmn_ids = setNames(cmn_ids, pathway)
-          ) %>% 
-          make_tbl_graph(
-            gs = .$cmn_ids,
-            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-            hit_col = "n_cmn", size_col = "gene_set_size",
-            min_dist = network_params$max_distance,
-            max_gs = max(network_params$size)
-          ) %>% 
-          ggraph(layout = net_layout, weights = oc) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(
-              fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop
-            ),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label, alpha = prop),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% 
-                  str_trunc(60) %>% 
-                  str_wrap(width = 18)
-              ),
-            repel = TRUE, bg.color = "white", bg.r = 0.1, 
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-          theme_void() 
-      }
-    ) %>% 
-    setNames(
-      names(which(n_increased_sig_enrich >= min(network_params$size)))
-    )
-}
-```
-
-```{r print-network-increased-sig, echo=FALSE}
-if (any(n_increased_sig_enrich >= min(network_params$size))) {
-  tagList(
-    names(increased_sig_network) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("increased_sig_network_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(increased_sig_network[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Combined enrichment network for {x} and DSA for {target} using ",
-              "all increased {target} sites."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-#### All Decreased Sites {.tabset}
-
-```{r network-decreased-sig}
-if (any(n_decreased_sig_enrich >= min(network_params$size))) {
-  decreased_sig_network <- n_decreased_sig_enrich %>% 
-    is_weakly_greater_than(min(network_params$size)) %>% 
-    which() %>% 
-    names() %>% 
-    lapply(
-      \(x) {
-        decreased_sig_enrich[[x]] %>% 
-          mutate(
-            gene_set_size = msigdb %>% 
-              dplyr::filter(gs_name %in% pathway) %>% 
-              split(.$gs_name) %>% 
-              .[pathway] %>% 
-              map_int(nrow),
-            prop = n_cmn / gene_set_size,
-            cmn_ids = setNames(cmn_ids, pathway)
-          ) %>% 
-          make_tbl_graph(
-            gs = .$cmn_ids,
-            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-            hit_col = "n_cmn", size_col = "gene_set_size",
-            min_dist = network_params$max_distance,
-            max_gs = max(network_params$size)
-          ) %>% 
-          ggraph(layout = net_layout, weights = oc) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(
-              fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop
-            ),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label, alpha = prop),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% 
-                  str_trunc(60) %>% 
-                  str_wrap(width = 18)
-              ),
-            repel = TRUE, bg.color = "white", bg.r = 0.1
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-          theme_void() 
-      }
-    ) %>% 
-    setNames(
-      names(which(n_decreased_sig_enrich >= min(network_params$size)))
-    )
-}
-```
-
-```{r print-network-decreased-sig, echo=FALSE}
-if (any(n_decreased_sig_enrich >= min(network_params$size))) {
-  tagList(
-    names(decreased_sig_network) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("decreased_sig_network_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(decreased_sig_network[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Combined enrichment network for {x} and DSA for {target} using ",
-              "all decreased {target} sites."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
 
 ### Highly Ranked Genes {.tabset}
 
@@ -2235,7 +1475,7 @@ y_lim <- bwfl[[target]] %>%
   setNames(target)
 ```
 
-By choosing the 5 most highly ranked genes for differential expression in `r pander(names(rna))`, and which also had regions of significantly changed `r target` signal, a set of example plots are shown below.
+By choosing the 5 genes highly tanked for both differential expression in any of `r pander(names(rna))`, and significantly changed `r target` signal, a set of example plots are shown below.
 
 ```{r plot-all-top-rna-ranges}
 .makeCaption <- function(.gr) {
