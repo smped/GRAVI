@@ -35,74 +35,67 @@ In order to compare DSA results for `r target`, gene-to-range mappings were summ
 Genes with conflicting mappings were considered to be ambiguous, whilst those without any changed regions were assigned as being consistently unchanged.
 These results were applied where summarised results were able to be presented, however, when comparing actual estimates for logFC etc, all DSA ranges were retained.
 
-### Overall Comparison {.tabset}
 
-#### Summary Tables {.tabset}
-
-```{r tbl-rna-summary}
-htmltools::tagList(
-  names(rna) %>% 
-    lapply(
-      \(i) {
-        x <- rna[[i]]
-        id <- paste0("tbl-summary-", i) %>% 
-          str_to_lower() %>% 
-          str_replace_all("_", "-")
-        tbl <- results_tbl %>% 
-          full_join(x, by = "gene_id") %>% 
-          mutate(
-            status.x = fct_na_value_to_level(status.x, "Undetected"),
-            status.y = fct_na_value_to_level(status.y, "Undetected")
-          ) %>% 
-          arrange(PValue.x) %>% 
-          distinct(gene_id, .keep_all = TRUE) %>% 
-          dplyr::select(gene_id, starts_with("status")) %>% 
-          summarise(
-            n = dplyr::n(), .by = starts_with("status")
-          ) %>%
-          pivot_wider(names_from = "status.y", values_from = "n", values_fill = 0) %>% 
-          dplyr::select(
-            starts_with("status"), any_of(c("Increased", "Decreased")), 
-            everything()
-          ) %>% 
-          reactable(
-            showPageSizeOptions = FALSE,
-            columns = list(
-              status.x = colDef(glue("{target} Status"), footer = "")
-            ),
-            defaultColDef = colDef(
-              sortable = TRUE, format = comma_col,
-              footer = function(values) comma(sum(values)),
-              footerStyle = list(fontWeight = "bold")
-            ),
-            columnGroups = list(
-              colGroup(
-                "Gene Expression", str_subset(names(.), "ed$")
-              )
+```{r summary-tables}
+summary_tables <- names(rna) %>% 
+  lapply(
+    \(i) {
+      x <- rna[[i]]
+      id <- paste0("tbl-summary-", i) %>% 
+        str_to_lower() %>% 
+        str_replace_all("_", "-")
+      tbl <- results_tbl %>% 
+        full_join(x, by = "gene_id") %>% 
+        mutate(
+          status.x = fct_na_value_to_level(status.x, "Undetected"),
+          status.y = fct_na_value_to_level(status.y, "Undetected")
+        ) %>% 
+        arrange(PValue.x) %>% 
+        distinct(gene_id, .keep_all = TRUE) %>% 
+        dplyr::select(gene_id, starts_with("status")) %>% 
+        summarise(
+          n = dplyr::n(), .by = starts_with("status")
+        ) %>%
+        pivot_wider(names_from = "status.y", values_from = "n", values_fill = 0) %>% 
+        dplyr::select(
+          starts_with("status"), any_of(c("Increased", "Decreased")), 
+          everything()
+        ) %>% 
+        reactable(
+          showPageSizeOptions = FALSE,
+          columns = list(
+            status.x = colDef(glue("{target} Status"), footer = "")
+          ),
+          defaultColDef = colDef(
+            sortable = TRUE, format = comma_col,
+            footer = function(values) comma(sum(values)),
+            footerStyle = list(fontWeight = "bold")
+          ),
+          columnGroups = list(
+            colGroup(
+              "Gene Expression", str_subset(names(.), "ed$")
             )
           )
-        cp <- htmltools::em(
-          glue(
-            "Comparison between {target} status and gene expression in {i}."
-          )
         )
+      cp <- htmltools::em(
+        glue(
+          "Comparison between {target} status and gene expression in {i}."
+        )
+      )
+      htmltools::div(
         htmltools::div(
+          id = id,
+          class = "section level4",
+          htmltools::h4("Summary Table"),
           htmltools::div(
-            id = id,
-            class = "section level5",
-            htmltools::h5(i),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            class = "table", tbl, htmltools::tags$caption(cp)
           )
         )
-      }
-    )
-)
+      )
+    }
+  ) %>% 
+  setNames(names(rna))
 ```
-
-
-#### Summary Plots {.tabset}
 
 ```{r donut-plots}
 donuts <- rna %>% 
@@ -127,57 +120,51 @@ donuts <- rna %>%
     outer_label = "text",
     mc.cores = threads
   ) 
-```
-
-```{r print-donuts, echo=FALSE}
-htmltools::tagList(
-  names(donuts) %>% 
-    lapply(
-      \(x) {
-        ## Export the image
-        img_out <- file.path(fig_path, glue("donut_{x}.{fig_type}"))
-        fig_fun(filename = img_out, width = fw, height = fh)
-        print(donuts[[x]])
-        dev.off()
-        ## Create html tags
-        fig_link <- str_extract(img_out, "assets.+")
-        cp <- htmltools::tags$em(
-          glue(
-            "All detected genes within the {x} dataset were compared to {target} ",
-            "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. Regions ",
-            "with signal contained within the DSA results were previously mapped ",
-            "to genes, and these mappings were used. Results for each gene were ",
-            "summarised to account for multiple regions with different DSA results."
-          )
+donut_plots <- names(donuts) %>% 
+  lapply(
+    \(x) {
+      ## Export the image
+      img_out <- file.path(fig_path, glue("donut_{x}.{fig_type}"))
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(donuts[[x]])
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "All detected genes within the {x} dataset were compared to {target} ",
+          "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. Regions ",
+          "with signal contained within the DSA results were previously mapped ",
+          "to genes, and these mappings were used. Results for each gene were ",
+          "summarised to account for multiple regions with different DSA results."
         )
+      )
+      htmltools::div(
         htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level4",
+          htmltools::h4("Donut Plot"),
           htmltools::div(
-            id = img_out %>% 
-              basename() %>% 
-              str_remove_all(glue(".{fig_type}$")) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "figure", style = "text-align: center",
-              htmltools::img(src = fig_link, width = "100%"),
-              htmltools::tags$caption(cp)
-            )
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
           )
         )
-      }
-    )
-)
+      )
+    }
+  ) %>% 
+  setNames(names(donuts))
 ```
-
-### MA Plots {.tabset}
 
 ```{r ma-plots}
-maPlots <- names(rna) %>% 
+ma_plots <- names(rna) %>% 
   lapply(
     \(i) {
-      rna[[i]] %>% 
+      p <- rna[[i]] %>% 
         left_join(dsa_status, by = "gene_id") %>% 
         mutate(
           status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
@@ -229,26 +216,18 @@ maPlots <- names(rna) %>%
           # legend.position.inside = c(0.8, 0.8),
           # legend.justification = c(1, 1)
         ) 
-    }
-  ) %>% 
-  setNames(names(rna))
-```
-
-```{r print-ma-by-region, echo = FALSE}
-htmltools::tagList(
-  names(maPlots) %>% 
-    lapply(
-      \(x) {
+      
         ## Export the image
-        img_out <- file.path(fig_path, glue("{x}_MA.{fig_type}"))
+        img_out <- file.path(fig_path, glue("{i}_MA.{fig_type}"))
         fig_fun(filename = img_out, width = fw, height = fh)
-        print(maPlots[[x]])
+        print(p)
         dev.off()
+        
         ## Create html tags
         fig_link <- str_extract(img_out, "assets.+")
         cp <- htmltools::tags$em(
           glue(
-            "MA Plot for {x} with outer boxplots showing the distribution of ",
+            "MA Plot for {i} with outer boxplots showing the distribution of ",
             "values for overall expression (logCPM) and logFC by {target} status"
           )
         )
@@ -259,8 +238,8 @@ htmltools::tagList(
               str_remove_all(glue(".{fig_type}$")) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
+            class = "section level4",
+            htmltools::h4("MA Plot"),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -268,12 +247,11 @@ htmltools::tagList(
             )
           )
         )
-      }
-    )
-)
+    }
+  ) %>% 
+  setNames(names(rna))
 ```
 
-### logFC Comparison By Region {.tabset}
 
 ```{r lfc-by-region}
 pw_pl <- c(
@@ -293,7 +271,7 @@ lfc_by_region <- names(rna) %>%
   lapply(
     \(i) {
       x <- rna[[i]]
-      results_tbl %>% 
+      p <- results_tbl %>% 
         inner_join(x, by = "gene_id") %>% 
         mutate(
           status.x = fct_relabel(status.x, \(x) paste(target, x)), 
@@ -357,66 +335,58 @@ lfc_by_region <- names(rna) %>%
           colour = "Combined\nStatus"
         ) +
         theme(legend.position = "bottom")
+      
+      ## Export the image
+      img_out <- file.path(fig_path, glue("lfc_by_region_{i}.{fig_type}"))
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "All detected genes within the {i} dataset were compared to {target}",
+          "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
+          "Where multiple signal regions wre mapped to a given gene, the most ",
+          "highly-ranked by p-value was selected for visualisation. ",
+          "Points are shown grouped by which genomic region the DSA result ", 
+          "was mapped to. ",
+          "Genes which were unchanged in {i} and with no changed DSA regions ",
+          "are shown in grey. Robust linear regression lines are shown in ", 
+          "black along with correlations in the bottom right corner of each panel."
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level4",
+          htmltools::h4("Combined logFC"),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+      
     }
   ) %>% 
   setNames(names(rna))
 ```
 
-```{r print-lfc-by-region, echo = FALSE}
-htmltools::tagList(
-  names(lfc_by_region) %>% 
-    lapply(
-      \(x) {
-        ## Export the image
-        img_out <- file.path(fig_path, glue("lfc_by_region_{x}.{fig_type}"))
-        fig_fun(filename = img_out, width = fw, height = fh)
-        print(lfc_by_region[[x]])
-        dev.off()
-        ## Create html tags
-        fig_link <- str_extract(img_out, "assets.+")
-        cp <- htmltools::tags$em(
-          glue(
-            "All detected genes within the {x} dataset were compared to {target}",
-            "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
-            "Where multiple signal regions wre mapped to a given gene, the most ",
-            "highly-ranked by p-value was selected for visualisation. ",
-            "Points are shown grouped by which genomic region the DSA result ", 
-            "was mapped to. ",
-            "Genes which were unchanged in {x} and with no changed DSA regions ",
-            "are shown in grey. Robust linear regression lines are shown in ", 
-            "black along with correlations in the bottom right corner of each panel."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = img_out %>% 
-              basename() %>% 
-              str_remove_all(glue(".{fig_type}$")) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "figure", style = "text-align: center",
-              htmltools::img(src = fig_link, width = "100%"),
-              htmltools::tags$caption(cp)
-            )
-          )
-        )
-      }
-    )
-)
-```
-
-`r if (has_features) "### logFC Comparison By Feature {.tabset}"`
-
 ```{r lfc-by-feature, echo = has_features}
+lfc_by_feature <- list()
 if (has_features) {
   lfc_by_feature <- names(rna) %>% 
     lapply(
       \(i) {
         x <- rna[[i]]
-        results_tbl %>% 
+        p <- results_tbl %>% 
           inner_join(x, by = "gene_id") %>% 
           mutate(
             status.x = fct_relabel(status.x, \(x) paste(target, x)), 
@@ -481,68 +451,57 @@ if (has_features) {
             colour = "Combined\nStatus"
           ) +
         theme(legend.position = "bottom")
+        
+        ## Export the image
+        img_out <- file.path(fig_path, glue("lfc_by_feature_{i}.{fig_type}"))
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(p)
+        dev.off()
+        
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "All detected genes within the {i} dataset were compared to {target}",
+            "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
+            "Where multiple signal regions wre mapped to a given gene, the most ",
+            "highly-ranked by p-value was selected for visualisation. ",
+            "Points are shown by which feature (if any) the DSA result was ", 
+            "mapped to. ",
+            "Genes which were unchanged in {i} and with no changed DSA regions ",
+            "are shown in grey. Robust linear regression lines are shown in ", 
+            "black along with correlations in the bottom right corner of each panel."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>% 
+              basename() %>% 
+              str_remove_all(glue(".{fig_type}$")) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-"),
+            class = "section level4",
+            htmltools::h4("logFC By Feature"),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
       }
     ) %>% 
     setNames(names(rna))
 }
 ```
 
-```{r print-lfc-by-feature, echo = FALSE}
-if (has_features) {
-  htmltools::tagList(
-    names(lfc_by_feature) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("lfc_by_feature_{x}.{fig_type}"))
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(lfc_by_feature[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "All detected genes within the {x} dataset were compared to {target}",
-              "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
-              "Where multiple signal regions wre mapped to a given gene, the most ",
-              "highly-ranked by p-value was selected for visualisation. ",
-              "Points are shown by which feature (if any) the DSA result was ", 
-              "mapped to. ",
-              "Genes which were unchanged in {x} and with no changed DSA regions ",
-              "are shown in grey. Robust linear regression lines are shown in ", 
-              "black along with correlations in the bottom right corner of each panel."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-`r if (any(has_de)) "#### Volcano Plots {.tabset}"`
-
 ```{r volcano-plots, echo = any(has_de)}
+volcano_plots <- list()
 if (any(has_de)) {
-  volcanoPlots <- names(which(has_de)) %>% 
+  volcano_plots <- names(which(has_de)) %>% 
     lapply(
       \(i) {
-        rna[[i]] %>% 
+        p <- rna[[i]] %>% 
           arrange(PValue) %>% 
           left_join(dsa_status, by = "gene_id") %>% 
           mutate(
@@ -579,64 +538,50 @@ if (any(has_de)) {
             colour = "DE Status"
           ) +
           scale_colour_manual(values = direction_colours)
+        
+        ## Export the image
+        img_out <- file.path(fig_path, glue("volcano_{i}.{fig_type}"))
+        fh <- ifelse(
+          length(levels(p$data$status.y)) == 3, 2 * fh / 3, fh
+        )
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(p)
+        dev.off()
+        
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "Volcano plot for {i} showing genes separated by whether any DSA ",
+            "results corresponded to changed {target} signal. The number of ",
+            "genes in each panel is given in the bottom right corner. ",
+            "Where possible, the two most highly ranked DE genes are labelled."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>% 
+              basename() %>% 
+              str_remove_all(glue(".{fig_type}$")) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-"),
+            class = "section level4",
+            htmltools::h4("Volcano Plot"),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
       }
     ) %>% 
     setNames(names(which(has_de)))
 }
 ```
   
-  
-```{r print-volcano-plots, echo=FALSE}
-if (any(has_de)) {
-  htmltools::tagList(
-    names(volcanoPlots) %>% 
-      lapply(
-        \(x) {
-          ## Export the image
-          img_out <- file.path(fig_path, glue("volcano_{x}.{fig_type}"))
-          fh <- ifelse(
-            length(levels(volcanoPlots[[x]]$data$status.y)) == 3,
-            2 * fh / 3, fh
-          )
-          fig_fun(filename = img_out, width = fw, height = fh)
-          print(volcanoPlots[[x]])
-          dev.off()
-          ## Create html tags
-          fig_link <- str_extract(img_out, "assets.+")
-          cp <- htmltools::tags$em(
-            glue(
-              "Volcano plot for {x} showing genes separated by whether any DSA ",
-              "results corresponded to changed {target} signal. The number of ",
-              "genes in each panel is given in the bottom right corner. ",
-              "Where possible, the two most highly ranked DE genes are labelled."
-            )
-          )
-          htmltools::div(
-            htmltools::div(
-              id = img_out %>% 
-                basename() %>% 
-                str_remove_all(glue(".{fig_type}$")) %>% 
-                str_to_lower() %>% 
-                str_replace_all("_", "-"),
-              class = "section level5",
-              htmltools::h5(x),
-              htmltools::div(
-                class = "figure", style = "text-align: center",
-                htmltools::img(src = fig_link, width = "100%"),
-                htmltools::tags$caption(cp)
-              )
-            )
-          )
-        }
-      )
-  )
-}
-```
-
-#### PValues By `r target` Status {.tabset}
-
 ```{r pval-by-dsa}
-pvalHist <- names(rna) %>% 
+pval_hist <- names(rna) %>% 
   lapply(
     \(i) {
       p <- rna[[i]] %>% 
@@ -653,7 +598,8 @@ pvalHist <- names(rna) %>%
         facet_wrap(~status.y) +
         scale_y_continuous(expand = expansion(c(0, 0.05))) +
         scale_x_continuous(expand = expansion(0.025))
-      p +
+      y_max <- max(layer_scales(p)$y$range$range)
+      p <- p +
         geom_text(
           aes(y = y, label = label),
           data = . %>% 
@@ -662,135 +608,106 @@ pvalHist <- names(rna) %>%
             ) %>% 
             mutate(
               PValue = 0.02, 
-              y = max(layer_scales(p)$y$range$range),
+              y = y_max,
               label = paste("n =", comma(n))
             ),
           hjust = 0, vjust = 1, size = 3.5
         ) +
         labs(x = "PValue (RNA)", y = "Density")
+      
+      ## Export the image
+      img_out <- file.path(fig_path, glue("pvals_{i}.{fig_type}"))
+      fh <- ifelse(
+        length(levels(p$data$status.y)) == 3, 2 * fh / 3, fh
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "P-values for {i} separated by {target} status."
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level4",
+          htmltools::h4("P-Value Histogram"),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
     }
   ) %>% 
   setNames(names(rna))
 ```
 
-```{r print-pval-plots, echo=FALSE}
-htmltools::tagList(
-  names(pvalHist) %>% 
-    lapply(
-      \(x) {
-        ## Export the image
-        img_out <- file.path(fig_path, glue("pvals_{x}.{fig_type}"))
-        fh <- ifelse(
-          length(levels(pvalHist[[x]]$data$status.y)) == 3,
-          2 * fh / 3, fh
-        )
-        fig_fun(filename = img_out, width = fw, height = fh)
-        print(pvalHist[[x]])
-        dev.off()
-        ## Create html tags
-        fig_link <- str_extract(img_out, "assets.+")
-        cp <- htmltools::tags$em(
-          glue(
-            "P-values for {x} separated by {target} status."
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = img_out %>% 
-              basename() %>% 
-              str_remove_all(glue(".{fig_type}$")) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "figure", style = "text-align: center",
-              htmltools::img(src = fig_link, width = "100%"),
-              htmltools::tags$caption(cp)
-            )
-          )
-        )
-      }
-    )
-)
-```
-
-
-
-### List of Genes and Sites {.tabset}
-
-```{r dsa-deg-table}
-#### Ambitious! May need considerable editing ####
+```{r dsa-deg-tables}
+dsa_deg_tables <- list()
 if (any(has_de) & has_ds) {
-  range_js <- JS(
-    "function(values) {
-      var min_val = Math.round(100 * Math.min(...values)) / 100
-      var max_val = Math.round(100 * Math.max(...values)) / 100
-      if (min_val == max_val) {
-        var ret_val = min_val.toString()
-      } else {
-        var ret_val = '[' + min_val.toString() + ', ' + max_val.toString() + ']'
-      }
-      return ret_val
-    }"
-  )
-  max_signal <- max(results$logCPM)
-  fs <- 12
-  tagList(
-    has_de %>% 
-      which() %>% 
-      names() %>% 
-      lapply(
-        \(i) {
-          id <- paste0("tbl-", i, "-dsa") %>% 
-            str_to_lower() %>% 
-            str_replace_all("_", "-")
-          rna[[i]] %>% 
-            dplyr::filter(FDR < 0.05) %>% 
-            left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
-            inner_join(
-              dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
-              by = "gene_id"
-            ) %>% 
-            mutate(
-              d = distance(GRanges(range.x), GRanges(range.y))
-            ) %>% 
-            dplyr::select(-range.x) %>% 
-            dplyr::rename(range = range.y) %>% 
-            dplyr::select(
-              starts_with("gene"), ends_with(".x"), ends_with(".y"), 
-              range, d, any_of(c("region", "feature"))
-            ) %>% 
-            dplyr::select(-starts_with("PValue")) %>% 
-            reactable(
-              showPageSizeOptions = TRUE, groupBy = "gene_name",
-              filterable = TRUE, sortable = TRUE,
-              columns = list(
-                gene_name = colDef(
-                  name = "Gene", maxWidth = fs*11,
-                  style = list(
-                    borderRight = "1px solid rgba(0, 0, 0, 0.1)",
-                    fontSize = fs
-                  )
+  dsa_deg_tables <- has_de %>% 
+    which() %>% 
+    names() %>% 
+    lapply(
+      \(i) {
+        fs <- 12
+        id <- paste0("tbl-", i, "-dsa") %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-")
+        tbl <- rna[[i]] %>% 
+          dplyr::filter(FDR < 0.05) %>% 
+          left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
+          inner_join(
+            dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
+            by = "gene_id"
+          ) %>% 
+          mutate(d = distance(GRanges(range.x), GRanges(range.y))) %>% 
+          dplyr::select(-range.x) %>% 
+          dplyr::rename(range = range.y) %>% 
+          dplyr::select(
+            starts_with("gene"), ends_with(".x"), ends_with(".y"), 
+            range, d, any_of(c("region", "feature"))
+          ) %>% 
+          dplyr::select(-starts_with("PValue")) %>% 
+          reactable(
+            showPageSizeOptions = TRUE, groupBy = "gene_name",
+            filterable = TRUE, sortable = TRUE,
+            columns = list(
+              gene_name = colDef(
+                name = "Gene", maxWidth = fs*11,
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+                  fontSize = fs
+                )
+              ),
+              gene_id = colDef(
+                name = "ID", aggregate = "unique", cell = function(value) "",
+                show = FALSE
+              ),
+              logCPM.x = colDef(
+                name = "logCPM", maxWidth = fs*6,
+                aggregate = range_js,
+                format = colFormat(digits = 2),
+                style = function(value) bar_style(
+                  width = value / max(.$logCPM.x), fontSize = fs
                 ),
-                gene_id = colDef(
-                  name = "ID", aggregate = "unique", cell = function(value) "",
-                  show = FALSE
-                ),
-                logCPM.x = colDef(
-                  name = "logCPM", maxWidth = fs*6,
-                  aggregate = range_js,
-                  format = colFormat(digits = 2),
-                  style = function(value) bar_style(
-                    width = value / max(.$logCPM.x), fontSize = fs
-                  ),
-                  filterMethod = js_greater
-                ),
-                logFC.x = colDef(
-                  "logFC", aggregate = "mean", 
-                  style = JS(
-                    glue(
-                      "function(rowInfo) {
+                filterMethod = js_greater
+              ),
+              logFC.x = colDef(
+                "logFC", aggregate = "mean", 
+                style = JS(
+                  glue(
+                    "function(rowInfo) {
                       var value = rowInfo.row['logFC.x']
                       if (value < 0) {
                         var color = '{{direction_colours[['Decreased']]}}'
@@ -799,68 +716,50 @@ if (any(has_de) & has_ds) {
                       } else {
                         var color = '#000000'
                       }
-                      return { color: color, fontSize: 12 }
+                      return { color: color, fontSize: {{fs}} }
                     }",
                     .open = "{{", .close = "}}"
-                    )
-                  ),
-                  format = colFormat(digits = 2), maxWidth = fs*6,
-                ),
-                FDR.x = colDef(
-                  name = "FDR", aggregate = "min", maxWidth = fs*6,
-                  format = colFormat(digits = 4),
-                  cell = \(value) sprint_pval(value),
-                  style = list(
-                    borderRight = "1px solid rgba(0, 0, 0, 0.1)", 
-                    fontSize = fs
-                  ),
-                  filterMethod = js_less
-                ),
-                status.x = colDef("Status", aggregate = "unique", show = FALSE),
-                range = colDef(
-                  name = "Signal Location", minWidth = 160,
-                  aggregate = JS(
-                    "function(values){
-                      var chrom = [];
-                      var rng = [];
-                      var start = [];
-                      var end = [];
-                      for (i = 0; i < values.length; i++) {
-                        chrom[i] = values[i].split(':')[0];
-                        rng[i] = values[i].split(':')[1];
-                        start[i] = rng[i].split('-')[0];
-                        end[i] = rng[i].split('-')[1];
-                      }
-                      
-                      min_start = Math.min(...start);
-                      max_end = Math.max(...end);
-                      var ret_val = [...new Set(chrom)] + ':' + min_start.toString() + '-' + max_end.toString();
-                      return ret_val
-                    }"
                   )
                 ),
-                region = colDef(
-                  name = "Genomic Region", aggregate = "unique"
+                format = colFormat(digits = 2), maxWidth = fs*6,
+              ),
+              FDR.x = colDef(
+                name = "FDR", aggregate = "min", maxWidth = fs*6,
+                format = colFormat(digits = 4),
+                cell = \(value) sprint_pval(value),
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)", 
+                  fontSize = fs
                 ),
-                feature = colDef(
-                  name = "Feature", aggregate = "unique"
+                filterMethod = js_less
+              ),
+              status.x = colDef("Status", aggregate = "unique", show = FALSE),
+              range = colDef(
+                name = "Signal Location", minWidth = 160,
+                aggregate = granges_js
+              ),
+              region = colDef(
+                name = "Genomic Region", aggregate = "unique"
+              ),
+              feature = colDef(
+                name = "Feature", aggregate = "unique"
+              ),
+              logCPM.y = colDef(
+                name = "logCPM", maxWidth = fs*6,
+                aggregate = range_js,
+                format = colFormat(digits = 2),
+                style = function(value) bar_style(
+                  width = value / max(results$logCPM), fontSize = fs
                 ),
-                logCPM.y = colDef(
-                  name = "logCPM", maxWidth = fs*6,
-                  aggregate = range_js,
-                  format = colFormat(digits = 2),
-                  style = function(value) bar_style(
-                    width = value / max_signal, fontSize = fs
-                  ),
-                  filterMethod = js_greater
-                ),
-                logFC.y = colDef(
-                  name = "logFC", aggregate = range_js, maxWidth = fs*5,
-                  format = colFormat(digits = 2),
-                  cell = function(value) sprintf("%.2f", value),
-                  style =  JS(
-                    glue(
-                      "function(rowInfo) {
+                filterMethod = js_greater
+              ),
+              logFC.y = colDef(
+                name = "logFC", aggregate = range_js, maxWidth = fs*5,
+                format = colFormat(digits = 2),
+                cell = function(value) sprintf("%.2f", value),
+                style =  JS(
+                  glue(
+                    "function(rowInfo) {
                       var value = rowInfo.row['logFC.y']
                       if (value < 0) {
                         var color = '{{direction_colours[['Decreased']]}}'
@@ -872,65 +771,94 @@ if (any(has_de) & has_ds) {
                       return { color: color, fontSize: {{fs}} }
                     }",
                     .open = "{{", .close = "}}"
-                    )
                   )
-                ),
-                FDR.y = colDef(
-                  name = "FDR",
-                  aggregate = "max",
-                  maxWidth = 10 + fs*5,
-                  format = colFormat(prefix = "< ", digits = 4),
-                  cell = \(value) sprint_pval(value),
-                  filterMethod = js_less,
-                  style = list(
-                    borderRight = "1px solid rgba(0, 0, 0, 0.1)",
-                    fontSize = fs
-                  )
-                ),
-                status.y = colDef("Status", show = FALSE, aggregate = "unique"),
-                d = colDef(
-                  "Distance To Peak", maxWidth = fs * 8, format = comma_col,
-                  aggregate = range_js
                 )
-              )[colnames(.)],
-              columnGroups = list(
-                colGroup("RNA", str_subset(names(.), "\\.x$")),
-                colGroup(target, str_subset(names(.), "\\.y$"))
               ),
-              theme = reactableTheme(style = list(fontSize = fs)),
-              elementId = id
-            )
-          cp <- htmltools::em(
-            glue(
-              "Comparison of all DE genes with any associated DSA result also ",
-              "considered as showing evidence of changed {target} signal. "
-            )
-          )
-          tl <- tagList(
-            tags$button(
-              tagList(fontawesome::fa("download"), "Download as CSV"),
-              onclick = glue(
-                "Reactable.downloadDataCSV('{id}', '{target}_changed_enrich_res.csv')"
+              FDR.y = colDef(
+                name = "FDR",
+                aggregate = "max",
+                maxWidth = 10 + fs*5,
+                format = colFormat(prefix = "< ", digits = 4),
+                cell = \(value) sprint_pval(value),
+                filterMethod = js_less,
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+                  fontSize = fs
+                )
+              ),
+              status.y = colDef("Status", show = FALSE, aggregate = "unique"),
+              d = colDef(
+                "Distance To Peak", maxWidth = fs * 8, format = comma_col,
+                aggregate = range_js
               )
+            )[colnames(.)],
+            columnGroups = list(
+              colGroup("RNA", str_subset(names(.), "\\.x$")),
+              colGroup(target, str_subset(names(.), "\\.y$"))
             ),
-            tags$button(
-              "Expand/Collapse All",
-              onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
-            ),
-            tags$button(
-              "Clear All Filters",
-              onclick = glue("Reactable.setAllFilters('{id}', [])")
-            ),
-            tbl,
-            cp
+            theme = reactableTheme(style = list(fontSize = fs)),
+            elementId = id
           )
-          htmltools::div(
-            class = "section level4", htmltools::h4(i), tl
+        cp <- htmltools::em(
+          glue(
+            "Comparison of all DE genes with any associated DSA result also ",
+            "considered as showing evidence of changed {target} signal. "
           )
-        }
-    )
-  )
+        )
+        tl <- tagList(
+          tags$button(
+            tagList(fontawesome::fa("download"), "Download as CSV"),
+            onclick = glue(
+              "Reactable.downloadDataCSV('{id}', '{i}_deg_{target}_dsa.csv')"
+            )
+          ),
+          tags$button(
+            "Expand/Collapse All",
+            onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
+          ),
+          tags$button(
+            "Clear All Filters",
+            onclick = glue("Reactable.setAllFilters('{id}', [])")
+          ),
+          tbl,
+          cp
+        )
+        htmltools::div(
+          class = "section level4", 
+          htmltools::h4("DEGs with Diferential Signal"), 
+          tl
+        )
+      }
+    ) %>% 
+    setNames(names(which(has_de)))
 }
+```
+
+
+```{r print-tables-and-figures, echo=FALSE}
+tagList(
+  names(rna) %>% 
+    lapply(
+      \(x) {
+        tagList(
+          list(
+            htmltools::div(
+              id = x, class = "section level3 tabset",
+              htmltools::h3(x, class = "tabset"),
+              summary_tables[[x]],
+              donut_plots[[x]],
+              ma_plots[[x]],
+              lfc_by_region[[x]],
+              lfc_by_feature[[x]],
+              volcano_plots[[x]],
+              pval_hist[[x]],
+              dsa_deg_tables[[x]]
+            )
+          )
+        )
+      }
+    )
+)
 ```
 
 

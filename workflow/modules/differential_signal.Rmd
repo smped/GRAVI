@@ -44,6 +44,7 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 threads <- parallel::detectCores() - 1
+if (interactive()) threads <- 4
 register(MulticoreParam(workers = threads))
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "table_funs.R"))

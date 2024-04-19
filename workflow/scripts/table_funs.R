@@ -26,6 +26,39 @@ js_less <- htmlwidgets::JS(
     })
   }"
 )
+#' Print a range when aggregating a set of rows
+range_js <- htmlwidgets::JS(
+  "function(values) {
+      var min_val = Math.round(100 * Math.min(...values)) / 100
+      var max_val = Math.round(100 * Math.max(...values)) / 100
+      if (min_val == max_val) {
+        var ret_val = min_val.toString()
+      } else {
+        var ret_val = '[' + min_val.toString() + ', ' + max_val.toString() + ']'
+      }
+      return ret_val
+    }"
+)
+#' Aggregate across multiple GRanges (concatenated as characters)
+granges_js <- htmlwidgets::JS(
+  "function(values){
+      var chrom = [];
+      var rng = [];
+      var start = [];
+      var end = [];
+      for (i = 0; i < values.length; i++) {
+        chrom[i] = values[i].split(':')[0];
+        rng[i] = values[i].split(':')[1];
+        start[i] = rng[i].split('-')[0];
+        end[i] = rng[i].split('-')[1];
+      }
+
+      min_start = Math.min(...start);
+      max_end = Math.max(...end);
+      var ret_val = [...new Set(chrom)] + ':' + min_start.toString() + '-' + max_end.toString();
+      return ret_val
+    }"
+)
 
 up_col <- function(x) {
   if (is.na(x) | is.nan(x)) return("#ffffff")
