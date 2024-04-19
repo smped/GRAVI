@@ -867,7 +867,7 @@ if (has_features) {
 }
 ```
 
-### Profile Heatmaps
+### Profile Heatmaps {.tabset}
 
 
 ```{r make-heatmaps}
@@ -887,12 +887,14 @@ rng_col <- c(
   sliding = "keyval_range", fixed = "centred_peak"
 )[[diff_sig_params$window_type]]
 # Shift peaks if NFRs have been called
+max_dist <- 100
 nfr <- GRanges(seqinfo = seqinfo(results))
 nfr_rds <- here::here("output", "nfr", target, glue("{target}_consensus_nfr.rds"))
 if (file.exists(nfr_rds)) {
-    nfr <- nfr_rds %>%
+  nfr <- nfr_rds %>%
     read_rds() %>% 
-    granges() 
+    granges()
+  max_dist <- 1e3
 }
 nfr$nfr <- as.character(nfr)
 sig_ranges <- results %>% 
@@ -937,7 +939,7 @@ if (length(sig_profiles) > 0) {
       profileCol = "profile_data", colour = "name",
       xLab = "Distance from Centre (kb)", fillLab = fill_type,
       labelFunX = comma_format(accuracy = 0.1, scale = 1e-3),
-      mc.cores = max(1, length(sig_profiles))
+      maxDist = max_dist, mc.cores = max(1, length(sig_profiles))
     ) 
   fill_range <- profile_heatmaps %>% 
     lapply(\(x) x$data[,"score"]) %>% 
@@ -1000,21 +1002,17 @@ htmltools::tagList(
         )
       )
       htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level4",
+        htmltools::h4(glue("Profile Heatmaps: {str_to_title(nm)} Signal")),
         htmltools::div(
-          id = img_out %>% 
-            basename() %>% 
-            str_remove_all(glue(".{fig_type}$")) %>% 
-            str_to_lower() %>% 
-            str_replace_all("_", "-"),
-          class = "section level4",
-          htmltools::h4(
-            glue("Profile Heatmaps: {str_to_title(nm)} Signal")
-          ),
-          htmltools::div(
-            class = "figure", style = "text-align: center",
-            htmltools::img(src = fig_link, width = "100%"),
-            htmltools::tags$caption(cp)
-          )
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
         )
       )
     }
