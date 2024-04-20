@@ -201,12 +201,19 @@ rule create_differential_signal_rmd:
         ihw = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
         ),
+        module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
+        motif_results = expand(
+            os.path.join(
+                diff_path, "{{target}}", 
+                "{{target}}_{{ref}}_{{treat}}_motif_{f}.tsv.gz"
+            ),
+            f = ['position', 'enrichment']
+		),
+        r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
         results = os.path.join(
             diff_path, "{target}", 
             "{target}_{ref}_{treat}-differential-signal.rds"
         ),
-        module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
-        r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
     output:
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
