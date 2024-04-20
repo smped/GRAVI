@@ -3,14 +3,17 @@
 ```
 
 
-```{r dummy-params, eval = interactive(), echo = FALSE}
-params <- list(
-  target = "ER",
-  treat_levels = c("E2", "E2DHT"),
-  results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
-  counts = "output/differential_signal/ER/ER_counts.rds",
-  ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds"
-)
+```{r dummy-params, eval = FALSE, echo = FALSE}
+# params <- list(
+#   target = "ER",
+#   treat_levels = c("E2", "E2DHT"),
+#   results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+#   counts = "output/differential_signal/ER/ER_counts.rds",
+#   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
+#   localz = "output/differential_signal/ER/ER_E2_E2DHT-regions_localz.rds"
+#   motif_enrichment = "output/differential_signal/ER/ER_E2_E2DHT_motif_enrichment.tsv.gz"
+#   motif_position = "output/differential_signal/ER/ER_E2_E2DHT_motif_position.tsv.gz"
+# )
 ```
 
 ```{r packages}
@@ -88,14 +91,6 @@ comp <- params$results %>%
 win_type <- diff_sig_params$window_type
 rng_col <- c(sliding = "keyval_range", fixed = "centred_peak")[[win_type]]
 
-all_heat_params <- here::here("config", "params.yml") %>%
-  read_yaml() %>%
-  pluck("profile_heatmaps")
-heat_params <- all_heat_params$default
-if (target %in% names(all_heat_params)) {
-  nm <- names(all_heat_params[[target]])
-  heat_params[nm] <- all_heat_params[[target]][nm]
-}
 enrich_params <- here::here("config", "params.yml") %>%
   read_yaml() %>%
   pluck("enrichment")
@@ -112,6 +107,9 @@ msigdb_params <- here::here("config", "params.yml") %>%
   read_yaml() %>%
   pluck("msigdb")
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>% 
+  jsonlite::fromJSON() %>% 
+  pluck(target)
+heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck(target)
 ```
@@ -1832,6 +1830,8 @@ if (n_decreased_enrich > min(network_params$size)) {
 }
 ```
 
+## Region Analysis
+
 ## Motif Analysis
 
 ```{r setup-motif-analysis}
@@ -1852,16 +1852,14 @@ motif_db <- all_paths$annotation %>%
   as_tibble()
 motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
   read_rds()
-motif_enrich_res <- all_paths$diff_signal %>% 
-  file.path(target, "{comp}_motif_enrichment.tsv.gz") %>% 
-  glue() %>% 
+motif_enrich_res <- params$motif_enrichment %>% 
+  here::here() %>%
   read_tsv() %>%
   dplyr::rename(adj_p = fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_params$adj)) %>% 
   dplyr::filter(adj_p < motif_params$alpha, enrichment > 1)
-motif_pos_res <- all_paths$diff_signal %>% 
-  file.path(target, "{comp}_motif_position.tsv.gz") %>% 
-  glue() %>% 
+motif_pos_res <- params$motif_position %>% 
+  here::here() %>%
   read_tsv() %>%
   dplyr::rename(adj_p = fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_params$adj)) %>% 

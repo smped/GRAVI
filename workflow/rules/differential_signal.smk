@@ -72,6 +72,9 @@ rule differential_signal_analysis:
         sq = os.path.join(annotation_path, "seqinfo.rds"),
         yaml = os.path.join("config", "params.yml"),
     output:
+        changed = os.path.join(
+            diff_path, "{target}", "{target}_{ref}_{treat}-changed.bed.gz"
+        ),
         decreased = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-decreased.bed.gz"
         ),

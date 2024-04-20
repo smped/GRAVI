@@ -1,3 +1,20 @@
+def get_bw_type(wildcards):
+    heat_type = profile_heatmap_param[wildcards.target]['bw_type']
+    if heat_type == 'FE':
+        bw_type = ['FE']
+    else:
+        bw_type = ['treat_pileup']
+    path = expand(
+        os.path.join(
+            macs2_path, "{target}", "{target}_{treat}_merged_{bw_type}.bw"
+        ),
+        bw_type = bw_type,
+        target = [wildcards.target], treat = [wildcards.ref, wildcards.treat]
+    )
+    return(path)
+
+
+
 rule create_site_yaml:
     input:
         here = rules.check_here_file.output,
@@ -135,7 +152,13 @@ rule create_signal_summary_rmd:
 rule create_nfr_rmd:
     input:
         annotations = ANNOTATION_RDS,
-        bigwig = MERGED_BW,
+        bigwig = lambda wildcards: expand(
+            os.path.join(
+                macs2_path, "{{target}}", 
+                "{{target}}_{treat}_merged_treat_pileup.bw"
+            ),
+            treat = set(df[df.target == wildcards.target]['treat'])
+        ),
         consensus_peaks = expand(
             os.path.join(peak_path, "{t}", "{t}_consensus_peaks.rds"),
             t = targets
@@ -189,32 +212,30 @@ rule create_nfr_rmd:
 rule create_differential_signal_rmd:
     input:
         annotations = ANNOTATION_RDS,
-        bigwig = lambda wildcards: expand(
-            os.path.join(
-                macs2_path, "{{target}}", "{{target}}_{treat}_merged_{bw}.bw"
-            ),
-            bw = ['FE', 'treat_pileup'],
-            treat = [wildcards.ref, wildcards.treat]
-        ),
+        bigwig = get_bw_type,
         chk = ALL_CHECKS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         ihw = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
         ),
-        nfr = NFR_RDS,
+        localz = os.path.join(
+            diff_path, "{target}", "{target}_{ref}_{treat}-regions_localz.rds"
+        ),
         module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
-        motif_results = expand(
-            os.path.join(
-                diff_path, "{{target}}", 
-                "{{target}}_{{ref}}_{{treat}}_motif_{f}.tsv.gz"
-            ),
-            f = ['position', 'enrichment']
-		),
+        motif_enrichment = os.path.join(
+            diff_path, "{target}", 
+            "{target}_{ref}_{treat}_motif_enrichment.tsv.gz"
+        ),
+        motif_position = os.path.join(
+            diff_path, "{target}", 
+            "{target}_{ref}_{treat}_motif_position.tsv.gz"
+        ),
+        nfr = NFR_RDS,
         r = os.path.join("workflow", "scripts", "create_differential_rmd.R"),
         results = os.path.join(
             diff_path, "{target}", 
             "{target}_{ref}_{treat}-differential-signal.rds"
-        ),
+        )
     output:
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"

@@ -35,7 +35,7 @@ threads <- slot(snakemake, "threads")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_wildcards <- slot(snakemake, "wildcards")
-cat_list(all_input, "input", sep = ":")
+cat_list(all_input, "input:")
 cat_list(all_output, "output", sep = ":")
 cat_list(all_wildcards, "wildcards", sep = ":")
 
@@ -61,6 +61,9 @@ link-citations: true
 params:
   counts: \"{all_input$counts}\"
   ihw: \"{all_input$ihw}\"
+  localz: \"{all_input$localz}\"
+  motif_enrichment: \"{all_input$motif_enrichment}\"
+  motif_position: \"{all_input$motif_position}\"
   results: \"{all_input$results}\"
   target: \"{target}\"
   treat_levels: [\"{ref}\", \"{treat}\"]\n---\n\n"

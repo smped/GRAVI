@@ -110,6 +110,11 @@ motif_param = set_params(config['motif_analysis'], targets_ext)
 with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:
 	json.dump(motif_param, fp, indent = 4)
 
+profile_heatmap_param = set_params(config['profile_heatmaps'], targets)
+with open(os.path.join(json_path, "profile_heatmap_param.json"), 'w') as fp:
+	json.dump(profile_heatmap_param, fp, indent = 4)
+
+
 ## These do need more careful checking as not all levels may be found in each
 ## target. Compare to df['treat'][df$target' == x] at some point
 diff_sig_param = set_params(config['differential_signal'], targets)
@@ -275,14 +280,6 @@ HTML_OUT.extend(
 if len(targets) > 1:
 	HTML_OUT.extend([os.path.join("docs", "signal_comparison.html")])
 
-## Any ROSE modules
-# if (config['modules']['rose']):
-# 	HTML_OUT.extend(
-# 		expand(
-# 			os.path.join("docs", "{f}_rose.html"),
-# 			f = config['modules']['rose']
-# 		)
-# 	)
 
 ## Any NFR modules
 NFR_RDS = []
@@ -301,7 +298,6 @@ if (config['modules']['nfr']):
 			f = config['modules']['nfr']
 		)
 	)
-
 
 
 ## Try bringing in diffsignal again
@@ -366,21 +362,12 @@ ALL_OUTPUTS.extend(MERGED_PEAKS)
 ##################
 ## BigWig Files ##
 ##################
-# These aren't used anywhere in the workflow...
-# INDIV_BW = expand(
-# 	os.path.join(macs2_path, "{sample}", "{sample}_treat_pileup.bw"),
-# 	sample = samples
-# )
-# ALL_OUTPUTS.extend(INDIV_BW)
+# These are required for signal summary. All others are handled within rules
 MERGED_BW = expand(
 	os.path.join(macs2_path, "{path}_merged_treat_pileup.bw"),
 	path = merged_pre
 )
 ALL_OUTPUTS.extend(MERGED_BW)
-FE_BW = expand(
-	os.path.join(macs2_path, "{path}_merged_FE.bw"), path = merged_pre
-)
-ALL_OUTPUTS.extend(FE_BW)
 
 rule all:
 	input:

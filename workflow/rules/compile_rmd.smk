@@ -193,7 +193,6 @@ rule compile_differential_signal_html:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
-    retries: 1
     resources:
         mem_mb = 48000,
         runtime = "1h"

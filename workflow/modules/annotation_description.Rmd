@@ -753,17 +753,11 @@ if (length(missing_dir_cols) > 0) {
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
 
-all_heat_params <- here::here("config", "params.yml") %>% 
-  read_yaml() %>% 
-  pluck("profile_heatmaps")
+all_heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
+  jsonlite::fromJSON() 
 heat_cols <- targets %>% 
-  lapply(\(x) all_heat_params$default$gradient) %>% 
+  lapply(\(x) all_heat_params[[x]]$gradient) %>% 
   setNames(targets)
-for (i in targets) {
-  if ("gradient" %in% names(all_heat_params[[i]])) {
-    heat_cols[[i]] <- all_heat_params[[i]]$gradient
-  }
-}
 
 target_cols <- map_chr(heat_cols, \(x) x[length(x)])
 if (any(duplicated(target_cols))) {

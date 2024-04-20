@@ -91,12 +91,12 @@ rule run_dsa_motif_analysis:
 		binwidth =  lambda wildcards: motif_param[wildcards.target]['binwidth'],
 		ignore_below =  lambda wildcards: motif_param[wildcards.target]['ignore_below'],
 		peak_width = lambda wildcards: motif_param[wildcards.target]['peak_width'],
-	threads: lambda wildcards, attempt: attempt * 8
+	threads: lambda wildcards, attempt: attempt * 4
 	retries: 2
 	resources:
 		disk_mb = 10000,
-		mem_mb = lambda wildcards, attempt: attempt * 64000,
-		runtime = lambda wildcards, attempt: attempt * 120,
+		mem_mb = lambda wildcards, attempt: attempt * 32000,
+		runtime = lambda wildcards, attempt: attempt * 30,
 	log: os.path.join(log_path, "motif_analysis_dsa", "{target}_{ref}_{treat}.log")
 	conda: "../envs/rmarkdown.yml"
 	script:
