@@ -38,7 +38,6 @@ library(msigdbr)
 library(regioneReloaded)
 library(universalmotif)
 library(motifTestR)
-library(corrplot)
 library(fontawesome)
 library(GenomicInteractions)
 panderOptions("big.mark", ",")
@@ -1825,7 +1824,7 @@ if (interactive()) {
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
+```{r enrich-corrplot, echo = n_enrich > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
 if (n_enrich > 1) {
   top_enrich <- motif_enrich_res %>%
     dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 

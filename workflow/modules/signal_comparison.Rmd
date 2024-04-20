@@ -30,7 +30,6 @@ library(patchwork)
 library(regioneReloaded)
 library(motifTestR)
 library(universalmotif)
-library(corrplot)
 library(GenomicInteractions)
 theme_set(
   theme_bw() +
@@ -1298,32 +1297,70 @@ if (interactive()) {
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified, but may also indicate co-occurrence. Numbes within each square are spearman correlations.*")}
-top_enrich <- enrich_res %>%
-  dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
-  dplyr::slice(1:20) %>% 
-  pull("altname")
-motif_list %>% 
-  dplyr::filter(altname %in% top_enrich) %>% 
-  to_list() %>% 
-  getPwmMatches(fw_seq, mc.cores = threads) %>% 
-  lapply(\(x) tibble(seq = unique(x$seq))) %>% 
-  bind_rows(.id = "altname") %>%
-  distinct(altname, seq) %>% 
-  left_join(
-    dplyr::select(enrich_res, altname, name), by = "altname"
-  ) %>% 
-  mutate(detected = TRUE) %>% 
-  dplyr::select(seq, name, detected) %>% 
-  pivot_wider(
-    names_from = "name", values_from = "detected", values_fill = FALSE
-  ) %>% 
-  dplyr::select(-seq) %>% 
-  cor(method = "spearman") %>% 
-  corrplot(
-    addCoefasPercent = TRUE, addCoef.col = "grey20", 
-    tl.cex = 0.75, number.cex = 0.8, order = "hclust"
-  )
+```{r enrich-corrplot, echo = n_enrich > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified, but may also indicate co-occurrence. Numbes within each square are spearman correlations.*")}
+if (n_enrich > 1) {
+  top_enrich <- enrich_res %>%
+    dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
+    dplyr::slice(1:20) %>% 
+    pull("altname")
+  cor_mat <- motif_list %>% 
+    dplyr::filter(altname %in% top_enrich) %>% 
+    to_list() %>% 
+    getPwmMatches(fw_seq, mc.cores = threads) %>% 
+    lapply(\(x) tibble(seq = unique(x$seq))) %>% 
+    bind_rows(.id = "altname") %>%
+    distinct(altname, seq) %>% 
+    left_join(
+      dplyr::select(enrich_res, altname, name), by = "altname"
+    ) %>% 
+    mutate(detected = TRUE) %>% 
+    dplyr::select(seq, name, detected) %>% 
+    pivot_wider(
+      names_from = "name", values_from = "detected", values_fill = FALSE
+    ) %>% 
+    dplyr::select(-seq) %>% 
+    cor(method = "spearman")
+  hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
+  dend <- ggdendro::dendro_data(as.dendrogram(hc))
+  levels <- dend$labels$label
+  ym <- max(dend$segments$xend)
+  dend_aes <- aes(yend, xend, xend = y, yend = x)
+  dend_plot <- ggplot(dend$segments) +
+    geom_segment(dend_aes) + 
+    scale_x_reverse(expand = expansion(0)) + 
+    scale_y_reverse(limits = c(ym, 0) + 0.5, expand = expansion(0)) +
+    labs(x = "", y = c()) + 
+    theme_minimal() + 
+    theme(
+      panel.grid = element_blank(), 
+      axis.text = element_blank(), axis.ticks = element_blank(), 
+      plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
+    )
+  p <- cor_mat %>% 
+    as_tibble(rownames = "m1") %>% 
+    pivot_longer(cols = all_of(.$m1), names_to = "m2", values_to = "cor") %>% 
+    mutate(across(starts_with("m"), \(x) factor(x, levels = levels))) %>% 
+    dplyr::filter(m1 != m2) %>% 
+    ggplot(aes(m1, fct_rev(m2))) +
+    geom_point(aes(size = abs(cor), colour = cor, alpha = abs(cor))) +
+    geom_text(
+      aes(label = round(cor*100, 0), alpha = abs(cor)), show.legend = FALSE
+    ) +
+    scale_size(range = c(0, 10), guide = "none") +
+    scale_alpha(range = c(0, 1), guide = "none") +
+    scale_colour_gradient2(
+      low = colours$direction[["decreased"]], 
+      high = colours$direction[["increased"]],
+      limits = c(-1, 1), labels = percent_format(suffix = "")
+    ) +
+    scale_x_discrete(position = "top") +
+    labs(x = NULL, y = NULL, colour = expr(paste(rho))) +
+    theme(
+      panel.grid = element_blank(), 
+      axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5)
+    )
+  dend_plot + p + plot_layout(widths = c(0.1, 0.9), axes = "collect")
+}  
 ```
 
 
