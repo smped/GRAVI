@@ -2,98 +2,99 @@ digraph snakemake_dag {
     graph[bgcolor=white, margin=0];
     node[shape=box, style=rounded, fontname=sans,                 fontsize=10, penwidth=2];
     edge[penwidth=2, color=grey];
-	0[label = "all", color = "0.13 0.6 0.85", style="rounded"];
-	1[label = "prep_blacklist", color = "0.15 0.6 0.85", style="rounded"];
-	2[label = "check_here_file", color = "0.35 0.6 0.85", style="rounded"];
-	3[label = "check_r_packages", color = "0.64 0.6 0.85", style="rounded"];
-	4[label = "create_genome_annotations", color = "0.63 0.6 0.85", style="rounded"];
-	5[label = "compile_annotations_html", color = "0.03 0.6 0.85", style="rounded"];
-	6[label = "make_greylist", color = "0.47 0.6 0.85", style="rounded"];
-	7[label = "index_bam", color = "0.53 0.6 0.85", style="rounded"];
-	8[label = "create_annotations_rmd", color = "0.60 0.6 0.85", style="rounded"];
-	9[label = "prep_rna", color = "0.09 0.6 0.85", style="rounded"];
-	10[label = "prep_msigdb", color = "0.12 0.6 0.85", style="rounded"];
-	11[label = "prep_hic", color = "0.11 0.6 0.85", style="rounded"];
-	12[label = "prep_motifs", color = "0.36 0.6 0.85", style="rounded"];
-	13[label = "create_setup_chunk", color = "0.65 0.6 0.85", style="rounded"];
-	14[label = "create_site_yaml", color = "0.57 0.6 0.85", style="rounded"];
-	15[label = "count_windows", color = "0.33 0.6 0.85", style="rounded"];
-	16[label = "macs2_merged", color = "0.05 0.6 0.85", style="rounded"];
-	17[label = "peak_qc", color = "0.23 0.6 0.85", style="rounded"];
-	18[label = "macs2_individual", color = "0.17 0.6 0.85", style="rounded"];
-	19[label = "make_consensus_peaks", color = "0.41 0.6 0.85", style="rounded"];
-	20[label = "filter_merged_peaks", color = "0.37 0.6 0.85", style="rounded"];
-	21[label = "create_differential_signal_rmd", color = "0.31 0.6 0.85", style="rounded"];
-	22[label = "bedgraph_to_bigwig", color = "0.07 0.6 0.85", style="rounded"];
-	23[label = "sort_bedgraph", color = "0.01 0.6 0.85", style="rounded"];
-	24[label = "macs2_bdgcmp", color = "0.32 0.6 0.85", style="rounded"];
-	25[label = "differential_signal_analysis", color = "0.29 0.6 0.85", style="rounded"];
-	26[label = "compile_signal_summary_html", color = "0.51 0.6 0.85", style="rounded"];
-	27[label = "create_signal_summary_rmd", color = "0.59 0.6 0.85", style="rounded"];
-	28[label = "run_motif_analysis", color = "0.39 0.6 0.85", style="rounded"];
-	29[label = "make_exclude_ranges", color = "0.08 0.6 0.85", style="rounded"];
-	30[label = "localz_regions", color = "0.43 0.6 0.85", style="rounded"];
-	31[label = "compile_signal_comparison_html", color = "0.61 0.6 0.85", style="rounded"];
-	32[label = "run_shared_motif_analysis", color = "0.04 0.6 0.85", style="rounded"];
-	33[label = "make_shared_consensus_peaks", color = "0.25 0.6 0.85", style="rounded"];
-	34[label = "localz_targets", color = "0.40 0.6 0.85", style="rounded"];
-	35[label = "shared_localz_regions", color = "0.24 0.6 0.85", style="rounded"];
-	36[label = "compile_nfr_html", color = "0.55 0.6 0.85", style="rounded"];
-	37[label = "create_nfr_rmd", color = "0.00 0.6 0.85", style="rounded"];
-	38[label = "make_consensus_nfr", color = "0.28 0.6 0.85", style="rounded"];
-	39[label = "strip_bed", color = "0.48 0.6 0.85", style="rounded"];
-	40[label = "call_nfr", color = "0.16 0.6 0.85", style="rounded"];
-	41[label = "merge_filtered_peaks", color = "0.20 0.6 0.85", style="rounded"];
-	42[label = "nfr_localz_regions", color = "0.52 0.6 0.85", style="rounded"];
-	43[label = "nfr_localz_targets", color = "0.27 0.6 0.85", style="rounded"];
-	44[label = "nfr_motif_analysis", color = "0.49 0.6 0.85", style="rounded"];
-	45[label = "compile_differential_signal_html", color = "0.56 0.6 0.85", style="rounded"];
-	9 -> 0
-	11 -> 0
-	26 -> 0
-	21 -> 0
-	10 -> 0
-	15 -> 0
-	1 -> 0
-	5 -> 0
-	36 -> 0
-	45 -> 0
-	18 -> 0
+	0[label = "all", color = "0.41 0.6 0.85", style="rounded"];
+	1[label = "prep_blacklist", color = "0.61 0.6 0.85", style="rounded"];
+	2[label = "check_here_file", color = "0.26 0.6 0.85", style="rounded"];
+	3[label = "check_r_packages", color = "0.22 0.6 0.85", style="rounded"];
+	4[label = "create_genome_annotations", color = "0.29 0.6 0.85", style="rounded"];
+	5[label = "compile_annotations_html", color = "0.04 0.6 0.85", style="rounded"];
+	6[label = "make_greylist", color = "0.42 0.6 0.85", style="rounded"];
+	7[label = "index_bam", color = "0.08 0.6 0.85", style="rounded"];
+	8[label = "create_annotations_rmd", color = "0.17 0.6 0.85", style="rounded"];
+	9[label = "prep_rna", color = "0.54 0.6 0.85", style="rounded"];
+	10[label = "prep_msigdb", color = "0.51 0.6 0.85", style="rounded"];
+	11[label = "prep_hic", color = "0.43 0.6 0.85", style="rounded"];
+	12[label = "prep_motifs", color = "0.55 0.6 0.85", style="rounded"];
+	13[label = "create_setup_chunk", color = "0.38 0.6 0.85", style="rounded"];
+	14[label = "create_site_yaml", color = "0.25 0.6 0.85", style="rounded"];
+	15[label = "count_windows", color = "0.35 0.6 0.85", style="rounded"];
+	16[label = "macs2_merged", color = "0.48 0.6 0.85", style="rounded"];
+	17[label = "peak_qc", color = "0.01 0.6 0.85", style="rounded"];
+	18[label = "macs2_individual", color = "0.34 0.6 0.85", style="rounded"];
+	19[label = "make_consensus_peaks", color = "0.00 0.6 0.85", style="rounded"];
+	20[label = "filter_merged_peaks", color = "0.18 0.6 0.85", style="rounded"];
+	21[label = "create_differential_signal_rmd", color = "0.50 0.6 0.85", style="rounded"];
+	22[label = "bedgraph_to_bigwig", color = "0.10 0.6 0.85", style="rounded"];
+	23[label = "sort_bedgraph", color = "0.44 0.6 0.85", style="rounded"];
+	24[label = "macs2_bdgcmp", color = "0.14 0.6 0.85", style="rounded"];
+	25[label = "differential_signal_analysis", color = "0.16 0.6 0.85", style="rounded"];
+	26[label = "make_consensus_nfr", color = "0.59 0.6 0.85", style="rounded"];
+	27[label = "strip_bed", color = "0.24 0.6 0.85", style="rounded"];
+	28[label = "call_nfr", color = "0.13 0.6 0.85", style="rounded"];
+	29[label = "merge_filtered_peaks", color = "0.20 0.6 0.85", style="rounded"];
+	30[label = "run_dsa_motif_analysis", color = "0.56 0.6 0.85", style="rounded"];
+	31[label = "compile_signal_summary_html", color = "0.05 0.6 0.85", style="rounded"];
+	32[label = "create_signal_summary_rmd", color = "0.27 0.6 0.85", style="rounded"];
+	33[label = "run_motif_analysis", color = "0.12 0.6 0.85", style="rounded"];
+	34[label = "make_exclude_ranges", color = "0.47 0.6 0.85", style="rounded"];
+	35[label = "localz_regions", color = "0.03 0.6 0.85", style="rounded"];
+	36[label = "compile_signal_comparison_html", color = "0.64 0.6 0.85", style="rounded"];
+	37[label = "run_shared_motif_analysis", color = "0.21 0.6 0.85", style="rounded"];
+	38[label = "make_shared_consensus_peaks", color = "0.60 0.6 0.85", style="rounded"];
+	39[label = "localz_targets", color = "0.37 0.6 0.85", style="rounded"];
+	40[label = "shared_localz_regions", color = "0.58 0.6 0.85", style="rounded"];
+	41[label = "compile_nfr_html", color = "0.39 0.6 0.85", style="rounded"];
+	42[label = "create_nfr_rmd", color = "0.30 0.6 0.85", style="rounded"];
+	43[label = "nfr_localz_regions", color = "0.09 0.6 0.85", style="rounded"];
+	44[label = "nfr_localz_targets", color = "0.31 0.6 0.85", style="rounded"];
+	45[label = "nfr_motif_analysis", color = "0.33 0.6 0.85", style="rounded"];
+	46[label = "compile_differential_signal_html", color = "0.65 0.6 0.85", style="rounded"];
 	12 -> 0
-	31 -> 0
-	16 -> 0
-	22 -> 0
-	4 -> 0
 	19 -> 0
-	3 -> 1
+	36 -> 0
+	5 -> 0
+	4 -> 0
+	31 -> 0
+	18 -> 0
+	16 -> 0
+	11 -> 0
+	15 -> 0
+	22 -> 0
+	1 -> 0
+	21 -> 0
+	41 -> 0
+	10 -> 0
+	46 -> 0
+	9 -> 0
 	4 -> 1
+	3 -> 1
 	2 -> 1
 	2 -> 3
 	3 -> 4
 	2 -> 4
-	14 -> 5
-	8 -> 5
-	2 -> 5
 	3 -> 5
-	13 -> 5
+	14 -> 5
+	2 -> 5
 	6 -> 5
-	3 -> 6
+	13 -> 5
+	8 -> 5
 	4 -> 6
-	7 -> 6
+	3 -> 6
 	2 -> 6
-	9 -> 8
+	7 -> 6
 	11 -> 8
 	4 -> 8
 	12 -> 8
-	10 -> 9
-	3 -> 9
+	9 -> 8
 	4 -> 9
+	3 -> 9
+	10 -> 9
 	2 -> 9
-	3 -> 10
 	4 -> 10
+	3 -> 10
 	2 -> 10
-	3 -> 11
 	4 -> 11
+	3 -> 11
 	2 -> 11
 	3 -> 12
 	2 -> 12
@@ -101,168 +102,173 @@ digraph snakemake_dag {
 	2 -> 13
 	3 -> 14
 	2 -> 14
-	7 -> 15
-	1 -> 15
-	2 -> 15
-	16 -> 15
-	17 -> 15
-	4 -> 15
 	3 -> 15
-	6 -> 15
+	17 -> 15
 	19 -> 15
+	2 -> 15
+	4 -> 15
+	7 -> 15
+	6 -> 15
+	1 -> 15
+	16 -> 15
 	17 -> 16
 	7 -> 16
-	1 -> 17
-	18 -> 17
+	3 -> 17
 	2 -> 17
 	4 -> 17
-	3 -> 17
+	18 -> 17
 	6 -> 17
+	1 -> 17
 	7 -> 18
+	4 -> 19
+	6 -> 19
 	11 -> 19
 	1 -> 19
 	20 -> 19
-	4 -> 19
-	6 -> 19
-	1 -> 20
-	18 -> 20
 	17 -> 20
-	16 -> 20
 	4 -> 20
+	18 -> 20
 	6 -> 20
-	9 -> 21
+	1 -> 20
+	16 -> 20
+	12 -> 21
+	3 -> 21
+	2 -> 21
+	30 -> 21
+	5 -> 21
+	4 -> 21
+	26 -> 21
 	11 -> 21
-	25 -> 21
-	10 -> 21
+	22 -> 21
 	15 -> 21
 	1 -> 21
-	5 -> 21
-	12 -> 21
-	2 -> 21
-	22 -> 21
-	4 -> 21
-	3 -> 21
-	23 -> 22
+	25 -> 21
+	10 -> 21
+	9 -> 21
 	4 -> 22
+	23 -> 22
 	24 -> 23
 	16 -> 23
 	16 -> 24
-	15 -> 25
 	11 -> 25
 	4 -> 25
+	15 -> 25
 	19 -> 25
-	14 -> 26
 	27 -> 26
-	13 -> 26
-	9 -> 27
-	11 -> 27
-	10 -> 27
-	1 -> 27
-	5 -> 27
-	12 -> 27
-	2 -> 27
-	17 -> 27
+	4 -> 26
+	6 -> 26
+	11 -> 26
+	1 -> 26
 	28 -> 27
-	22 -> 27
-	4 -> 27
-	3 -> 27
-	30 -> 27
-	19 -> 27
-	12 -> 28
-	4 -> 28
-	3 -> 28
 	29 -> 28
-	19 -> 28
-	3 -> 29
-	4 -> 29
-	2 -> 29
+	16 -> 28
+	20 -> 29
+	12 -> 30
 	3 -> 30
-	19 -> 30
-	4 -> 30
-	2 -> 30
-	9 -> 31
-	11 -> 31
-	10 -> 31
-	1 -> 31
-	5 -> 31
+	25 -> 30
 	14 -> 31
 	32 -> 31
-	12 -> 31
-	22 -> 31
-	4 -> 31
-	34 -> 31
-	35 -> 31
-	30 -> 31
-	33 -> 31
 	13 -> 31
-	19 -> 31
 	12 -> 32
-	4 -> 32
 	3 -> 32
+	17 -> 32
+	19 -> 32
+	2 -> 32
+	35 -> 32
+	5 -> 32
+	4 -> 32
+	11 -> 32
+	22 -> 32
 	33 -> 32
-	29 -> 32
+	1 -> 32
+	10 -> 32
+	9 -> 32
+	12 -> 33
 	19 -> 33
-	11 -> 33
+	3 -> 33
 	4 -> 33
-	3 -> 34
+	34 -> 33
 	4 -> 34
-	19 -> 34
+	3 -> 34
 	2 -> 34
-	3 -> 35
-	33 -> 35
 	4 -> 35
+	3 -> 35
 	2 -> 35
-	9 -> 36
-	11 -> 36
-	37 -> 36
-	10 -> 36
-	1 -> 36
-	5 -> 36
-	14 -> 36
+	19 -> 35
 	12 -> 36
+	19 -> 36
+	14 -> 36
+	35 -> 36
+	5 -> 36
 	4 -> 36
+	40 -> 36
+	38 -> 36
+	11 -> 36
+	22 -> 36
+	39 -> 36
+	1 -> 36
 	13 -> 36
-	44 -> 37
-	9 -> 37
-	11 -> 37
-	42 -> 37
-	3 -> 37
-	10 -> 37
-	1 -> 37
-	5 -> 37
+	10 -> 36
+	37 -> 36
+	9 -> 36
 	12 -> 37
-	2 -> 37
-	41 -> 37
-	39 -> 37
-	22 -> 37
+	3 -> 37
 	4 -> 37
-	19 -> 37
-	43 -> 37
 	38 -> 37
+	34 -> 37
 	11 -> 38
-	1 -> 38
 	4 -> 38
-	6 -> 38
-	39 -> 38
-	40 -> 39
-	16 -> 40
-	41 -> 40
-	20 -> 41
+	19 -> 38
+	4 -> 39
+	3 -> 39
+	2 -> 39
+	19 -> 39
+	4 -> 40
+	3 -> 40
+	38 -> 40
+	2 -> 40
+	12 -> 41
+	14 -> 41
+	5 -> 41
+	4 -> 41
+	42 -> 41
+	11 -> 41
+	1 -> 41
+	13 -> 41
+	10 -> 41
+	9 -> 41
+	12 -> 42
+	19 -> 42
+	27 -> 42
 	3 -> 42
-	38 -> 42
-	4 -> 42
 	2 -> 42
-	19 -> 43
-	2 -> 43
+	5 -> 42
+	4 -> 42
+	26 -> 42
+	44 -> 42
+	45 -> 42
+	11 -> 42
+	22 -> 42
+	43 -> 42
+	1 -> 42
+	29 -> 42
+	10 -> 42
+	9 -> 42
 	4 -> 43
 	3 -> 43
-	38 -> 43
-	12 -> 44
-	4 -> 44
+	26 -> 43
+	2 -> 43
 	3 -> 44
-	29 -> 44
-	38 -> 44
-	14 -> 45
-	13 -> 45
-	21 -> 45
+	19 -> 44
+	2 -> 44
+	4 -> 44
+	26 -> 44
+	12 -> 45
+	3 -> 45
+	4 -> 45
+	26 -> 45
+	34 -> 45
+	13 -> 46
+	14 -> 46
+	21 -> 46
 }            

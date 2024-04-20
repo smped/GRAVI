@@ -67,3 +67,37 @@ rule run_shared_motif_analysis:
 	conda: "../envs/rmarkdown.yml"
 	script:
 		"../scripts/motif_analysis.R"
+
+rule run_dsa_motif_analysis:
+	input:
+		motifs = os.path.join(annotation_path, "motif_list.rds"),
+		packages = os.path.join(check_path, "r-packages.chk"),
+		results = os.path.join(
+			diff_path, "{target}", 
+			"{target}_{ref}_{treat}-differential-signal.rds"
+		),
+		script = os.path.join("workflow", "scripts", "motif_analysis_dsa.R"),
+	output:
+		enrich = os.path.join(
+			diff_path, "{target}", 
+			"{target}_{ref}_{treat}_motif_enrichment.tsv.gz"
+		),
+		pos = os.path.join(
+			diff_path, "{target}", 
+			"{target}_{ref}_{treat}_motif_position.tsv.gz"
+		),
+	params:
+		abs =  lambda wildcards: motif_param[wildcards.target]['abs'],
+		binwidth =  lambda wildcards: motif_param[wildcards.target]['binwidth'],
+		ignore_below =  lambda wildcards: motif_param[wildcards.target]['ignore_below'],
+		peak_width = lambda wildcards: motif_param[wildcards.target]['peak_width'],
+	threads: lambda wildcards, attempt: attempt * 8
+	retries: 2
+	resources:
+		disk_mb = 10000,
+		mem_mb = lambda wildcards, attempt: attempt * 64000,
+		runtime = lambda wildcards, attempt: attempt * 120,
+	log: os.path.join(log_path, "motif_analysis_dsa", "{target}_{ref}_{treat}.log")
+	conda: "../envs/rmarkdown.yml"
+	script:
+		"../scripts/motif_analysis_dsa.R"
