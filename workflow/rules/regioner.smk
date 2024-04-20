@@ -13,7 +13,7 @@ rule localz_regions:
     retries: 1
     resources:
         mem_mb = 32768,
-        run_time = "60m",
+        run_time = "30m",
     log: os.path.join(log_path, "regioner", "{target}_regions_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -66,3 +66,26 @@ rule localz_targets:
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/regioner_localz_targets.R"
+
+rule localz_regions_dsa:
+    input:
+        checks = ALL_CHECKS,
+        features = os.path.join(annotation_path, "features.rds"),
+        peaks = os.path.join(
+            diff_path, "{target}", "{target}_{ref}_{treat}-changed.bed.gz"
+        ),
+        params = os.path.join("config", "params.yml"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
+    output:
+        rds = os.path.join(
+            diff_path, "{target}", "{target}_{ref}_{treat}-regions_localz.rds"
+        )
+    threads: 8
+    retries: 1
+    resources:
+        mem_mb = 32768,
+        run_time = "30m",
+    log: os.path.join(log_path, "regioner", "{target}_{ref}_{treat}_regions_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/regioner_localz_regions.R"

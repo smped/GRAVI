@@ -66,6 +66,7 @@ sink(log, split = TRUE)
 #   yaml = "config/params.yml"
 # )
 # all_output <- list(
+#   changed = "output/differential_signal/ER/ER_E2_E2DHT-changed.bed.gz",
 #   decreased = "output/differential_signal/ER/ER_E2_E2DHT-decreased.bed.gz",
 #   increased = "output/differential_signal/ER/ER_E2_E2DHT-increased.bed.gz",
 #   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
@@ -429,6 +430,10 @@ metadata(results)$description <- glue(
 # write_rds(counts, all_input$counts, compress = "gz")
 cat_time("Exporting results")
 write_rds(results, all_output$rds, compress = "gz")
+cat_time("Exporting changed sites")
+results %>%
+  filter(grepl("(In|De)creased", status)) %>%
+  write_bed(all_output$changed)
 cat_time("Exporting increased sites")
 results %>%
   filter(status == "Increased") %>%

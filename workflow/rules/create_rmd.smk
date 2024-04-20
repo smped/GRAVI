@@ -198,9 +198,6 @@ rule create_differential_signal_rmd:
         ),
         chk = ALL_CHECKS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
-        ihw = os.path.join(
-            diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
-        ),
         module = os.path.join("workflow", "modules", "differential_signal.Rmd"),
         motif_results = expand(
             os.path.join(
@@ -209,10 +206,12 @@ rule create_differential_signal_rmd:
             ),
             f = ['position', 'enrichment']
 		),
-        r = os.path.join("workflow", "scripts", "create_differential_rmd.R")
-        results = os.path.join(
-            diff_path, "{target}", 
-            "{target}_{ref}_{treat}-differential-signal.rds"
+        r = os.path.join("workflow", "scripts", "create_differential_rmd.R"),
+        rds = expand(
+            os.path.join(
+                diff_path, "{{target}}", "{{target}}_{{ref}}_{{treat}}-{f}.rds
+            ),
+            f = ['regions_localz', 'differential-signal', 'ihw']
         ),
     output:
         rmd = os.path.join(
