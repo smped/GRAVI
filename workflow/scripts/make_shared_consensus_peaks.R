@@ -104,23 +104,42 @@ mapping_params <- all_input$yaml %>%
 ## Find if there are any regions in the features which can be matched
 ## to promoters or enhancers
 cat_time("Checking for promoters/enhancers in the features")
-which_prom <- grepl("prom", str_to_lower(names(features)))
-feat_prom <- features[which_prom] %>%
+feat_prom <- features %>%
+  endoapply(subset, grepl("prom", str_to_lower(feature))) %>%
+  unlist() %>%
+  GenomicRanges::reduce()
+feat_enh <- features %>%
+  endoapply(subset, grepl("enh", str_to_lower(feature))) %>%
   unlist() %>%
   GenomicRanges::reduce()
 
-which_enh <- grepl("enhanc", str_to_lower(names(features)))
-feat_enh <- features[which_enh] %>%
-  unlist() %>%
-  GenomicRanges::reduce()
-
-cat_time("Mapping peaks to regions and features")
+cat_time("Mapping peaks to regions")
 shared_peaks$region <- bestOverlap(shared_peaks, gene_regions)
 shared_peaks$region <- factor(region_levels[shared_peaks$region], unname(region_levels))
-if (length(features))
-  shared_peaks$feature <- bestOverlap(shared_peaks, features, missing = "no_feature")
 
-save.image(here::here("output/envs/shared_peaks.RData"))
+if (length(features)) {
+  cat_time("Mapping peaks to features")
+  feat_df <- features %>%
+    lapply(
+      \(x) bestOverlap(shared_peaks, x, var = "feature")
+    ) %>%
+    as_tibble() %>%
+    mutate(range = as.character(shared_peaks)) %>%
+    nest(data = all_of(names(features))) %>%
+    mutate(
+      feature = lapply(
+        data, \(x) {
+          x <- unlist(x)
+          x[!is.na(x)]
+        }
+      )
+    ) %>%
+    unnest(data) %>%
+    dplyr::select(feature, all_of(names(features))) %>%
+    as.data.frame()
+  mcols(shared_peaks) <- cbind(mcols(shared_peaks), feat_df)
+  shared_peaks$feature <- CharacterList(shared_peaks$feature)
+}
 
 cat_time("Mapping peaks to genes")
 prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
