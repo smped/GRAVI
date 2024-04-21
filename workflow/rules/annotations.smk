@@ -7,7 +7,6 @@ rule create_genome_annotations:
         yaml = os.path.join("config", "params.yml"),
     output:
         chrom_sizes = chrom_sizes,
-        features = os.path.join(annotation_path, "features.rds"),
         gtf_exon = os.path.join(annotation_path, "gtf_exon.rds"),
         gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
         gtf_transcript = os.path.join(annotation_path, "gtf_transcript.rds"),
@@ -47,6 +46,23 @@ rule make_exclude_ranges:
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/make_exclude_ranges.R"
+
+rule prep_features:
+    input:
+        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        here = os.path.join(check_path, "here.chk"),
+        packages = os.path.join(check_path, "r-packages.chk"),
+        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),    
+        script = os.path.join("workflow", "scripts", "prep_features.R"),
+    output:
+        rds = os.path.join(annotation_path, "features.rds"),
+    threads: 1
+    resources:
+        mem_mb = 8192,
+        run_time = "20m"
+    log: os.path.join(log_path, "annotations", "features.log")
+    script:
+        "../scripts/prep_features.R"
 
 rule prep_blacklist:
     input:

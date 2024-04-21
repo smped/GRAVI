@@ -519,8 +519,27 @@ has_features <- length(external_features) > 0
 
 ```{r feat-col, eval = has_features, echo = has_features}
 feat_col <- colours$features
-feat_levels <- names(external_features)
+feat_levels <- c(
+  unique(unlist(external_features)$feature), "no_feature"
+)
 missing_feat_col <- setdiff(feat_levels, names(feat_col))
+# Handle the specific case of a ChromHMM track
+hmm_cols <- c(
+  BivFlnk = "#E9967A", DNase = "#FFFF66", EnhA1 = "#FFC34D", EnhA2 = "#FFC34D", 
+  EnhAc = "#FFFF00", EnhAF = "#FFC34D", EnhBiv = "#BDB76B", EnhG1 = "#C2E105",
+  EnhG2 = "#C2E105", EnhW1 = "#FFFF00", EnhW2 = "#FFFF00", EnhWk = "#FFFF00", 
+  Het = "#8A91D0", PromBiv = "#7030A0", PromD1 = "#FF4500", PromD2 = "#FF4500", 
+  PromP = "#E6B8B7", PromU = "#FF4500", Quies = "#FFFFFF", ReprPC = "#808080", 
+  ReprPCWk = "#C0C0C0", TssA = "#FF0000", TssAFlnk = "#FF4500", 
+  TssBiv = "#CD5C5C", TssFlnk = "#FF4500", TssFlnkD = "#FF4500", 
+  TssFlnkU = "#FF4500", Tx = "#008000", Tx3 = "#008000", Tx5 = "#008000", 
+  TxEnh3 = "#C2E105", TxEnh5 = "#C2E105", TxEnhW = "#C2E105", TxFlnk = "#32CD32",
+  TxReg = "#C2E105", TxWk = "#009600", `ZNF/Rpts` = "#66CDAA"
+)
+if (any(missing_feat_col %in% names(hmm_cols))) {
+  feat_col <- c(feat_col, as.list(hmm_cols[missing_feat_col]))
+  missing_feat_col <- setdiff(missing_feat_col, names(feat_col))
+}
 if (length(missing_feat_col) > 0) {
   if (!"no_feature" %in% feat_levels)
     missing_feat_col <- c(missing_feat_col, "no_feature")
@@ -533,54 +552,67 @@ colours$features <- feat_col
 
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, eval = has_features, echo = has_features, fig.cap = glue("*The proportion of the ranges provided as external features in the file {basename(config$external$feature)}, and which overlap the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions.*")}
-external_features %>% 
-  unlist() %>% 
-  as_tibble() %>% 
-  dplyr::select(range, feature, all_of(names(gene_regions))) %>% 
-  pivot_longer(
-    cols = all_of(names(gene_regions)), names_to = "region", values_to = "p"
-  ) %>% 
-  mutate(region = regions[region]) %>% 
-  plotSplitDonut(
-    inner = "feature", outer = "region", scale_by = "p", scale_factor = 1,
-    inner_palette = colours$feature, outer_palette = region_cols,
-    inner_glue = "{str_wrap(.data[[inner]], 10)}\n{comma(n, 1)}\n{percent(p,0.1)}",
-    outer_glue = "{str_wrap(.data[[outer]], 15)}\n{percent(p,0.1)}",
-  )
+```{r plot-feature-by-region, fig.height = 7, echo = has_features, fig.cap = glue("*The relationship between ranges provided as external features in ", glue_collapse(basename(unlist(config$external$features)), sep = ", ", last = " & "), " and the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions and are shown in Mb.*")}
+if (has_features) {
+  external_features %>% 
+    lapply(as_tibble) %>% 
+    lapply(dplyr::select, range, feature, all_of(names(gene_regions))) %>% 
+    lapply(
+      pivot_longer,
+      cols = all_of(names(gene_regions)), names_to = "region", values_to = "p"
+    ) %>% 
+    lapply(dplyr::filter, p > 0) %>% 
+    lapply(
+      mutate, 
+      region = factor(regions[region], levels = unname(regions)), 
+      width = p * width(GRanges(range)) / 1e6
+    ) %>% 
+    bind_rows(.id = "source") %>% 
+    summarise(
+      n = dplyr::n(), width = sum(width), .by = c(source, region, feature)
+    ) %>% 
+    ggplot(aes(width, fct_rev(feature), fill = region)) +
+    geom_col() +
+    facet_grid(rows =  vars(source), scales = "free", space = "free") +
+    scale_fill_manual(values = region_cols) +
+    scale_x_continuous(expand = expansion(c(0, 0.05))) +
+    labs(x = "Width (Mb)", y = "Feature", fill = "Region")
+}
 ```
 
 
 ```{r tab-features, eval = has_features, echo = has_features}
 cp <- em(
   glue(
-      "Summary of external features provided in the file ", 
-      "{basename(config$external$feature)}. All peaks and windows will be ", 
+      "Summary of external features provided in ", 
+      glue_collapse(
+        basename(unlist(config$external$features)), sep = ", ", last = " & "
+      ),
+      " All peaks and windows will be ", 
       "compared to these throughout the workflow. The colours defined for each ",
       "feature is show as a guide on the left."
     )
 )
-tbl <- external_features %>% 
-  unlist() %>% 
-  mutate(w = width) %>%
-  as_tibble() %>% 
-  dplyr::rename(width = w) %>%
-  group_by(feature) %>% 
+tbl <-  external_features %>%
+  lapply(mutate, w = width) %>% 
+  lapply(as_tibble) %>% 
+  bind_rows(.id = "source") %>% 
+  dplyr::rename(width = w) %>% 
   summarise(
     N = dplyr::n(),
     Width = sum(width/1e3),
     med = median(width/1e3),
-    range = glue("[{round(min(width/1e3), 1)}, {round(max(width/1e3), 1)}]")
+    range = glue("[{round(min(width/1e3), 1)}, {round(max(width/1e3), 1)}]"),
+    .by = c(source, feature)
   ) %>% 
   mutate(
     guide = unlist(feat_col)[feature],
-    feature = factor(feature, levels = names(feat_col)) %>%
-      fct_relabel(str_sep_to_title)
+    feature = factor(feature, levels = names(feat_col)) 
   ) %>%
   arrange(feature) %>%
   dplyr::select(guide, everything()) %>% 
   reactable(
-    filterable = FALSE, searchable = FALSE,
+    filterable = FALSE, searchable = TRUE, showPageSizeOptions = TRUE,
     columns = list(
       guide = colDef(
         maxWidth = 40,
@@ -588,6 +620,7 @@ tbl <- external_features %>%
         cell = function(value) "",
         name = ""
       ),
+      source = colDef("Source"),
       feature = colDef(
         name = "Feature",
         footer = htmltools::tags$b("Total")
