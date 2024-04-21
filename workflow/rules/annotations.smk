@@ -61,6 +61,7 @@ rule prep_features:
         mem_mb = 8192,
         run_time = "20m"
     log: os.path.join(log_path, "annotations", "features.log")
+    conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/prep_features.R"
 

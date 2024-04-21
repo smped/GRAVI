@@ -28,10 +28,9 @@ for i in config['external']:
 		msg = "File " + f + " not found"
 		assert (os.path.isfile(f)), msg
 	if type(f) == dict:
-		for j in f:
-			for k in f[j]:
-				msg = "File " + f[j][k] + " not found"
-				assert(os.path.isfile(f[j][k])), msg
+		for j in set(f.keys()):
+			msg = "File " + f[j] + " not found"
+			assert(os.path.isfile(f[j])), msg
 
 
 ####################
