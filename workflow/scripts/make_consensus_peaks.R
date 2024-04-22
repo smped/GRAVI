@@ -179,7 +179,9 @@ feat_enh <- features %>%
 
 cat_time("Mapping peaks to regions")
 cons_peaks$region <- bestOverlap(cons_peaks, gene_regions)
-cons_peaks$region <- factor(region_levels[cons_peaks$region], unname(region_levels))
+cons_peaks$region <- factor(
+  region_levels[cons_peaks$region], unname(region_levels)
+)
 
 if (length(features)) {
   cat_time("Mapping peaks to features")
@@ -188,21 +190,29 @@ if (length(features)) {
       \(x) bestOverlap(cons_peaks, x, var = "feature")
     ) %>%
     as_tibble() %>%
-    mutate(range = as.character(cons_peaks)) %>%
-    nest(data = all_of(names(features))) %>%
-    mutate(
-      feature = lapply(
-        data, \(x) {
-          x <- unlist(x)
-          x[!is.na(x)]
-        }
-      )
-    ) %>%
-    unnest(data) %>%
-    dplyr::select(feature, all_of(names(features))) %>%
-    as.data.frame()
-  mcols(cons_peaks) <- cbind(mcols(cons_peaks), feat_df)
-  cons_peaks$feature <- CharacterList(cons_peaks$feature)
+    mutate(range = as.character(cons_peaks))
+  if (length(features) > 1) {
+    cat_time("Merging features across source files")
+    feat_df <- feat_df %>%
+      nest(data = all_of(names(features))) %>%
+      mutate(
+        feature = lapply(
+          data, \(x) {
+            x <- unlist(x)
+            x[!is.na(x)]
+          }
+        )
+      ) %>%
+      unnest(data, keep_empty = TRUE) %>%
+      dplyr::select(feature, all_of(names(features))) %>%
+      as.data.frame()
+    mcols(cons_peaks) <- cbind(mcols(cons_peaks), feat_df)
+    cons_peaks$feature <- CharacterList(cons_peaks$feature)
+  } else {
+    cons_peaks$feature <- str_replace_na(
+      feat_df[[names(features)]], "no_feature"
+    )
+  }
 }
 
 cat_time("Mapping peaks to genes")

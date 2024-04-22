@@ -523,13 +523,13 @@ feat_levels <- c(
   unique(unlist(external_features)$feature), "no_feature"
 )
 missing_feat_col <- setdiff(feat_levels, names(feat_col))
-# Handle the specific case of a ChromHMM track
+# Handle the specific case of a ChromHMM track. Quies is not pure white here
 hmm_cols <- c(
   BivFlnk = "#E9967A", DNase = "#FFFF66", EnhA1 = "#FFC34D", EnhA2 = "#FFC34D", 
   EnhAc = "#FFFF00", EnhAF = "#FFC34D", EnhBiv = "#BDB76B", EnhG1 = "#C2E105",
   EnhG2 = "#C2E105", EnhW1 = "#FFFF00", EnhW2 = "#FFFF00", EnhWk = "#FFFF00", 
   Het = "#8A91D0", PromBiv = "#7030A0", PromD1 = "#FF4500", PromD2 = "#FF4500", 
-  PromP = "#E6B8B7", PromU = "#FF4500", Quies = "#FFFFFF", ReprPC = "#808080", 
+  PromP = "#E6B8B7", PromU = "#FF4500", Quies = "#F9F9F9", ReprPC = "#808080", 
   ReprPCWk = "#C0C0C0", TssA = "#FF0000", TssAFlnk = "#FF4500", 
   TssBiv = "#CD5C5C", TssFlnk = "#FF4500", TssFlnkD = "#FF4500", 
   TssFlnkU = "#FF4500", Tx = "#008000", Tx3 = "#008000", Tx5 = "#008000", 

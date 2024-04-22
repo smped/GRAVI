@@ -926,34 +926,60 @@ consensus_peaks %>%
 
 `r ifelse(has_features, "#### External Features", "")`
 
-```{r plot-feature-overlap, echo = has_features, fig.height = 0.8 * fw, fig.width = 0.8 * fw, fig.cap = glue("*The total number of {target} consensus peaks which overlap external features provided in {basename(config$external$features)}. If peaks map to multiple features, they are assigned to the one with the largest overlap.*")}
+```{r plot-peaks-by-feature, echo = has_features, fig.height = ifelse(length(levels(p$data$feature)) < 3, fh / 2, fh), fig.cap = glue("*{target} peaks which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, peaks may overlap multiple feature types and be included within multiple categories. Total overlapping peaks for each feature type are shown in bold, wth percentages being relative to the total number of consensus peaks ({comma(length(consensus_peaks))}). Individual segments are labelled if representing >= 3% of the total number of peaks. Features with fewer than 1% of peaks aligning to them are collapsed into the category 'Other'*")}
 if (has_features) {
-  consensus_peaks %>% 
-    plotPie(
-      fill = "feature", total_size = 4,
-      cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
-      cat_alpha = 0.9, cat_adj = 0.05
+  p <- consensus_peaks %>% 
+    as_tibble() %>% 
+    dplyr::select(range, region, feature) %>% 
+    unnest(feature, keep_empty = TRUE) %>%
+    mutate(
+      feature = case_when(
+        is.na(feature)~ "no_feature",
+        is.null(names(feature)) ~ feature,
+        TRUE ~ paste(names(feature), feature, sep = ": ")
+      ) %>% 
+        str_remove_all("^ *:")
+    ) %>% 
+    distinct(range, region, feature) %>% 
+    mutate(feature = fct_infreq(feature) %>% fct_lump_prop(0.01)) %>% 
+    dplyr::summarise(n = dplyr::n(), .by = c(region, feature)) %>% 
+    arrange(desc(region)) %>% 
+    mutate(label_x = cumsum(n) - 0.5*n, .by = c(feature)) %>% 
+    ggplot(aes(n, y = fct_rev(feature))) +
+    geom_col(aes(fill = region)) +
+    geom_label(
+      aes(x = N, label = label),
+      data = . %>% 
+        summarise(N = sum(n), .by = feature) %>% 
+        mutate(
+          p = N / length(consensus_peaks),
+          label = glue("{comma(N)}\n{percent(p, 0.1)}"),
+          N = N + 0.05 * max(N)
+        ),
+      hjust = 0.5, size = 3, fontface = 'bold'
     ) +
-    scale_fill_manual(values = colours$features) +
-    theme(legend.position = "none")
-}
-```
-
-`r ifelse(has_features, "#### External Features And Gene-Centric Regions", "")`
-
-```{r plot-feature-region-overlap, echo = has_features, fig.cap = glue("*The total number of {target} consensus peaks overlapping external features and gene-centric regions. If a peak overlaps multiple features or regions, it is assigned to be the one with the largest overlap. Any peaks which don't overlap a feature have been excluded.*")}
-if (has_features) {
-  consensus_peaks %>% 
-    plotSplitDonut(
-      inner = "feature", outer = "region",
-      inner_palette = colours$features,
-      outer_palette = region_colours,
-      inner_glue = "{str_wrap(.data[[inner]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
-      outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n{percent(p,0.1)}",
-      min_p = 0.03, outer_alpha = 0.8
+    geom_label(
+      aes(label_x, fct_rev(feature), label = label),
+      data = . %>% 
+        dplyr::filter(n > 0.0295 * length(consensus_peaks)) %>% 
+        mutate(
+          label = glue("{comma(n)}\n{percent(n / length(consensus_peaks), 0.1)}")
+        ),
+      alpha = 0.6, size = 3
+    ) +
+    scale_fill_manual(values = region_colours, labels = label_wrap(10)) +
+    scale_x_continuous(expand = expansion(c(0, 0.1)), labels = comma) +
+    labs(
+      x = glue("Total Overlapping {target} Peaks"), 
+      y = "Feature", fill = "Region"
+    ) +
+    theme(
+      legend.key.height = unit(0.5 / length(regions), "npc")
     )
+  p
 }
 ```
+
 
 ## Peak Visualisation
 
@@ -976,13 +1002,15 @@ feat_gr <- gene_regions %>%
   lapply(granges) %>% 
   GRangesList()
 feature_colours <- colours$regions
+featnames <- "Regions"
 if (has_features) {
-  feat_gr <- list(Regions = feat_gr)
-  feat_gr$Features <- external_features
-  feature_colours <- list(
-    Regions = unlist(colours$regions),
-    Features = unlist(colours$features)
-  )
+  feat_gr <- list(Regions = feat_gr) %>% 
+    c(
+      external_features %>% 
+        lapply(\(x) endoapply(splitAsList(x, x$feature), granges))
+    )
+  feature_colours <- feat_gr %>% lapply(\(x) full_palette[names(x)])
+  featnames <- names(feat_gr) %>% str_sep_to_title(replacement = "\n")
 }
 ## The genes track defaults to transcript models
 hfgc_genes <- read_rds(
@@ -1062,8 +1090,8 @@ These are the most highly ranked Consensus Peak (by `score`) and the most highly
 htmltools::tagList(
   lapply(
     seq_along(grl_to_plot),
-    function(x) {
-      nm <- names(grl_to_plot)[[x]]
+    function(i) {
+      nm <- names(grl_to_plot)[[i]]
       ## Export the figure
       fig_out <- file.path(
         fig_path,
@@ -1072,12 +1100,15 @@ htmltools::tagList(
           paste0("_topranked.", fig_type)
       )
       fig_fun(filename = fig_out, width = fw, height = fh)
+      
       ## Generate the plot
       plotHFGC(
-        grl_to_plot[[x]],
+        grl_to_plot[[i]],
         hic = hic,
-        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
-        genes = hfgc_genes, genecol = gene_col,
+        features = feat_gr, featcol = feature_colours, featname = featnames,
+        featsize = length(external_features), featstack = "pack",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
@@ -1088,7 +1119,7 @@ htmltools::tagList(
       dev.off()
       
       ## Define the caption
-      gr <- join_nearest(grl_to_plot[[x]], gtf_gene, distance = TRUE)
+      gr <- join_nearest(grl_to_plot[[i]], gtf_gene, distance = TRUE)
       d <- gr$distance
       gn <- gr$gene_name
       peak_desc <- ifelse(
@@ -1150,7 +1181,7 @@ grl_to_plot$consensus <- consensus_peaks %>%
   .[sample.int(length(.), 1)]
 for (i in treat_levels) {
   grl_to_plot[[i]] <- filtered_peaks[[i]] %>% 
-    filter_by_non_overlaps(filtered_peaks[names(filtered_peaks) != i]) %>% 
+    filter_by_non_overlaps(grl_to_plot$consensus) %>% 
     subset(score == min(score)) %>% 
     granges() %>% 
     unname() %>% 
@@ -1167,8 +1198,8 @@ These effectively represent the low-probability peaks calls, and it may be assum
 htmltools::tagList(
   lapply(
     seq_along(grl_to_plot),
-    function(x) {
-      nm <- names(grl_to_plot)[[x]]
+    function(i) {
+      nm <- names(grl_to_plot)[[i]]
       ## Export the figure
       fig_out <- file.path(
         fig_path,
@@ -1179,21 +1210,21 @@ htmltools::tagList(
       fig_fun(filename = fig_out, width = fw, height = fh)
       ## Generate the plot
       plotHFGC(
-        grl_to_plot[[x]],
+        grl_to_plot[[i]],
         hic = hic,
-        features = feat_gr, featcol = feature_colours, featsize = 1 + has_features,
+        features = feat_gr, featcol = feature_colours, featname = featnames,
+        featsize = length(external_features), featstack = "pack",
         genes = hfgc_genes, genecol = gene_col,
         coverage = bwfl, linecol = line_col,
-        cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 30, ylim = y_lim,
+        cytobands = bands_df, zoom = 30, ylim = y_lim,
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
       dev.off()
       
       ## Define the caption
-      gr <- join_nearest(grl_to_plot[[x]], gtf_gene, distance = TRUE)
+      gr <- join_nearest(grl_to_plot[[i]], gtf_gene, distance = TRUE)
       d <- gr$distance
       gn <- gr$gene_name
       peak_desc <- ifelse(
@@ -1305,7 +1336,6 @@ if (has_rna) {
           x <- rna[[i]]
           no_peak <- tibble(
             region = "No Detected Peak",
-            feature = "No Detected Peak",
             total = gtf_gene$gene_id %>% 
               setdiff(unlist(consensus_peaks$gene_id)) %>% 
               unique() %>% 
@@ -1317,13 +1347,26 @@ if (has_rna) {
             prop = detected / total,
             undetected = total - detected
           )
+          if (has_features) no_peak$feature <- no_peak$region
           tbl <- consensus_peaks %>% 
             as_tibble() %>% 
             dplyr::select(any_of(c("region", "feature")), gene_id) %>%
+            unnest(any_of("feature")) %>% 
             unnest(gene_id) %>% 
             left_join(x, by = "gene_id") %>% 
             mutate(
-              detected = !is.na(logFC)
+              detected = !is.na(logFC),
+              across(
+                any_of("feature"),
+                \(x) {
+                  case_when(
+                    is.na(x)~ "no_feature",
+                    is.null(names(x)) ~ x,
+                    TRUE ~ paste(names(x), x, sep = ": ")
+                  ) %>% 
+                    str_remove_all("^ *:")
+                }
+              )
             ) %>%
             distinct(
               !!!syms(intersect(c("region", "feature", "gene_id"), colnames(.))),

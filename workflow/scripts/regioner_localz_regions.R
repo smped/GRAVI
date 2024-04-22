@@ -24,11 +24,7 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-
-## Manual lists for testing. Will be overwritten by snakemake objects...
+# Manual lists for testing. Will be overwritten by snakemake objects...
 # config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
 #   regions = "output/annotations/gene_regions.rds",
@@ -40,15 +36,22 @@ sink(log, split = TRUE)
 # all_params <- list(ntimes = 200)
 # all_wildcards <- list(target = "AR")
 
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
 all_wildcards <- slot(snakemake, "wildcards")
-cat_list(all_input, "input")
-cat_list(all_output, "output")
-cat_list(all_params, "params")
-cat_list(all_wildcards, "wildcards")
+threads <- slot(snakemake, "threads")[[1]] - 1
+
+## Print all input
+cat_list(all_input, "input:", "=")
+cat_list(all_output, "output:", "=")
+cat_list(all_params, "params:", "=")
+cat_list(all_wildcards, "wildcards:", "=")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -80,10 +83,17 @@ ucsc <- get_ucsc(config$genome$build)
 cat_time("Loading all regions...")
 regions <- read_rds(all_input$regions)
 cat_time("Loading all features...")
-features <- read_rds(all_input$features)
+features <- read_rds(all_input$features) %>%
+  endoapply(select, feature) %>%
+  unlist() %>%
+  names_to_column("source") %>%
+  mutate(feature = paste(source, feature, sep = ": ")) %>%
+  splitAsList(.$feature)
+
 cat_time("Forming test_regions...")
 test_regions <- c(regions, features)
 test_regions <- endoapply(test_regions, granges)
+
 cat_time("Setting genome to be", ucsc$build)
 sq <- seqinfo(regions)
 genome(sq) <- ucsc$build
@@ -99,7 +109,6 @@ cat_time("Loading params from", all_input$params)
 regioner_params <- read_yaml(all_input$params)$regioner
 cat_time(" done")
 
-threads <- slot(snakemake, "threads")[[1]] - 1
 cat_time("Running multiLocalZscore with", threads, "threads...")
 mlz_params <- list(
   A = peaks, Blist = test_regions, sampling = FALSE,
