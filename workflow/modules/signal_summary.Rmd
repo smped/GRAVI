@@ -135,14 +135,20 @@ regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 ## External features
 external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
 has_features <- length(external_features) > 0
+feat_names <- names(external_features) %>% 
+  lapply(
+    \(x) paste(x, external_features[[x]]$feature, sep = ": ")
+  ) %>% 
+  lapply(fct_infreq) %>% 
+  lapply(levels) %>% 
+  unlist()
 ## Combine features & regions for testing
-all_regions <- c(gene_regions, external_features) %>% 
-  endoapply(granges)
+all_regions <- c(unname(regions), feat_names)
 region_colours <- c(colours$regions, colours$features) %>%
   setNames(
     case_when(
       names(.) %in% names(regions) ~ regions[names(.)],
-      TRUE ~ str_sep_to_title(names(.))
+      TRUE ~ names(.)
     )
   )
 rna <- read_rds(file.path(all_paths$annotation, "rna.rds"))
@@ -1607,6 +1613,10 @@ tg_enrich %>%
 ## Region Analysis
 
 ```{r load-localz}
+
+
+
+
 ## This should be run in a separate script with many threads & lots of RAM
 mlz <- all_paths$peaks %>% 
   file.path("{target}", "{target}_regions_localz.rds") %>% 
@@ -1622,9 +1632,9 @@ localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
   mutate(
     region = case_when(
       region %in% names(regions) ~ regions[region],
-      TRUE ~ str_sep_to_title(region)
+      TRUE ~ region
     ) %>% 
-      factor(names(region_colours)),
+      factor(all_regions),
     enrichment = log2(n_overlaps / mean_perm_test),
     prop = n_overlaps / length(consensus_peaks)
   ) 
@@ -1634,14 +1644,14 @@ shifted_z <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>%
     shift = slot(mlz, "multiLocalZscores")$shifts
   ) %>% 
   pivot_longer(
-    cols = all_of(names(all_regions)), names_to = "region", values_to = "Z"
+    cols = -all_of("shift"), names_to = "region", values_to = "Z"
   ) %>% 
   mutate(
     region = case_when(
       region %in% names(regions) ~ regions[region],
-      TRUE ~ str_sep_to_title(region)
+      TRUE ~ region
     ) %>% 
-      factor(names(region_colours)),
+      factor(all_regions),
     Z = Z / sqrt(length(consensus_peaks))
   ) 
 heat_col <- c(
@@ -1660,8 +1670,14 @@ In addition to determining the strength of any overlaps with a given feature, di
 
 ```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
+  arrange(abs(shift), Z) %>% 
+  mutate(
+    region = fct_inorder(as.character(region)),
+    source = ifelse(region %in% regions, "Region", "Feature")
+  ) %>% 
   ggplot(aes(shift, fct_rev(region), fill = Z)) +
   geom_raster() +
+  facet_grid(rows = vars(source), scales = "free", space = "free") +
   scale_x_continuous(
     expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
   ) +
@@ -1680,6 +1696,7 @@ tbl <- localz_df %>%
   ) %>% 
   arrange(desc(abs(norm_zscore))) %>% 
   reactable(
+    showPageSizeOptions = TRUE, searchable = TRUE,
     columns = list(
       region = colDef("Region", minWidth = 150),
       mean_perm_test = colDef("Expected Overlaps", format = comma_col),
@@ -1712,7 +1729,7 @@ cp <- htmltools::em(
     "
     Results for association between the {comma(length(consensus_peaks))} 
     {target} consensus peaks and the pre-defined 
-    genomic regions{ifelse(has_features, ' and the supplied external features.', '.')}.
+    genomic regions{ifelse(has_features, ' and the supplied external features.', '.')}
     Expected overlaps are those obtained through random resampling of the genome
     to match the consensus peaks. Enrichment is given taking log2 of 
     the ratio between observed and expected overlapping peaks.
