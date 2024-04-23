@@ -967,7 +967,7 @@ if (has_features) {
     geom_label(
       aes(label_x, fct_rev(feature), label = label),
       data = . %>% 
-        dplyr::filter(n > 0.0295 * length(consensus_peaks)) %>% 
+        dplyr::filter(n > 0.03 * length(consensus_peaks)) %>% 
         mutate(
           label = glue("{comma(n)}\n{percent(n / length(consensus_peaks), 0.1)}")
         ),
@@ -1111,13 +1111,13 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = length(external_features), featstack = "pack",
+        featsize = min(1, length(feat_gr)), featstack = "pack",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 30, ylim = y_lim,
+        zoom = 20, ylim = y_lim,
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
@@ -1218,11 +1218,13 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = length(external_features), featstack = "pack",
-        genes = hfgc_genes, genecol = gene_col,
+        featsize = min(1, length(feat_gr)), featstack = "pack",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
+        cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        cytobands = bands_df, zoom = 30, ylim = y_lim,
+        zoom = 20, ylim = y_lim,
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10
       )

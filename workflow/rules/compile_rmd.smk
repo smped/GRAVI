@@ -89,6 +89,7 @@ rule compile_signal_comparison_html:
         motif_pos = os.path.join(
             peak_path, "shared", "shared_motif_position.tsv.gz"
         ),
+        nfr = NFR_RDS,
         rmd = os.path.join("workflow", "modules", "signal_comparison.Rmd"),
         shared_files = expand(
             os.path.join(peak_path, "shared", "shared_{f}"),

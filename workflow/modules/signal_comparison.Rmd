@@ -83,6 +83,14 @@ tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## Gene Regions
 gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
 regions <- map_chr(gene_regions, \(x) unique(x$region)[[1]])
+## NFRs
+nfr <- all_paths$nfr %>% 
+  file.path(targets, glue("{targets}_consensus_nfr.rds")) %>% 
+  setNames(paste0(targets, "_NFR")) %>% 
+  .[file.exists(.)] %>% 
+  lapply(read_rds) %>% 
+  lapply(granges) %>% 
+  GRangesList()
 ## External features
 external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
 has_features <- length(external_features) > 0
@@ -111,7 +119,12 @@ colours$target <- c(colours$target, c("Shared" = "black"))
 full_palette <- colours %>% 
   .[setdiff(names(.), "heatmaps")] %>% 
   unname() %>% 
-  unlist()
+  unlist() %>% 
+  c(
+    colours$target %>% 
+      setNames(paste0(names(.), "_NFR")) %>% 
+      .[names(nfr)]
+  )
 ## For regioneR analysis
 heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
@@ -277,9 +290,9 @@ shared_peaks %>%
 
 `r ifelse(has_features, "#### External Features", "")`
 
-```{r plot-peaks-by-feature, echo = has_features, fig.height = ifelse(length(levels(p$data$feature)) < 3, fh / 2, fh), fig.cap = glue("*Shared peaks which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, peaks may overlap multiple feature types and be included within multiple categories. Total overlapping peaks for each feature type are shown in bold, wth percentages being relative to the total number of shared peaks ({comma(length(shared_peaks))}). Individual segments are labelled if representing >= 3% of the total number of peaks. Features with fewer than 1% of peaks aligning to them are collapsed into the category 'Other'*")}
+```{r plot-peaks-by-feature, echo = has_features, fig.height = ifelse(length(feat_names) < 3, fh / 2, fh), fig.cap = glue("*Shared peaks which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, peaks may overlap multiple feature types and be included within multiple categories. Total overlapping peaks for each feature type are shown in bold, wth percentages being relative to the total number of shared peaks ({comma(length(shared_peaks))}). Individual segments are labelled if representing >= 3% of the total number of peaks. Features with fewer than 1% of peaks aligning to them are collapsed into the category 'Other'*")}
 if (has_features) {
-  p <- shared_peaks %>% 
+  shared_peaks %>% 
     as_tibble() %>% 
     dplyr::select(range, region, feature) %>% 
     unnest(feature, keep_empty = TRUE) %>%
@@ -312,7 +325,7 @@ if (has_features) {
     geom_label(
       aes(label_x, fct_rev(feature), label = label),
       data = . %>% 
-        dplyr::filter(n > 0.0295 * length(shared_peaks)) %>% 
+        dplyr::filter(n > 0.03 * length(shared_peaks)) %>% 
         mutate(
           label = glue("{comma(n)}\n{percent(n / length(shared_peaks), 0.1)}")
         ),
@@ -327,7 +340,6 @@ if (has_features) {
     theme(
       legend.key.height = unit(0.5 / length(regions), "npc")
     )
-  p
 }
 ```
 
@@ -356,20 +368,22 @@ bwfl <- samples %>%
   )
 line_col <- lapply(bwfl, function(x) unlist(colours$treat[names(x)]))
 ## The features track
-feat_gr <- gene_regions %>% 
-  lapply(granges) %>% 
-  GRangesList()
-feature_colours <- colours$regions
-featnames <- "Regions"
+feat_gr <- list(
+  Regions = gene_regions %>% 
+    lapply(granges) %>% 
+    GRangesList()
+)
 if (has_features) {
-  feat_gr <- list(Regions = feat_gr) %>% 
+  feat_gr <- feat_gr %>% 
     c(
       external_features %>% 
         lapply(\(x) endoapply(splitAsList(x, x$feature), granges))
     )
-  feature_colours <- feat_gr %>% lapply(\(x) full_palette[names(x)])
-  featnames <- names(feat_gr) %>% str_sep_to_title(replacement = "\n")
 }
+if (length(nfr)) feat_gr <- c(feat_gr, "NFR" = nfr)
+featnames <- names(feat_gr) %>% str_sep_to_title(replacement = "\n")
+feature_colours <- feat_gr %>% lapply(\(x) full_palette[names(x)])
+
 ## The genes track defaults to transcript models
 hfgc_genes <- read_rds(
   here::here("output", "annotations", "trans_models.rds")
@@ -449,13 +463,13 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = length(external_features), featstack = "pack",
+        featsize = min(1, length(feat_gr)), featstack = "pack",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 30, ylim = y_lim,
+        zoom = 20, ylim = y_lim,
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
@@ -469,7 +483,7 @@ htmltools::tagList(
         glue(
           "The most highly ranked peak for {nm} which is also a shared peak. ",
           "This is most likely to be involved in the regulation of ",
-          collapseGenes(gn), ", and is associated with {reg_pre} {reg}. ",
+          collapseGenes(gn, format = ""), ", and is associated with {reg_pre} {reg}. ",
           "Y-axes for each coverage track are set to the most highly ranked peak
           across all conditions.
           "
@@ -535,13 +549,13 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = length(external_features), featstack = "pack",
+        featsize = min(1, length(feat_gr)), featstack = "pack",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 30, ylim = y_lim,
+        zoom = 20, ylim = y_lim,
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
@@ -555,7 +569,7 @@ htmltools::tagList(
         glue(
           "The most low-ranked peak for {nm} which is also a shared peak. ",
           "This is most likely to be involved in the regulation of ",
-          collapseGenes(gn), ", and is associated with {reg_pre} {reg}. ",
+          collapseGenes(gn, format = ""), ", and is associated with {reg_pre} {reg}. ",
           "Y-axes for each coverage track are set to the most highly ranked peak
           across all conditions.
           "
@@ -943,13 +957,15 @@ This provides an excellent frame of reference for comparison between targets, an
 
 ```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting  peaks for all targets and the set of shared peaks, within a $\\pm$ {slot(localz_regions[[1]], 'parameters')$window / 1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
-  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  arrange(abs(shift), desc(Z)) %>% 
+  mutate(region = fct_inorder(region)) %>% 
+  ggplot(aes(shift, region, fill = Z)) +
   geom_raster() +
   facet_grid(cols = vars(target)) +
   scale_x_continuous(
     expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
   ) +
-  scale_y_discrete(expand = rep_len(0, 4), name = NULL, labels = label_wrap(20)) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL, labels = label_wrap(25)) +
   scale_fill_gradientn(
     colours = heat_col,
     limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
