@@ -288,7 +288,7 @@ shared_peaks %>%
   theme(legend.position = "none")
 ```
 
-`r ifelse(has_features, "#### External Features", "")`
+`r ifelse(has_features, "### External Features", "")`
 
 ```{r plot-peaks-by-feature, echo = has_features, fig.height = ifelse(length(feat_names) < 3, fh / 2, fh), fig.cap = glue("*Shared peaks which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, peaks may overlap multiple feature types and be included within multiple categories. Total overlapping peaks for each feature type are shown in bold, wth percentages being relative to the total number of shared peaks ({comma(length(shared_peaks))}). Individual segments are labelled if representing >= 3% of the total number of peaks. Features with fewer than 1% of peaks aligning to them are collapsed into the category 'Other'*")}
 if (has_features) {
@@ -1033,6 +1033,10 @@ tbl <- localz_df %>%
       ),
       region = colDef(
         "Region", minWidth = 120,
+        style = \(value) {
+          bg = unlist(region_colours)[[value]]
+          list(backgroundColor = bg)
+        },
         filterInput = function(values, name) {
           tags$select(
             # Set to undefined to clear the filter

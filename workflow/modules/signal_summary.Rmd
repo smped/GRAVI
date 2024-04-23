@@ -1427,6 +1427,7 @@ if (has_rna) {
                 ),
                 region = colDef(
                   "Region",
+                  style = \(value) list(backgroundColor = region_colours[[value]]),
                   filterInput = function(values, name) {
                     tags$select(
                       # Set to undefined to clear the filter
@@ -1444,6 +1445,7 @@ if (has_rna) {
                 ),
                 feature = colDef(
                   "Feature",
+                  style = \(value) list(backgroundColor = region_colours[[value]]),
                   filterInput = function(values, name) {
                     tags$select(
                       # Set to undefined to clear the filter
@@ -1784,6 +1786,7 @@ tbl <- localz_df %>%
       ),
       region = colDef(
         "Region", minWidth = 150,
+        style = \(value) list(backgroundColor = region_colours[[value]]),
         filterInput = function(values, name) {
           tags$select(
             # Set to undefined to clear the filter
