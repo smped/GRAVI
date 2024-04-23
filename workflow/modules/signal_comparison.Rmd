@@ -583,7 +583,7 @@ htmltools::tagList(
           id = paste0(nm, "-lowranked"),
           class = "section level4",
           htmltools::h4(
-            paste("Top Ranked", nm, "Peak")
+            paste("Lowest Ranked", nm, "Peak")
           ),
           htmltools::div(
             class = "figure", style = "text-align: center",
@@ -598,6 +598,257 @@ htmltools::tagList(
   )
 )  
 ```
+
+`r if (has_rna) "## Relationship to Transcriptomic Data"`
+
+```{r tbl-rna, echo = has_rna}
+if (has_rna) {
+  lapply(
+    rna,
+    \(x) {
+      tibble(
+        gene_id = gtf_gene$gene_id,
+        detected = gene_id %in% x$gene_id,
+        has_peak = gene_id %in% unlist(shared_peaks$gene_id)
+      ) %>% 
+        summarise(
+          n = dplyr::n(), .by = c(detected, has_peak)
+        ) %>% 
+        pivot_wider(names_from = "has_peak", values_from = "n", names_prefix = "peak_")
+    }
+  ) %>% 
+    lapply(
+      \(x) {
+        mat <- as.matrix(x[-1])
+        p <- fisher.test(mat)$p.value
+        tibble(
+          Detected = sum(mat[2,]),
+          `Detected With Peak` = mat[2, 2],
+          `% With Peak` = percent(`Detected With Peak` / Detected, 0.1),
+          p
+        )
+      }
+    ) %>% 
+    bind_rows(.id = "Dataset") %>% 
+    mutate(
+      p = ifelse(p < 0.001, sprintf("%.2e", p), sprintf("%.3f", p))
+    ) %>% 
+    pander(
+      justify = "lrrrr",
+      caption = glue(
+        "
+        *Relationship of RNA data to genes with shared peaks mapped to them.
+        Fisher's Exact Test was performed to determine any association, as reported 
+        by the p-value. Any significant association implies that shared sites are likely
+        to be playing a regulatory role within that dataset. A total of 
+        {comma(length(gtf_gene))} genes are contained in the provided GTF.*
+        "
+      )
+    )
+}
+```
+
+`r if (has_rna) "### Detected Genes by Signal Region {.tabset}"`
+
+```{r tbl-rna-by-region, echo = has_rna}
+if (has_rna) {
+  tagList(
+    names(rna) %>% 
+      lapply(
+        \(i) {
+          x <- rna[[i]]
+          no_peak <- tibble(
+            region = "No Detected Peak",
+            total = gtf_gene$gene_id %>% 
+              setdiff(unlist(shared_peaks$gene_id)) %>% 
+              unique() %>% 
+              length(),
+            detected = x$gene_id %>% 
+              setdiff(unlist(shared_peaks$gene_id)) %>% 
+              unique() %>% 
+              length(),
+            prop = detected / total,
+            undetected = total - detected
+          )
+          if (has_features) no_peak$feature <- no_peak$region
+          tbl_id <- paste("tbl", i, "detected-by-region", sep = "-")
+          tbl <- shared_peaks %>% 
+            as_tibble() %>% 
+            dplyr::select(any_of(c("region", "feature")), gene_id) %>%
+            unnest(any_of("feature")) %>% 
+            unnest(gene_id) %>% 
+            left_join(x, by = "gene_id") %>% 
+            mutate(
+              detected = !is.na(logFC),
+              across(
+                any_of("feature"),
+                \(x) {
+                  case_when(
+                    is.na(x)~ "no_feature",
+                    is.null(names(x)) ~ x,
+                    TRUE ~ paste(names(x), x, sep = ": ")
+                  ) %>% 
+                    str_remove_all("^ *:")
+                }
+              )
+            ) %>%
+            distinct(
+              !!!syms(intersect(c("region", "feature", "gene_id"), colnames(.))),
+              .keep_all = TRUE
+            ) %>% 
+            summarise(
+              total = length(unique(gene_id)),
+              detected = sum(detected),
+              undetected = total - detected,
+              prop = detected / total,
+              .by = any_of(c("feature", "region"))
+            ) %>% 
+            mutate(p = map_dbl(
+              seq_len(nrow(.)), 
+              \(i) fisher.test(
+                bind_rows(.[i,], no_peak)[c("detected", "undetected")],
+                alternative = "greater"
+              )$p.value
+            ),
+            adj_p = p.adjust(p, "fdr")
+            ) %>% 
+            arrange(p) %>% 
+            mutate(
+              source = str_extract(feature, ".+: ") %>% 
+                str_remove_all(": ") %>% 
+                str_replace_na(""),
+              feature = str_remove_all(feature, ".+: ")
+            ) %>% 
+            dplyr::select(source, feature, region, everything()) %>% 
+            dplyr::select(where(\(x) !all(x == ""))) %>% 
+            reactable(
+              showPageSizeOptions = nrow(.) > 10,
+              columns = list(
+                source = colDef(
+                  "Source",
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                region = colDef(
+                  "Region",
+                  style = \(value) {
+                    bg <- do.call(
+                      "rgb", 
+                      as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+                    )
+                    list(backgroundColor = bg)
+                  },
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                feature = colDef(
+                  "Feature",
+                  style = \(value) {
+                    bg <- do.call(
+                      "rgb", 
+                      as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+                    )
+                    list(backgroundColor = bg)
+                  },
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                total = colDef(
+                  glue("Mapped to Shared Peak"), format = comma_col,
+                  filterMethod = js_greater
+                ),
+                detected = colDef(
+                  "Detected", format = comma_col, filterMethod = js_greater
+                ),
+                undetected = colDef(
+                  "Not Detected", format = comma_col, filterMethod = js_greater
+                ),
+                prop = colDef(
+                  "% Detected", format = percent_col, filterMethod = js_greater
+                ),
+                p = colDef(show = FALSE),
+                adj_p = colDef(
+                  "P<sub>adj</adj>", html = TRUE, 
+                  cell = \(value) sprint_pval(value),
+                  filterMethod = js_less
+                )
+              )[colnames(.)],
+              columnGroups = list(
+                colGroup("Gene Expression", str_subset(names(.), "detected"))
+              ),
+              defaultColDef = colDef(
+                sortable = TRUE, filterable = TRUE, searchable = TRUE
+              ),
+              elementId = tbl_id
+            )
+          cp <- htmltools::em(
+            glue(
+              "
+              Genes mapped to shared peaks broken down by region and any 
+              additional provided features, along with whether they were 
+              detected in the trancriptomic dataset {i}. Fisher's test was 
+              performed for each region by comparing against genes for which no 
+              peak was detected with all p-values being FDR-adjusted. This 
+              effectively tests H0 that there is no difference in the 
+              association between a gene being detected, and having shared 
+              detectable signal within that region. An 
+              additional {comma(no_peak$detected)} genes were detected in this
+              dataset without any evidence of associated shared signal.
+            "
+            )
+          )
+          htmltools::div(
+            id = paste(i, "-detected-by-region"),
+            class = "section level4",
+            htmltools::h4(i),
+            htmltools::div(
+              class = "table", tbl,
+              htmltools::p(class = "caption", cp)
+            )
+          )
+        }
+      )
+  )
+}
+```
+
+
 
 ## Gene-Set Enrichment
 
@@ -1034,7 +1285,10 @@ tbl <- localz_df %>%
       region = colDef(
         "Region", minWidth = 120,
         style = \(value) {
-          bg = unlist(region_colours)[[value]]
+          bg <- do.call(
+            "rgb", 
+            as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+          )
           list(backgroundColor = bg)
         },
         filterInput = function(values, name) {

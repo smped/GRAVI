@@ -1427,7 +1427,13 @@ if (has_rna) {
                 ),
                 region = colDef(
                   "Region",
-                  style = \(value) list(backgroundColor = region_colours[[value]]),
+                  style = \(value) {
+                    bg <- do.call(
+                      "rgb", 
+                      as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+                    )
+                    list(backgroundColor = bg)
+                  },
                   filterInput = function(values, name) {
                     tags$select(
                       # Set to undefined to clear the filter
@@ -1445,7 +1451,13 @@ if (has_rna) {
                 ),
                 feature = colDef(
                   "Feature",
-                  style = \(value) list(backgroundColor = region_colours[[value]]),
+                  style = \(value) {
+                    bg <- do.call(
+                      "rgb", 
+                      as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+                    )
+                    list(backgroundColor = bg)
+                  },
                   filterInput = function(values, name) {
                     tags$select(
                       # Set to undefined to clear the filter
@@ -1672,7 +1684,7 @@ tg_enrich %>%
 ```
 
 
-## Region Analysis
+## Region Analysis {.tabset}
 
 ```{r load-localz}
 mlz <- all_paths$peaks %>% 
@@ -1725,6 +1737,8 @@ Using the Central Limit Theorem, the *normalised Z-scores* returned can be expec
 
 In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
 
+### Z-Score Heatmap
+
 ```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
   arrange(abs(shift), Z) %>% 
@@ -1744,6 +1758,8 @@ shifted_z %>%
     limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
   )
 ```
+
+### Results Table
 
 ```{r tbl-regioner}
 tbl <- localz_df %>% 
@@ -1786,7 +1802,13 @@ tbl <- localz_df %>%
       ),
       region = colDef(
         "Region", minWidth = 150,
-        style = \(value) list(backgroundColor = region_colours[[value]]),
+        style = \(value) {
+          bg <- do.call(
+            "rgb", 
+            as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+          )
+          list(backgroundColor = bg)
+        },
         filterInput = function(values, name) {
           tags$select(
             # Set to undefined to clear the filter
