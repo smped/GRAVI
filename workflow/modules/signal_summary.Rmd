@@ -932,9 +932,9 @@ consensus_peaks %>%
 
 `r ifelse(has_features, "#### External Features", "")`
 
-```{r plot-peaks-by-feature, echo = has_features, fig.height = ifelse(length(levels(p$data$feature)) < 3, fh / 2, fh), fig.cap = glue("*{target} peaks which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, peaks may overlap multiple feature types and be included within multiple categories. Total overlapping peaks for each feature type are shown in bold, wth percentages being relative to the total number of consensus peaks ({comma(length(consensus_peaks))}). Individual segments are labelled if representing >= 3% of the total number of peaks. Features with fewer than 1% of peaks aligning to them are collapsed into the category 'Other'*")}
+```{r plot-peaks-by-feature, echo = has_features, fig.height = ifelse(length(feat_names) < 3, fh / 2, fh), fig.cap = glue("*{target} peaks which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, peaks may overlap multiple feature types and be included within multiple categories. Total overlapping peaks for each feature type are shown in bold, wth percentages being relative to the total number of consensus peaks ({comma(length(consensus_peaks))}). Individual segments are labelled if representing >= 3% of the total number of peaks. Features with fewer than 1% of peaks aligning to them are collapsed into the category 'Other'*")}
 if (has_features) {
-  p <- consensus_peaks %>% 
+  consensus_peaks %>% 
     as_tibble() %>% 
     dplyr::select(range, region, feature) %>% 
     unnest(feature, keep_empty = TRUE) %>%
@@ -982,7 +982,6 @@ if (has_features) {
     theme(
       legend.key.height = unit(0.5 / length(regions), "npc")
     )
-  p
 }
 ```
 
