@@ -144,7 +144,6 @@ rule compile_nfr_html:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 4
-    retries: 1
     resources:
         mem_mb = 16384,
         runtime = "30m",
