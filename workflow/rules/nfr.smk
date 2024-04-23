@@ -1,4 +1,4 @@
-rule merge_filtered_peaks:
+rule merge_nearby_peaks:
     input:
         peaks = os.path.join(
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
