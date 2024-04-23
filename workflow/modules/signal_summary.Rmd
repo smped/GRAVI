@@ -1111,7 +1111,7 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = min(1, length(feat_gr)), featstack = "pack",
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "pack",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
@@ -1218,7 +1218,7 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = min(1, length(feat_gr)), featstack = "pack",
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "pack",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col,
@@ -1355,6 +1355,7 @@ if (has_rna) {
             undetected = total - detected
           )
           if (has_features) no_peak$feature <- no_peak$region
+          tbl_id <- paste("tbl", i, "detected-by-region", sep = "-")
           tbl <- consensus_peaks %>% 
             as_tibble() %>% 
             dplyr::select(any_of(c("region", "feature")), gene_id) %>%
@@ -1389,16 +1390,75 @@ if (has_rna) {
             mutate(p = map_dbl(
               seq_len(nrow(.)), 
               \(i) fisher.test(
-                bind_rows(.[i,], no_peak)[c("detected", "undetected")])$p.value
+                bind_rows(.[i,], no_peak)[c("detected", "undetected")],
+                alternative = "greater"
+              )$p.value
             ),
             adj_p = p.adjust(p, "fdr")
             ) %>% 
             arrange(p) %>% 
+            mutate(
+              source = str_extract(feature, ".+: ") %>% 
+                str_remove_all(": ") %>% 
+                str_replace_na(""),
+              feature = str_remove_all(feature, ".+: ")
+            ) %>% 
+            dplyr::select(source, feature, region, everything()) %>% 
+            dplyr::select(where(\(x) !all(x == ""))) %>% 
             reactable(
               showPageSizeOptions = TRUE,
               columns = list(
-                region = colDef("Region"),
-                feature = colDef("Feature"),
+                source = colDef(
+                  "Source",
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                region = colDef(
+                  "Region",
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                feature = colDef(
+                  "Feature",
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
                 total = colDef(
                   glue("Mapped to {target} Peak"), format = comma_col,
                   filterMethod = js_greater
@@ -1424,7 +1484,8 @@ if (has_rna) {
               ),
               defaultColDef = colDef(
                 sortable = TRUE, filterable = TRUE, searchable = TRUE
-              )
+              ),
+              elementId = tbl_id
             )
           cp <- htmltools::em(
             glue(
@@ -1443,14 +1504,12 @@ if (has_rna) {
             )
           )
           htmltools::div(
+            id = paste(i, "-detected-by-region"),
+            class = "section level4",
+            htmltools::h4(i),
             htmltools::div(
-              id = paste(i, "-detected-by-region"),
-              class = "section level4",
-              htmltools::h4(i),
-              htmltools::div(
-                class = "table", tbl,
-                htmltools::p(class = "caption", cp)
-              )
+              class = "table", tbl,
+              htmltools::p(class = "caption", cp)
             )
           )
         }
@@ -1614,11 +1673,6 @@ tg_enrich %>%
 ## Region Analysis
 
 ```{r load-localz}
-
-
-
-
-## This should be run in a separate script with many threads & lots of RAM
 mlz <- all_paths$peaks %>% 
   file.path("{target}", "{target}_regions_localz.rds") %>% 
   glue() %>% 
@@ -1696,10 +1750,55 @@ tbl <- localz_df %>%
     norm_zscore, adj.p_value
   ) %>% 
   arrange(desc(abs(norm_zscore))) %>% 
+  mutate(
+    source = str_extract(region, ".+: ") %>% 
+      str_remove_all(": ") %>% 
+      str_replace_na(""),
+    region = str_remove_all(region, ".+: ")
+  ) %>% 
+  dplyr::select(source, region, everything()) %>% 
+  dplyr::select(where(\(x) !all(x == ""))) %>% 
+  dplyr::mutate(
+    across(any_of("source"), \(x) str_replace(x, "$^", "GRAVI")),
+    Sig = adj.p_value < 0.05
+  ) %>% 
   reactable(
-    showPageSizeOptions = TRUE, searchable = TRUE,
+    showPageSizeOptions = TRUE, filterable = TRUE,
     columns = list(
-      region = colDef("Region", minWidth = 150),
+      source = colDef(
+        "Source", minWidth = 150,
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
+        }
+      ),
+      region = colDef(
+        "Region", minWidth = 150,
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
+        }
+      ),
       mean_perm_test = colDef("Expected Overlaps", format = comma_col),
       n_overlaps = colDef("Overlapping Peaks", format = comma_col),
       enrichment = colDef(
@@ -1722,8 +1821,21 @@ tbl <- localz_df %>%
           )
           list(color = text_colour)
         }
+      ),
+      Sig = colDef(
+        show = FALSE,
+        filterMethod = JS("function(rows, columnId, filterValue) {
+          if (filterValue === true) {
+            return rows.filter(function(row) {
+              const OnlySignificant = row.values[columnId]
+              return OnlySignificant
+            })
+          }
+          return rows
+        }")
       )
-    )
+    )[colnames(.)],
+    elementId = "localz-res-table"
   )
 cp <- htmltools::em(
   glue(
@@ -1737,11 +1849,32 @@ cp <- htmltools::em(
     "
   )
 )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp), tbl
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('localz-res-table', 'shared_localz_res.csv')"
     )
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('localz-res-table', [])"
+  ),
+  tags$label(
+    tags$input(
+      type = "checkbox", 
+      onclick = "Reactable.setFilter('localz-res-table', 'Sig', event.target.checked)"
+    ),
+    "Only show significant associations"
+  ),
+  tbl,
+  cp
 )
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 

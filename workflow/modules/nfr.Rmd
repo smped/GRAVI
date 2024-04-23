@@ -94,15 +94,21 @@ gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>%
 regions <- map_chr(gene_regions, \(x) x$region[1])
 region_colours <- unlist(colours$regions) %>% 
   setNames(map_chr(gene_regions, \(x) x$region[[1]])[names(.)])
+full_palette <- colours %>% 
+  .[setdiff(names(.), "heatmaps")] %>% 
+  unname() %>% 
+  unlist()
 ## External features
 external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
+feat_names <- names(external_features) %>% 
+  lapply(
+    \(x) paste(x, external_features[[x]]$feature, sep = ": ")
+  ) %>% 
+  lapply(fct_infreq) %>% 
+  lapply(levels) %>% 
+  unlist()
 ## Combine features & regions for testing
-all_regions <- c(gene_regions, external_features) %>% 
-  endoapply(granges)
-all_regions_labs <- c(
-  map_chr(gene_regions, \(x) x$region[[1]]),
-  map_chr(external_features, \(x) x$feature[[1]])
-)
+all_regions <- c(unname(regions), feat_names)
 hic <- file.path(all_paths$annotation, "hic.rds") %>% read_rds()
 has_hic <- length(hic) > 0
 rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
@@ -254,13 +260,12 @@ nfr_consensus %>%
   )
 ```
 
-### NFRs By Region
+### NFR By Region
 
 ```{r plot-pie, fig.width = fh, fig.cap = glue("*Distribution of NFRs by genomic region, noting that wider {target} peaks will accumulate more NFRs*")}
 nfr_consensus %>% 
   plotPie(
-    fill = region, hole_width = 0.2,
-    total_size = 4,
+    fill = region, total_size = 4,
     cat_glue = "{str_wrap(.data[[fill]], 15)}\n{comma(n, 1)}\n({percent(p, 0.1)})",
     cat_alpha = 0.7, cat_adj = 0.1
   ) +
@@ -268,18 +273,57 @@ nfr_consensus %>%
   theme(legend.position = "none") 
 ```
 
-`r if (has_features) "### NFRs By Region and Feature"`
+`r ifelse(has_features, "#### NFR Features", "")`
 
-```{r plot-donut, echo = has_features, fig.width = fh, fig.cap = 'Breakdown of NFRs by provided features and genomic region.'}
+```{r plot-nfr-by-feature, echo = has_features, fig.height = ifelse(length(feat_names) < 3, fh / 2, fh), fig.cap = glue("*{target} NFRs which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, NFRs may overlap multiple feature types and be included within multiple categories. Total overlapping NFRs for each feature type are shown in bold, wth percentages being relative to the total number of consensus NFRs ({comma(length(nfr_consensus))}). Individual segments are labelled if representing >= 3% of the total number of NFRs Features with fewer than 1% of NFRs aligning to them are collapsed into the category 'Other'*")}
 if (has_features) {
   nfr_consensus %>% 
-    plotSplitDonut(
-      inner = 'feature', outer = 'region',
-      inner_palette = unlist(colours$features),
-      outer_palette = region_colours,
-      inner_glue = "{str_wrap(.data[[inner]], 15)}\n{comma(n)}\n{percent(p,0.1)}",
-      outer_glue = "{str_wrap(.data[[outer]], 15)}\n{comma(n)}\n{percent(p,0.1)}",
-      outer_min_p = 0.03
+    as_tibble() %>% 
+    dplyr::select(range, region, feature) %>% 
+    unnest(feature, keep_empty = TRUE) %>%
+    mutate(
+      feature = case_when(
+        is.na(feature)~ "no_feature",
+        is.null(names(feature)) ~ feature,
+        TRUE ~ paste(names(feature), feature, sep = ": ")
+      ) %>% 
+        str_remove_all("^ *:")
+    ) %>% 
+    distinct(range, region, feature) %>% 
+    mutate(feature = fct_infreq(feature) %>% fct_lump_prop(0.01)) %>% 
+    dplyr::summarise(n = dplyr::n(), .by = c(region, feature)) %>% 
+    arrange(desc(region)) %>% 
+    mutate(label_x = cumsum(n) - 0.5*n, .by = c(feature)) %>% 
+    ggplot(aes(n, y = fct_rev(feature))) +
+    geom_col(aes(fill = region)) +
+    geom_label(
+      aes(x = N, label = label),
+      data = . %>% 
+        summarise(N = sum(n), .by = feature) %>% 
+        mutate(
+          p = N / length(nfr_consensus),
+          label = glue("{comma(N)}\n{percent(p, 0.1)}"),
+          N = N + 0.05 * max(N)
+        ),
+      hjust = 0.5, size = 3, fontface = 'bold'
+    ) +
+    geom_label(
+      aes(label_x, fct_rev(feature), label = label),
+      data = . %>% 
+        dplyr::filter(n > 0.03 * length(nfr_consensus)) %>% 
+        mutate(
+          label = glue("{comma(n)}\n{percent(n / length(nfr_consensus), 0.1)}")
+        ),
+      alpha = 0.6, size = 3
+    ) +
+    scale_fill_manual(values = region_colours, labels = label_wrap(10)) +
+    scale_x_continuous(expand = expansion(c(0, 0.1)), labels = comma) +
+    labs(
+      x = glue("Total Overlapping {target} NFRs"), 
+      y = "Feature", fill = "Region"
+    ) +
+    theme(
+      legend.key.height = unit(0.5 / length(regions), "npc")
     )
 }
 ```
@@ -425,33 +469,71 @@ if (interactive()) {
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, eval = n_enrich > 1, echo = n_enrich > 1, fig.width = 0.8 * fw, fig.height = 0.8 * fw, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
-top_enrich <- motif_enrich_res %>%
-  dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
-  dplyr::slice(1:20) %>% 
-  pull("altname")
-motif_list %>% 
-  dplyr::filter(altname %in% top_enrich) %>% 
-  to_list() %>% 
-  getPwmMatches(fw_seq, mc.cores = threads) %>% 
-  lapply(\(x) tibble(seq = unique(x$seq))) %>% 
-  bind_rows(.id = "altname") %>%
-  distinct(altname, seq) %>% 
-  left_join(
-    dplyr::select(motif_enrich_res, altname, name), by = "altname"
-  ) %>% 
-  mutate(detected = TRUE) %>% 
-  dplyr::select(seq, name, detected) %>% 
-  pivot_wider(
-    names_from = "name", values_from = "detected", values_fill = FALSE
-  ) %>% 
-  dplyr::select(-seq) %>% 
-  dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
-  cor(method = "spearman") %>% 
-  corrplot(
-    addCoefasPercent = TRUE, addCoef.col = "grey20", 
-    tl.cex = 0.75, number.cex = 0.8, order = "hclust"
-  )
+```{r enrich-corrplot, echo = n_enrich > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
+if (n_enrich > 1) {
+  top_enrich <- motif_enrich_res %>%
+    dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
+    dplyr::slice(1:20) %>% 
+    pull("altname")
+  cor_mat <- motif_list %>% 
+    dplyr::filter(altname %in% top_enrich) %>% 
+    to_list() %>% 
+    getPwmMatches(fw_seq, mc.cores = threads) %>% 
+    lapply(\(x) tibble(seq = unique(x$seq))) %>% 
+    bind_rows(.id = "altname") %>%
+    distinct(altname, seq) %>% 
+    left_join(
+      dplyr::select(motif_enrich_res, altname, name), by = "altname"
+    ) %>% 
+    mutate(detected = TRUE) %>% 
+    dplyr::select(seq, name, detected) %>% 
+    pivot_wider(
+      names_from = "name", values_from = "detected", values_fill = FALSE
+    ) %>% 
+    dplyr::select(-seq) %>% 
+    dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
+    cor(method = "spearman")
+  hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
+  dend <- ggdendro::dendro_data(as.dendrogram(hc))
+  levels <- dend$labels$label
+  ym <- max(dend$segments$xend)
+  dend_aes <- aes(yend, xend, xend = y, yend = x)
+  dend_plot <- ggplot(dend$segments) +
+    geom_segment(dend_aes) + 
+    scale_x_reverse(expand = expansion(0)) + 
+    scale_y_reverse(limits = c(ym, 0) + 0.5, expand = expansion(0)) +
+    labs(x = "", y = c()) + 
+    theme_minimal() + 
+    theme(
+      panel.grid = element_blank(), 
+      axis.text = element_blank(), axis.ticks = element_blank(), 
+      plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
+    )
+  p <- cor_mat %>% 
+    as_tibble(rownames = "m1") %>% 
+    pivot_longer(cols = all_of(.$m1), names_to = "m2", values_to = "cor") %>% 
+    mutate(across(starts_with("m"), \(x) factor(x, levels = levels))) %>% 
+    dplyr::filter(m1 != m2) %>% 
+    ggplot(aes(m1, fct_rev(m2))) +
+    geom_point(aes(size = abs(cor), colour = cor, alpha = abs(cor))) +
+    geom_text(
+      aes(label = round(cor*100, 0), alpha = abs(cor)), show.legend = FALSE
+    ) +
+    scale_size(range = c(0, 10), guide = "none") +
+    scale_alpha(range = c(0, 1), guide = "none") +
+    scale_colour_gradient2(
+      low = colours$direction[["decreased"]], 
+      high = colours$direction[["increased"]],
+      limits = c(-1, 1), labels = percent_format(suffix = "")
+    ) +
+    scale_x_discrete(position = "top") +
+    labs(x = NULL, y = NULL, colour = expr(paste(rho))) +
+    theme(
+      panel.grid = element_blank(), 
+      axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5)
+    )
+  dend_plot + p + plot_layout(widths = c(0.1, 0.9), axes = "collect")
+}
 ```
 
 
@@ -648,7 +730,7 @@ B <- top_matches %>%
     type = "cdf", geom = "line", abs = motif_params$abs,
     linewidth = 1 / 2, binwidth = 1
   ) +
-  labs(x = "Distance From Centre", y = "Proportion", colour = "Representative Motif")
+  labs(x = "Distance From Centre", y = NULL, colour = "Representative Motif")
 A + B + plot_layout(guides = "collect") 
 ```
 
@@ -700,7 +782,11 @@ localz_df <- localz_regions %>%
   mutate(
     p_value = 1 - pchisq(norm_zscore^2, 1),
     adj.p_value = p.adjust(p_value, regioner_params$adj),
-    region = all_regions_labs[region],
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ region
+    ) %>% 
+      factor(all_regions),
     enrichment = log2(n_overlaps / mean_perm_test),
     target_peaks = map_int(consensus_peaks, length)[target],
     prop = n_overlaps / target_peaks
@@ -720,12 +806,16 @@ shifted_z <- localz_regions %>%
   ) %>% 
   bind_rows(.id = "target") %>% 
   pivot_longer(
-    cols = all_of(names(all_regions)), names_to = "region", values_to = "Z"
+    cols = -all_of(c("target", "shift")), names_to = "region", values_to = "Z"
   ) %>% 
   mutate(
     n = map_int(consensus_peaks, length)[target],
     Z = Z / sqrt(n),
-    region = all_regions_labs[region] %>% factor(levels = all_regions_labs)
+    region =  case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ region
+    ) %>% 
+      factor(all_regions)
   ) 
 ## For regioneR analysis
 heat_col <- c(
@@ -745,9 +835,16 @@ This provides an excellent frame of reference for comparison between targets, an
 
 ```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting peaks for all targets and the NFRs, within a $\\pm$ {slot(localz_regions[[1]], 'parameters')$window / 1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
-  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  arrange(abs(shift), desc(Z)) %>% 
+  mutate(
+    region = fct_inorder(region),
+    source = ifelse(region %in% regions, "Region", "Feature")
+  ) %>% 
+  ggplot(aes(shift, region, fill = Z)) +
   geom_raster() +
-  facet_grid(cols = vars(target)) +
+  facet_grid(
+    cols = vars(target), rows = vars(source), scales = "free", space = "free"
+  ) +
   scale_x_continuous(
     expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
   ) +
@@ -761,15 +858,80 @@ shifted_z %>%
 #### Results Table
 
 ```{r tbl-localz-regions}
-tbl <- localz_df %>% 
+tbl <- localz_df %>%
   arrange(p_value) %>% 
   dplyr::select(-sd_perm_test, -p_value) %>% 
   dplyr::select(target, region, target_peaks, mean_perm_test, everything()) %>% 
+  mutate(
+    source = str_extract(region, ".+: ") %>% 
+      str_remove_all(": ") %>% 
+      str_replace_na(""),
+    region = str_remove_all(region, ".+: ")
+  ) %>% 
+  dplyr::select(target, source, region, everything()) %>% 
+  dplyr::select(where(\(x) !all(x == ""))) %>% 
+  dplyr::mutate(
+    across(any_of("source"), \(x) str_replace(x, "$^", "GRAVI")),
+    Sig = adj.p_value < 0.05
+  ) %>% 
   reactable(
     filterable = TRUE, showPageSizeOptions = TRUE,
     columns = list(
-      target = colDef("Target"),
-      region = colDef("Region", minWidth = 120),
+      target = colDef(
+        "Target",
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px; font-size: 12px;"
+          )
+        }
+      ),
+      source = colDef(
+        "Source",      
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px; font-size: 12px;"
+          )
+        }
+      ),
+      region = colDef(
+        "Region", minWidth = 120,
+        style = function(value) {
+          bg <- c(region_colours, unlist(colours$features))[[value]]
+          list(backgroundColor = bg)
+        },
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px; font-size: 12px;"
+          )
+        }
+      ),
       target_peaks = colDef(
         "N Peaks", format = comma_col, maxWidth = 80, filterMethod = js_greater
       ),
@@ -805,11 +967,24 @@ tbl <- localz_df %>%
           )
         ),
         filterMethod = js_less
+      ),
+      Sig = colDef(
+        show = FALSE,
+        filterMethod = JS("function(rows, columnId, filterValue) {
+          if (filterValue === true) {
+            return rows.filter(function(row) {
+              const OnlySignificant = row.values[columnId]
+              return OnlySignificant
+            })
+          }
+          return rows
+        }")
       )
-    ),
+    )[colnames(.)],
     columnGroups = list(
       colGroup("Overlaps", columns = c("mean_perm_test", "n_overlaps", "prop"))
     ),
+    theme = reactableTheme(style = list(fontSize = 12)),
     elementId = "localz-res-table"
   )
 cp <- htmltools::em(
@@ -833,6 +1008,13 @@ tl <- tagList(
   tags$button(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('localz-res-table', [])"
+  ),
+  tags$label(
+    tags$input(
+      type = "checkbox", 
+      onclick = "Reactable.setFilter('localz-res-table', 'Sig', event.target.checked)"
+    ),
+    "Only show significant associations"
   ),
   tbl,
   cp
@@ -955,13 +1137,66 @@ tbl <- pairwise_df %>%
     enrichment, norm_zscore, adj.p_value
   ) %>% 
   arrange(adj.p_value) %>% 
+  mutate(Sig = adj.p_value < 0.05) %>% 
   reactable(
+    showPageSizeOptions = TRUE, filterable = TRUE,
     columns = list(
+      Query = colDef(
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('pairwise-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px; font-size: 12px;"
+          )
+        }
+      ),
+      Target = colDef(
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('pairwise-res-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px; font-size: 12px;"
+          )
+        }
+      ),
       n_regionA = colDef("Query", format = comma_col),
-      n_regionB = colDef("Target", format = comma_col),
-      prop = colDef("% Query", format = colFormat(percent = TRUE, digits = 1)),
-      n_overlaps = colDef("Observed", format = comma_col),
-      mean_perm_test = colDef("Expected", format = comma_col),
+      n_regionB = colDef(
+        "Target", format = comma_col
+        # filterInput = function(values, name) {
+        #   tags$select(
+        #     # Set to undefined to clear the filter
+        #     onchange = sprintf(
+        #       "Reactable.setFilter('pairwise-res-table', '%s', event.target.value || undefined)",
+        #       name
+        #     ),
+        #     # "All" has an empty value to clear the filter, and is the default option
+        #     tags$option(value = "", "All"),
+        #     lapply(unique(values), tags$option),
+        #     "aria-label" = sprintf("Filter %s", name),
+        #     style = "width: 100%; height: 28px; font-size: 12px;"
+        #   )
+        # }
+      ),
+      prop = colDef(
+        "% Query", format = colFormat(percent = TRUE, digits = 1),
+        maxWidth = 80
+      ),
+      n_overlaps = colDef("Observed", format = comma_col, maxWidth = 80),
+      mean_perm_test = colDef("Expected", format = comma_col, maxWidth = 80),
       enrichment = colDef(
         "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
         html = TRUE,
@@ -971,14 +1206,14 @@ tbl <- pairwise_df %>%
         }
       ),
       norm_zscore = colDef(
-        "Z", format = colFormat(digits = 2),
+        "Z", format = colFormat(digits = 2), maxWidth = 80,
         style = \(value) {
           text_colour = ifelse(value < 0, colours$direction$decreased, "black")
           list(color = text_colour)
         }
       ),
       adj.p_value = colDef(
-        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        glue("p<sub>{enrich_params$adj}</sub>"), maxWidth = 80, html = TRUE,
         cell = \(value) sprint_pval(value),
         style = \(value) {
           text_colour = ifelse(
@@ -987,6 +1222,18 @@ tbl <- pairwise_df %>%
           )
           list(color = text_colour)
         }
+      ),
+      Sig = colDef(
+        show = FALSE,
+        filterMethod = JS("function(rows, columnId, filterValue) {
+          if (filterValue === true) {
+            return rows.filter(function(row) {
+              const OnlySignificant = row.values[columnId]
+              return OnlySignificant
+            })
+          }
+          return rows
+        }")
       )
     ),
     columnGroups = list(
@@ -1008,7 +1255,19 @@ cp <- htmltools::em(
     "
   )
 )
-tl <- tagList(tbl,cp)
+tl <- tagList(
+  tags$button(
+    "Clear All Filters",
+    onclick = "Reactable.setAllFilters('pairwise-res-table', []);"
+  ),
+  tags$label(
+    tags$input(
+      type = "checkbox", 
+      onclick = "Reactable.setFilter('pairwise-res-table', 'Sig', event.target.checked)"
+    ),
+    "Only show significant associations"
+  ), tbl, cp
+)
 if (interactive()) {
   htmltools::browsable(tl)
 } else {
@@ -1054,19 +1313,22 @@ feat_gr <- gene_regions %>%
   lapply(granges) %>% 
   GRangesList()
 feature_colours <- colours$regions
+featnames <- "Regions"
 if (has_features) {
-  feat_gr <- list(Regions = feat_gr)
-  feat_gr$Features <- external_features
-  feature_colours <- list(
-    Regions = unlist(colours$regions),
-    Features = unlist(colours$features)
-  )
+  feat_gr <- list(Regions = feat_gr) %>% 
+    c(
+      external_features %>% 
+        lapply(\(x) endoapply(splitAsList(x, x$feature), granges))
+    )
+  feature_colours <- feat_gr %>% lapply(\(x) full_palette[names(x)])
+  featnames <- names(feat_gr) %>% str_sep_to_title(replacement = "\n")
 }
 ## The genes track defaults to transcript models
 hfgc_genes <- read_rds(
   here::here("output", "annotations", "trans_models.rds")
 )
 gene_col <- "grey"
+collapseTrans <- "auto"
 if (has_rna) {
   hfgc_genes <- hfgc_genes %>% 
     mutate(
@@ -1076,9 +1338,10 @@ if (has_rna) {
     ) %>% 
     split(.$Detected)
   gene_col <- c(
-    Detected = colours$direction$unchanged,
-    Undetected = colours$direction$undetected
+    Detected = colours$direction[["unchanged"]],
+    Undetected = colours$direction[["undetected"]]
   )
+  collapseTrans <- list(Detected = "auto", Undetected = "meta")
 }
 ## Ad the NFRs as coverage annotations
 annot <- lapply(
@@ -1120,11 +1383,15 @@ Gene-centric regions and any additional annotations were also included.
     str_detect(.gr$region, "^Prom") ~ paste("a", .gr$region)
   )
   feat <- c()
-  add_feat <- has_features & .gr$feature != 'no_feature'
+  feat <- unlist(.gr$feature) %>% 
+    sort() %>% 
+    unique() %>% 
+    glue_collapse(sep = ", ", last = " & ")
+  add_feat <- has_features & !str_detect(feat, 'no_feature')
   if (add_feat) 
     feat <- case_when(
-      str_detect(.gr$feature, "^[AEIOU]") ~ paste("an", .gr$feature),
-      !str_detect(.gr$feature, "^[AEIOU]") ~ paste("a", .gr$feature)
+      str_detect(feat, "^[AEIOUaeiou]") ~ paste("an", feat),
+      !str_detect(feat, "^[AEIOUaeiou]") ~ paste("a", feat)
     )
   gn <- unlist(.gr$gene_name)
   cp <- c(
@@ -1137,7 +1404,7 @@ Gene-centric regions and any additional annotations were also included.
         add_feat,
         glue(
           "Using the features supplied this mostly overlapped {feat}, shown as 
-          a separate block beneath the gene-centric regions. "
+          a separate track beneath the gene-centric regions. "
         ),
         glue("")
       )
@@ -1165,15 +1432,19 @@ htmltools::tagList(
       img_out <- file.path(fig_path, glue("{i}_NFR.{fig_type}"))
       fig_fun(filename = img_out, width = fw, height = fh)
       plotHFGC(
-        grl_to_plot[[i]], 
+        grl_to_plot[[i]],
         hic = hic,
-        features = feat_gr, featcol = feature_colours, 
-        genes = hfgc_genes, genecol = gene_col,
+        features = feat_gr, featcol = feature_colours, featname = featnames,
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "pack",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
         coverage = bwfl, linecol = line_col, 
-        annotation = annot, annotcol = c("NFR" = "black"),
-        cytobands = bands_df, 
-        collapseTranscripts = "auto", maxTrans = 20,
-        ylim = y_lim, zoom = 10, max = 1e4, title.width = 2
+        annotation = annot, annotcol = list(NFR = "black"),
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 10, ylim = y_lim,
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
       dev.off()
       ## Create html tags
