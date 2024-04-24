@@ -144,12 +144,15 @@ cat_time("TSS regions exported...\n")
 
 #### Promoters ####
 cat_time("Defining gene_regions...\n")
-gr_params <- params$gene_regions
-gene_regions <- defineRegions(
-  genes = all_gtf$gene, transcripts = all_gtf$transcript, exons = all_gtf$exon,
-  promoter = unlist(gr_params$promoter), upstream = gr_params$upstream,
-  proximal = gr_params$intergenic
-)
+region_params <- params$gene_regions %>%
+  lapply(unlist) %>%
+  lapply(unname) %>%
+  c(
+    all_gtf[c("gene", "transcript", "exon")] %>%
+      as.list() %>%
+      setNames(paste0(names(.), "s"))
+  )
+gene_regions <- do.call("defineRegions", region_params)
 
 cat_time("Exporting gene_regions...\n")
 write_rds(gene_regions, all_output$regions, compress = "gz")

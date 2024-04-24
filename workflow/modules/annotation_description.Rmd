@@ -184,12 +184,13 @@ regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 missing_reg_col <- setdiff(names(regions), names(colours$regions))
 if (length(missing_reg_col) > 0) {
   def_reg_cols <- c(
-    promoter = "#FF3300", upstream_promoter = "#E1EE05", exon = "#7EDD57", 
-    intron = "#006600", proximal_intergenic = "#000066", distal_intergenic = "#551A8B"
+    promoter = "#FF0000", upstream_promoter = "#FF4500", exon = "#7EDD57", 
+    intron = "#008000", proximal_intergenic = "#80C0FF", distal_intergenic = "#3030FF",
+    gene_body = "#008000'", intergenic = "#3030FF"
   )
   colours$regions[missing_reg_col] <- def_reg_cols[missing_reg_col]
 }
-region_cols <- unlist(colours$regions) %>% 
+region_cols <- unlist(colours$regions)[names(regions)] %>% 
   setNames(regions[names(.)])
 ```
 
@@ -199,10 +200,8 @@ The regions are:
 
 1. Promoters (-`r region_params$promoters$upstream`/+`r region_params$promoters$downstream`bp)
 2. Upstream Promoters (> `r region_params$promoters$upstream`bp; < `r region_params$upstream`bp)
-3. Exons
-4. Introns
-5. Intergenic regions within `r region_params$intergenic/1e3`kb of a gene
-6. Intergenic regions >`r region_params$intergenic/1e3`kb from any defined genes
+`r cat(ifelse(region_params$intron, "3. Exons\n4. Introns\n", "3. Gene Body\n"))`
+`r cat(ifelse(region_params$proximal == 0, glue("5. Intergenic regions not already assigned as an upstream promoter"), glue("5. Proximal Intergenic\n6. Distal Intergenic (> {region_params$proximal/1e3}kb from a gene)")))`
 
 Colours were also defined for each of these regions for consistent visualisation.
 
@@ -523,23 +522,6 @@ feat_levels <- c(
   unique(unlist(external_features)$feature), "no_feature"
 )
 missing_feat_col <- setdiff(feat_levels, names(feat_col))
-# Handle the specific case of a ChromHMM track. Quies is not pure white here
-hmm_cols <- c(
-  BivFlnk = "#E9967A", DNase = "#FFFF66", EnhA1 = "#FFC34D", EnhA2 = "#FFC34D", 
-  EnhAc = "#FFFF00", EnhAF = "#FFC34D", EnhBiv = "#BDB76B", EnhG1 = "#C2E105",
-  EnhG2 = "#C2E105", EnhW1 = "#FFFF00", EnhW2 = "#FFFF00", EnhWk = "#FFFF00", 
-  Het = "#8A91D0", PromBiv = "#7030A0", PromD1 = "#FF4500", PromD2 = "#FF4500", 
-  PromP = "#E6B8B7", PromU = "#FF4500", Quies = "#F9F9F9", ReprPC = "#808080", 
-  ReprPCWk = "#C0C0C0", TssA = "#FF0000", TssAFlnk = "#FF4500", 
-  TssBiv = "#CD5C5C", TssFlnk = "#FF4500", TssFlnkD = "#FF4500", 
-  TssFlnkU = "#FF4500", Tx = "#008000", Tx3 = "#008000", Tx5 = "#008000", 
-  TxEnh3 = "#C2E105", TxEnh5 = "#C2E105", TxEnhW = "#C2E105", TxFlnk = "#32CD32",
-  TxReg = "#C2E105", TxWk = "#009600", `ZNF/Rpts` = "#66CDAA"
-)
-if (any(missing_feat_col %in% names(hmm_cols))) {
-  feat_col <- c(feat_col, as.list(hmm_cols[missing_feat_col]))
-  missing_feat_col <- setdiff(missing_feat_col, names(feat_col))
-}
 if (length(missing_feat_col) > 0) {
   if (!"no_feature" %in% feat_levels)
     missing_feat_col <- c(missing_feat_col, "no_feature")
@@ -552,7 +534,7 @@ colours$features <- feat_col
 
 `r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
 
-```{r plot-feature-by-region, fig.height = 7, echo = has_features, fig.cap = glue("*The relationship between ranges provided as external features in ", glue_collapse(basename(unlist(config$external$features)), sep = ", ", last = " & "), " and the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions and are shown in Mb.*")}
+```{r plot-feature-by-region, echo = has_features, fig.cap = glue("*The relationship between ranges provided as external features in ", glue_collapse(basename(unlist(config$external$features)), sep = ", ", last = " & "), " and the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions and are shown in Mb.*")}
 if (has_features) {
   external_features %>% 
     lapply(as_tibble) %>% 
@@ -837,9 +819,34 @@ knitr::opts_chunk$set(dev = "png")
 
 `r ifelse(has_features, "## Features", "")`
 
-```{r plot-feat, eval = has_features, echo = has_features, fig.height=3, fig.width=2 + length(colours$features)}
-.plotScheme(feat_col, xlab = "Feature")
+```{r plot-feat, eval = has_features, echo = has_features, fig.height = ifelse(length(feat_col) > 8, fh, 3), fig.width= ifelse(length(feat_col) > 8, fw, 2 + length(feat_col))}
+if (length(feat_col) <= 8) {
+  .plotScheme(feat_col, xlab = "Feature")
+} else {
+  feat_col %>% 
+    as_tibble() %>% 
+    pivot_longer(
+      cols = everything(), names_to = "feature", values_to = "colour"
+    ) %>% 
+    arrange(desc(str_to_lower(feature)) ) %>% 
+    mutate(
+      x = rep_len(5:1, nrow(.)) ,
+      d = c(1, diff(x)),
+      y = 1 + cumsum(d > 0)
+    ) %>% 
+    ggplot(aes(x, y, fill = I(colour))) +
+    geom_raster() +
+    geom_label(aes(label = feature), fill = rgb(1, 1, 1, 0.8), size = 4) +
+    scale_x_continuous(expand = rep_len(0, 4)) +
+    scale_y_continuous(expand = rep_len(0, 4)) +
+    theme(
+      text = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank()
+    )
+}
 ```
+
 
 ## Direction
 

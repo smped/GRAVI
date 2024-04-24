@@ -7,7 +7,8 @@ gene_regions:
     upstream: 1500
     downstream: 500
   upstream: 5000
-  intergenic: 10000
+  proximal: 10000
+  intron: true
 
 ## The values used when mapping peaks to genes.
 ## Passed to `extraChIPs::mapByFeature()`
@@ -15,6 +16,9 @@ gene_regions:
 ## set `enh2gene` as zero, given that long range interactions in this case
 ## will more accurately map long-range enhancer interactions
 mapping:
+  gr2prom: 0
+  gr2enh: 0
+  gr2gi: 0
   gr2gene: 100000
   prom2gene: 0
   enh2gene: 100000
@@ -53,23 +57,14 @@ regioner:
   adj: "fdr"
   alpha: 0.05
   ntimes: 5000
-  step: 100
   window: 5000
+  step: 100
 
+## Used for network plots
 ## Used for network plots
 networks:
   size: [4, 80]
   max_distance: 0.9
   layout: 'fr'
-
-## For profile heatmaps. These are modified by target only within a Rmd files
-profile_heatmaps:
-  default:
-    bw_type: "FE" # Can be FE or coverage
-    gradient: ['white', 'red'] 
-    min_ranges: 10
-    max_ranges: 5000
-    n_bins: 100
-    width: 1000
 
 

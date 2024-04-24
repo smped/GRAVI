@@ -10,6 +10,15 @@ genome:
   build: "GRCh37"
   gencode: "33"
 
+## External files
+external:
+  blacklist:
+  features:
+  gtf:
+  hic:
+  motifdb:
+  rna:
+
 ## Both macs2 fields are now updated so there is a default
 ## This is passed to all targets, however, if a different value is required
 ## in any field for a specific target, then adding that field for the given
@@ -18,8 +27,7 @@ macs2:
   default:
     gsize: "hs"
     fdr: 0.05
-    keep_dup: "all"
-    extra: ""
+    keep_duplicates: "all"
 
 peak_qc:
   default:
@@ -29,8 +37,7 @@ peak_qc:
 
 ## Name any targets here which should have these additional modules run
 modules:
-  nfr: 
-  rose:
+  nfr:
 
 ## 'shared' and 'nfr' can aso be added here in addition to any targets
 motif_analysis:
@@ -50,7 +57,7 @@ differential_signal:
   default:
     alpha: 0.05
     contrasts:
-      - ["E2", "E2DHT"]
+      - ["Ctrl", "Treat"]
     ihw: "targets"
     fc: 1.2
     filter_q:
@@ -61,12 +68,13 @@ differential_signal:
     window_size: 400
     window_step:
 
-external:
-  blacklist:
-  features:
-  gtf:
-  hic:
-  motifdb:
-  rna:
+profile_heatmaps:
+  default:
+    bw_type: "coverage" # Can be FE or coverage
+    gradient: ['white', 'red']
+    min_ranges: 10
+    max_ranges: 5000
+    n_bins: 100
+    width: 1000
 
 

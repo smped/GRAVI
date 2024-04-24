@@ -4,23 +4,69 @@
 qc:
   pass: "#0571B0"
   fail: "#CA0020"
-regions:
-  promoter: '#FF3300'
-  upstream_promoter: '#E1EE05'
-  exon: '#7EDD57'
-  intron: '#006600'
-  proximal_intergenic: '#000066'
-  distal_intergenic: '#551A8B'
-treat:
-  Input: "#33333380"
-  Control: "#3333CC"
-  Treat: "#C52240"
-features:
-  enhancer: "#FFFF00"
-  no_feature: "#E5E5E5"
+
 direction:
-  up: "#CA0020"
-  down: "#0571B0"
+  increased: "#CA0020"
+  decreased: "#0571B0"
   unchanged: "#7F7F7F"
   undetected: "#E5E5E5"
+
+## Add all treatment levels here (e.g. Ctrl: "#0000FF")
+treat:
+  Input: "#33333380"
+
+regions:
+  promoter: '#FF0000'
+  upstream_promoter: '#FF4500'
+  exon: '#7EDD57'
+  intron: '#008000'
+  proximal_intergenic: '#80C0FF'
+  distal_intergenic: '#3030FF'
+  ## These two will be used if no intron/exon structure is used
+  ## or if only 1 intergenic category is set
+  gene_body: '#008000'
+  intergenic: '#3030FF'
+
+features:
+  no_feature: "#E5E5E5"
+  ## Set some defaults for any ChromHMM tracks
+  BivFlnk: '#E9967A'
+  DNase: '#FFFF66'
+  EnhA1: '#FFC34D'
+  EnhA2: '#FFC34D'
+  EnhAc: '#FFFF00'
+  EnhAF: '#FFC34D'
+  EnhBiv: '#BDB76B'
+  EnhG1: '#C2E105'
+  EnhG2: '#C2E105'
+  EnhW1: '#FFFF00'
+  EnhW2: '#FFFF00'
+  EnhWk: '#FFFF00'
+  Het: '#8A91D0'
+  PromBiv: '#7030A0'
+  PromD1: '#FF4500'
+  PromD2: '#FF4500'
+  PromP: '#E6B8B7'
+  PromU: '#FF4500'
+  Quies: '#F9F9F9'
+  ReprPC: '#808080'
+  ReprPCWk: '#C0C0C0'
+  TssA: '#FF0000'
+  TssAFlnk: '#FF4500'
+  TssBiv: '#CD5C5C'
+  TssFlnk: '#FF4500'
+  TssFlnkD: '#FF4500'
+  TssFlnkU: '#FF4500'
+  Tx: '#008000'
+  Tx3: '#008000'
+  Tx5: '#008000'
+  TxEnh3: '#C2E105'
+  TxEnh5: '#C2E105'
+  TxEnhW: '#C2E105'
+  TxFlnk: '#32CD32'
+  TxReg: '#C2E105'
+  TxWk: '#009600'
+  ZNF/Rpts: '#66CDAA'
+  ## Some other possible features here
+  enhancer: "#FFC360"
 
