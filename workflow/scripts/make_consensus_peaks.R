@@ -217,16 +217,14 @@ if (length(features)) {
 
 cat_time("Mapping peaks to genes")
 prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
-cons_peaks <- mapByFeature(
-  cons_peaks, gtf_gene,
-  prom = prom,
-  enh = feat_enh,
-  gi = hic,
-  gr2gene = mapping_params$gr2gene,
-  prom2gene = mapping_params$prom2gene,
-  enh2gene = mapping_params$enh2gene,
-  gi2gene = mapping_params$gi2gene
+mapping_params <- c(
+  mapping_params,
+  list(
+    gr = cons_peaks, genes = gtf_gene, prom = prom, enh = feat_enh, gi = hic
+  )
 )
+cons_peaks <- do.call("mapByFeature", mapping_params)
+
 cat_time("Writing mapped peaks to", all_output$rds)
 write_rds(cons_peaks, all_output$rds)
 cat_time("Done")

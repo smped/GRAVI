@@ -79,11 +79,11 @@ cat_time("Seqinfo exported...\n")
 
 #### chrom_sizes ####
 ## For bedGraphToBigWig
-sq %>%
-  as_tibble() %>%
-  dplyr::select(seqnames, seqlengths) %>%
-  write_tsv(all_output$chrom_sizes, col_names = FALSE)
-cat_time("chrom_sizes exported...\n")
+# sq %>%
+#   as_tibble() %>%
+#   dplyr::select(seqnames, seqlengths) %>%
+#   write_tsv(all_output$chrom_sizes, col_names = FALSE)
+# cat_time("chrom_sizes exported...\n")
 
 #### GTF ####
 ## Perhaps set to this to also take a named list of bed files?

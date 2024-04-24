@@ -46,16 +46,3 @@ rule bedgraph_to_bigwig:
         echo -e "Finished conversion at $(date)" >> {log}
         """
 
-# rule get_coverage_summary:
-#     input: 
-#         bw = rules.bedgraph_to_bigwig.output.bigwig,
-#         chk = ALL_CHECKS,
-#         sq = os.path.join(annotation_path, "seqinfo.rds")
-#     output: os.path.join(macs2_path, "{path}", "{sample}_treat_pileup.summary")
-#     conda: "../envs/rmarkdown.yml"
-#     log: os.path.join(log_path, "get_coverage_summary", "{path}", "{sample}.log")
-#     threads: 1
-#     resources:
-#         mem_mb = 16384
-#     script:
-#         "../scripts/get_bigwig_summary.R"

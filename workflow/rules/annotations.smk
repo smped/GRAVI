@@ -6,7 +6,6 @@ rule create_genome_annotations:
         script = os.path.join("workflow", "scripts", "create_genome_annotations.R"),
         yaml = os.path.join("config", "params.yml"),
     output:
-        chrom_sizes = chrom_sizes,
         gtf_exon = os.path.join(annotation_path, "gtf_exon.rds"),
         gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
         gtf_transcript = os.path.join(annotation_path, "gtf_transcript.rds"),
@@ -157,3 +156,21 @@ rule prep_rna:
     log: os.path.join(log_path, "annotations", "rna.log")
     script:
         "../scripts/prep_rna.R"
+
+rule make_chrom_sizes:
+    input: expand(os.path.join(bam_path, "{sample}.bam"), sample = [samples[0]])
+    output: chrom_sizes
+    conda: "../envs/samtools.yml"
+    threads: 1
+    resources:
+        run_time = "5m"
+    shell:
+        """
+        samtools view -H {input} | \
+          egrep '^@SQ' | \
+          cut -f2,3 | \
+          sed -r 's/^SN:(.+)\\tLN:(.+)$/\\1\\t\\2/g' |\
+          egrep '^[c0-9]' |\
+          egrep -v 'M' |\
+          sort -V > {output}
+        """
