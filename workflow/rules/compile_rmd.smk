@@ -143,11 +143,11 @@ rule compile_nfr_html:
             os.path.join("docs", "{target}_nfr_files", "figure-html")
         ),
     conda: "../envs/rmarkdown.yml"
-    retries: 2
-    threads: lambda wildcards, attempt: 4 * 2 ** (attempt - 1)
+    retries: 1
+    threads: lambda wildcards, attempt: 8 * attempt
     resources:
-        mem_mb = lambda wildcards, attempt: attempt * 32000,
-        runtime = "60m",
+        mem_mb = lambda wildcards, attempt: attempt * 64000,
+        runtime = "30m",
     log: os.path.join(log_path, "compile_rmd", "{target}_nfr.log")
     shell:
         """
