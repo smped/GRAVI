@@ -146,7 +146,7 @@ rule compile_nfr_html:
     retries: 2
     threads: lambda wildcards, attempt: 4 * 2 ** (attempt - 1)
     resources:
-        lambda wildcards, attempt: attempt * 32000
+        mem_mb = lambda wildcards, attempt: attempt * 32000,
         runtime = "60m",
     log: os.path.join(log_path, "compile_rmd", "{target}_nfr.log")
     shell:
