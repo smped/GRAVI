@@ -146,7 +146,7 @@ prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
 mapping_params <- c(
   mapping_params,
   list(
-    gr = cons_peaks, genes = gtf_gene, prom = prom, enh = feat_enh, gi = hic
+    gr = shared_peaks, genes = gtf_gene, prom = prom, enh = feat_enh, gi = hic
   )
 )
 shared_peaks <- do.call("mapByFeature", mapping_params)
