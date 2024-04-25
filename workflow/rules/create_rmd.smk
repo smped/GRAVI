@@ -19,15 +19,12 @@ rule create_site_yaml:
     input:
         here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
+        samples = config['samples']['file'],
         script = os.path.join("workflow", "scripts", "create_site_yaml.R"),
         yml = "config/rmarkdown.yml",
     output:
         yml = os.path.join(rmd_path, "_site.yml")
     log: os.path.join(log_path, "create_rmd", "site_yaml.log")
-    params:
-        targets = targets,
-        diff_sig = diff_sig_param,
-        pairs = pairs,
     threads: 1
     localrule: True
     resources:

@@ -1,12 +1,3 @@
-#' @title Update the Navigation Bar
-#'
-#' @description Update the navigation bar in the _site.yml file
-#'
-#' @details
-#' Uses the information provided in the config file to update the navigation
-#' bar
-#'
-#'
 #' Handle any conda weirdness
 conda_pre <- system2("echo", "$CONDA_PREFIX", stdout = TRUE)
 if (conda_pre != "") {
@@ -33,18 +24,25 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
+
+## For testing
+# all_input <- list(
+#   samples = yaml::read_yaml("config/config.yml")$samples$file,
+#   script = here::here("workflow", "scripts", "create_site_yaml.R"),
+#   yml = "config/rmarkdown.yml"
+# )
+# all_output <- list(yml = "analysis/_site.yml")
+
 log <- slot(snakemake, "log")[[1]]
 cat_time("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
 
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
-all_params <- slot(snakemake, "params")
 config <- slot(snakemake, "config")
 
 cat_list(all_input, "input")
 cat_list(all_output, "output")
-cat_list(all_params, "all_params")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -58,13 +56,20 @@ library(magrittr)
 
 cat_time("Loading data...\n")
 rmd <- read_yaml(all_input$yml)
-all_targets <- sort(all_params$targets)
+cat_time("Defining targets")
+samples <- read_tsv(all_input$samples)
+all_targets <- unique(samples$target)
+
+cat_time("Loading diff_sig_param")
+diff_sig_param <- jsonlite::fromJSON(
+  here::here("config/json/differential_signal_param.json")
+)
 
 cat_time("Defining comparisons...\n")
 ## Sort out the TF comparisons
 comparisons <- diff_signal_yaml <- NULL
-if (length(all_params$diff_sig)) {
-  comparisons <- all_params$diff_sig %>%
+if (length(diff_sig_param)) {
+  comparisons <- diff_sig_param %>%
     lapply(pluck, "contrasts") %>%
     lapply(
       matrix, byrow = TRUE, ncol = 2, dimnames = list(c(), c("ref", "treat"))
@@ -209,6 +214,9 @@ site_yaml$navbar$left <- list(
     text = "Annotations", href = "annotation_description.html"
   ),
   ## MACS2 Results
+  ## NFR targets (or maybe ROSE eventually)
+  module_yaml[[1]], # Needs to change if ROSE is added
+
   list(
     text = "Signal Detection",
     menu = lapply(
@@ -221,9 +229,6 @@ site_yaml$navbar$left <- list(
     ) %>%
     c(shared)
   ),
-
-  ## NFR targets (or maybe ROSE eventually)
-  module_yaml[[1]], # Needs to change if ROSE is added
 
   ## Differential TF Signal
   diff_signal_yaml,

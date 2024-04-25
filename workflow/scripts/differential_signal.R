@@ -268,26 +268,29 @@ if (win_type == "sliding") {
     endoapply(subset, grepl("(prom|tssa$)", str_to_lower(feature))) %>%
     unlist() %>%
     GenomicRanges::reduce()
+  prom <- GenomicRanges::reduce(c(feat_prom, granges(regions$promoter)))
   cat_time("Found", length(feat_prom), "promoters in provided features")
   feat_enh <- features %>%
     ## Exclude any 'weak enhancers'
     endoapply(subset, grepl("enh[^w]", str_to_lower(feature))) %>%
     unlist() %>%
-    GenomicRanges::reduce()
+    GenomicRanges::reduce() %>% 
+    filter_by_non_overlaps(prom)
   cat_time("Found", length(feat_enh), "enhancers in provided features")
 
   cat_time("Mapping to genes")
-  prom <- GenomicRanges::reduce(c(feat_prom, granges(regions$promoter)))
-  results <- mapByFeature(
-    results, gtf_gene,
-    prom = prom,
-    enh = feat_enh,
-    gi = hic,
-    gr2gene = mapping_params$gr2gene,
-    prom2gene = mapping_params$prom2gene,
-    enh2gene = mapping_params$enh2gene,
-    gi2gene = mapping_params$gi2gene
-  )
+
+  map_by_feature_args <- formals(mapByFeature)
+  map_by_feature_args[names(mapping_params)] <- mapping_params
+  map_by_feature_args <- map_by_feature_args[map_lgl(map_by_feature_args, is, "atomicVector")]
+  map_by_feature_args$prom <- prom
+  map_by_feature_args$enh <- feat_enh
+  map_by_feature_args$gi <- hic
+  map_by_feature_args$gr <- results
+  map_by_feature_args$genes <- gtf_gene
+
+  results <- do.call("mapByFeature", map_by_feature_args)
+
 
 } else {
   results <- rowRanges(fit) %>% addDiffStatus(alpha = fdr_alpha)
@@ -371,6 +374,7 @@ if (ihw_method != "none") {
   } else {
     cat_time("No viable groupings. Not performing IHW")
     ihw_method <- "none"
+    results$ihw_covariate <- NULL
   }
 
 }

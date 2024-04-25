@@ -173,11 +173,13 @@ feat_prom <- features %>%
   unlist() %>%
   GenomicRanges::reduce()
 cat_time("Found", length(feat_prom), "promoters in provided features")
+prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
 feat_enh <- features %>%
   ## Exclude any 'weak enhancers'
   endoapply(subset, grepl("enh[^w]", str_to_lower(feature))) %>%
   unlist() %>%
-  GenomicRanges::reduce()
+  GenomicRanges::reduce() %>% 
+  filter_by_non_overlaps(prom)
 cat_time("Found", length(feat_enh), "enhancers in provided features")
 
 cat_time("Mapping peaks to regions")
@@ -219,7 +221,6 @@ if (length(features)) {
 }
 
 cat_time("Mapping peaks to genes")
-prom <- GenomicRanges::reduce(c(feat_prom, granges(gene_regions$promoter)))
 mapping_params <- c(
   mapping_params,
   list(
