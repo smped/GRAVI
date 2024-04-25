@@ -9,7 +9,7 @@ rule check_r_packages:
         runtime = "30m",
         mem_mb = 2048,
     params:
-        min_extrachips = "1.7.7"
+        min_extrachips = "1.7.9"
     log: os.path.join(log_path, "initial_checks", "check_r_packages.log")
     conda: "../envs/rmarkdown.yml"
     localrule: True
@@ -43,16 +43,17 @@ rule check_here_file:
         """    
 
 rule check_args:
-  input:
-    checks = rule.check_r_packages.output,
-    colours = os.path.join("config", "colours.yml"),
-    params = os.path.join("config", "params.yml"),
-    script = os.path.join("workflow", "scripts", "check_all_args.R"),
-  output: os.path.join(check_path, "args.chk")
-  conda: "../envs/rmarkdown.yml"
-  localrule: True
-  resources:
-    runtime = "10m",
-    mem_mb = 1024,  
-  script:
-      "../scripts/check_all_args.R"
+    input:
+        checks = rules.check_r_packages.output,
+        colours = os.path.join("config", "colours.yml"),
+        params = os.path.join("config", "params.yml"),
+        script = os.path.join("workflow", "scripts", "check_all_args.R"),
+    output: os.path.join(check_path, "args.chk")
+    log: os.path.join(log_path, "initial_checks", "check_args.log")  
+    conda: "../envs/rmarkdown.yml"
+    localrule: True
+    resources:
+        runtime = "10m",
+        mem_mb = 1024,  
+    script:
+        "../scripts/check_all_args.R"

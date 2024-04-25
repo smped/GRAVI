@@ -35,6 +35,10 @@ all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
 
+log <- slot(snakemake, "log")[[1]]
+cat("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+
 cat_list(all_input, "input:", "=")
 
 all_input <- lapply(all_input, here::here)
