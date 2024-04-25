@@ -65,7 +65,7 @@ if (!any(params$motifdb$organism %in% mcols(MotifDb)$organism))
   err <- c(err, "No specified Motif organisms match those in the data base")
 
 cat_time("Checking enrichment params")
-if (params$enrichment$method %in% c("great", "gene_id"))
+if (!params$enrichment$method %in% c("great", "gene_id"))
   err <- c(err, "Invalid enrichment method. Must be 'great' or 'gene_id'")
 
 
@@ -99,7 +99,7 @@ ds_norm <- config$differential_signal |>
   lapply(\(x) x$norm) |>
   unlist()
 valid_norm <- c(eval(formals(edgeR::calcNormFactors.default)$method), "sq")
-if (!all(ds_norm) %in% valid_norm)
+if (!all(ds_norm %in% valid_norm))
   err <- c(err, paste(
     "Invalid normalisation for",
     paste(names(ds_norm)[!ds_norm %in% valid_norm], collapse = ", ")
@@ -109,7 +109,7 @@ ds_methods <- config$differential_signal |>
   lapply(\(x) x$method) |>
   unlist()
 valid_methods <- c("qlf", "lt")#, "wald") ## Needs to be checked & added
-if (!all(ds_methods) %in% valid_methods)
+if (!all(ds_methods %in% valid_methods))
   err <- c(err, paste(
     "Invalid analytic method for",
     paste(names(ds_methods)[!ds_methods %in% valid_methods], collapse = ", ")
@@ -119,7 +119,7 @@ ds_ihw <- config$differential_signal |>
   lapply(\(x) x$ihw) |>
   unlist()
 valid_ihw <- c("none", "targets", "features", "regions")
-if (!all(ds_ihw) %in% valid_ihw)
+if (!all(ds_ihw %in% valid_ihw))
   err <- c(err, paste(
     "Invalid IHW method for",
     paste(names(ds_ihw)[!ds_ihw %in% valid_ihw], collapse = ", ")
@@ -130,7 +130,7 @@ bw_type <- config$profile_heatmaps |>
   lapply(\(x) x$bw_type) |>
   unlist()
 valid_types <- c("FE", "coverage")
-if (!all(bw_type) %in% valid_types)
+if (!all(bw_type %in% valid_types))
   err <- c(err, paste(
     "Invalid BigWig type for",
     paste(names(bw_type)[!bw_type %in% valid_types], collapse = ", ")
