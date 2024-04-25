@@ -169,9 +169,7 @@ htmltools::tagList(
           pull("pathway") %>% 
           lapply(
             \(i) {
-              plotEnrichment(
-                ids_by_gs[[i]], dir_ranks[[x]]
-              ) +
+              plotEnrichment(ids_by_gs[[i]], dir_ranks[[x]]) +
                 ggtitle(str_replace_all(i, "_", " ") %>% str_wrap(20))
             }
           ) %>% 
@@ -188,7 +186,7 @@ htmltools::tagList(
           glue()
         fig_fun(
           filename = img_out, 
-          width = ifelse(length(p) > 2, fw, fw / 2),
+          width = ifelse(length(p) > 1, fw, fw / 2),
           height = ifelse(length(p) > 3, fh, fh / 2)
         )
         print(p)

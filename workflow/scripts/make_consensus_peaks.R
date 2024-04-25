@@ -167,15 +167,18 @@ mapping_params <- all_input$yaml %>%
 
 ## Find if there are any regions in the features which can be matched
 ## to promoters or enhancers
-cat_time("Checking for promoters/enhancers in the features")
+cat_time("Checking for promoters/enhancers in provided features")
 feat_prom <- features %>%
-  endoapply(subset, grepl("prom", str_to_lower(feature))) %>%
+  endoapply(subset, grepl("(prom|tssa$)", str_to_lower(feature))) %>%
   unlist() %>%
   GenomicRanges::reduce()
+cat_time("Found", length(feat_prom), "promoters in provided features")
 feat_enh <- features %>%
-  endoapply(subset, grepl("enh", str_to_lower(feature))) %>%
+  ## Exclude any 'weak enhancers'
+  endoapply(subset, grepl("enh[^w]", str_to_lower(feature))) %>%
   unlist() %>%
   GenomicRanges::reduce()
+cat_time("Found", length(feat_enh), "enhancers in provided features")
 
 cat_time("Mapping peaks to regions")
 cons_peaks$region <- bestOverlap(cons_peaks, gene_regions)

@@ -112,7 +112,7 @@ if (!all(ds_norm %in% valid_norm))
 ds_methods <- config$differential_signal |>
   lapply(\(x) x$method) |>
   unlist()
-valid_methods <- c("qlf", "lt")#, "wald") ## Needs to be checked & added
+valid_methods <- c("qlf", "lt", "wald")
 if (!all(ds_methods %in% valid_methods))
   err <- c(err, paste(
     "Invalid analytic method for",

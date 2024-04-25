@@ -47,7 +47,7 @@ cat_time <- function(...){
 
 ## For testing
 # all_input <- list(
-#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
+#   counts = "output/differential_signal/AR/AR_counts.rds",
 #   gtf_gene = "output/annotations/gtf_gene.rds",
 #   hic = "output/annotations/hic.rds",
 #   features = "output/annotations/features.rds",
@@ -62,14 +62,14 @@ cat_time <- function(...){
 #   yaml = "config/params.yml"
 # )
 # all_output <- list(
-#   changed = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-changed.bed.gz",
-#   decreased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-decreased.bed.gz",
-#   increased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-increased.bed.gz",
-#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds",
-#   rds = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds"
+#   changed = "output/differential_signal/AR/AR_E2_E2DHT-changed.bed.gz",
+#   decreased = "output/differential_signal/AR/AR_E2_E2DHT-decreased.bed.gz",
+#   increased = "output/differential_signal/AR/AR_E2_E2DHT-increased.bed.gz",
+#   ihw = "output/differential_signal/AR/AR_E2_E2DHT-ihw.rds",
+#   rds = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds"
 # )
-# all_params <- jsonlite::fromJSON("config/json/differential_signal_param.json")[["H3K27ac"]]
-# all_wildcards <- list(target = "H3K27ac", ref = "E2", treat = "E2DHT")
+# all_params <- jsonlite::fromJSON("config/json/differential_signal_param.json")[["AR"]]
+# all_wildcards <- list(target = "AR", ref = "E2", treat = "E2DHT")
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 # threads <- 4
 
@@ -109,12 +109,12 @@ register(MulticoreParam(workers = threads))
 
 cat_time("Checking parameters")
 win_type <- match.arg(all_params$window_type, c("sliding", "fixed"))
-method <- match.arg(all_params$method, c("qlf", "lt"))
+method <- match.arg(all_params$method, c("qlf", "lt", "wald"))
 norm <- match.arg(
   all_params$norm, c("TMM", "TMMwsp", "RLE", "upperquartile", "none", "sq")
 )
 if (norm == "sq") {
-  if (method == "qlf" | win_type == "fixed") {
+  if (!method == "lt" & !win_type == "sliding") {
     cat("SQ Normalisation only enabled for limma-trend using sliding windows")
     stop()
   }
@@ -139,7 +139,7 @@ cat_time("Loading counts")
 counts <- read_rds(all_input$counts)
 
 # cat_time("Adding logCPM assay")
-assay_name <- ifelse(method == "qlf", "counts", "logCPM")
+assay_name <- ifelse(!method == "lt", "counts", "logCPM")
 ## Sliding windows (i.e. sq-lt) will already have a logCPM assay
 if (!"logCPM" %in% assayNames(counts)) {
   dge <- calcNormFactors(counts, method = norm)
@@ -226,24 +226,55 @@ if (win_type == "sliding") {
 
   ## Map genes, features & regions, which are otherwise propagated through
   cat_time("Mapping merged windows to regions")
-  results$region <- bestOverlap(results, unlist(regions), var = "region")
+  results$region <- bestOverlap(results$keyval_range, unlist(regions), var = "region")
   results$region <- factor(
     results$region, levels = map_chr(regions, \(x) x$region[1])
   )
   if (has_features) {
     cat_time("Mapping merged windows to features")
-    results$feature <- bestOverlap(results, features, missing = "no_feature")
+    feat_df <- features %>%
+      lapply(
+        \(x) bestOverlap(results$keyval_range, x, var = "feature")
+      ) %>%
+      as_tibble() %>%
+      mutate(range = as.character(results))
+    if (length(features) > 1) {
+      cat_time("Merging features across source files")
+      feat_df <- feat_df %>%
+        nest(data = all_of(names(features))) %>%
+        mutate(
+          feature = lapply(
+            data, \(x) {
+              x <- unlist(x)
+              x[!is.na(x)]
+            }
+          )
+        ) %>%
+        unnest(data, keep_empty = TRUE) %>%
+        dplyr::select(feature, all_of(names(features))) %>%
+        as.data.frame()
+      existing <- setdiff(colnames(mcols(results)), colnames(feat_df))
+      mcols(results) <- cbind(mcols(results)[existing], feat_df)
+      results$feature <- CharacterList(results$feature)
+    } else {
+      results$feature <- str_replace_na(
+        feat_df[[names(features)]], "no_feature"
+      )
+    }
   }
 
   cat_time("Defining promoters & enhancers")
-  which_prom <- grepl("prom", str_to_lower(names(features)))
-  feat_prom <- features[which_prom] %>%
+  feat_prom <- features %>%
+    endoapply(subset, grepl("(prom|tssa$)", str_to_lower(feature))) %>%
     unlist() %>%
     GenomicRanges::reduce()
-  which_enh <- grepl("enhanc", str_to_lower(names(features)))
-  feat_enh <- features[which_enh] %>%
+  cat_time("Found", length(feat_prom), "promoters in provided features")
+  feat_enh <- features %>%
+    ## Exclude any 'weak enhancers'
+    endoapply(subset, grepl("enh[^w]", str_to_lower(feature))) %>%
     unlist() %>%
     GenomicRanges::reduce()
+  cat_time("Found", length(feat_enh), "enhancers in provided features")
 
   cat_time("Mapping to genes")
   prom <- GenomicRanges::reduce(c(feat_prom, granges(regions$promoter)))
@@ -257,6 +288,7 @@ if (win_type == "sliding") {
     enh2gene = mapping_params$enh2gene,
     gi2gene = mapping_params$gi2gene
   )
+
 } else {
   results <- rowRanges(fit) %>% addDiffStatus(alpha = fdr_alpha)
 }
@@ -342,6 +374,7 @@ if (ihw_method != "none") {
   }
 
 }
+
 cat_time("Updating metadata")
 vals <- c(
   "alpha", "fc", "filter_q", "method", "nesting", "window_type",
@@ -366,7 +399,7 @@ metadata(results)$description <- glue(
     ifelse(
         !is.null(quantro_p),
         glue(
-            "Distributions of counts between treatment groups were checked using quantro [@HicksQuantro2015] and ",
+            "Distributions of counts between treatment groups were first checked using quantro [@HicksQuantro2015] and ",
             ifelse(
                 any(quantro_p < 0.05),
                 "counts were found to be from different distributions. ",
@@ -388,6 +421,7 @@ metadata(results)$description <- glue(
     case_when(
         method == "qlf" ~ "Quasi-Likelihood fits [@LunSmythGLMQL2017] on counts ",
         method == "lt" ~ "Limma-Trend [@LawVoom2014] on normalised logCPM values ",
+        method == "wald" ~ "the negative binomial Wald Test on counts [@Love2014Wald]"
     ),
     ifelse(
         all_params$fc > 0,
@@ -398,7 +432,7 @@ metadata(results)$description <- glue(
     ifelse(
         ihw_method == "none", "",
         sprintf(
-            "P-values after all testing were then weighted using IHW [@IgnatiadisIHW2016] setting overlap with %s as the covariate. ",
+            "P-values after all testing were then weighted using IHW [@IgnatiadisIHW2016], setting overlap with %s as the covariate. ",
             case_when(
                 ihw_method == "regions" ~ "genomic regions",
                 ihw_method == "targets" ~ "consensus peaks from alternative targets",
