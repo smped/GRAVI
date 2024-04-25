@@ -41,3 +41,18 @@ rule check_here_file:
           touch {output}
         fi
         """    
+
+rule check_args:
+  input:
+    checks = rule.check_r_packages.output,
+    colours = os.path.join("config", "colours.yml"),
+    params = os.path.join("config", "params.yml"),
+    script = os.path.join("workflow", "scripts", "check_all_args.R"),
+  output: os.path.join(check_path, "args.chk")
+  conda: "../envs/rmarkdown.yml"
+  localrule: True
+  resources:
+    runtime = "10m",
+    mem_mb = 1024,  
+  script:
+      "../scripts/check_all_args.R"

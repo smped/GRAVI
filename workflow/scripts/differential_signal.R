@@ -45,13 +45,9 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-
 ## For testing
 # all_input <- list(
-#   counts = "output/counts/ER_counts.rds",
+#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
 #   gtf_gene = "output/annotations/gtf_gene.rds",
 #   hic = "output/annotations/hic.rds",
 #   features = "output/annotations/features.rds",
@@ -66,31 +62,20 @@ sink(log, split = TRUE)
 #   yaml = "config/params.yml"
 # )
 # all_output <- list(
-#   changed = "output/differential_signal/ER/ER_E2_E2DHT-changed.bed.gz",
-#   decreased = "output/differential_signal/ER/ER_E2_E2DHT-decreased.bed.gz",
-#   increased = "output/differential_signal/ER/ER_E2_E2DHT-increased.bed.gz",
-#   ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
-#   rds = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds"
+#   changed = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-changed.bed.gz",
+#   decreased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-decreased.bed.gz",
+#   increased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-increased.bed.gz",
+#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds",
+#   rds = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds"
 # )
-# all_params <- list(
-#   alpha = 0.05,
-#   contrasts = structure(c("E2", "E2DHT"), dim = 1:2),
-#   fc = 1.2,
-#   filter_q = NULL,
-#   ihw = "targets",
-#   method = "qlf",
-#   norm = "TMM",
-#   nesting = NULL,
-#   rna_toptable = "data/external/ZR75_DHT_StrippedSerum_RNASeq_topTable.tsv",
-#   window_type = "fixed",
-#   window_size = 400L,
-#   window_step = NULL,
-#   target = "ER"
-# )
-# all_wildcards <- list(target = "ER", ref = "E2", treat = "E2DHT")
+# all_params <- jsonlite::fromJSON("config/json/differential_signal_param.json")[["H3K27ac"]]
+# all_wildcards <- list(target = "H3K27ac", ref = "E2", treat = "E2DHT")
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 # threads <- 4
 
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
@@ -153,7 +138,7 @@ mapping_params <- all_input$yaml %>%
 cat_time("Loading counts")
 counts <- read_rds(all_input$counts)
 
-cat_time("Adding logCPM assay")
+# cat_time("Adding logCPM assay")
 assay_name <- ifelse(method == "qlf", "counts", "logCPM")
 ## Sliding windows (i.e. sq-lt) will already have a logCPM assay
 if (!"logCPM" %in% assayNames(counts)) {
@@ -231,7 +216,7 @@ if (win_type == "sliding") {
   results <- mergeByHMP(
     fit, pval = pcols,
     merge_within = floor(1 + 2 * all_params$window_size / 3),
-    hm_pre = ""
+    hm_pre = "", keyval = "merged"
   ) %>%
     plyranges::select(
       starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
@@ -306,14 +291,17 @@ if (ihw_method != "none") {
   }
 
   if (ihw_method == "features") {
-    ## Hits may occur to multiple features
-    hits <- vapply(
-      features, \(x) overlapsAny(results, x), logical(length(results))
-    )
-    covariate <- apply(
-      hits, MARGIN = 1, \(x) paste(colnames(hits)[x], collapse = " + ")
-    )
-    covariate[covariate == ""] <- "None"
+    if (has_features) {
+      covariate <- mcols(results)[names(features)] %>%
+        lapply(str_replace_na, "no_feature") %>%
+        lapply(fct_infreq) %>%
+        lapply(fct_lump_min, min = 1e3) %>%
+        as_tibble() %>%
+        unite(feature, all_of(names(features)), sep = "; ") %>%
+        pull("feature")
+    } else {
+      covariate <- rep_len("no feature", length(results))
+    }
   }
 
   cat_time("Grouping ranges by", ihw_method)

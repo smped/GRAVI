@@ -38,14 +38,16 @@ all_out <- lapply(params, here::here)
 ```
 
 ```{r config}
-region_params <- read_yaml(here::here("config", "params.yml")) %>%
-  pluck("gene_regions")
+enrich_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("enrichment")
+mapping_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("mapping")
 motif_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("motifdb")
 msigdb_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("msigdb")
-enrich_params <- read_yaml(here::here("config", "params.yml")) %>%
-  pluck("enrichment")
+region_params <- read_yaml(here::here("config", "params.yml")) %>%
+  pluck("gene_regions")
 colours <- read_yaml(here::here("config", "colours.yml"))
 treat_levels <- config$comparisons$contrasts %>% 
   unlist() %>% 
@@ -200,8 +202,8 @@ The regions are:
 
 1. Promoters (-`r region_params$promoters$upstream`/+`r region_params$promoters$downstream`bp)
 2. Upstream Promoters (> `r region_params$promoters$upstream`bp; < `r region_params$upstream`bp)
-`r cat(ifelse(region_params$intron, "3. Exons\n4. Introns\n", "3. Gene Body\n"))`
-`r cat(ifelse(region_params$proximal == 0, glue("5. Intergenic regions not already assigned as an upstream promoter"), glue("5. Proximal Intergenic\n6. Distal Intergenic (> {region_params$proximal/1e3}kb from a gene)")))`
+`r ifelse(region_params$intron, "3. Exons\n4. Introns\n", "3. Gene Body\n")`
+`r ifelse(region_params$proximal == 0, glue("5. Intergenic regions not already assigned as an upstream promoter"), glue("5. Proximal Intergenic\n6. Distal Intergenic (> {region_params$proximal/1e3}kb from a gene)"))`
 
 Colours were also defined for each of these regions for consistent visualisation.
 
@@ -398,12 +400,45 @@ df %>%
   theme(panel.grid = element_blank())
 ```
 
+## Mapping Detected Signal to Genes
+
+```{r get-map-by-feature-args, echo=FALSE}
+map_by_feature_args <- formals(mapByFeature)
+map_by_feature_args[names(mapping_params)] <- mapping_params
+map_by_feature_args <- map_by_feature_args[map_lgl(map_by_feature_args, is, "atomicVector")]
+```
+
+
+Any peaks or other regions containing signal will be automatically mapped to genes using the data provided in the GTF, and additional annotations.
+This becomes especially relevant if choosing to run enrichment analysis using the gene ids assigned to these regions (i.e. classic hypergeometric tests), as opposed to using GREAT [@McLean2010-gw] based on conventional associations between peaks and genes.
+
+Genes are assigned to genomic ranges with signal using `mapByFeature()` from the Bioconductor package `extraChIPs` in a hierarchical strategy using the parameters
+
+`r pander(map_by_feature_args)`
+
+These are interpreted as
+
+1. Ranges within `r map_by_feature_args$gr2prom/1e3`kb of a promoter are assigned to all genes within `r map_by_feature_args$prom2gene/1e3`kb of that promoter, where 0kb simply indicates direct overlap
+2. Ranges within `r map_by_feature_args$gr2enh/1e3`kb of an enhancer are mapped to all genes within `r map_by_feature_args$enh2gene/1e3`kb of the enhancer
+3. Ranges within `r map_by_feature_args$gr2gi/1e3`kb of a long-range interaction are mapped to all genes within `r map_by_feature_args$gi2gene/1e3`kb of either end of the interaction
+4. Ranges with no genes assigned in any of the above steps are then assigned to all genes within `r  map_by_feature_args$gr2gene/1e3`kb
+
+In these steps Promoters are taken as all promoters defined as part of the GRAVI workflow, as well as any able to be identified within the external files provided, using basic pattern patching.
+Similarly, enhancers will be identified if possible from these same files.
+Long-range Interactions will only be incorporated if provided.
+
+All values are able to modified using `params.yml`
+
 # Enrichment Analysis
 
-The same approach to enrichment analysis is defined to be used in all steps of the analysis.
+The same approach to enrichment analysis is defined to be used in all steps of the analysis, and can be performed using gene ids mapped to regions (`method = "gene_id"`) and one-sided hypergeometric tests, or by using the conventional approach of GREAT [@McLean2010-gw] as implemented in the package rGREAT [@Gu2023-rp] (`method = "great"`).
+The current approach, set via `params.yml`, is to use `r unname(c(great = "GREAT", gene_id = "gene IDs")[enrich_params$method])`.
 
-The [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/) database version `r packageVersion("msigdbr")` was used [@Liberzon2011-fr].
-Gene-sets and pathways were retained if more than `r min(msigdb_params$size)` genes and fewer than `r max(msigdb_params$size)` genes were assigned to it.
+After testing and adjusting p-values (method = "`r enrich_params$adj`"), only gene-sets with $\geq$ `r enrich_params$min_sig` genes assigned to them will be returned in the results.
+For results tables, a significance value of $\alpha$ = `r enrich_params$alpha` will be applied to the adjused p-values.
+
+The [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/) database version `r packageVersion("msigdbr")` was used [@Liberzon2011-fr] as the primary source for gene sets.
+Gene-sets and pathways were include for enrichment testing if $\geq$ `r min(msigdb_params$size)` genes and $\leq$ `r max(msigdb_params$size)` genes were assigned to it.
 This left the following breakdown of gene-sets and pathways tested for enrichment during all steps.
 
 ```{r tbl-msigdb}
