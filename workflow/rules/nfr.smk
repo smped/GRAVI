@@ -35,7 +35,7 @@ rule call_nfr:
         ),
     params:
         pre = os.path.join(nfr_path, "{target}", "{target}_{treat}"),
-        p_max = 0.2,
+        p_max = 0.25,
         max_nfr = 1000,
         min_size = 500,
     threads: 1
