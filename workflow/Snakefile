@@ -16,6 +16,11 @@ import json
 
 configfile: "config/config.yml"
 
+## Load the additional params
+f = "config/params.yml"
+extra_params = yaml.safe_load(open(f))
+nfr_params = extra_params['nfr']
+
 ## Figure out how to run check_yaml from here if possible
 ## python scripts/check_yaml.py
 

@@ -67,4 +67,12 @@ networks:
   max_distance: 0.9
   layout: 'fr'
 
-
+## For calling NFRs, noting that a nucleosome is ~147bp
+## HisTrader calls multiple NFRs / peak breaking signal into bins of 25bp
+## representing of 150/6, which itself takes 150nt as an approximation of 147bp
+nfr:
+  p_max: 0.25
+  nfr_width: [75, 1000]
+  min_peak_width: 500
+  merge_peaks_within: 300
+  merge_nfrs_within: 76

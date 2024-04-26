@@ -9,7 +9,7 @@ rule merge_nearby_peaks:
             nfr_path, "{target}", "{target}_{treat}_merged_peaks.bed"
         )
     params:
-        within = 300
+        within = nfr_params['merge_peaks_within']
     threads: 1
     conda: "../envs/rmarkdown.yml"
     resources:
@@ -35,9 +35,9 @@ rule call_nfr:
         ),
     params:
         pre = os.path.join(nfr_path, "{target}", "{target}_{treat}"),
-        p_max = 0.25,
-        max_nfr = 1000,
-        min_size = 500,
+        p_max = nfr_params['p_max'],
+        max_nfr = max(nfr_params['nfr_width']),
+        min_size = nfr_params['min_peak_width'],
     threads: 1
     resources:
         mem_mb = 8192,
@@ -97,9 +97,9 @@ rule make_consensus_nfr:
     params:
         ## Passed to makeConsensus. This will give stringent, shared NFRs
         method = 'coverage',
-        min_width = 75,
+        min_width = max(nfr_params['nfr_width']),
         p = 1,
-        min_gapwidth = 52
+        min_gapwidth = nfr_params['merge_nfrs_within']
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_peaks", "{target}_nfr.log")

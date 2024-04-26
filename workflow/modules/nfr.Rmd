@@ -5,6 +5,7 @@
 ```{r get-params}
 target <- params$target
 threads <- parallel::detectCores() - 1
+# if (interactive()) threads - 4
 ```
 
 ```{r packages}
@@ -60,6 +61,7 @@ all_params <-  here::here("config", "params.yml") %>% read_yaml()
 enrich_params <- all_params$enrichment
 region_params <- all_params$gene_regions
 regioner_params <- all_params$regioner
+nfr_params <- all_params$nfr
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck("nfr")
@@ -118,18 +120,18 @@ has_rna <- length(rna) > 0
 ## Introduction
 
 Nucleosome Free Regions (NFRs) were identified for `r target` using the set of filtered peaks obtained for each treatment (`r pander(treat_levels)`).
-Peaks within 300bp of each other were merged into a single peak, with this distance approximating the distance occupied by 2 nucleosomes, and approximating broader peaks that may have been otherwise called by `macs2` [@Zhang18798982].
+Peaks within `r nfr_params$merge_peaks_within`bp of each other were merged into a single peak, with this distance approximating the distance occupied by 2 nucleosomes, and approximating broader peaks that may have been otherwise called by `macs2` [@Zhang18798982].
 NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group with the following settings.
 
-- Any merged peaks <500bp were excluded as being too short
-- Any NFRs beyond 1kb were discarded as not being viable NFRs
-- Regions of the peak with signal below 20% of the maximal signal were also not assessed for NFRs as these were more likely to be regions on the other edges of wider peaks.
-- Any NFRs within 52bp of the nearest NFR (approximately 1/3 of a nucleosome) were also merged into a single NFR
+- Any merged peaks <`r nfr_params$min_peak_width`bp were excluded as being too narrow to identify NFRs
+- Any NFRs beyond `r max(nfr_params$nfr_width)/1e3`kb were discarded as not being viable NFRs
+- Regions of the peak with signal below `r percent(nfr_params$p_max)` of the maximal signal were also not assessed for NFRs as these were more likely to be regions on the outer edges of wider peaks.
+- Any NFRs within `r nfr_params$merge_nfrs_within`bp of the nearest NFR (~1/3 of a nucleosome) were also merged into a single NFR
 
-Treatment-specific NFRs were merged as consensus NFRs, taking only shared regions between treatment groups which were wider than 75bp and which were identified in all groups.
-Given the inclusive nature of HisTrader, this is a more stringent approach to ensure any overly-inclusive NFR calls were minimised.
+Treatment-specific NFRs were then merged as consensus NFRs, taking only shared regions between treatment groups which were wider than `r min(nfr_params$nfr_width)`bp and which were identified in all groups.
+Given the inclusive nature of HisTrader, this is a more stringent approach to ensure overly-inclusive NFR calls were minimised.
 
-Whilst a motif enrichment analysis was performed, along with an assessement of the relationship between NFRs and other targets, no gene-set enrichment testing was performed.
+Whilst a motif enrichment analysis was performed, along with an assessment of the relationship between NFRs and other targets, no gene-set enrichment testing was performed.
 The mapping from NFR to genes would very closely replicate that of the larger set of `r target` peaks, and as such, this was considered to be a redundant analysis.
 
 
@@ -195,7 +197,7 @@ A + B + plot_annotation(tag_levels = "A") & theme(legend.position = 'none')
 
 ### NFRs Per Peak
 
-```{r plot-nfr-by-peak-width, fig.cap = glue("*Number of NFRs found within each {target} peak, separated by genomic region. {target} peaks within 300bp were merged prior ro plotting*")}
+```{r plot-nfr-by-peak-width, fig.cap = glue("*Number of NFRs found within each {target} peak, separated by genomic region. {target} peaks within {nfr_params$merge_peaks_within}bp were merged prior ro plotting*")}
 consensus_peaks[[target]] %>% 
   reduce(min.gapwidth = 300) %>% 
   mutate(
@@ -272,7 +274,7 @@ nfr_consensus %>%
   theme(legend.position = "none") 
 ```
 
-`r ifelse(has_features, "#### NFR Features", "")`
+`r ifelse(has_features, "### NFR By Feature", "")`
 
 ```{r plot-nfr-by-feature, echo = has_features, fig.height = ifelse(length(feat_names) < 3, fh / 2, fh), fig.cap = glue("*{target} NFRs which overlap each provided feature, coloured by gene-centric regions defined previously. Features may overlap with each other, and as such, NFRs may overlap multiple feature types and be included within multiple categories. Total overlapping NFRs for each feature type are shown in bold, wth percentages being relative to the total number of consensus NFRs ({comma(length(nfr_consensus))}). Individual segments are labelled if representing >= 3% of the total number of NFRs Features with fewer than 1% of NFRs aligning to them are collapsed into the category 'Other'*")}
 if (has_features) {
@@ -1383,7 +1385,7 @@ Gene-centric regions and any additional annotations were also included.
   gn <- unlist(.gr$gene_name)
   cp <- c(
     glue(
-      "*The {width(.gr)}bp region with the highest score for {target} signal, 
+      "The {width(.gr)}bp region with the highest score for {target} signal, 
       and which overlaps one or more NFRs, highlighted as black bars in the 
       coverage tracks. The range mostly overlapped {reg}, 
       with all defined regions shown as a contiguous bar in the upper panel. ",
@@ -1406,7 +1408,7 @@ Gene-centric regions and any additional annotations were also included.
     ),
     paste(
       "For each sample, the y-axis limits represent the values from the window", 
-      "with the highest signal.*"
+      "with the highest signal."
     )
   )
   paste(cp, collapse = " ")
