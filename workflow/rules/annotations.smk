@@ -155,6 +155,13 @@ rule prep_rna:
         gsea_dir = os.path.join(annotation_path, "gsea_dir.rds"),
         gsea_sig = os.path.join(annotation_path, "gsea_sig.rds"),
         rna = os.path.join(annotation_path, "rna.rds"),
+    params:
+        gene_col = ["gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id"],
+        expr_col = ["AveExpr", "logCPM", "baseMean"],
+        lfc_col = ["logFC", "logfc", "lfc", "log2FoldChange"],
+        p_col = ["PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"]
+        padj_col = ["fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj"],
+        nperm_gsea = 1e6,
     conda: "../envs/rmarkdown.yml"
     threads: 4
     retries: 1    

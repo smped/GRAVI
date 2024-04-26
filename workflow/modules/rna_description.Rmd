@@ -66,11 +66,11 @@ gsea_sig <- gsea_sig %>%
 ```
 
 `r length(rna)` transcriptomic `r ifelse(length(rna) > 1, "datasets were", "dataset was")` provided, as is summarised in this section.
-In the section below, a diferentially expressed (DE) gene is simply considered to be one with an FDR-adjusted p-value < 0.05, noting that no differentially expressed genes are formally required for data integration.
+In the section below, a differentially expressed (DE) gene is simply considered to be one with an FDR-adjusted p-value < 0.05, noting that no differentially expressed genes are formally required for data integration.
 
 In addition to checking the input file structures, Gene Set Enrichment Analysis (GSEA) [@SubramanianGsea2005] was performed using two approaches.
 The first analysis takes a ranked list with the direction of change being included, testing for any association between pathways and up- or down-regulated genes.
-The second analysis simply ranks genes by significance, testing for enrichment of pathways within the set of genes the most highly-ranked for evidence of changed expression.
+The second analysis simply ranks genes by significance, performing a one-sided test for enrichment of pathways within the set of genes the most highly-ranked for statistical evidence of changed expression.
 For both analyses, the `R` package `fgsea` was used [@KorotkevichFgsea2019].
 
 ## Dataset Summary

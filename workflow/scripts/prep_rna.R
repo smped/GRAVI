@@ -29,11 +29,13 @@ sink(log, split = TRUE)
 
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
 config <- slot(snakemake, "config")
 threads <- slot(snakemake, "threads")
 
 cat_list(all_input, "input:")
 cat_list(all_output, "output:")
+cat_list(all_params, "params:")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -45,9 +47,9 @@ library(magrittr)
 library(glue)
 library(yaml)
 library(BiocParallel)
-params <- read_yaml(all_input$yaml)
-msigdb_params <- params$msigdb
-enrich_params <- params$enrichment
+yaml_params <- read_yaml(all_input$yaml)
+msigdb_params <- yaml_params$msigdb
+enrich_params <- yaml_params$enrichment
 
 cat("Running with", threads, "threads")
 bpparam <- MulticoreParam(threads)
@@ -78,50 +80,40 @@ if (!is.null(rna_files)) {
 
       ## The key columns are 'gene_id', 'logFC', and 'FDR'
       ## These should be checked earlier
-      gn_col <- intersect(
-        c("gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id"),
-        names(df)
-      )[[1]]
+      gn_col <- intersect(all_params$gene_col, names(df))[[1]]
       if (length(gn_col) == 0) {
         cat("Couldn't detect gene ids in", x)
         stop()
       }
 
-      exp_col <- intersect(c("AveExpr", "logCPM", "baseMean"), names(df))[[1]]
-      if (length(exp_col) == 0) {
+      expr_col <- intersect(all_params$expr_col, names(df))[[1]]
+      if (length(expr_col) == 0) {
         cat("Couldn't detect expression column in", x)
         stop()
       }
-      if (exp_col == "baseMean") df[[exp_col]] <- log2(df[[exp_col]])
+      if (expr_col == "baseMean") df[[expr_col]] <- log2(df[[expr_col]])
 
-      fc_col <- intersect(
-        c("logFC", "logfc", "lfc", "log2FoldChange"), names(df)
-      )[[1]]
+      fc_col <- intersect(all_params$lfc_col, names(df))[[1]]
       if (length(fc_col) == 0) {
         cat("Couldn't detect logFC column in", x)
         stop()
       }
 
-      p_col <- intersect(
-        c("PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"),
-        names(df)
-      )[[1]]
+      p_col <- intersect(all_params$p_col, names(df))[[1]]
       if (length(p_col) == 0) {
         cat("Couldn't detect PValue column in", x)
         stop()
       }
 
-      fdr_col <- intersect(
-        c("fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj"), names(df)
-      )[[1]]
-      if (length(fdr_col) == 0) {
+      padj_col <- intersect(all_params$padj_col, names(df))[[1]]
+      if (length(padj_col) == 0) {
         cat("Couldn't detect FDR column in", x)
         stop()
       }
 
       df <- dplyr::select(
-        df, gene_id = !!sym(gn_col), logCPM = !!sym(exp_col),
-        logFC = !!sym(fc_col), PValue = !!sym(p_col), FDR = !!sym(fdr_col)
+        df, gene_id = !!sym(gn_col), logCPM = !!sym(expr_col),
+        logFC = !!sym(fc_col), PValue = !!sym(p_col), FDR = !!sym(padj_col)
       )
 
       shared_ids <- intersect(df$gene_id, gtf$gene_id)
@@ -155,7 +147,7 @@ if (!is.null(rna_files)) {
   library(fgsea)
 
   cat_time("Preparing GSEA results from RNA")
-  enrich_params <- params$enrichment
+  enrich_params <- yaml_params$enrichment
   gs_list <- msigdb %>%
     split(.$gs_name) %>%
     bplapply(pull, "ensembl_gene", BPPARAM = bpparam)
@@ -166,7 +158,7 @@ if (!is.null(rna_files)) {
     ) %>%
     lapply(
       \(x) fgseaMultilevel(
-        gs_list, x, BPPARAM = bpparam, nPermSimple = 1e4,
+        gs_list, x, BPPARAM = bpparam, nPermSimple = all_params$nperm_gsea,
         minSize = min(msigdb_params$size)
       )
     ) %>%
@@ -182,8 +174,8 @@ if (!is.null(rna_files)) {
     ) %>%
     lapply(
       \(x) fgseaMultilevel(
-        gs_list, x, BPPARAM = bpparam, nPermSimple = 1e4,
-        minSize = min(msigdb_params$size)
+        gs_list, x, BPPARAM = bpparam, scoreType = 'pos',
+        nPermSimple = all_params$nperm_gsea, minSize = min(msigdb_params$size)
       )
     ) %>%
     lapply(mutate, padj = p.adjust(pval, enrich_params$adj)) %>%

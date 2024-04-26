@@ -1431,7 +1431,7 @@ htmltools::tagList(
         annotation = annot, annotcol = list(NFR = "black"),
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 10, ylim = y_lim,
+        zoom = 10, max = 10 * max(nfr_params$nfr_width), ylim = y_lim,
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
