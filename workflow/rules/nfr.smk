@@ -59,6 +59,7 @@ rule strip_bed:
     input: "{f}.bed"
     output: "{f}.bed.gz"
     threads: 1
+    localrule: True
     resources:
         runtime = "5m",
         mem_mb = 2048
@@ -97,7 +98,7 @@ rule make_consensus_nfr:
     params:
         ## Passed to makeConsensus. This will give stringent, shared NFRs
         method = 'coverage',
-        min_width = max(nfr_params['nfr_width']),
+        min_width = min(nfr_params['nfr_width']),
         p = 1,
         min_gapwidth = nfr_params['merge_nfrs_within']
     conda: "../envs/rmarkdown.yml"

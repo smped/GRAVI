@@ -17,6 +17,7 @@ rule create_genome_annotations:
     params:
         colours = os.path.join(annotation_path, "colours.rds"),
     threads: 2
+    retries: 1
     resources:
         mem_mb = 16384,
         run_time = "30m"
@@ -38,6 +39,7 @@ rule make_exclude_ranges:
         rds = os.path.join(annotation_path, "exclude_ranges.rds")
     threads: 1
     localrule: True
+    retries: 1    
     resources:
         runtime = "10m",
         mem_mb = 4096,
@@ -56,6 +58,7 @@ rule prep_features:
     output:
         rds = os.path.join(annotation_path, "features.rds"),
     threads: 1
+    retries: 1    
     resources:
         mem_mb = 8192,
         run_time = "20m"
@@ -74,6 +77,7 @@ rule prep_blacklist:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1    
     resources:
         mem_mb = 8192,
         run_time = "10m"
@@ -93,6 +97,7 @@ rule prep_hic:
         hic = os.path.join(annotation_path, "hic.rds"),
     conda: "../envs/rmarkdown.yml"
     threads: 2
+    retries: 1    
     resources:
         mem_mb = 16000,
         run_time = "10m"
@@ -111,6 +116,7 @@ rule prep_motifs:
         motif_uri = os.path.join(annotation_path, "motif_uri.rds"),
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1    
     resources:
         mem_mb = 8192,
         run_time = "10m"
@@ -129,6 +135,7 @@ rule prep_msigdb:
         msigdb = os.path.join(annotation_path, "msigdb.rds"),
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1    
     resources:
         mem_mb = 8192,
         run_time = "10m"
@@ -150,6 +157,7 @@ rule prep_rna:
         rna = os.path.join(annotation_path, "rna.rds"),
     conda: "../envs/rmarkdown.yml"
     threads: 4
+    retries: 1    
     resources:
         mem_mb = 16384,
         run_time = "20m"
@@ -162,6 +170,7 @@ rule make_chrom_sizes:
     output: chrom_sizes
     conda: "../envs/samtools.yml"
     threads: 1
+    retries: 1    
     resources:
         run_time = "5m"
     shell:
