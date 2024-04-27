@@ -85,6 +85,11 @@ fdr_column <- ifelse(
   "fdr_ihw" %in% colnames(mcols(results)), "fdr_ihw", "FDR"
 )
 n_sig <- sum(mcols(results)[[fdr_column]] < fdr_alpha)
+n_ranges <- length(results)
+n_unch <- sum(results$status == "Unchanged")
+region_type <- ifelse(
+  diff_sig_params$window_type == "fixed", "Peaks", "Windows"
+)
 comp <- params$results %>% 
   basename() %>% 
   str_remove_all("-differential-signal.rds")
@@ -291,12 +296,6 @@ plotAssayPCA(
 ### Result Tables {.tabset}
 
 ```{r tbl-setup}
-n_windows <- length(results)
-n_unch <- sum(results$status == "Unchanged")
-n_changed <- sum(results$status %in% c("Increased", "Decreased"))
-region_type <- ifelse(
-  diff_sig_params$window_type == "fixed", "Peaks", "Windows"
-)
 tbl_cols <- list(
   Region = colDef(
     footer = htmltools::tags$b("Total"), minWidth = 180,
@@ -317,7 +316,7 @@ tbl_cols <- list(
   Increased = colDef(
     format = comma_col, maxWidth = 100,
     style = \(value) {
-      normalized <- value / (n_windows - n_unch)
+      normalized <- value / (n_ranges - n_unch)
       color <- up_col(normalized)
       list(background = color)
     },
@@ -326,7 +325,7 @@ tbl_cols <- list(
   Decreased = colDef(
     format = comma_col, maxWidth = 100,
     style = \(value) {
-      normalized <- value / (n_windows - n_unch)
+      normalized <- value / (n_ranges - n_unch)
       color <- down_col(normalized)
       list(background = color)
     },
@@ -335,7 +334,7 @@ tbl_cols <- list(
   Ambiguous = colDef(
     format = comma_col, maxWidth = 100,
     style = \(value) {
-      normalized <- value / (n_windows - n_unch)
+      normalized <- value / (n_ranges - n_unch)
       color <- unch_col(normalized)
       list(background = color)
     },
@@ -344,7 +343,7 @@ tbl_cols <- list(
   Unchanged = colDef(
     format = comma_col, maxWidth = 100,
     style = \(value) {
-      normalized <- value / n_windows
+      normalized <- value / n_ranges
       color <- unch_col(normalized)
       list(background = color)
     },
@@ -354,27 +353,19 @@ tbl_cols <- list(
     format = percent_col,
     style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
     align = "right",
-    footer = htmltools::tags$b(percent(sum(1 - n_unch / n_windows), 0.1))
+    footer = htmltools::tags$b(percent(sum(1 - n_unch / n_ranges), 0.1))
   ),
   Total = colDef(
     format = comma_col, maxWidth = 100,
     style = \(value) {
-      bar_style(width = value / n_windows, fill = "#B3B3B3", align = "right")
+      bar_style(width = value / n_ranges, fill = "#B3B3B3", align = "right")
     },
     align = "right",
     footer = \(values) htmltools::tags$b(comma(sum(values)))
   ),
-  `% Of All Windows` = colDef(
+  `% Of All Changed` = colDef(
     style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
     format = percent_col
-  ),
-  `% Of All Peaks` = colDef(
-    style = \(value) bar_style(width = value, fill = "#B3B3B3", align = "right"),
-    format = percent_col
-  ),
-  FDR = colDef(
-    cell = \(value) sprint_pval(value), maxWidth = 80, 
-    style = list(borderLeft = "1px solid rgba(0, 0, 0, 0.1)")
   )
 )
 ```
@@ -460,7 +451,7 @@ df <- results %>%
   pivot_wider(names_from = "status", values_from = "n") %>% 
   dplyr::filter(Total > 0) %>% 
   mutate(
-    "% Of All {region_type}" := Total / length(results),
+    "% Of All Changed" := (Total - Unchanged) / n_sig,
     `% Changed` = 1 - Unchanged / Total
   ) %>% 
   arrange(region) %>% 
@@ -469,40 +460,13 @@ df <- results %>%
     any_of(c("Increased", "Decreased", "Unchanged")),
     `% Changed`, starts_with("% Of All")
   ) %>% 
-    split(.$Region) %>% 
-    bplapply(
-      \(x) {
-        m <- matrix(
-          c(
-            x$Total - x$Unchanged, x$Unchanged, 
-            n_changed - (x$Total - x$Unchanged),
-            n_unch - x$Unchanged
-          ), 
-          nrow = 2
-        )
-        bind_cols(x, fisher.test(m)[c("p.value", "estimate")])
-      }
-    ) %>% 
-    bind_rows() %>% 
-    mutate(
-      FDR = p.adjust(p.value),
-      Association = case_when(
-        FDR < 0.05 & estimate > 1 ~ "Changed",
-        FDR < 0.05 & estimate < 1 ~ "Unchanged",
-        TRUE ~ NA_character_
-      )
-    ) %>% 
-    arrange(desc(Total)) %>% 
-    dplyr::select(-all_of(c("p.value", "estimate")))
+    arrange(desc(Total)) 
 cp <- htmltools::em(
   glue(
     "Overall results for changed {target} signal in the ",
     glue_collapse(rev(treat_levels), last = " Vs. "),
     " comparison, broken down by which genomic region contains the largest ", 
-    "overlap with each range in the set of results.",
-    "Fisher's Exact Test (two-sided) was performed to identify any association ",
-    "between a site being changed or unchanged within each region, with ",
-    "FDR-adjusted p-values and any detected association given int he final columns."
+    "overlap with each range in the set of results."
   )
 )
 tbl <- df %>%
@@ -523,7 +487,6 @@ if (interactive()) {
 
 ```{r tab-res-by-feature, echo = has_features}
 if (has_features) {
-
   df <- results %>% 
     select(status, !!sym(fdr_column), feature) %>% 
     as_tibble() %>% 
@@ -537,49 +500,18 @@ if (has_features) {
     mutate(
       Total = rowSums(dplyr::select(., any_of(names(direction_colours)))),
       `% Changed` = 1 - Unchanged/Total, 
-      "% Of All {region_type}" := Total / length(results)
+      "% Of All Changed" := (Total - Unchanged) / n_sig
     ) %>% 
     dplyr::select(
       feature, Total, any_of(names(direction_colours)), starts_with("%")
     ) %>% 
-    split(.$feature) %>% 
-    bplapply(
-      \(x) {
-        m <- matrix(
-          c(
-            x$Total - x$Unchanged, x$Unchanged, 
-            n_changed - (x$Total - x$Unchanged),
-            n_unch - x$Unchanged
-          ), 
-          nrow = 2
-        )
-        bind_cols(x, fisher.test(m)[c("p.value", "estimate")])
-      }
-    ) %>% 
-    bind_rows() %>% 
-    mutate(
-      FDR = p.adjust(p.value),
-      Association = case_when(
-        FDR < 0.05 & estimate > 1 ~ "Changed",
-        FDR < 0.05 & estimate < 1 ~ "Unchanged",
-        TRUE ~ NA_character_
-      )
-    ) %>% 
-    arrange(desc(Total)) %>% 
-    dplyr::select(-all_of(c("p.value", "estimate")))
-  
-  
+    arrange(desc(Total)) 
   cp <- htmltools::em(
     glue(
       "Overall results for changed {target} signal in the ",
       glue_collapse(rev(treat_levels), last = " Vs. "),
       " comparison, broken down by whether any additional feature ", 
-      "overlaps with a range in the set of results.",
-      "Fisher's Exact Test (two-sided) was performed to identify any association ",
-      "between a site being changed or unchanged when overlapping a given feature, with ",
-      "FDR-adjusted p-values and any detected association given int he final columns. ",
-      "Given that {str_to_lower(region_type)} may overlap multiple features, ",
-      "no column totals are provided"
+      "overlaps with a range in the set of results."
     )
   )
   tbl <- df %>%
@@ -1925,9 +1857,8 @@ if (n_decreased_enrich > min(network_params$size)) {
 ## Region Analysis {.tabset}
 
 ```{r load-localz, eval = FALSE}
-mlz <- all_paths$diff_signal %>% 
-  file.path("{target}", "{comp}-regions_localz.rds") %>% 
-  glue() %>% 
+mlz <- params$localz %>% 
+  here::here() %>% 
   read_rds()
 localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
   as_tibble() %>% 
@@ -1943,7 +1874,7 @@ localz_df <- slot(mlz, "multiLocalZscores")$resumeTab %>%
     ) %>% 
       factor(all_regions),
     enrichment = log2(n_overlaps / mean_perm_test),
-    prop = n_overlaps / length(results)
+    prop = n_overlaps / n_sig
   ) 
 shifted_z <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>% 
   as_tibble() %>% 
@@ -1959,7 +1890,7 @@ shifted_z <- slot(mlz, "multiLocalZscores")$shifed_ZSs %>%
       TRUE ~ region
     ) %>% 
       factor(all_regions),
-    Z = Z / sqrt(length(results))
+    Z = Z / sqrt(n_sig)
   ) 
 heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
@@ -1968,9 +1899,9 @@ heat_col <- c(
 ```
 
 
-In addition to enrichment of pathways, the consensus peaks were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
+In addition to enrichment of pathways, the `r region_type` showing changed signal were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
 The package `regioneReloaded` [@Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected overlap between a random region-set and the regions of interest.
-This effectively defines a viable H~0~ against which the observed number of overlaps can be tested.
+This effectively defines a viable H~0~ against which the observed number of overlaps can be tested, accounting for the size of each type of region or feature.
 Using the Central Limit Theorem, the *normalised Z-scores* returned can be expected to to follow an approximate $\mathcal{N}(0,1)$ distribution, and these are used to regenerate adjusted p-values, as a more conservative alternative to those returned by the package.
 
 In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
@@ -2043,7 +1974,12 @@ tbl <- localz_df %>%
         style = \(value) {
           bg <- do.call(
             "rgb", 
-            as.list(c(col2rgb(region_colours[[value]])[,1]/255, alpha = 0.7))
+            c(region_colours, feature_colours)[[value]] %>% 
+              col2rgb() %>% 
+              .[,1] %>% 
+              divide_by(255) %>% 
+              as.list() %>% 
+              c(list(alpha = 0.7))
           )
           list(backgroundColor = bg)
         },
@@ -2103,11 +2039,11 @@ tbl <- localz_df %>%
 cp <- htmltools::em(
   glue(
     "
-    Results for association between the {comma(length(consensus_peaks))} 
-    {target} consensus peaks and the pre-defined 
+    Results for association between the {comma(n_sig)} {region_type} 
+    considered as showing changed signal, with the 
     genomic regions{ifelse(has_features, ' and the supplied external features.', '.')}
     Expected overlaps are those obtained through random resampling of the genome
-    to match the consensus peaks. Enrichment is given taking log2 of 
+    to match the changed regions. Enrichment is given taking log2 of 
     the ratio between observed and expected overlapping peaks.
     "
   )
