@@ -1186,16 +1186,19 @@ if (has_rna) {
     str_detect(.gr$region, "^Prom") ~ paste("a", .gr$region)
   )
   feat <- c()
-  if (has_features) feat <- case_when(
-    str_detect(.gr$feature, "^no") ~ "no supplied feature",
-    str_detect(.gr$feature, "^[AEIOUaeiou]") ~ paste("an", .gr$feature),
-    !str_detect(.gr$feature, "^[AEIOUaeiou]") ~ paste("a", .gr$feature)
-  )
+  if (has_features) {
+    feat <- glue_collapse(
+      sort(unique(unlist(.gr$feature))), sep = ", ", last = " & "
+    )
+    feat <- case_when(
+      str_detect(feat, "^no") | is.na(feat) ~ "no supplied feature",
+      str_detect(feat, "^[AEIOUaeiou]") ~ paste("an", feat),
+      !str_detect(feat, "^[AEIOUaeiou]") ~ paste("a", feat)
+    )
+  }
   gn <- unlist(.gr$gene_name)
   fdr <- mcols(.gr)[[fdr_column]]
-  fdr <- ifelse(
-    fdr < 0.001, sprintf('%.2e', fdr), sprintf('%.3f', fdr)
-  )
+  fdr <- ifelse(fdr < 0.001, sprintf('%.2e', fdr), sprintf('%.3f', fdr))
   cp <- c(
     glue(
       "The {width(.gr)}bp region showing {dir} {target} signal in response to ", 
@@ -1205,9 +1208,8 @@ if (has_rna) {
       ifelse(
         has_features,
         glue(
-          "Using the features supplied this overlapped ",
-          glue_collapse(feat, sep = ", ", last = " & "),
-          "with any nearby features shown as a separate block beneath the ", "
+          "Using the features supplied this overlapped ", feat,
+          " with any nearby features shown as a separate block beneath the ", "
           gene-centric regions. "
         ),
         glue("")
@@ -1222,8 +1224,7 @@ if (has_rna) {
       "No genes were able to be assigned to this region."
     ),
     paste(
-      "For each sample, the y-axis limits represent the values from the window", 
-      "with the highest signal."
+      "Y-axis limits are consistent between all ranges shown for greater comparability."
     )
   )
   paste(cp, collapse = " ")
