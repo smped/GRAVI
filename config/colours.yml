@@ -1,35 +1,38 @@
 ## Plot colours propagated through all markdown documents for
 ## consistency. Treat colours must match all treatments specified in config.yml
 ## with the addition of a colour for input/control samples
+## Default QC, Direction and treat palettes are colourblind friendly
 qc:
-  pass: "#0571B0"
-  fail: "#CA0020"
+  pass: "#03A772"
+  fail: "#C10724"
 
 direction:
   increased: "#CA0020"
   decreased: "#0571B0"
   unchanged: "#7F7F7F"
-  undetected: "#E5E5E5"
+  undetected: "#D5D5D5"
+  ambiguous: "#201040"
 
-## Add all treatment levels here (e.g. Ctrl: "#0000FF")
 treat:
   Input: "#33333380"
+  # https://davidmathlogic.com/colorblind/#%231E76CC-%239E172E-%23D4BE54-%23698A74-%235F4F71-%23A2720C
+  default: ["#1E76CC", "#9E172E", "#D4BE54", "#698A74", "#5F4F71", "#A2720C"]
 
 regions:
   promoter: '#FF0000'
-  upstream_promoter: '#FF4500'
-  exon: '#7EDD57'
-  intron: '#008000'
-  proximal_intergenic: '#80C0FF'
-  distal_intergenic: '#3030FF'
+  upstream_promoter: '#FF8500'
+  exon: '#54FF9F'
+  intron: '#006400'
+  proximal_intergenic: '#4682B4'
+  distal_intergenic: '#0000CD'
   ## These two will be used if no intron/exon structure is used
   ## or if only 1 intergenic category is set
   gene_body: '#008000'
-  intergenic: '#3030FF'
+  intergenic: '#27408B'
 
 features:
   no_feature: "#E5E5E5"
-  ## Set some defaults for any ChromHMM tracks
+  ## Set some defaults for all ChromHMM tracks
   BivFlnk: '#E9967A'
   DNase: '#FFFF66'
   EnhA1: '#FFC34D'

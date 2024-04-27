@@ -184,14 +184,15 @@ In total this annotation build contained `r comma(length(gtf_gene))` genes, `r c
 gene_regions <- read_rds(all_out$gene_regions)
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 missing_reg_col <- setdiff(names(regions), names(colours$regions))
-if (length(missing_reg_col) > 0) {
+if (length(missing_reg_col)) {
   def_reg_cols <- c(
-    promoter = "#FF0000", upstream_promoter = "#FF4500", exon = "#7EDD57", 
-    intron = "#008000", proximal_intergenic = "#80C0FF", distal_intergenic = "#3030FF",
-    gene_body = "#008000'", intergenic = "#3030FF"
+    promoter = "#FF0000", upstream_promoter = "#FF8500", exon = "#54FF9F", 
+    intron = "#006400", proximal_intergenic = "#4682B4", distal_intergenic = "#0000CD",
+    gene_body = "#008000", intergenic = "#27408B"
   )
   colours$regions[missing_reg_col] <- def_reg_cols[missing_reg_col]
 }
+colours$regions <- colours$regions[names(regions)]
 region_cols <- unlist(colours$regions)[names(regions)] %>% 
   setNames(regions[names(.)])
 ```
@@ -563,7 +564,7 @@ if (length(missing_feat_col) > 0) {
   n <- length(missing_feat_col) 
   feat_col[missing_feat_col] <- hcl.colors(max(9, n), "Spectral")[seq_len(n)]
 }
-colours$features <- feat_col
+colours$features <- feat_col[feat_levels]
 ```
 
 
@@ -770,8 +771,8 @@ hic %>%
 ```{r set_colours}
 ## qc_colours need to have `Pass` and `Fail`
 missing_qc_cols <- setdiff(c("pass", "fail"), names(colours$qc))
-if ("pass" %in% missing_qc_cols) colours$qc$pass <- "#0571B0" # Blue
-if ("fail" %in% missing_qc_cols) colours$qc$fail <- "#CA0020" # Red
+if ("pass" %in% missing_qc_cols) colours$qc$pass <- "#03A772" # Blue
+if ("fail" %in% missing_qc_cols) colours$qc$fail <- "#C10724" # Red
 colours$qc <- colours$qc[c("pass", "fail")]
 
 ## The colours specified as treat_colours should contain all treat_levels + Input
@@ -780,14 +781,24 @@ colours$qc <- colours$qc[c("pass", "fail")]
 missing_treat_cols <- setdiff(
   c("Input", treat_levels), names(colours$treat)
 )
-if (length(missing_treat_cols) > 0) {
-  if ("Input" %in% missing_treat_cols) 
-    colours$treat$Input <- "#33333380"
-  ## Automatically sample from the viridis palette if no colour is assigned
-  colours$treat[setdiff(missing_treat_cols, "Input")] <- hcl.colors(
-    length(setdiff(missing_treat_cols, "Input"))
+## Sample along the defaults for missing treat_colours
+if (length(missing_treat_cols) <= length(colours$treat$default)) {
+  colours$treat <- c(
+    colours$treat,
+    colours$treat$default[seq_along(missing_treat_cols)] %>% 
+      setNames(missing_treat_cols) %>% 
+      as.list()
+  )
+} else {
+  colours$treat <- c(
+    colours$treat,
+    ## Otherwise sample from viridis
+    hcl.colors(length(missing_treat_cols)) %>% 
+      setNames(missing_treat_cols) %>% 
+      as.list()
   )
 }
+colours$treat <- colours$treat[names(colours$treat) != "default"]
 
 ## Direction colours always need up, down, unchanged & undetected
 missing_dir_cols <- setdiff(
@@ -797,8 +808,8 @@ missing_dir_cols <- setdiff(
 if (length(missing_dir_cols) > 0) {
   def_dir_cols <- c(
     increased = "#CA0020", decreased = "#0571B0", 
-    unchanged = "#7F7F7F", undetected = "#E5E5E5",
-    ambiguous = "#000000"
+    unchanged = "#7F7F7F", undetected = "#D5D5D5",
+    ambiguous = "#201040"
   )
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
@@ -858,7 +869,7 @@ knitr::opts_chunk$set(dev = "png")
 if (length(feat_col) <= 8) {
   .plotScheme(feat_col, xlab = "Feature")
 } else {
-  feat_col %>% 
+  colours$features %>% 
     as_tibble() %>% 
     pivot_longer(
       cols = everything(), names_to = "feature", values_to = "colour"
