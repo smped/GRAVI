@@ -22,6 +22,7 @@ rule filter_merged_peaks:
         min_prop = lambda wildcards: peak_qc_param[wildcards.target]['min_prop_reps']
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1
     log: os.path.join(log_path, "filter_merged_peaks", "{target}_{treat}.log")
     resources:
         mem_mb = 4096,
@@ -59,6 +60,7 @@ rule make_consensus_peaks:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1
     log: os.path.join(log_path, "make_consensus_peaks", "{target}.log")
     resources:
         mem_mb = 4096,
@@ -86,6 +88,7 @@ rule make_shared_consensus_peaks:
         rds =  os.path.join(peak_path, "shared", "shared_peaks.rds"),        
     conda: "../envs/rmarkdown.yml"
     threads: 1
+    retries: 1
     log: os.path.join(log_path, "make_consensus_peaks", "shared.log")
     resources:
         mem_mb = 4096,

@@ -151,6 +151,7 @@ if (!all(prof_cols))
 
 cat_time("Checking colours")
 valid_cols <- colours |>
+  lapply(unlist) |>
   lapply(col2rgb) |>
   vapply(is.matrix, logical(1))
 ## This will automatically error...
