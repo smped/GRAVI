@@ -230,9 +230,6 @@ ma_plots <- names(rna) %>%
           ggside.panel.scale = 0.2, 
           ggside.axis.ticks.x = element_blank(),
           plot.margin = unit(c(1, 1, 1, 2), "lines")
-          # legend.position = "inside",
-          # legend.position.inside = c(0.8, 0.8),
-          # legend.justification = c(1, 1)
         ) 
       
         ## Export the image
@@ -405,21 +402,29 @@ if (has_features) {
       \(i) {
         x <- rna[[i]]
         p <- results_tbl %>% 
+          unnest(feature, keep_empty = TRUE) %>% 
           inner_join(x, by = "gene_id") %>% 
           mutate(
+            feature = feature %>% 
+              str_replace_na("no_feature") %>% 
+              fct_infreq(),
             status.x = fct_relabel(status.x, \(x) paste(target, x)), 
             status.y = fct_relabel(status.y, \(x) paste("RNA", x)), 
             status = fct_cross(status.x, status.y, sep = "\n") %>% fct_rev(),
             gene_name = id2gene[gene_id]
           ) %>% 
+          distinct(range, feature, status, .keep_all = TRUE) %>% 
           rename_with(
             \(x) str_replace_all(x, "\\.x$", paste0(" ", target))
           ) %>% 
           rename_with(
             \(x) str_replace_all(x, "\\.y$", " RNA")
           ) %>% 
-          arrange(desc(`logFC RNA`), !!sym(glue("PValue {target}"))) %>% 
-          distinct(gene_id, .keep_all = TRUE) %>% 
+          arrange(
+            desc(`logFC RNA`), !!sym(glue("PValue {target}")), desc(feature)
+          ) %>% 
+          distinct(gene_id, feature, .keep_all = TRUE) %>% 
+          mutate(feature = fct_lump_n(feature, 8)) %>% 
           ggplot(aes(!!sym(glue("logFC {target}")), `logFC RNA`)) +
           geom_hline(yintercept = 0) +
           geom_vline(xintercept = 0) +
@@ -483,12 +488,12 @@ if (has_features) {
             "All detected genes within the {i} dataset were compared to {target}",
             "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
             "Where multiple signal regions wre mapped to a given gene, the most ",
-            "highly-ranked by p-value was selected for visualisation. ",
+            "highly-ranked by p-value was selected for visualisation within each feature. ",
             "Points are shown by which feature (if any) the DSA result was ", 
-            "mapped to. ",
+            "mapped to, merging features with low mappings into the 'Other' category. ",
             "Genes which were unchanged in {i} and with no changed DSA regions ",
             "are shown in grey. Robust linear regression lines are shown in ", 
-            "black along with correlations in the bottom right corner of each panel."
+            "black along with correlations in the bottom right corner of each panel.",
           )
         )
         htmltools::div(
@@ -689,7 +694,13 @@ if (any(has_de) & has_ds) {
             dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
             by = "gene_id"
           ) %>% 
-          mutate(d = distance(GRanges(range.x), GRanges(range.y))) %>% 
+          mutate(
+            d = distance(GRanges(range.x), GRanges(range.y)),
+            across(
+              any_of("feature"), 
+              \(x) map_chr(x, \(x) paste(sort(unique(x)), collapse = "; "))
+            )
+          ) %>% 
           dplyr::select(-range.x) %>% 
           dplyr::rename(range = range.y) %>% 
           dplyr::select(
@@ -698,7 +709,7 @@ if (any(has_de) & has_ds) {
           ) %>% 
           dplyr::select(-starts_with("PValue")) %>% 
           reactable(
-            showPageSizeOptions = TRUE, groupBy = "gene_name",
+            showPageSizeOptions = nrow(.) > 10, groupBy = "gene_name",
             filterable = TRUE, sortable = TRUE,
             columns = list(
               gene_name = colDef(
@@ -757,11 +768,23 @@ if (any(has_de) & has_ds) {
                 aggregate = granges_js
               ),
               region = colDef(
-                name = "Genomic Region", aggregate = "unique"
+                name = "Genomic Region", aggregate = "unique",
+                filterInput = function(values, name) {
+                  tags$select(
+                    # Set to undefined to clear the filter
+                    onchange = sprintf(
+                      "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                      id, name
+                    ),
+                    # "All" has an empty value to clear the filter, and is the default option
+                    tags$option(value = "", "All"),
+                    lapply(unique(values), tags$option),
+                    "aria-label" = sprintf("Filter %s", name),
+                    style = "width: 100%; height: 28px; font-size: 12px;"
+                  )
+                }
               ),
-              feature = colDef(
-                name = "Feature", aggregate = "unique"
-              ),
+              feature = colDef(name = "Feature", aggregate = "unique"),
               logCPM.y = colDef(
                 name = "logCPM", maxWidth = fs*6,
                 aggregate = range_js,
@@ -807,7 +830,7 @@ if (any(has_de) & has_ds) {
               status.y = colDef("Status", show = FALSE, aggregate = "unique"),
               d = colDef(
                 "Distance To Peak", maxWidth = fs * 8, format = comma_col,
-                aggregate = range_js
+                aggregate = range_js, filterMethod = js_less
               )
             )[colnames(.)],
             columnGroups = list(
@@ -825,7 +848,7 @@ if (any(has_de) & has_ds) {
         )
         htmltools::div(
           id = id, class = "section level5", 
-          htmltools::h5("DEGs with Diferential Signal"), 
+          htmltools::h5("DEGs with Differential Signal"), 
           tags$button(
             tagList(fontawesome::fa("download"), "Download as CSV"),
             onclick = glue(
@@ -880,11 +903,193 @@ tagList(
 
 ### `r target` Pattern GSEA 
 
-GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r target` signal regions, and checking for enrichment amongst the RNA-Seq results, ranking genes from up- to down-regulated, using the significance of the logFC estimates.
+GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r target` signal regions, and checking for enrichment amongst the RNA-Seq results.
+Two analyses wre performed:
+
+1. Ranking both `r target` signal and transcriptomic data by significance only, to test for any overall association with changed signal levels and DGE, then
+2. Ranking both `r target` signal and transcriptomic data by both *direction of change* and *significance*, to test for any overall association between the direction of change in either -omics layer
+
 The `R` package `fgsea` [@KorotkevichFgsea2019] was used for all downstream GSEA analysis.
+
+### Overall Significance {.tabset}
+
+```{r run-gsea-sig}
+ids_by_status <- results_tbl %>%
+  mutate(status = ifelse(status == "Unchanged", "Unchanged", "Changed")) %>% 
+  unnest(any_of("feature")) %>% 
+  unite(group, any_of(c("status", "region", "feature"))) %>% 
+  split(.$group) %>% 
+  lapply(pull, "gene_id")
+rna_sig_scores <- rna %>% 
+  lapply(\(x) setNames(-log10(x$PValue), x$gene_id))
+rna_gsea_sig <- rna_sig_scores %>% 
+  lapply(
+    \(x) fgsea(
+      ids_by_status, x, minSize = min(msigdb_params$size), scoreType = "pos"
+    )
+  ) %>% 
+  lapply(as_tibble) %>% 
+  lapply(
+    separate, pathway, 
+    into = c("status", "region", "feature")[seq_len(2 + has_features)],
+    sep = "_", extra = "merge", remove = FALSE
+  ) %>%
+  lapply(arrange, pval) %>% 
+  lapply(
+    mutate,
+    pathway = paste(target, pathway),
+    padj = p.adjust(pval, enrich_params$adj),
+    status = factor(status, levels = c("Unchanged", "Changed")),
+    region = factor(region, unname(regions)),
+    leSize = map_int(leadingEdge, length),
+    leadingEdge = map_chr(
+      leadingEdge, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+    )
+  ) %>% 
+  lapply(
+    dplyr::select, 
+    pathway, any_of(c("status", "region", "feature")),
+    padj, NES, ends_with("ize"), leadingEdge
+  ) %>% 
+  lapply(dplyr::filter, leSize >= enrich_params$min_sig)
+any_gsea_sig <- map_lgl(rna_gsea_sig, \(x) any(x$padj < enrich_params$alpha))
+```
+
+
+```{r tbl-gsea-sig, echo=FALSE}
+if (any(any_gsea_sig)) {
+  tagList(
+    any_gsea_sig %>% 
+      which() %>% 
+      names() %>% 
+      lapply(
+        \(x) {
+          tbl_id <- paste0("tbl-gsea-sig", x) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-")
+          tbl <- rna_gsea_sig[[x]] %>% 
+            dplyr::select(-pathway) %>% 
+            dplyr::filter(padj < enrich_params$alpha) %>% 
+            reactable(
+              sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+              columns = list(
+                status = colDef(
+                  glue("{target} Status"), maxWidth = 100,
+                  filterMethod = JS(
+                    "function(rows, columnId, filterValue) {
+                      return rows.filter(function(row) {
+                        return row.values[columnId].indexOf(filterValue) !== -1
+                      })
+                    }"
+                  ),
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                region = colDef(
+                  "Region Type", maxWidth = 120,
+                  filterMethod = JS(
+                    "function(rows, columnId, filterValue) {
+                      return rows.filter(function(row) {
+                        return row.values[columnId].indexOf(filterValue) !== -1
+                      })
+                    }"
+                  ),
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                feature = colDef(
+                  "Feature Type", maxWidth = 100,
+                  filterMethod = JS(
+                    "function(rows, columnId, filterValue) {
+                      return rows.filter(function(row) {
+                        return row.values[columnId].indexOf(filterValue) !== -1
+                      })
+                    }"
+                  ),
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                padj = enrich_cols$adj_p,
+                NES = enrich_cols$NES,
+                size = colDef("Group Size"),
+                leSize = colDef("LE Size"),
+                leadingEdge = colDef(
+                  "Leading Edge", cell = \(value) with_tooltip(value, width = 60),
+                  minWidth = 150, maxWidth = 500
+                )
+              )[colnames(.)],
+              defaultColDef = colDef(maxWidth = 80),
+              elementId = tbl_id
+            )
+          cp <- htmltools::em(
+            glue(
+              "GSEA results for {x}, testing an association between up- or down-", 
+              "regulated genes for all {target} DSA groups incorporating all available ", 
+              "annotations and features. A Normalized Enrichment Score (NES) > 0 ", 
+              "indicates an association with differentially expressed genes. ", 
+              "The total number of genes ", 
+              "mapped to each type of DSA group is provided along with those found ",
+              "beyond the Leading Edge. Given that multiple peaks may map to a gene, ",
+              "genes may be included in more than one grouping."
+            )
+          )
+          htmltools::div(
+            id = tbl_id,
+            class = "section level5",
+            htmltools::h5(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        }
+      )
+  )
+}
+```
+
+
+#### Directional Association {.tabset}
 
 ```{r run-gsea-dir}
 ids_by_status <- results_tbl %>% 
+  unnest(any_of("feature")) %>% 
+  dplyr::filter(status != "Unchanged") %>% 
   unite(group, any_of(c("status", "region", "feature"))) %>% 
   split(.$group) %>% 
   lapply(pull, "gene_id")
@@ -903,6 +1108,7 @@ rna_gsea_dir <- rna_dir_scores %>%
   lapply(arrange, pval) %>% 
   lapply(
     mutate,
+    pathway = paste(target, pathway),
     padj = p.adjust(pval, enrich_params$adj),
     status = factor(status, levels = names(direction_colours)),
     region = factor(region, unname(regions)),
@@ -915,7 +1121,8 @@ rna_gsea_dir <- rna_dir_scores %>%
     dplyr::select, 
     pathway, any_of(c("status", "region", "feature")),
     padj, NES, ends_with("ize"), leadingEdge
-  )
+  ) %>% 
+  lapply(dplyr::filter, leSize >= enrich_params$min_sig)
 any_gsea_dir <- map_lgl(rna_gsea_dir, \(x) any(x$padj < enrich_params$alpha))
 ```
 
@@ -927,15 +1134,66 @@ if (any(any_gsea_dir)) {
       names() %>% 
       lapply(
         \(x) {
+          tbl_id <- paste0("tbl-gsea-dir", x) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-")
           tbl <- rna_gsea_dir[[x]] %>% 
             dplyr::select(-pathway) %>% 
             dplyr::filter(padj < enrich_params$alpha) %>% 
             reactable(
               sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
               columns = list(
-                status = colDef(glue("{target} Status"), maxWidth = 100),
-                region = colDef("Region Type", maxWidth = 120),
-                feature = colDef("Feature Type", maxWidth = 100),
+                status = colDef(
+                  glue("{target} Status"), maxWidth = 100,
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                region = colDef(
+                  "Region Type", maxWidth = 120,
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                feature = colDef(
+                  "Feature Type", maxWidth = 100,
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
                 padj = enrich_cols$adj_p,
                 NES = enrich_cols$NES,
                 size = colDef("Group Size"),
@@ -945,7 +1203,8 @@ if (any(any_gsea_dir)) {
                   minWidth = 150, maxWidth = 500
                 )
               )[colnames(.)],
-              defaultColDef = colDef(maxWidth = 80)
+              defaultColDef = colDef(maxWidth = 80),
+              elementId = tbl_id
             )
           cp <- htmltools::em(
             glue(
@@ -960,9 +1219,7 @@ if (any(any_gsea_dir)) {
             )
           )
           htmltools::div(
-            id = paste0("tbl-gsea-dir", x) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
+            id = tbl_id,
             class = "section level4",
             htmltools::h4(x),
             htmltools::div(
@@ -1424,7 +1681,7 @@ For DSA enrichment, only the results obtained using the genomic background were 
 ```{r print-dsa-rna-enrichment, echo=FALSE}
 tagList(
   c(
-    tbl_changed_rna_enrich, tbl_increased_rna_enrich, tbl_increased_rna_enrich
+    tbl_changed_rna_enrich, tbl_increased_rna_enrich, tbl_decreased_rna_enrich
   ) %>% 
     map_lgl(is, "shiny.tag") %>% 
     which() %>% 
@@ -1508,16 +1765,17 @@ htmltools::tagList(
       plotHFGC(
         grl_to_plot[[i]],
         hic = hic,
-        features = feat_gr, featcol = feat_col_hfgc, 
-        featsize = 1 + has_features, featstack = "dense",
-        genes = hfgc_genes, genecol = gene_col,
-        coverage = bwfl, linecol = line_col, ylim = y_lim,
+        features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "pack",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
+        coverage = bwfl, linecol = line_col,
         annotation = annot, annotcol = direction_colours,
-        cytobands = bands_df, 
-        collapseTranscripts = collapseTrans, maxTrans = 20,
-        col.title = "black", background.title = "white", showAxis = FALSE,
-        max = max(5e5, width(range(grl_to_plot[[i]])) * 1.1), 
-        rotation.title = 90, zoom = 10, highlight = FALSE
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 20, max = 8e3, ylim = y_lim,
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10
       )
       dev.off()
       ## Create html tags

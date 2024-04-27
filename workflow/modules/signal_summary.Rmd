@@ -133,11 +133,11 @@ tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
 regions <- vapply(gene_regions, function(x) unique(x$region), character(1))
 ## External features
-external_features <- read_rds(file.path(all_paths$annotation, "features.rds"))
-has_features <- length(external_features) > 0
-feat_names <- names(external_features) %>% 
+features <- read_rds(file.path(all_paths$annotation, "features.rds"))
+has_features <- length(features) > 0
+feat_names <- names(features) %>% 
   lapply(
-    \(x) paste(x, external_features[[x]]$feature, sep = ": ")
+    \(x) paste(x, features[[x]]$feature, sep = ": ")
   ) %>% 
   lapply(fct_infreq) %>% 
   lapply(levels) %>% 
@@ -1011,8 +1011,7 @@ featnames <- "Regions"
 if (has_features) {
   feat_gr <- list(Regions = feat_gr) %>% 
     c(
-      external_features %>% 
-        lapply(\(x) endoapply(splitAsList(x, x$feature), granges))
+      lapply(features, \(x) endoapply(splitAsList(x, x$feature), granges))
     )
   feature_colours <- feat_gr %>% lapply(\(x) full_palette[names(x)])
   featnames <- names(feat_gr) %>% str_sep_to_title(replacement = "\n")
