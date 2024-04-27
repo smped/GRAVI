@@ -159,15 +159,15 @@ rule prep_rna:
         gene_col = ["gene_id", "Geneid", "geneid", "ensembl_gene_id", "ensembl_id"],
         expr_col = ["AveExpr", "logCPM", "baseMean"],
         lfc_col = ["logFC", "logfc", "lfc", "log2FoldChange"],
-        p_col = ["PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"]
+        p_col = ["PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"],
         padj_col = ["fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj"],
-        nperm_gsea = 1e6,
+        nperm_gsea = 1e5,
     conda: "../envs/rmarkdown.yml"
     threads: 4
     retries: 1    
     resources:
         mem_mb = 16384,
-        run_time = "20m"
+        run_time = "30m"
     log: os.path.join(log_path, "annotations", "rna.log")
     script:
         "../scripts/prep_rna.R"
