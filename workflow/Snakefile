@@ -45,11 +45,17 @@ df = pd.read_table(config['samples']['file'])
 
 ## Now set all values as required
 samples = list(set(df['sample']))
-targets = list(set(df['target']))
-targets_ext = targets.copy()
-targets_ext.extend(['shared','nfr']) # Enable 'shared' & 'nfr' for motif params
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
+targets = list(set(df['target']))
+## Make sure nfr & shared are added to the 'extended' targets is needed
+targets_ext = targets.copy()
+if (len(targets) >1):
+	targets_ext.extend(['shared'])
+
+if set([config['modules']['nfr']]).intersection(targets):
+	targets_ext.extend(['nfr'])
+
 
 ## Note that the last level in treats can never be the reference level
 wildcard_constraints:
@@ -122,7 +128,7 @@ with open(os.path.join(json_path, "profile_heatmap_param.json"), 'w') as fp:
 ## These do need more careful checking as not all levels may be found in each
 ## target. Compare to df['treat'][df$target' == x] at some point
 diff_sig_param = set_params(config['differential_signal'], targets)
-rm_targets = []
+rm_targets = [] # Holds targets with no valid contrasts
 for i in diff_sig_param.keys():
 	poss_levels = set(df['treat'][df['target'] == i])
 	valid_contrasts = []
@@ -132,14 +138,13 @@ for i in diff_sig_param.keys():
 		valid = poss_levels.intersection(supplied)
 		if len(valid) == 2:
 			valid_contrasts.extend([supplied])
-
 	if len(valid_contrasts):
 		diff_sig_param[i]['contrasts'] = valid_contrasts
 		diff_sig_param[i]['target'] = i
 	else:
 		rm_targets.extend([i])
 
-if len(rm_targets):
+if len(rm_targets): # Remove those without valid contrasts
 	for i in rm_targets:
 		del diff_sig_param[i]
 
@@ -165,7 +170,7 @@ for p in list(itertools.combinations(all_contrasts, 2)):
 	pairs.extend([p[0] + "_" + p[1]])
 
 ## Turn of all Pairwise comps by uncommenting this line
-pairs = []
+# pairs = []
 
 #################
 ## Figure Type ##
