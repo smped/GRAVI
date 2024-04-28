@@ -814,6 +814,24 @@ if (length(missing_dir_cols) > 0) {
   colours$direction[missing_dir_cols] <- def_dir_cols[missing_dir_cols]
 }
 
+# Pairwise colours
+default_pw <- expand.grid(
+  c("decreased", "increased", "unchanged"), 
+  c("decreased", "increased", "unchanged")
+) %>% 
+  mutate(across(starts_with("Var"), as.character)) %>% 
+  arrange(Var1, Var2) %>% 
+  unite("pair", starts_with("Var")) %>% 
+  mutate(
+    rgb = RColorBrewer::brewer.pal(9, "Paired") %>% setNames(pair)
+  ) %>% 
+  pull("rgb")
+missing_pw_cols <- setdiff(names(colours$pairwise), names(default_pw))
+if (length(missing_pw_cols)) {
+  colours$pairwise[missing_pw_cols] <- as.list(default_pw)[missing_pw_cols]
+}
+
+
 all_heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() 
 heat_cols <- targets %>% 
@@ -899,6 +917,28 @@ if (length(feat_col) <= 8) {
 ```{r plot-dir, fig.height=3, fig.width=2 + length(colours$direction)}
 .plotScheme(colours$direction, xlab = "Direction")
 ```
+
+## Pairwise
+
+```{r plot-pairwise}
+colours$pairwise %>% 
+  as_tibble() %>% 
+  pivot_longer(everything(), values_to = "colour") %>% 
+  separate(name, c("x", "y")) %>% 
+  mutate(across(all_of(c("x", "y")), str_to_title)) %>% 
+  mutate(
+    across(
+      all_of(c("x", "y")), 
+      \(x) factor(x, levels = c("Increased", "Unchanged", "Decreased"))
+      )
+  ) %>% 
+  ggplot(aes(x, y, fill = I(colour))) +
+  geom_tile() +
+  scale_x_discrete(expand = rep_len(0, 4)) +
+  scale_y_discrete(expand = rep_len(0, 4)) +
+  labs(x = "X Variable", y = "Y Variable")
+```
+
 
 ## Heatmap Gradient
 

@@ -24,10 +24,10 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-
 ## For testing
+# config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
-#   samples = yaml::read_yaml("config/config.yml")$samples$file,
+#   samples =config$samples$file,
 #   script = here::here("workflow", "scripts", "create_site_yaml.R"),
 #   yml = "config/rmarkdown.yml"
 # )
@@ -59,11 +59,15 @@ rmd <- read_yaml(all_input$yml)
 cat_time("Defining targets")
 samples <- read_tsv(all_input$samples)
 all_targets <- unique(samples$target)
+treat_by_target <- samples %>%
+  split(.$target) %>%
+  lapply(pull, "treat") %>%
+  lapply(unique)
 
 cat_time("Loading diff_sig_param")
 diff_sig_param <- jsonlite::fromJSON(
   here::here("config/json/differential_signal_param.json")
-)
+)[all_targets]
 
 cat_time("Defining comparisons...\n")
 ## Sort out the TF comparisons
@@ -77,107 +81,99 @@ if (length(diff_sig_param)) {
     lapply(as_tibble) %>%
     bind_rows(.id = "target") %>%
     mutate(
+      valid_treat = lapply(target, \(x) treat_by_target[[x]]),
+      keep_ref = mapply(\(x, y) x %in% unlist(y), x = ref, y = valid_treat),
+      keep_treat = mapply(\(x, y) x %in% unlist(y), x = treat, y = valid_treat),
+    ) %>%
+    dplyr::filter(if_all(starts_with("keep"))) %>%
+    dplyr::select(-starts_with("keep")) %>%
+    mutate(
       comparison = glue("{treat} Vs. {ref}"),
       rmd = glue("{target}_{ref}_{treat}")
     ) %>%
     split(.$target) %>%
-    setNames(c())
+    unname()
 
-  diff_signal_yaml <- list(
-    text = "Differential Signal",
-    menu =   comparisons %>%
-      lapply(
-        function(x){
-          list(
-            text = unique(x$target),
-            menu = lapply(
-              split(x, f = seq_len(nrow(x))),
-              function(y) {
-                list(
-                  text = as.character(y$comparison),
-                  href = paste0(y$rmd, "_differential_signal.html")
-                )
-              }
-            ) %>%
-              setNames(NULL)
-          )
-        }
-      )
-  )
+  if (length(comparisons)) {
+    diff_signal_yaml <- list(
+      text = "Differential Signal",
+      menu = comparisons %>%
+        lapply(
+          function(x){
+            list(
+              text = unique(x$target),
+              menu = lapply(
+                split(x, f = seq_len(nrow(x))),
+                function(y) {
+                  list(
+                    text = as.character(y$comparison),
+                    href = paste0(y$rmd, "_differential_signal.html")
+                  )
+                }
+              ) %>%
+                setNames(NULL)
+            )
+          }
+        )
+    )
+  }
 }
 
 ## Sort out the pairwise comparisons
 ## This currently automatically finds every possible combination and compares
 ## them. Alternatives could be manually specifying or manually excluding...
-## H3K27ac comparisons are treated identically as TF comparisons at this point
 cat_time("Checking for viable pairwise comparisons\n")
+tgt_regex <- paste(all_targets, collapse = "|")
+trt_regex <- samples$treat %>%
+  unique() %>%
+  paste(collapse = "|")
 pairs_yaml <- NULL
-# all_pairs <- lapply(
-#   config$comparisons$contrasts,
-#   function(x) {
-#     cont = paste(x, collapse = "_")
-#     target_combs <- map_lgl(
-#       split(samples, samples$target), \(y) all(x %in% y$treat)
-#     ) %>%
-#       which() %>%
-#       names() %>%
-#       sort
-#     paste(target_combs, cont, sep = "_")
-#   }
-# ) %>%
-#   unlist() %>%
-#   sort()
-# if (length(all_pairs) > 1) {
-#   # This can only proceed if we have more than one possible comparison
-#   pairs <- all_pairs %>%
-#     combn(2) %>%
-#     t() %>%
-#     set_colnames(c("c1", "c2")) %>%
-#     as_tibble() %>%
-#     mutate(
-#       pairs = paste(
-#         str_extract(c1, "^[A-Za-z0-9]+"),
-#         str_extract(c2, "^[A-Za-z0-9]+"),
-#         sep = "-"
-#       ),
-#       html = paste(c1, c2, "pairwise_comparison.html", sep = "_"),
-#       across(
-#         all_of(c("c1", "c2")),
-#         \(x) str_remove_all(x, "^[A-Za-z0-9]+_")
-#       ),
-#       across(
-#         all_of(c("c1", "c2")),
-#         \(x) str_replace_all(x, pattern = "(.+)_(.+)", replacement = "\\2 Vs. \\1")
-#       )
-#     ) %>%
-#     unite(comps, c1, c2, sep = " / ") %>%
-#     dplyr::select(pairs, comps, html)
-
-#   cat("Preparing pairwise menu element...\n")
-#   pairs_yaml <- list(
-#     text = "Pairwise Comparisons",
-#     menu = pairs %>%
-#       split(.$pairs) %>%
-#       setNames(NULL) %>%
-#       lapply(
-#         function(x) {
-#           list(
-#             text = unique(x$pairs),
-#             menu = lapply(
-#               split(x, f = x$comps),
-#               function(y) {
-#                 list(
-#                   text = y$comps,
-#                   href = y$html
-#                 )
-#               }
-#             ) %>%
-#               setNames(NULL)
-#           )
-#         }
-#       )
-#   )
-# }
+if (length(comparisons) > 1) {
+  cat_time("Preparing pairwise YAML section")
+  pairs_yaml <- list(
+    text = "Pairwise Comparisons",
+    menu = comparisons %>%
+      bind_rows() %>%
+      pull("rmd") %>%
+      combn(2) %>%
+      t() %>%
+      set_colnames(c("rmd1", "rmd2")) %>%
+      as_tibble() %>%
+      mutate(
+        tgt1 = str_extract(rmd1, paste0("^(", tgt_regex, ")_")),
+        tgt2 = str_extract(rmd2, paste0("^(", tgt_regex, ")_")),
+        across(starts_with("tgt"), \(x) str_remove_all(x, "_$")),
+        cont1 = rmd1 %>%
+          str_remove_all(paste0("^(", paste(all_targets, collapse = "|"), ")_")) %>%
+          str_replace_all(paste0("^(", trt_regex, ")_(", trt_regex, ")$"), "\\2 Vs. \\1"),
+        cont2 = rmd2 %>%
+          str_remove_all(paste0("^(", paste(all_targets, collapse = "|"), ")_")) %>%
+          str_replace_all(paste0("^(", trt_regex, ")_(", trt_regex, ")$"), "\\2 Vs. \\1"),
+        ref = paste(rmd1, rmd2, "pairwise_comparison.html", sep = "_")
+      ) %>%
+      unite(text, starts_with("cont"), sep = " / ") %>%
+      unite(menu, starts_with("tgt"), sep = "-") %>%
+      distinct(ref, .keep_all = TRUE) %>%
+      split(.$menu) %>%
+      lapply(
+        \(x) {
+          list(
+            text = x$menu,
+            menu = lapply(
+              seq_len(nrow(x)),
+              \(i) {
+                list(
+                  text = x$text[[i]],
+                  href = x$ref[[i]]
+                )
+              }
+            )
+          )
+        }
+      ) %>%
+      unname()
+  )
+}
 
 cat_time("Checking for additional modules...")
 module_yaml <- NULL

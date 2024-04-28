@@ -1424,16 +1424,20 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = feature_colours, featname = featnames,
-        featsize = max(1, 0.8 * length(feat_gr)), featstack = "pack",
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
-        coverage = bwfl, linecol = line_col, 
+        coverage = bwfl, linecol = line_col, ylim = y_lim,
         annotation = annot, annotcol = list(NFR = "black"),
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 10, max = 10 * max(nfr_params$nfr_width), ylim = y_lim,
+        zoom = 10, max = max(
+          10 * max(nfr_params$nfr_width), 
+          width(range(grl_to_plot[[i]]))
+        ),
         col.title = "black", background.title = "white", 
-        rotation.title = 90, showAxis = FALSE, fontsize = 10
+        rotation.title = 90, showAxis = FALSE, fontsize = 10,
+        highlight = rgb(0, 0, 1, 0.3)
       )
       dev.off()
       ## Create html tags

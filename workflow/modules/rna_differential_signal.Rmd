@@ -269,19 +269,17 @@ ma_plots <- names(rna) %>%
 
 
 ```{r lfc-by-region}
-pw_pl <- c(
-  direction_colours[["Unchanged"]], RColorBrewer::brewer.pal(8, "Paired")
-)
-names(pw_pl) <- paste(
-  target, 
-  c(
-    "Unchanged\nRNA Unchanged",
-    "Unchanged\nRNA Decreased", "Decreased\nRNA Decreased", 
-    "Decreased\nRNA Unchanged", "Increased\nRNA Unchanged", 
-    "Unchanged\nRNA Increased", "Increased\nRNA Increased", 
-    "Increased\nRNA Decreased", "Decreased\nRNA Increased"
-  ) 
-)
+pw_pl <- colours$pairwise %>% 
+  unlist() %>% 
+  as_tibble(rownames = "pair") %>% 
+  separate(pair, into = c("p1", "p2")) %>% 
+  mutate(
+    p1 = paste(target, str_to_title(p1)),
+    p2 = paste("RNA", str_to_title(p2))
+  ) %>% 
+  unite("pair", all_of(c("p1", "p2")), sep = "\n") %>% 
+  mutate(value = setNames(value, pair)) %>% 
+  pull("value")
 lfc_by_region <- names(rna) %>% 
   lapply(
     \(i) {
@@ -911,7 +909,7 @@ Two analyses wre performed:
 
 The `R` package `fgsea` [@KorotkevichFgsea2019] was used for all downstream GSEA analysis.
 
-### Overall Significance {.tabset}
+#### Overall Significance {.tabset}
 
 ```{r run-gsea-sig}
 ids_by_status <- results_tbl %>%
@@ -1220,8 +1218,8 @@ if (any(any_gsea_dir)) {
           )
           htmltools::div(
             id = tbl_id,
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "table", tbl, htmltools::tags$caption(cp)
             )
@@ -1774,7 +1772,7 @@ htmltools::tagList(
         annotation = annot, annotcol = direction_colours,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 20, max = max(1e4, width(range(grl_to_plot[[i]]))), 
+        zoom = 20, max = max(1e4, 1.1 * width(range(grl_to_plot[[i]]))), 
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10,
         highlight = rgb(0, 0, 1, 0.3)
