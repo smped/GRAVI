@@ -485,15 +485,15 @@ if (has_features) {
         fig_link <- str_extract(img_out, "assets.+")
         cp <- htmltools::tags$em(
           glue(
-            "All detected genes within the {i} dataset were compared to {target}",
-            "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
+            "All detected genes within the {i} dataset were compared to DSA ",
+            "results for {target} when comparing {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
             "Where multiple signal regions wre mapped to a given gene, the most ",
             "highly-ranked by p-value was selected for visualisation within each feature. ",
             "Points are shown by which feature (if any) the DSA result was ", 
             "mapped to, merging features with low mappings into the 'Other' category. ",
             "Genes which were unchanged in {i} and with no changed DSA regions ",
             "are shown in grey. Robust linear regression lines are shown in ", 
-            "black along with correlations in the bottom right corner of each panel.",
+            "black along with correlations in the bottom right corner of each panel."
           )
         )
         htmltools::div(
