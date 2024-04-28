@@ -1752,6 +1752,7 @@ By choosing the 5 genes highly tanked for both differential expression in any of
     ", and with at least significantly changed DSA region for {target}. ",
     "Regions associated with differential signal are annotated by colour."
   )
+  cp
 }
 htmltools::tagList(
   lapply(
@@ -1766,16 +1767,17 @@ htmltools::tagList(
         grl_to_plot[[i]],
         hic = hic,
         features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
-        featsize = max(1, 0.8 * length(feat_gr)), featstack = "pack",
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
         genes = hfgc_genes, genecol = gene_col, 
         genesize = rep_len(c(2, 1), length(hfgc_genes)),
-        coverage = bwfl, linecol = line_col,
+        coverage = bwfl, linecol = line_col, ylim = y_lim,
         annotation = annot, annotcol = direction_colours,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 20, max = 8e3, ylim = y_lim,
+        zoom = 20, max = max(1e4, width(range(grl_to_plot[[i]]))), 
         col.title = "black", background.title = "white", 
-        rotation.title = 90, showAxis = FALSE, fontsize = 10
+        rotation.title = 90, showAxis = FALSE, fontsize = 10,
+        highlight = rgb(0, 0, 1, 0.3)
       )
       dev.off()
       ## Create html tags
