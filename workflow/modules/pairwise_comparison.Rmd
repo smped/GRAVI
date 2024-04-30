@@ -1,19 +1,17 @@
-```{r dummy-params, eval = FALSE}
+```{r dummy-params, eval = interactive()}
 ## For the setup, refer to the comparison which will appear on the x-axis with
 ## the subscript _x, whilst for that onb the y-axis, use _y. This can be applied
 ## to every data object and element of params
 ## Setup for AR (x) & ER (y) using E2_E2DHT as the comparison
 x <- "AR"
 y <- "ER"
-comp_x = glue::glue("{x}_E2_E2DHT")
-comp_y = glue::glue("{y}_E2_E2DHT")
+comp_x <- glue::glue("{x}_E2_E2DHT")
+comp_y <- glue::glue("{y}_E2_E2DHT")
 treat_levels <- list(comp_x, comp_y) |>
   lapply(\(x) strsplit(x, split = "_")[[1]][2:3]) |>
   setNames(c(x, y))
 params <- list(
   x = x, y = y, comp_x = comp_x, comp_y = comp_y,
-  consensus_peaks_x = "output/peak_analysis/{x}/{x}_consensus_peaks.rds",
-  consensus_peaks_y = "output/peak_analysis/{y}/{y}_consensus_peaks.rds",
   filtered_peaks_x_ctrl = "output/peak_analysis/{x}/{x}_{treat_levels[[x]][[1]]}_filtered_peaks.narrowPeak",
   filtered_peaks_x_treat = "output/peak_analysis/{x}/{x}_{treat_levels[[x]][[2]]}_filtered_peaks.narrowPeak",
   filtered_peaks_y_ctrl = "output/peak_analysis/{y}/{y}_{treat_levels[[y]][[1]]}_filtered_peaks.narrowPeak",
@@ -39,19 +37,21 @@ library(reactable)
 library(htmltools)
 library(rlang)
 library(plyranges)
+library(parallel)
 # library(rtracklayer)
 # library(VennDiagram)
-library(ComplexUpset)
 # library(magrittr)
 # library(rlang)
 # library(ggside)
 # library(msigdbr)
 # library(goseq)
-# library(parallel)
 # library(GenomicInteractions)
 # library(ggraph)
 # library(tidygraph)
 source(here::here("workflow", "scripts", "custom_functions.R"))
+source(here::here("workflow", "scripts", "table_funs.R"))
+threads <- detectCores() - 1
+if (interactive()) threads <- 4
 # register(MulticoreParam(workers = threads))
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
@@ -77,13 +77,20 @@ treat_levels <- params[paste0("comp_", c("x", "y"))] %>%
   lapply(str_remove_all, pattern = paste0("^(", target_regex, ")_")) %>% 
   lapply(\(x) strsplit(x, split = "_")[[1]])
 
-comp <- params[c("comp_x", "comp_y")] %>% 
+full_comp <- params[c("comp_x", "comp_y")] %>% 
   unlist() %>% 
   paste(collapse = "_")
 comp_names <- list(
   x = glue("{params$x}: {treat_levels$comp_x[[2]]} Vs {treat_levels$comp_x[[1]]}"),
   y = glue("{params$y}: {treat_levels$comp_y[[2]]} Vs {treat_levels$comp_y[[1]]}")
 )
+if (n_targets > 1) {
+  short_names <- as.list(targets)
+} else {
+  short_names <- treat_levels %>% 
+    lapply(\(x) paste(x[[2]], "Vs", x[[1]]))
+}
+names(short_names) <- c("x", "y")
 
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
   jsonlite::fromJSON()
@@ -93,6 +100,9 @@ diff_sig_param <- here::here(
   jsonlite::fromJSON() %>% 
   .[targets]
 
+## Move to json as these are defined
+pairwise_params <- config$pairwise$default
+pairwise_params[names(config$pairwise[[full_comp]])] <- config$pairwise[[full_comp]]
 ```
 
 
@@ -106,6 +116,20 @@ sq <- seqinfo(gtf_gene)
 colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
   lapply(unlist)
 comp_cols <- colours$target[targets]
+
+pw_cols <- colours$pairwise
+names(pw_cols) <- names(pw_cols) %>% 
+  str_replace_all("^(.+)_(.+)$", "\\1 \\2") %>% 
+  str_to_title() %>% 
+  str_replace_all(
+    "^(.+) (.+)$", paste(short_names$x, "\\1 -", short_names$y, "\\2")
+  )
+pw_cols <- c(
+  pw_cols,
+  "Both Increased" = colours$pairwise[["increased_increased"]],
+  "Both Decreased" = colours$pairwise[["decreased_decreased"]],
+  "Both Unchanged" = colours$pairwise[["unchanged_unchanged"]]
+)
 
 gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
@@ -133,6 +157,11 @@ has_hic <- length(hic) > 0
 
 rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
 has_rna <- length(rna) > 0
+detected_ids <- unique(gtf_gene$gene_id)
+if (has_rna) {
+  detected_ids <- detected_ids %>% intersect(bind_rows(rna)$gene_id)
+}
+include_genes <- id2gene[detected_ids]
 
 direction_colours <- colours$direction %>% 
   setNames(str_to_title(names(.)))
@@ -140,13 +169,11 @@ treat_colours <- colours$treat[unique(unlist(treat_levels))]
 full_palette <- c(
   feature_colours, region_colours, direction_colours, treat_colours,
   colours$target[targets],
+  pw_cols,
   c(
     "None" = colours$direction[["undetected"]],
     "Other" = colours$direction[["unchanged"]])
 )
-
-## This might also need careful checking for when n_targets = 1
-# pw_colours <- unlist(colours$pairwise)
 
 fig_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
@@ -161,23 +188,12 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
   formals(fig_fun)$units <- "in"
   formals(fig_fun)$res <- 300
 }
-fig_path <- here::here("docs", "assets", comp)
+fig_path <- here::here("docs", "assets", full_comp)
 if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 ```
 
 
 ```{r load-data}
-## Only needed if n_targets > 1
-if (n_targets > 1) {
-  consensus_peaks <- list2(
-    "{params$x}" := params$consensus_peaks_x,
-    "{params$y}" := params$consensus_peaks_y
-  ) %>% 
-    lapply(here::here) %>% 
-    lapply(read_rds) %>% 
-    GRangesList()
-}
-  
 filtered_peaks <- c(
   params$filtered_peaks_x_ctrl, params$filtered_peaks_x_treat,
   params$filtered_peaks_y_ctrl, params$filtered_peaks_y_treat
@@ -186,14 +202,13 @@ filtered_peaks <- c(
   here::here() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(str_remove_all(names(.), "_filtered.+"))
-
 dsa_results <- list2(
   "{params$comp_x}" := params$dsa_x,
   "{params$comp_y}" := params$dsa_y
 ) %>% 
   lapply(here::here) %>% 
   lapply(read_rds) %>% 
-  lapply(
+  mclapply(
     \(x) {
       ## Set FDR as the common column, now IHW is sorted out
       fdr_col <- ifelse(metadata(x)$ihw == "none", "FDR", "fdr_ihw")
@@ -208,7 +223,8 @@ dsa_results <- list2(
           any_of(c("region", "feature")), starts_with("gene"),
           starts_with("log"), "PValue", "FDR", "status"
         )
-    }
+    },
+    mc.cores = 2
   ) %>% 
   GRangesList()
 ```
@@ -288,13 +304,16 @@ The results from enrichment analysis across ChIP target and RNA-Seq data will al
 Data was loaded for the initially-identified peaks to show the general level of similarity between signal regions from either dataset.
 
 
-`r if (n_targets > 1) "## Consensus Peaks"`
+`r if (n_targets > 1) "## Shared Signal Regions"`
 
-```{r plot-consensus, results = 'hide', eval = n_targets > 1, eval = n_targets > 1, fig.cap = glue("*Consensus peaks found in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of peaks, which are themselves independent of treatment group.*"), fig.height = 8, fig.width = 8}
-consensus_peaks %>% 
+```{r plot-common, results = 'hide', eval = n_targets > 1, eval = n_targets > 1, fig.cap = glue("*Relationship between regions contained in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of peaks, which are themselves independent of treatment group.*"), fig.height = 8, fig.width = 8}
+dsa_results %>% 
+  setNames(
+    str_replace_all(unlist(comp_names), "^(.+): (.+)$", "\\1\n(\\2)")
+  ) %>% 
   plotOverlaps(
-  set_col = colours$target[names(.)], alpha = 0.3, cex = 1.3, cat.cex = 1.3
-)
+    set_col = comp_cols, alpha = 0.3, cex = 1.3, cat.cex = 1.3
+  )
 ```
 
 
@@ -315,7 +334,7 @@ filtered_peaks %>%
 ```{r all-windows}
 grl_cols <- c("centre", "logCPM", "logFC", "PValue", "FDR", "status")
 merge_cols <- c("feature", "gene_id", "gene_name")
-all_windows <- dsa_results %>% 
+combined_results <- dsa_results %>% 
   endoapply(mutate, centre = start + 0.5 * width) %>% 
   mapGrlCols(var = grl_cols, collapse = merge_cols) %>% 
   mutate(
@@ -337,11 +356,10 @@ all_windows <- dsa_results %>%
     "{params$comp_x}_status" := case_when(
       ## Don't change if not sig in one comparison
       !is_sig ~ !!sym(glue("{params$comp_x}_status")),
-      # Don't change if not significant using the conventional H0
-      (
-        p.adjust(!!sym(glue("{params$comp_x}_PValue")), "fdr") >=
-          diff_sig_param[[params$x]]$alpha
-      ) ~ !!sym(glue("{params$comp_x}_status")),
+      ## Don't change if not significant using the conventional H0
+      p.adjust(
+        !!sym(glue("{params$comp_x}_PValue")), pairwise_params$adj_mu0
+      ) >= pairwise_params$alpha ~ !!sym(glue("{params$comp_x}_status")),
       # ## The remaining ones are candidates
       (
         !!sym(glue("{params$comp_x}_logFC")) > log2(diff_sig_param[[params$x]]$fc)
@@ -357,11 +375,10 @@ all_windows <- dsa_results %>%
     "{params$comp_y}_status" := case_when(
       ## Don't change if not sig in one comparison
       !is_sig ~ as.character(!!sym(glue("{params$comp_y}_status"))),
-      # Don't change if not significant using the conventional H0
-      (
-        p.adjust(!!sym(glue("{params$comp_y}_PValue")), "fdr") >=
-          diff_sig_param[[params$y]]$alpha 
-      ) ~ as.character(!!sym(glue("{params$comp_y}_status"))),
+      ## Don't change if not significant using the conventional H0
+      p.adjust(
+        !!sym(glue("{params$comp_y}_PValue")), pairwise_params$adj_mu0
+      ) >= pairwise_params$alpha ~ as.character(!!sym(glue("{params$comp_y}_status"))),
       ## The remaining ones are candidates
       (
         !!sym(glue("{params$comp_y}_logFC")) > log2(diff_sig_param[[params$y]]$fc)
@@ -371,10 +388,30 @@ all_windows <- dsa_results %>%
       ) ~ "Decreased",
       TRUE ~ as.character(!!sym(glue("{params$comp_y}_status")))
     ) %>%
-      factor(levels = levels(dsa_results[[2]]$status))
+      factor(levels = levels(dsa_results[[2]]$status)),
+    
+    ## Add a combined status
+    status = fct_cross(
+      !!sym(glue("{params$comp_x}_status")), 
+      !!sym(glue("{params$comp_y}_status")), sep = " - "
+    ) %>% 
+      fct_relabel(
+        \(f) str_replace_all(
+          f,
+          "^(.+) - (.+)$",
+          paste(short_names$x, "\\1 -", short_names$y, "\\2")
+        )
+      )
+    
   ) %>% 
   dplyr::select(-ends_with("centre"), -is_sig) %>% 
-  colToRanges("range", seqinfo = sq)
+  colToRanges("range", seqinfo = sq) %>% 
+  mutate(
+     gene_id = gene_id %>% 
+       mclapply(\(x) unique(strsplit(x, "; ")[[1]]), mc.cores = threads) %>% 
+       as("CharacterList"),
+     gene_name = endoapply(gene_id, \(x) sort(id2gene[x]))
+  )
 ```
 
 
@@ -394,133 +431,158 @@ Merged windows were compared across both targets and in order to obtain the best
 A secondary step was then introduced for each window such that if one target was significant and the other target had 1) received an FDR-adjusted p-value < `r fdr_alpha` *using a point-based* $H_0$, and 2) had an estimated logFC beyond the range specified for the range-based null hypothesis ($H_0: 0 < |\mu| < \lambda$ for $\lambda = `r round(lambda, 2)`$), these windows were then considered significant in the second comparison.
 This was to help *reduce the number of windows incorrectly classified as unchanged* for windows the alternative comparison was defined as changed.
 
-# HERE
 
 ```{r tbl-summary}
 cp <- htmltools::tags$em(
   glue(
     "Summary of combined windows for ",
-    glue_collapse(comps, sep = " and "),
-    ". Windows were classified as described above. ",
-    "The number of windows showing each combined pattern are given, along ",
-    "with the number of unique genes mapped to each set of combined windows, ",
-    "noting that some genes will be mapped to multiple sets of windows. ",
+    glue_collapse(comp_names, sep = " and "),
+    ". Ranges were classified as described above. ",
+    "Where signal was deteted in both comparisons, the median distance ",
+    "between peak centres is given.",
+    "The number showing each combined pattern are given, along ",
+    "with the number of unique genes mapped to each set of rangess, ",
+    "noting that some genes will be mapped to multiple sets of ranges. ",
     "The % of all genes with a window mapped from either target is given in ",
     "the final column."
   )
 )
-tbl <- all_windows %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  group_by(status) %>% 
+tbl <- combined_results %>%
+  as_tibble() %>%
+  mutate(mapped = map_int(gene_id, length)) %>% 
   summarise(
-    windows = dplyr::n(),
-    mapped = length(unique(unlist(gene_id))),
-    .groups = "drop"
+    total = dplyr::n(),
+    d = median(d, na.rm = TRUE),
+    mapped_genes = gene_id %>% unlist() %>% unique() %>% length(),
+    # .groups = "drop"
+    .by = status
   ) %>% 
   mutate(
-    `% genes` = mapped / length(unique(unlist(all_windows$gene_id)))
+    `% genes` = mapped_genes / length(unique(unlist(combined_results$gene_id)))
   ) %>% 
-  separate(status, into = comps, sep = " - ") %>% 
+  arrange(desc(total)) %>% 
+  separate(status, into = unlist(short_names), sep = " - ") %>% 
   reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
+    filterable = TRUE, showPageSizeOptions = nrow(.) > 10,
     columns = list2(
-      !!sym(c1) := colDef(
+      !!sym(short_names$x) := colDef(
         cell = function(value) {
-          value <- str_extract(value, "Up|Down|Unchanged|Undetected")
-          if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
-          if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
+          value <- str_extract(value, "Increased|Decreased|Unchanged|Undetected")
+          if (str_detect(value, "Increased")) value <- paste(value, "\u21E7")
+          if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
           paste(targets[[1]], value)
         },
         style = function(value) {
           colour <- case_when(
-            str_detect(value, "Up") ~ colours$direction[["up"]],
-            str_detect(value, "Down") ~ colours$direction[["down"]],
+            str_detect(value, "Increased") ~ colours$direction[["increased"]],
+            str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
             str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
             str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
           )
           list(color = colour)
         },
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('summary-result-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
+        },
         footer = htmltools::tags$b("Total")
       ),
-      !!sym(c2) := colDef(
+      !!sym(short_names$y) := colDef(
         cell = function(value) {
-          value <- str_extract(value, "Up|Down|Unchanged|Undetected")
-          if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
-          if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
+          value <- str_extract(value, "Increased|Decreased|Unchanged|Undetected")
+          if (str_detect(value, "Increased")) value <- paste(value, "\u21E7")
+          if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
           paste(targets[[2]], value)
         },
         style = function(value) {
           colour <- case_when(
-            str_detect(value, "Up") ~ colours$direction[["up"]],
-            str_detect(value, "Down") ~ colours$direction[["down"]],
+            str_detect(value, "Increased") ~ colours$direction[["increased"]],
+            str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
             str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
             str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
           )
           list(color = colour)
+        },
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('summary-result-table', '%s', event.target.value || undefined)",
+              name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
         }
       ),
-      windows = colDef(
-        name = "Number of Windows", 
-        cell = function(value) comma(value, 1),
+      total = colDef(
+        name = "Number of Ranges", format = comma_col, 
+        filterMethod = js_greater, maxWidth = 150,
         style = function(value) {
-          bar_style(width = 0.9*value / length(all_windows), fill = "#B3B3B3")
+          bar_style(width = 0.9*value / length(combined_results), fill = "#B3B3B3")
         },
-        footer = htmltools::tags$b(comma(length(all_windows), 1))
+        footer = htmltools::tags$b(comma(length(combined_results), 1))
       ),
-      mapped = colDef(
-        name = "Mapped Genes", 
-        cell = function(value) comma(value, 1),
+      d = colDef(
+        "Mean Distance", format = comma_col, filterMethod = js_greater,
+        maxWidth = 120
+      ),
+      mapped_genes = colDef(
+        name = "Mapped Genes", format = comma_col, filterMethod = js_greater,
+        maxWidth = 120,
         style = function(value) {
-          bar_style(width = 0.9*value / length(unique(unlist(all_windows$gene_id))), fill = "#B3B3B3")
+          bar_style(width = 0.9*value / length(unique(unlist(combined_results$gene_id))), fill = "#B3B3B3")
         },
-        footer = htmltools::tags$b(comma(length(unique(unlist(all_windows$gene_id))), 1))
+        footer = htmltools::tags$b(comma(length(unique(unlist(combined_results$gene_id))), 1))
       ),
       `% genes` = colDef(
-        name = "% Of All Mapped Genes",
-        cell = function(x) percent(x, 0.1),
+        name = "% Of All Mapped Genes", format = percent_col, 
+        filterMethod = js_greater,
         style = function(value) {
           bar_style(width = 0.9*value, fill = "#B3B3B3")
         }
       )
-    )
+    ),
+    elementId = 'summary-result-table'
   )
-div(class = "table",
-    div(class = "table-header",
-        div(class = "caption", cp),
-        tbl
-    )
-)
+tl <- tagList(tbl, cp)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
 ```
 
 ## Overall Status
 
-```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either copmarison. Regions where signal is changed in either comparisons are exploded."}
-all_windows %>% 
+```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either copmarison. Ranges where signal is changed in either comparisons are exploded."}
+combined_results %>% 
   as_tibble() %>% 
   dplyr::select(ends_with("_status")) %>% 
-  mutate(
-      across(everything(), str_extract, "Up|Down|Unchanged|Undetected|Ambiguous")
-  ) %>% 
-  dplyr::rename_with(.cols = everything(), .fn = str_remove_all, "_status") %>% 
+  setNames(unlist(short_names)) %>% 
   plotSplitDonut(
-    inner = colnames(.)[[1]], outer = colnames(.)[[2]], min_p =0.02, 
-    inner_glue = "{inner}\n{.data[[inner]]}\n{percent(p, 0.1)}",
-    outer_glue = "{outer}\n{.data[[outer]]}\n{percent(p, 0.1)}",
-    explode_inner = "Down|Up", explode_outer = "Down|Up", explode_r = 0.4,
-    explode_query = "OR", nudge_r = 0.5,
-    inner_palette = colours$direction %>% 
-        unlist() %>% 
-        setNames(str_sep_to_title(names(.))),
-    outer_palette = colours$direction %>% 
-        unlist() %>% 
-        setNames(str_sep_to_title(names(.)))
+    inner = !!sym(short_names$x), outer = !!sym(short_names$y), 
+    inner_palette = full_palette, outer_palette = full_palette,
+    inner_glue = "{inner}\n{.data[[inner]]}\n{comma(n, 1)}\n({percent(p, 0.1)})",
+    inner_label_alpha = 0.7,
+    outer_glue = "{outer} {.data[[outer]]}\n{comma(n, 1)} ({percent(p, 0.1)})",
+    outer_min_p = 0.02, outer_label = "text", outer_rotate = TRUE,
+    outer_label_colour = "palette",
+    explode_inner = "(In|De)creased", explode_outer = "(In|De)creased",
+    explode_r = 0.4, explode_query = "AND", nudge_r = 0.5
   ) %>% 
     .[[1]]
 ```
@@ -529,263 +591,309 @@ all_windows %>%
 ## Pairwise Differential Signal
 
 
-```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in signal is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
-df <- all_windows %>% 
-  select(ends_with("logFC"), status, detected, any_of(c("region", "feature"))) %>% 
-  as_tibble()
-x_range <- range(df[[glue("{c1}_logFC")]], na.rm = TRUE)
-y_range <- range(df[[glue("{c2}_logFC")]], na.rm = TRUE)
+```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_names, sep = " and "), ". The range with most extreme combined change in signal is shown with any genes labelled. ", ifelse(has_rna, "Only genes detected within transcriptomic data are labelled. " , ""),  "The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+df <- combined_results %>% 
+  as_tibble() %>% 
+  select(
+    range,
+    ends_with("logFC"), ends_with("status"), any_of(c("region", "feature")), 
+    starts_with("gene")
+  ) %>% 
+  dplyr::rename(
+    "{short_names$x} logFC" := !!sym(paste0(params$comp_x, "_logFC")),
+    "{short_names$y} logFC" := !!sym(paste0(params$comp_y, "_logFC")),
+    "{short_names$x} status" := !!sym(paste0(params$comp_x, "_status")),
+    "{short_names$y} status" := !!sym(paste0(params$comp_y, "_status"))
+  )
+x_lim <- range(df[[glue("{short_names$x} logFC")]], na.rm = TRUE)
+y_lim <- range(df[[glue("{short_names$y} logFC")]], na.rm = TRUE)
 df %>% 
-  mutate(status = fct_lump_min(status, 2)) %>%
-  ggplot() +
-  geom_ysideboxplot(
-    aes(status, !!sym(glue("{c2}_logFC")), fill = status),
-    orientation = "x",
-    data = df %>%
-      dplyr::filter(!grepl(paste(c2, "Undetected"), status)) %>% 
-      mutate(status = str_remove_all(status, " - .+"))
-  ) +
-  geom_xsideboxplot(
-    aes(!!sym(glue("{c1}_logFC")), status, fill = status),
-    orientation = "y",
-    data = df %>%
-      dplyr::filter(!grepl(paste(c1, "Undetected"), status)) %>% 
-      mutate(status = str_remove_all(status, ".+ - "))
+  arrange(status) %>% 
+  ggplot(
+    aes(
+      x = !!sym(glue("{short_names$x} logFC")), 
+      y = !!sym(glue("{short_names$y} logFC")),
+      colour = status
+    )
   ) +
   geom_point(
-    aes(!!sym(glue("{c1}_logFC")), !!sym(glue("{c2}_logFC")), colour = status),
-    data = . %>% dplyr::filter(!grepl("Undetected", status)),
-    alpha = 0.6
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_hline(
-    yintercept = c(1, -1) * lambda, 
-    linetype = 2, colour = "grey"
-  ) +
-  geom_vline(xintercept = 0) +
-  geom_vline(
-    xintercept = c(1, -1) * lambda,
-    linetype = 2, colour = "grey"
+    data = . %>% dplyr::filter(!str_detect(status, "Undetected"))
   ) +
   geom_label_repel(
-    aes(
-      !!sym(glue("{c1}_logFC")), !!sym(glue("{c2}_logFC")), colour = status,
-      label = label
-    ),
+    aes(label = label),
     data = . %>% 
-      dplyr::filter(!grepl("Undetected|Other", status)) %>% 
-      dplyr::filter(!grepl("Un.+Un", status)) %>% 
-      mutate(d = .[[glue("{c1}_logFC")]]^2 + .[[glue("{c2}_logFC")]]^2) %>% 
-      dplyr::filter(vapply(detected, length, integer(1)) > 0) %>% 
-      dplyr::filter(d == max(d), d > 1, .by = status) %>% 
       mutate(
-        label = vapply(detected, paste, character(1), collapse = "; ") %>% 
-          str_wrap(25)
-      ),
-    force_pull = 1/10, force = 10,
-    min.segment.length = 0.05,
-    size = 4, fill = rgb(1, 1, 1, 0.4),
-    show.legend = FALSE
+        across(ends_with("logFC"), list(sq = \(x) x^2)),
+        diam = (
+          !!sym(glue("{short_names$x} logFC_sq")) + 
+            !!sym(glue("{short_names$y} logFC_sq"))
+        )
+      ) %>% 
+      dplyr::filter(diam > 1) %>% 
+      arrange(desc(diam)) %>% 
+      dplyr::slice(1:10, .by = status) %>% 
+      mutate(
+        label = map_chr(
+          gene_name, 
+          \(x) paste(intersect(x, include_genes), collapse = "; ")
+        ) %>% 
+          str_wrap(15) %>% 
+          str_trunc(30) 
+      ) %>% 
+      dplyr::filter(label != "") %>% 
+      dplyr::slice(1:2, .by = status),
+    size = 3, show.legend = FALSE, fill = rgb(1, 1, 1, 0.8),
+    fontface = "italic"
   ) +
-  annotate(
-    "text", 
-    x = 0.95 * diff(x_range) + min(x_range),
-    y = 0.05 * diff(y_range) + min(y_range),
-    label = paste("n =", comma(sum(!grepl("Undetected", df$status))))
+  geom_hline(
+    yintercept = c(1, -1) * log2(diff_sig_param[[params$y]]$fc),
+    linetype = 2, colour = "grey"
+  ) +
+  geom_vline(
+    xintercept = c(1, -1) * log2(diff_sig_param[[params$x]]$fc),
+    linetype = 2, colour = "grey"
   ) +
   annotate(
     "text",
-    x = 0.05 * diff(x_range) + min(x_range),
-    y = 0.95 * diff(y_range) + min(y_range),
+    x = min(x_lim), y = max(y_lim), vjust = 1, hjust = 0,
     label = paste(
       "rho == ",
       cor(
-        df[[glue("{c1}_logFC")]], df[[glue("{c2}_logFC")]],
-        use = "pairwise.complete.obs"
-      ) %>% 
-        round(3)
+        dplyr::select(df, ends_with("logFC")), use = "pairwise.complete.obs"
+      )[1, 2] %>%  round(3)
     ),
-    parse = TRUE
+    parse = TRUE, size = 3.4
   ) +
-  scale_xsidey_discrete(position = "right") +
-  scale_ysidex_discrete(label = label_wrap(30)) +
+  geom_xsideboxplot(
+    aes(
+      x = !!sym(glue("{short_names$x} logFC")), 
+      y = !!sym(glue("{short_names$y} status")),
+      fill = !!sym(glue("{short_names$y} status"))
+    ), 
+    data = . %>% 
+      dplyr::filter(!is.na(!!sym(glue("{short_names$x} logFC")))),
+    orientation = "y", colour = "grey20", show.legend = FALSE
+  ) +
+  geom_ysideboxplot(
+    aes(
+      x = !!sym(glue("{short_names$x} status")),
+      y = !!sym(glue("{short_names$y} logFC")),
+      fill = !!sym(glue("{short_names$x} status"))
+    ),
+    data = . %>% 
+      dplyr::filter(!is.na(!!sym(glue("{short_names$y} logFC")))),
+    colour = "grey20", orientation = "x", show.legend = FALSE
+  ) +
   scale_x_continuous() +
-  scale_colour_manual(values = group_colours, labels = label_wrap(20)) +
-  scale_fill_manual(
-    values = comps %>% 
-      lapply(function(x){
-        cols <- unlist(colours$direction)
-        names(cols) <- paste(x, str_to_title(names(cols)))
-        cols
-      }) %>% 
-      unlist()
+  scale_y_continuous() +
+  scale_ysidex_discrete(
+    position = "top",     
+    labels = \(x) paste(short_names$x, x) %>% str_wrap(15)
   ) +
-  labs(
-    x = paste(c1, "logFC"), y = paste(c2, "logFC"), colour = "Status"
+  scale_xsidey_discrete(
+    labels = \(x) paste(short_names$y, x) %>% str_wrap(15)
   ) +
-  guides(fill = "none") +
+  scale_colour_manual(values = full_palette, labels = label_wrap(15)) +
+  scale_fill_manual(values = full_palette) +
+  labs(colour = "Combined Status") +
   theme(
-    ggside.panel.scale.y = .2, ggside.panel.scale.x = .3,
-    ggside.axis.text.x.bottom = element_text(angle = 90, hjust = 1, vjust = 0.5),
-    axis.title.x = element_text(hjust = 0.52 * (1 - 0.2), vjust = 18),
-    axis.title.y = element_text(hjust = 0.52 * (1 - 0.3)),
-    legend.key.height = unit(0.075, "npc")
+    ggside.panel.scale.x = 0.1 + 0.05 * length(levels(df[[glue("{short_names$y} status")]])),
+    ggside.panel.scale.y = 0.1 + 0.025 * length(levels(df[[glue("{short_names$x} status")]])),
+    ggside.axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5),
+    legend.position = "bottom",
+    axis.title.y.left = element_text(vjust = -10, hjust = 0.4),
+    axis.title.x.bottom = element_text(hjust = 0.45)
   )
 ```
 
 
 ## logFC By Region
 
-```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in signal for each separate region is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_names, sep = " and "), ", separated by defined gene-centric regions. The window with most extreme combined change in signal for each region is shown with any genes labelled as previously. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df %>% 
-  mutate(status = fct_lump_min(status, 2)) %>%
-  ggplot() +
+  arrange(status) %>% 
+  ggplot(
+    aes(
+      x = !!sym(glue("{short_names$x} logFC")), 
+      y = !!sym(glue("{short_names$y} logFC")),
+      colour = status
+    )
+  ) +
   geom_point(
-    aes(!!sym(glue("{c1}_logFC")), !!sym(glue("{c2}_logFC")), colour = status),
-    data = . %>% dplyr::filter(!grepl("Undetected", status)),
-    alpha = 0.6
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_hline(
-    yintercept = c(1, -1) * lambda, 
-    linetype = 2, colour = "grey"
-  ) +
-  geom_vline(xintercept = 0) +
-  geom_vline(
-    xintercept = c(1, -1) * lambda,
-    linetype = 2, colour = "grey"
+    data = . %>% dplyr::filter(!str_detect(status, "Undetected"))
   ) +
   geom_label_repel(
-    aes(
-      !!sym(glue("{c1}_logFC")), !!sym(glue("{c2}_logFC")), colour = status,
-      label = label
-    ),
+    aes(label = label),
     data = . %>% 
-      dplyr::filter(!grepl("Undetected|Other", status)) %>% 
-      dplyr::filter(!grepl("Un.+Un", status)) %>% 
-      mutate(d = .[[glue("{c1}_logFC")]]^2 + .[[glue("{c2}_logFC")]]^2) %>% 
-      dplyr::filter(vapply(detected, length, integer(1)) > 0) %>% 
-      dplyr::filter(d == max(d), .by = c(status,region)) %>% 
-      dplyr::filter(d > 1) %>% 
       mutate(
-        label = vapply(detected, paste, character(1), collapse = "; ") %>% 
-          str_wrap(20) %>% 
-          str_trunc(35)
-      ),
-    force_pull = 1/10, force = 10,
-    min.segment.length = 0.05,
-    size = 3.5, fill = rgb(1, 1, 1, 0.4),
-    show.legend = FALSE
+        across(ends_with("logFC"), list(sq = \(x) x^2)),
+        diam = (
+          !!sym(glue("{short_names$x} logFC_sq")) + 
+            !!sym(glue("{short_names$y} logFC_sq"))
+        )
+      ) %>% 
+      dplyr::filter(diam > 1) %>% 
+      arrange(desc(diam)) %>% 
+      dplyr::slice(1:10, .by = c(status, region)) %>% 
+      mutate(
+        label = map_chr(
+          gene_name, 
+          \(x) paste(intersect(x, include_genes), collapse = "; ")
+        ) %>% 
+          str_wrap(15) %>% 
+          str_trunc(30) 
+      ) %>% 
+      dplyr::filter(label != "") %>% 
+      dplyr::slice(1, .by = c(status, region)),
+    size = 3, show.legend = FALSE, fill = rgb(1, 1, 1, 0.8),
+    fontface = "italic"
+  ) +
+  geom_hline(
+    yintercept = c(1, -1) * log2(diff_sig_param[[params$y]]$fc),
+    linetype = 2, colour = "grey"
+  ) +
+  geom_vline(
+    xintercept = c(1, -1) * log2(diff_sig_param[[params$x]]$fc),
+    linetype = 2, colour = "grey"
+  ) +
+  geom_smooth(
+    data = . %>% 
+      dplyr::filter(!grepl("Undetected", status)),
+    se = FALSE, colour = "grey40", method = MASS::rlm
   ) +
   geom_text(
-    aes(x, y, label = label),
-    data = . %>% 
+    aes(label = label),
+    data = . %>%
       dplyr::filter(!grepl("Undetected", status)) %>% 
-      summarise(n = dplyr::n(), .by = region) %>% 
+      dplyr::select(region, ends_with("logFC")) %>% 
+      split(.$region) %>% 
+      mclapply(
+        \(x) {
+          tibble(
+            cor = cor(dplyr::select(x, ends_with("logFC")))[1, 2],
+            "{short_names$x} logFC" := min(x[[glue("{short_names$x} logFC")]]),
+            "{short_names$y} logFC" := max(x[[glue("{short_names$y} logFC")]])
+          )
+        }, mc.cores = threads
+      ) %>% 
+      bind_rows(.id = "region") %>% 
       mutate(
-        x = min(x_range) + 0.9 * diff(x_range),
-        y = min(y_range) + 0.05 * diff(y_range),
-        label = paste("n =", comma(n, 1))
-      )
+        label = paste("rho ==", round(cor, 3)),
+        "{short_names$x} logFC" := min(!!sym(glue("{short_names$x} logFC"))),
+        "{short_names$y} logFC" := max(!!sym(glue("{short_names$y} logFC")))
+      ),
+    colour = "grey20", parse = TRUE, vjust = 1, hjust = 0, size = 3.5
   ) +
   facet_wrap(~region) +
-  scale_colour_manual(values = group_colours, labels = label_wrap(20)) +
-  scale_fill_manual(
-    values = comps %>% 
-      lapply(function(x){
-        cols <- unlist(colours$direction)
-        names(cols) <- paste(x, str_to_title(names(cols)))
-        cols
-      }) %>% 
-      unlist()
-  ) +
-  labs(
-    x = paste(c1, "logFC"), y = paste(c2, "logFC"), colour = "Status"
-  ) +
-  guides(fill = "none") +
-  theme(
-    ggside.panel.scale.y = .2, ggside.panel.scale.x = .3,
-    ggside.axis.text.x.bottom = element_text(angle = 90, hjust = 1, vjust = 0.5),
-    legend.key.height = unit(0.075, "npc")
-  )
+  scale_x_continuous() +
+  scale_y_continuous() +
+  scale_colour_manual(values = full_palette, labels = label_wrap(15)) +
+  labs(colour = "Combined Status") +
+  theme(legend.position = "bottom")
 ```
+
+
 
 `r if (has_features) "## logFC By Feature"`
 
-```{r plot-dbwin-by-feature, eval = has_features, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comps, sep = " and "), ". The window with most extreme combined change in signal for each separate feature is shown with any mapped genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
-df %>% 
-  mutate(status = fct_lump_min(status, 2)) %>%
-  ggplot() +
-  geom_point(
-    aes(!!sym(glue("{c1}_logFC")), !!sym(glue("{c2}_logFC")), colour = status),
-    data = . %>% dplyr::filter(!grepl("Undetected", status)),
-    alpha = 0.6
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_hline(
-    yintercept = c(1, -1) * lambda, 
-    linetype = 2, colour = "grey"
-  ) +
-  geom_vline(xintercept = 0) +
-  geom_vline(
-    xintercept = c(1, -1) * lambda,
-    linetype = 2, colour = "grey"
-  ) +
-  geom_label_repel(
-    aes(
-      !!sym(glue("{c1}_logFC")), !!sym(glue("{c2}_logFC")), colour = status,
-      label = label
-    ),
-    data = . %>% 
-      dplyr::filter(!grepl("Undetected|Other", status)) %>% 
-      dplyr::filter(!grepl("Un.+Un", status)) %>% 
-      mutate(d = .[[glue("{c1}_logFC")]]^2 + .[[glue("{c2}_logFC")]]^2) %>% 
-      dplyr::filter(vapply(detected, length, integer(1)) > 0) %>% 
-      dplyr::filter(d == max(d), .by = c(status, feature)) %>% 
-      dplyr::filter(d > 1) %>% 
-      mutate(
-        label = vapply(detected, paste, character(1), collapse = "; ") %>% 
-          str_wrap(20) %>% 
-          str_trunc(35)
-      ),
-    force_pull = 1/10, force = 10,
-    min.segment.length = 0.05,
-    size = 3.5, fill = rgb(1, 1, 1, 0.4),
-    show.legend = FALSE
-  ) +
-  geom_text(
-    aes(x, y, label = label),
-    data = . %>% 
-      dplyr::filter(!grepl("Undetected", status)) %>% 
-      summarise(n = dplyr::n(), .by = feature) %>% 
-      mutate(
-        x = min(x_range) + 0.9 * diff(x_range),
-        y = min(y_range) + 0.05 * diff(y_range),
-        label = paste("n =", comma(n, 1))
+```{r plot-dbwin-by-feature, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_names, sep = " and "), ", separated by feature. The range with most extreme combined change in signal for each separate feature is shown with any genes labelled as previously, noting that combined ranges may map to multiple features. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+if (has_features) {
+  df %>% 
+    mutate(
+      feature = feature %>% 
+        mclapply(strsplit, split = "; ", mc.cores = threads) %>% 
+        mclapply(pluck, 1, mc.cores = threads)
+    ) %>% 
+    unnest(feature, keep_empty = TRUE) %>% 
+    mutate(
+      feature = str_replace_na(feature, "no_feature") %>% 
+        fct_infreq() %>% 
+        fct_lump_n(8)
+    ) %>% 
+    arrange(status) %>% 
+    ggplot(
+      aes(
+        x = !!sym(glue("{short_names$x} logFC")), 
+        y = !!sym(glue("{short_names$y} logFC")),
+        colour = status
       )
-  ) +
-  facet_wrap(~feature) +
-  scale_colour_manual(values = group_colours, labels = label_wrap(20)) +
-  scale_fill_manual(
-    values = comps %>% 
-      lapply(function(x){
-        cols <- unlist(colours$direction)
-        names(cols) <- paste(x, str_to_title(names(cols)))
-        cols
-      }) %>% 
-      unlist()
-  ) +
-  labs(
-    x = paste(c1, "logFC"), y = paste(c2, "logFC"), colour = "Status"
-  ) +
-  guides(fill = "none") +
-  theme(
-    ggside.panel.scale.y = .2, ggside.panel.scale.x = .3,
-    ggside.axis.text.x.bottom = element_text(angle = 90, hjust = 1, vjust = 0.5),
-    legend.key.height = unit(0.075, "npc")
-  )
+    ) +
+    geom_point(
+      data = . %>% dplyr::filter(!str_detect(status, "Undetected"))
+    ) +
+    geom_label_repel(
+      aes(label = label),
+      data = . %>% 
+        mutate(
+          across(ends_with("logFC"), list(sq = \(x) x^2)),
+          diam = (
+            !!sym(glue("{short_names$x} logFC_sq")) + 
+              !!sym(glue("{short_names$y} logFC_sq"))
+          )
+        ) %>% 
+        dplyr::filter(diam > 1) %>% 
+        arrange(desc(diam)) %>% 
+        dplyr::slice(1:10, .by = c(status, feature)) %>% 
+        mutate(
+          label = map_chr(
+            gene_name, 
+            \(x) paste(intersect(x, include_genes), collapse = "; ")
+          ) %>% 
+            str_wrap(15) %>% 
+            str_trunc(30) 
+        ) %>% 
+        dplyr::filter(label != "") %>% 
+        dplyr::slice(1, .by = c(status, feature)),
+      size = 3, show.legend = FALSE, fill = rgb(1, 1, 1, 0.8),
+      fontface = "italic"
+    ) +
+    geom_hline(
+      yintercept = c(1, -1) * log2(diff_sig_param[[params$y]]$fc),
+      linetype = 2, colour = "grey"
+    ) +
+    geom_vline(
+      xintercept = c(1, -1) * log2(diff_sig_param[[params$x]]$fc),
+      linetype = 2, colour = "grey"
+    ) +
+    geom_smooth(
+      data = . %>% 
+        dplyr::filter(!grepl("Undetected", status)),
+      se = FALSE, colour = "grey40", method = MASS::rlm
+    ) +
+    geom_text(
+      aes(label = label),
+      data = . %>%
+        dplyr::filter(!grepl("Undetected", status)) %>% 
+        dplyr::select(feature, ends_with("logFC")) %>% 
+        split(.$feature) %>% 
+        mclapply(
+          \(x) {
+            tibble(
+              cor = cor(dplyr::select(x, ends_with("logFC")))[1, 2],
+              "{short_names$x} logFC" := min(x[[glue("{short_names$x} logFC")]]),
+              "{short_names$y} logFC" := max(x[[glue("{short_names$y} logFC")]])
+            )
+          }, mc.cores = threads
+        ) %>% 
+        bind_rows(.id = "feature") %>% 
+        mutate(
+          label = paste("rho ==", round(cor, 3)),
+          "{short_names$x} logFC" := min(!!sym(glue("{short_names$x} logFC"))),
+          "{short_names$y} logFC" := max(!!sym(glue("{short_names$y} logFC")))
+        ),
+      colour = "grey20", parse = TRUE, vjust = 1, hjust = 0, size = 3.5
+    ) +
+    facet_wrap(~feature) +
+    scale_x_continuous() +
+    scale_y_continuous() +
+    scale_colour_manual(values = full_palette, labels = label_wrap(15)) +
+    labs(colour = "Combined Status") +
+    theme(legend.position = "bottom")
+}
 ```
 
+
+# HERE
 
 ## Pairwise Signal
 
@@ -800,7 +908,6 @@ db_results %>%
     )
   )
 ```
-
 
 
 ## Distribution By Region
