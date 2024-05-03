@@ -45,9 +45,10 @@ cat_time <- function(...){
 #     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
 #     blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
 #     features = "../GRAVI_testing/output/annotations/features.rds",
-#     greylist = "../GRAVI_testing/output/greylist/SRR8315192_greylist.bed.gz",
+#     greylist = "../GRAVI_testing/output/greylist/greylists.rds",
 #     gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
 #     hic = "../GRAVI_testing/output/annotations/hic.rds",
+#     qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
 #     regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
 #     yaml = "../GRAVI_testing/config/params.yml"
 # )
@@ -89,21 +90,19 @@ library(extraChIPs)
 library(plyranges)
 library(yaml)
 
+cat_time("Loading samples")
+samples <- all_input$qc %>% read_tsv() %>% dplyr::filter(qc == 'pass')
+
 cat_time("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)
 bl <- read_rds(all_input$blacklist)
-exclude_ranges <- all_input$greylist %>%
-    unlist() %>%
-    importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
-    unlist() %>%
-    c(bl) %>%
-    GenomicRanges::reduce()
+gl <- read_rds(all_input$greylist)[unique(samples$input)] %>% unlist()
+exclude_ranges <- c(bl, gl)
 
 cat_time("Checking peak type")
 peak_type <- "narrow"
 vars <- c("score", "centre")
 if (any(str_detect(all_input$peaks, "(bed|bed.gz)$"))) peak_type <- "bed"
-
 
 cat_time("Loading peaks/ranges using type =", peak_type)
 filtered_peaks <- all_input$peaks %>%
@@ -178,7 +177,7 @@ feat_enh <- features %>%
   ## Exclude any 'weak enhancers'
   endoapply(subset, grepl("enh[^w]", str_to_lower(feature))) %>%
   unlist() %>%
-  GenomicRanges::reduce() %>% 
+  GenomicRanges::reduce() %>%
   filter_by_non_overlaps(prom)
 cat_time("Found", length(feat_enh), "enhancers in provided features")
 

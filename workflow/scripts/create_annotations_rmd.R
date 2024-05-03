@@ -77,6 +77,7 @@ ln <- glue(
 	  gtf_exon: \"{{all_input$gtf_exon}}\"
 	  gtf_gene: \"{{all_input$gtf_gene}}\"
 	  gtf_transcript: \"{{all_input$gtf_transcript}}\"
+	  greylist: \"{{all_input$greylist}}\"
 	  hic: \"{{all_input$hic}}\"
 	  motif_list: \"{{all_input$motifs}}\"
 	  motif_uri: \"{{all_input$motif_uri}}\"

@@ -60,10 +60,7 @@ rule peak_qc:
         ),
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         checks = ALL_CHECKS,
-        greylist = lambda wildcards: expand(
-            os.path.join(grey_path, "{f}_greylist.bed.gz"),
-            f = set(df[df.target == wildcards.target]['input'])
-        ),
+        greylist = os.path.join(grey_path, "greylists.rds"),
         input_bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['input']),

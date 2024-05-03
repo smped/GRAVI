@@ -73,21 +73,19 @@ rule make_consensus_nfr:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         features = os.path.join(annotation_path, "features.rds"),
         gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        greylist = lambda wildcards: expand(
-            os.path.join(grey_path, "{f}_greylist.bed.gz"),
-            f = set(df[df.target == wildcards.target]['input'])
-        ),
+        greylist = os.path.join(grey_path, "greylists.rds"),
         hic = os.path.join(annotation_path, "hic.rds"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
-        script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
-        yaml = os.path.join("config", "params.yml"),
         peaks = lambda wildcards: expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
             ),
             treat = set(df[df.target == wildcards.target]['treat'])
-        )
+        ),
+        qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
+        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
+        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        yaml = os.path.join("config", "params.yml"),
     output:
         bed = os.path.join(
             nfr_path, "{target}", "{target}_consensus_nfr.bed.gz"

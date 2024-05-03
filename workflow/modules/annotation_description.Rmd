@@ -92,15 +92,11 @@ Blacklisted regions were supplied in `r pander(unname(unlist(config$external$bla
 In addition, grey-listed regions were derived from all the input sample(s), `r pander(unique(samples$input))`
 
 ```{r blacklist}
-ip <- unique(samples$input)
-bl <- unlist(config$external$blacklist)
-exclude_ranges <- bl %>% 
+bl <- unlist(config$external$blacklist) %>% 
   here::here() %>% 
-  c(
-    here::here(all_paths$greylist, glue("{ip}_greylist.bed.gz"))
-  ) %>% 
-  importPeaks(type = "bed", seqinfo = sq) %>% 
-  setNames(c(basename(bl), ip))
+  importPeaks(type = "bed", seqinfo = sq) 
+gl <- read_rds(all_out$greylist)
+exclude_ranges <- c(bl, gl)
 ```
 
 ### Similarity Between Black & Grey Lists

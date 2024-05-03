@@ -83,11 +83,8 @@ mcols(filtered_peaks) <- DataFrame(mcols)
 if (n_rep > 0) {
     cat_time("Loading black/grey lists\n")
     bl <- read_rds(all_input$blacklist)
-    exclude_ranges <- all_input$greylist %>%
-        importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
-        unlist() %>%
-        c(bl) %>% 
-        GenomicRanges::reduce() 
+    gl <- read_rds(all_input$greylist)[unique(samples$input)] %>% unlist()
+    exclude_ranges <- c(bl, gl)
     cat_time("Loading merged peaks\n")
     merged_peaks <- all_input$merged %>%
         importPeaks(seqinfo = sq, setNames = FALSE, blacklist = exclude_ranges) %>%

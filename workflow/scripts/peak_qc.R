@@ -113,12 +113,8 @@ cat("done\n")
 cat_time("Defining ranges to exclude...\n")
 sq <- read_rds(all_input$seqinfo)
 bl <- read_rds(all_input$blacklist)
-exclude_ranges <- all_input$greylist %>%
-  unlist() %>% 
-  importPeaks(seqinfo = sq, type = "bed", setNames = FALSE) %>%
-  unlist() %>%
-  c(bl) %>% 
-  GenomicRanges::reduce() 
+gl <- read_rds(all_input$greylist)[unique(samples$input)]
+exclude_ranges <- c(bl, gl) %>% unlist()
 
 cat_time("Loading peaks\n")
 individual_peaks <- all_input$peaks %>%

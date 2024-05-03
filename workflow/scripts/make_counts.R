@@ -75,7 +75,7 @@ sink(log, split = TRUE)
 #   ),
 #   blacklist = file.path("output","annotations", "blacklist.rds"),
 #   ## Note this may be a vector of files when being run
-#   greylist = file.path("output", "greylist", "SRR8315192_greylist.bed.gz"),
+#   greylist = file.path("output", "greylist", "greylists.rds"),
 #   seqinfo = file.path("output", "annotations", "seqinfo.rds")
 # )
 # all_output <- list(
@@ -154,12 +154,8 @@ cat_time("Loading seqinfo")
 sq <- read_rds(all_input$seqinfo)
 cat_time("Defining black and greylists")
 blacklist <- read_rds(all_input$blacklist)
-greylist <- all_input$greylist %>%
-  unlist() %>%
-  importPeaks(type = "bed", seqinfo = sq) %>%
-  unlist() %>%
-  reduce()
-exclude_gr <- reduce(c(blacklist, greylist))
+greylist <- read_rds(all_input$greylist)[unique(samples$input)] %>% unlist()
+exclude_gr <- c(blacklist, greylist)
 cat_time("Done")
 
 ## For the peaks, loading in the treatment-level peaks will provide the

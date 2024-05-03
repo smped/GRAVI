@@ -18,10 +18,7 @@ rule count_windows:
         ),
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
         chk = ALL_CHECKS,
-        greylist = lambda wildcards: expand(
-            os.path.join(grey_path, "{ip_sample}_greylist.bed.gz"),
-            ip_sample = set(df['input'][df['target'] == wildcards.target])
-        ),
+        greylist = os.path.join(grey_path, "greylists.rds"),
         macs2_logs = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}",

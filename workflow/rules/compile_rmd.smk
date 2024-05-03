@@ -21,10 +21,7 @@ rule compile_index_html:
 rule compile_annotations_html:
     input:
         checks = ALL_CHECKS,
-        greylist = expand(
-            os.path.join(grey_path, "{f}_greylist.bed.gz"),
-            f = set(df['input'])
-        ),
+        greylist = os.path.join(grey_path, "greylists.rds"),
         rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
         setup = rules.create_setup_chunk.output,
         site_yaml = rules.create_site_yaml.output
