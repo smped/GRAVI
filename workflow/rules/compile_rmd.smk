@@ -199,3 +199,34 @@ rule compile_differential_signal_html:
         """
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
         """
+
+rule compile_pairwise_comparison_html:
+    input:
+        results = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
+        ),
+        rmd = os.path.join(
+            rmd_path, "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.Rmd"
+        ),
+    output:
+        html = os.path.join(
+            "docs", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.html"
+        ),
+        fig_path = directory(
+            os.path.join(
+                "docs", 
+                "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison_files",
+                "figure-html"
+            )
+        )
+    conda: "../envs/rmarkdown.yml"
+    threads: 4
+    resources:
+        mem_mb = 32000,
+        runtime = "30m"
+    log: os.path.join(log_path, "compile_rmd", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.log")
+    shell:
+        """
+        R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}
+        """

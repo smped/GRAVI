@@ -115,7 +115,11 @@ exclude_ranges %>%
   reduceMC() %>% 
   mutate(
     source = map_chr(
-      source, \(x) ifelse(any(basename(bl) %in% x), "blacklisted", "greylisted")
+      source, 
+      \(x) ifelse(
+        any(basename(unlist(config$external$blacklist)) %in% x), 
+        "blacklisted", "greylisted"
+        )
     )
   ) %>% 
   c(

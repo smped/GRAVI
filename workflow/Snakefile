@@ -60,6 +60,8 @@ if set([config['modules']['nfr']]).intersection(targets):
 ## Note that the last level in treats can never be the reference level
 wildcard_constraints:
 	target = "(" + '|'.join(targets) + ")",
+	tgt1 = "(" + '|'.join(targets) + ")",
+	tgt2 = "(" + '|'.join(targets) + ")",
 	sample = "(" + '|'.join(samples) + ")",
 	treat = "(" + '|'.join(treats) + ")",
 	ref = "(" + '|'.join(treats) + ")"
@@ -168,7 +170,7 @@ all_contrasts.sort()
 ## use the contrasts to define all pairwise comparisons
 pairs = []
 for p in list(itertools.combinations(all_contrasts, 2)):
-	pairs.extend([p[0] + "_" + p[1]])
+	pairs.extend([p[0] + "-" + p[1]])
 
 ## Turn of all Pairwise comps by uncommenting this line
 # pairs = []
@@ -397,4 +399,4 @@ include: "rules/bigwig.smk"
 include: "rules/regioner.smk"
 include: "rules/motif_analysis.smk"
 include: "rules/differential_signal.smk"
-# include: "rules/pairwise_comparisons.smk"
+include: "rules/pairwise_comparisons.smk"

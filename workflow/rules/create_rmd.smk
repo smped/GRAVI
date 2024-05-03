@@ -74,6 +74,7 @@ rule create_annotations_rmd:
         chrom_sizes = chrom_sizes,
         features = os.path.join(annotation_path, "features.rds"),
         gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        greylist = os.path.join(grey_path, "greylists.rds"),
         gsea_dir = os.path.join(annotation_path, "gsea_dir.rds"),
         gsea_sig = os.path.join(annotation_path, "gsea_sig.rds"),
         gtf_exon = os.path.join(annotation_path, "gtf_exon.rds"),
@@ -247,3 +248,26 @@ rule create_differential_signal_rmd:
     script:
         "../scripts/create_differential_rmd.R"
 
+
+rule create_pairwise_comparisons_rmd:
+    input:
+        module = os.path.join(
+            "workflow", "modules", "pairwise_comparison.Rmd"
+        ),
+        results = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
+        ),
+    output:
+        rmd = os.path.join(
+            rmd_path, "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.Rmd"
+        )
+    localrule: True
+    threads: 1
+    resources:
+        mem_mb = 1024,
+        runtime = "5m",
+    shell:
+        """
+        cp {input.module} {output.rmd}
+        """

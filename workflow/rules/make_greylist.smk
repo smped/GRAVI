@@ -21,7 +21,7 @@ rule combine_greylists:
     input:
         gl = expand(
             os.path.join(grey_path, "{f}_greylist.bed.gz"),
-            f = [set(df['input'])]
+            f = set(df['input'])
         ),
         script = os.path.join("workflow", "scripts", "combine_greylists.R"),
         sq = os.path.join(annotation_path, "seqinfo.rds")

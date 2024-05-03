@@ -113,8 +113,8 @@ cat("done\n")
 cat_time("Defining ranges to exclude...\n")
 sq <- read_rds(all_input$seqinfo)
 bl <- read_rds(all_input$blacklist)
-gl <- read_rds(all_input$greylist)[unique(samples$input)]
-exclude_ranges <- c(bl, gl) %>% unlist()
+gl <- read_rds(all_input$greylist)[unique(samples$input)] %>% unlist()
+exclude_ranges <- c(bl, gl) 
 
 cat_time("Loading peaks\n")
 individual_peaks <- all_input$peaks %>%
