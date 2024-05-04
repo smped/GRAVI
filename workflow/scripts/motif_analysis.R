@@ -71,14 +71,18 @@ sink(log, split = TRUE)
 #   matches = "output/peak_analysis/H3K27ac/H3K27ac_matches.rds"
 # )
 # all_params = list(
-#   abs = TRUE,
-#   adj = "fdr", # not used here
-#   alpha = 0.05, # not used here
-#   binwidth = 10,
-#   peak_width = 400,
-#   ignore_below = 0.01,
-#   iterations = 100,
-#   model = "quasipoisson"
+#   motif_params = list(
+#       abs = TRUE,
+#       adj = "fdr", # not used here
+#       alpha = 0.05, # not used here
+#       binwidth = 10,
+#       break_ties: "all"
+#       peak_width = 400,
+#       ignore_below = 0.01,
+#       iterations = 100,
+#       min_score: "80%",
+#       model = "quasipoisson"
+#     )
 # )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
@@ -93,7 +97,7 @@ all_wildcards <- slot(snakemake, "wildcards")
 cat_list(all_input, "input", sep = ":")
 cat_list(all_output, "output", sep = ":")
 cat_list(all_wildcards, "wildcards", sep = ":")
-cat_list(all_params, "params", sep = ":")
+cat_list(all_params, "params")
 cat_list(all_resources, "resources", sep = ":")
 
 ## Solidify file paths
@@ -109,6 +113,8 @@ library(yaml)
 library(scales)
 library(universalmotif)
 library(plyranges)
+
+motif_params <- all_params$motif_params
 
 ## Contains the function for finding UCSC build info
 source(here::here("workflow/scripts/custom_functions.R"))
@@ -134,7 +140,7 @@ cat_time("Resizing and recentering peaks")
 peaks <- peaks |>
   mutate(centre = paste0(seqnames, ":", centre)) |>
   colToRanges("centre", seqinfo = sq) |>
-  resize(width = all_params$peak_width, fix = "center") 
+  resize(width = motif_params$peak_width, fix = "center") 
 ## Recentering may have moved some of these
 cat_time("Remapping peaks to regions")
 peaks$region <- bestOverlap(peaks, gene_regions)
@@ -155,25 +161,30 @@ cat_time("Found", sum(has_n), "sequences with Ns")
 
 motif_list <- read_rds(all_input$motifs)
 cat_time("Checking for low frequency matches")
-min_matches <- all_params$ignore_below * n_seq
-counts <- countPwmMatches(motif_list, test_seq, mc.cores = threads)
+min_matches <- motif_params$ignore_below * n_seq
+counts <- countPwmMatches(
+  motif_list, test_seq, min_score = motif_params$min_score,
+  mc.cores = threads
+)
 ignore <- counts < min_matches
 cat_time(
   "Found", sum(ignore), "motifs with matches in <",
-  percent(all_params$ignore_below), "of sequences"
+  percent(motif_params$ignore_below), "of sequences"
 )
 
 cat_time("Started getting best matches")
 matches <- getPwmMatches(
-  motif_list[!ignore], test_seq, best_only = TRUE, mc.cores = threads
+  motif_list[!ignore], test_seq, best_only = TRUE, 
+  min_score = motif_params$min_score, break_ties = motif_params$break_ties,
+  mc.cores = threads
 )
 cat_time("done")
 gc()
 
 cat_time("Testing for Positional Bias")
 pos_res <- testMotifPos(
-  matches, binwidth = all_params$binwidth, abs = all_params$abs,
-  mc.cores = threads
+  matches, binwidth = motif_params$binwidth, abs = motif_params$abs,
+  min_score = motif_params$min_score,  mc.cores = threads
 )
 cat_time("done\n")
 gc()
@@ -192,7 +203,7 @@ exclude_ranges <- read_rds(all_input$exclude_ranges)
 cat_time("Generating RMRanges based on provided gene_regions")
 rm_ranges <- makeRMRanges(
   splitAsList(peaks, peaks$region), gene_regions, exclude = exclude_ranges,
-  n_iter = all_params$iterations, mc.cores = threads
+  n_iter = motif_params$iterations, mc.cores = threads
 )
 cat_time("Sampled", comma(length(rm_ranges)), "RMRanges\n")
 gc()
@@ -204,7 +215,9 @@ cat_time("done")
 
 cat_time("Testing for motif enrichment")
 enrich_res <- testMotifEnrich(
-  motif_list, test_seq, rm_seq, model = all_params$model, mc.cores = threads
+  motif_list, test_seq, rm_seq, model = motif_params$model,
+  ## This should be ignored as motifTestR hasn't implemented this being parsed yet
+  min_score = motif_params$min_score, mc.cores = threads
 )
 cat_time("Done")
 

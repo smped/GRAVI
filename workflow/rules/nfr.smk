@@ -126,12 +126,7 @@ rule nfr_motif_analysis:
             nfr_path, "{target}", "{target}_motif_position.tsv.gz"
         ),
     params:
-        abs = motif_param['nfr']['abs'],
-        binwidth = motif_param['nfr']['binwidth'],
-        ignore_below = motif_param['nfr']['ignore_below'],
-        iterations = motif_param['nfr']['iterations'],
-        model = motif_param['nfr']['model'],
-        peak_width = motif_param['nfr']['peak_width'],
+        motif_params = motif_param['nfr']
     threads: lambda wildcards, attempt: attempt * 8
     retries: 2
     resources:

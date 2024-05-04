@@ -80,6 +80,23 @@ motif_mods <- config$motif_analysis |>
   unique()
 if (!all(motif_mods %in% eval(formals(motifTestR::testMotifEnrich)$model)))
   err <- c(err, "Invalid models for enrichment testing")
+motif_ties <- config$motif_analysis |>
+  lapply(\(x) x$break_ties) |>
+  unlist() |>
+  unique()
+if (!all(motif_ties %in% eval(formals(motifTestR::getPwmMatches)$break_ties)))
+  err <- c(err, "Invalid break_ties for enrichment testing")
+motif_scores <- config$motif_analysis |>
+  lapply(\(x) x$min_score) |>
+  unlist() |>
+  unique()
+valid_motif_score <- grepl("^[0-9]+%$", motif_scores)
+if (!all(valid_motif_score)) 
+  err <- c(
+    err, 
+    "min_scores for motif analysis must be a percentage expressed as a character"
+  )
+
 
 cat_time("Checking all significance-related params")
 adj <- params |>

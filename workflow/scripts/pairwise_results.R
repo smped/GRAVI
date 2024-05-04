@@ -41,65 +41,65 @@ cat_time <- function(...){
 }
 
 ## For testing
-all_wildcards <- list(
-  tgt1 = "AR",
-  tgt2 = "ER",
-  comp1 = "E2_E2DHT",
-  comp2 = "E2_E2DHT"
-)
-full_comp <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>
-  unlist() |>
-  unname() |>
-  paste(collapse = "_")
-bed_groups <- list(
-  c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
-) |>
-  expand.grid() |>
-  as.matrix() |>
-  apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
-  paste0(".bed.gz")
-all_input <- list(
-  sq = "output/annotations/seqinfo.rds",
-  blacklist = "output/annotations/blacklist.rds",
-  features = "output/annotations/features.rds",
-  greylist = "output/greylist/greylists.rds",
-  gtf_gene = "output/annotations/gtf_gene.rds",
-  hic = "output/annotations/hic.rds",
-  regions = "output/annotations/gene_regions.rds",
-  results1 = file.path(
-    "output/differential_signal", all_wildcards$tgt1,
-    paste0(all_wildcards$tgt1, "_", all_wildcards$comp1, "-differential-signal.rds")
-  ),
-  results2 = file.path(
-    "output/differential_signal", all_wildcards$tgt2,
-    paste0(all_wildcards$tgt2, "_", all_wildcards$comp2, "-differential-signal.rds")
-  ),
-  yaml = "config/params.yml"
-)
-all_output <- list(
-  rds = file.path(
-    "output/pairwise_comparisons", full_comp, paste0(full_comp, "-pairwise_results.rds")
-  ),
-  bed = file.path(
-    "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
-  )
-)
-all_params <- list(
-  adj = "none",
-  alpha = 0.05
-)
-config <- yaml::read_yaml("config/config.yml")
-threads <- 4
+# all_wildcards <- list(
+#   tgt1 = "AR",
+#   tgt2 = "ER",
+#   comp1 = "E2_E2DHT",
+#   comp2 = "E2_E2DHT"
+# )
+# full_comp <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>
+#   unlist() |>
+#   unname() |>
+#   paste(collapse = "_")
+# bed_groups <- list(
+#   c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
+# ) |>
+#   expand.grid() |>
+#   as.matrix() |>
+#   apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
+#   paste0(".bed.gz")
+# all_input <- list(
+#   sq = "output/annotations/seqinfo.rds",
+#   blacklist = "output/annotations/blacklist.rds",
+#   features = "output/annotations/features.rds",
+#   greylist = "output/greylist/greylists.rds",
+#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   hic = "output/annotations/hic.rds",
+#   regions = "output/annotations/gene_regions.rds",
+#   results1 = file.path(
+#     "output/differential_signal", all_wildcards$tgt1,
+#     paste0(all_wildcards$tgt1, "_", all_wildcards$comp1, "-differential-signal.rds")
+#   ),
+#   results2 = file.path(
+#     "output/differential_signal", all_wildcards$tgt2,
+#     paste0(all_wildcards$tgt2, "_", all_wildcards$comp2, "-differential-signal.rds")
+#   ),
+#   yaml = "config/params.yml"
+# )
+# all_output <- list(
+#   rds = file.path(
+#     "output/pairwise_comparisons", full_comp, paste0(full_comp, "-pairwise_results.rds")
+#   ),
+#   bed = file.path(
+#     "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
+#   )
+# )
+# all_params <- list(
+#   adj = "none",
+#   alpha = 0.05
+# )
+# config <- yaml::read_yaml("config/config.yml")
+# threads <- 4
 
-# log <- slot(snakemake, "log")[[1]]
-# message("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# all_wildcards <- slot(snakemake, "wildcards")
-# config <- slot(snakemake, "config")
-# threads <- slot(snakemake, "threads")
-# all_params <- slot(snakemake, "params")
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+all_wildcards <- slot(snakemake, "wildcards")
+config <- slot(snakemake, "config")
+threads <- slot(snakemake, "threads")
+all_params <- slot(snakemake, "params")
 
 cat_list(all_input, "input:", "-")
 cat_list(all_wildcards, "wildcards:", "=")

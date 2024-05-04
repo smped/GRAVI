@@ -9,14 +9,32 @@ qc:
 direction:
   increased: "#CA0020"
   decreased: "#0571B0"
-  unchanged: "#7F7F7F"
+  unchanged: "#9A9A9A"
   undetected: "#D5D5D5"
   ambiguous: "#201040"
+
+## https://davidmathlogic.com/colorblind/#%23CA0020-%230571B0-%239A9A9A-%23FF7F00-%23BE7EC7-%23FB9A99-%23A6CEE3-%236E8C6C-%234B2596
+## The describes the x-variable & the second is y, .i.e. x-increased_y-increased
+pairwise:
+  ## The first three are concordant and set as above
+  increased_increased: "#CA0020"
+  decreased_decreased: "#0571B0"
+  unchanged_unchanged: "#9A9A9A"
+  ## Discordant
+  increased_decreased: "#FF7F00"
+  decreased_increased: "#BE7EC7"
+  ## Changed in one
+  increased_unchanged: "#FB9A99"
+  decreased_unchanged: "#A6CEE3"
+  unchanged_increased: "#6E8C6C"
+  unchanged_decreased: "#4B2596"
 
 treat:
   Input: "#33333380"
   # https://davidmathlogic.com/colorblind/#%231E76CC-%239E172E-%23D4BE54-%23698A74-%235F4F71-%23A2720C
   default: ["#1E76CC", "#9E172E", "#D4BE54", "#698A74", "#5F4F71", "#A2720C"]
+  # E2: "#3333CC"
+  # E2DHT: "#C52240"
 
 regions:
   promoter: '#FF0000'

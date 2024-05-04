@@ -61,14 +61,18 @@ sink(log, split = TRUE)
 #   pos = "output/differential_signal/ER/ER_E2_E2DHT_motif_position.tsv.gz"
 # )
 # all_params = list(
-#   abs = TRUE,
-#   adj = "fdr", # not used here
-#   alpha = 0.05, # not used here
-#   binwidth = 10,
-#   peak_width = 400,
-#   ignore_below = 0.01,
-#   iterations = 100,
-#   model = "quasipoisson"
+#   motif_params = list(
+#       abs = TRUE,
+#       adj = "fdr", # not used here
+#       alpha = 0.05, # not used here
+#       binwidth = 10,
+#       break_ties: "all"
+#       peak_width = 400,
+#       ignore_below = 0.01,
+#       iterations = 100,
+#       min_score: "80%",
+#       model = "quasipoisson"
+#     )
 # )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
@@ -81,7 +85,7 @@ all_params <- slot(snakemake, "params")
 all_wildcards <- slot(snakemake, "wildcards")
 cat_list(all_input, "input:", sep = "=")
 cat_list(all_output, "output:", sep = "=")
-cat_list(all_params, "params:", sep = "=")
+cat_list(all_params, "params:")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -96,6 +100,8 @@ library(yaml)
 library(scales)
 library(universalmotif)
 library(plyranges)
+
+motif_params <- all_params$motif_params
 
 ## Contains the function for finding UCSC build info
 source(here::here("workflow/scripts/custom_functions.R"))
@@ -114,7 +120,7 @@ rng_col <- c(fixed = "centred_peak", sliding = "keyval_range")[[win_type]]
 cat_time("Resizing and recentering ranges")
 results <- results |>
   colToRanges(rng_col) |>
-  resize(width = all_params$peak_width, fix = 'center') |>
+  resize(width = motif_params$peak_width, fix = 'center') |>
   set_genome_info(ucsc$build)
 results <- splitAsList(results, results$status == "Unchanged")
 names(results) <- c("changed", "unchanged")
@@ -131,25 +137,31 @@ cat_time("done")
 
 motif_list <- read_rds(all_input$motifs)
 cat_time("Checking for low frequency matches")
-min_matches <- all_params$ignore_below * n_seq
-counts <- lapply(seq, \(x) countPwmMatches(motif_list, x, mc.cores = threads))
+min_matches <- motif_params$ignore_below * n_seq
+counts <- lapply(
+  seq, \(x) countPwmMatches(
+      motif_list, x, min_score = motif_params$min_score, mc.cores = threads
+    )
+  )
 ignore <- rowSums(do.call("cbind", counts)) < min_matches
 cat_time(
   "Found", sum(ignore), "motifs with matches in <",
-  percent(all_params$ignore_below), "of sequences"
+  percent(motif_params$ignore_below), "of sequences"
 )
 
 cat_time("Started getting best matches")
 matches <- getPwmMatches(
-  motif_list[!ignore], seq$changed, best_only = TRUE, mc.cores = threads
+  motif_list[!ignore], seq$changed, best_only = TRUE, 
+  min_score = motif_params$min_score, break_ties = motif_params$break_ties,
+  mc.cores = threads
 )
 cat_time("done")
 gc()
 
 cat_time("Testing for Positional Bias")
 pos_res <- testMotifPos(
-  matches, binwidth = all_params$binwidth, abs = all_params$abs,
-  mc.cores = threads
+  matches, binwidth = motif_params$binwidth, abs = motif_params$abs,
+  min_score = motif_params$min_score,  mc.cores = threads
 )
 cat_time("done\n")
 gc()
@@ -165,7 +177,8 @@ pos_res |>
 cat_time("Testing for motif enrichment")
 enrich_res <- testMotifEnrich(
   motif_list[!ignore], seq$changed, seq$unchanged, model = "hyper",
-  mc.cores = threads
+    ## This should be ignored as motifTestR hasn't implemented this being parsed yet
+  min_score = motif_params$min_score, mc.cores = threads
 )
 cat_time("Done")
 
