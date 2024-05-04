@@ -60,14 +60,14 @@ rule pairwise_motif_analysis:
         ),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
     output:
-		enrich_tsv = os.path.join(
-			pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
-			"{tgt1}_{comp1}-{tgt2}_{comp2}-motif_enrichment.tsv.gz"
-		),
-		position_tsv = os.path.join(
-			pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
-			"{tgt1}_{comp1}-{tgt2}_{comp2}-motif_position.tsv.gz"
-		),        
+        enrich_tsv = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-motif_enrichment.tsv.gz"
+        ),
+        position_tsv = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-motif_position.tsv.gz"
+        ),        
     params:
         motif_params = motif_param['pairwise']
     threads: 8
