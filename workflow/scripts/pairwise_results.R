@@ -42,8 +42,8 @@ cat_time <- function(...){
 
 ## For testing
 # all_wildcards <- list(
-#   tgt1 = "AR",
-#   tgt2 = "ER",
+#   tgt1 = "ER",
+#   tgt2 = "H3K27ac",
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )
@@ -84,12 +84,14 @@ cat_time <- function(...){
 #     "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
 #   )
 # )
-# all_params <- list(
-#   adj = "none",
-#   alpha = 0.05
-# )
+all_params <- list(
+  pairwise_params = list(
+    adj = "none",
+    alpha = 0.05
+  )
+)
 # config <- yaml::read_yaml("config/config.yml")
-# threads <- 4
+# threads <- 2
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -119,6 +121,8 @@ library(scales)
 library(rlang)
 library(plyranges)
 library(parallel)
+
+pw_params <- all_params$pairwise_params
 
 
 cat_time("Setting comparison names")
@@ -208,7 +212,7 @@ mc[[stat1_col]] <- case_when(
   !either_sig ~ mc[[stat1_col]],
 
   ## No change if the adjusted p (mu0) is > alpha
-  p.adjust(mc[[p1_col]], all_params$adj) >= all_params$alpha ~ mc[[stat1_col]],
+  p.adjust(mc[[p1_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat1_col]],
 
   ## The remaining sites will be significant somewhere & have a significant mu0
   ## p-value. Make significant if |lfc| > |lambda|
@@ -231,7 +235,7 @@ mc[[stat2_col]] <- case_when(
   !either_sig ~ mc[[stat2_col]],
 
   ## No change if the adjusted p (mu0) is > alpha
-  p.adjust(mc[[p2_col]], all_params$adj) >= all_params$alpha ~ mc[[stat2_col]],
+  p.adjust(mc[[p2_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat2_col]],
 
   ## The remaining sites will be significant somewhere & have a significant mu0
   ## p-value. Make significant if |lfc| > |lambda|

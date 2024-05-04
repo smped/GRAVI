@@ -35,7 +35,7 @@ rule prepare_pairwise_results:
             f = pw_dirs
         )
     params:
-        config['pairwise']['default'] # Change later
+        pairwise_params = lambda wildcards: pairwise_param[wildcards.tgt1 + "_" + wildcards.comp1 + "-" + wildcards.tgt2 + "_" + wildcards.comp2] 
     threads: 2
     conda: "../envs/rmarkdown.yml"
     resources:

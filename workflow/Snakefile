@@ -48,14 +48,6 @@ samples = list(set(df['sample']))
 treats = list(set(df['treat']))
 inputs = list(set(df['input']))
 targets = list(set(df['target']))
-## Make sure nfr & shared are added to the 'extended' targets is needed
-targets_ext = targets.copy()
-if (len(targets) >1):
-	targets_ext.extend(['shared'])
-
-if set([config['modules']['nfr']]).intersection(targets):
-	targets_ext.extend(['nfr'])
-
 
 ## Note that the last level in treats can never be the reference level
 wildcard_constraints:
@@ -110,26 +102,7 @@ def set_params(config, targets):
 				out[i][j] = config[i][j]
 	return(out)
 
-# Dump params to json. Might be handy later
-macs2_param = set_params(config['macs2'], targets)
-with open(os.path.join(json_path, "macs2_param.json"), 'w') as fp:
-	json.dump(macs2_param, fp, indent = 4)
-
-peak_qc_param = set_params(config['peak_qc'], targets)
-with open(os.path.join(json_path, "peak_qc_param.json"), 'w') as fp:
-	json.dump(peak_qc_param, fp, indent = 4)
-
-motif_param = set_params(config['motif_analysis'], targets_ext)
-with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:
-	json.dump(motif_param, fp, indent = 4)
-
-profile_heatmap_param = set_params(config['profile_heatmaps'], targets)
-with open(os.path.join(json_path, "profile_heatmap_param.json"), 'w') as fp:
-	json.dump(profile_heatmap_param, fp, indent = 4)
-
-
-## These do need more careful checking as not all levels may be found in each
-## target. Compare to df['treat'][df$target' == x] at some point
+## This should be OK at this point
 diff_sig_param = set_params(config['differential_signal'], targets)
 rm_targets = [] # Holds targets with no valid contrasts
 for i in diff_sig_param.keys():
@@ -174,6 +147,39 @@ for p in list(itertools.combinations(all_contrasts, 2)):
 
 ## Turn of all Pairwise comps by uncommenting this line
 # pairs = []
+
+## Make sure nfr, pairwise & shared are added to the options for motif analysis
+motif_cats = targets.copy()
+if (len(targets) >1):
+	motif_cats.extend(['shared'])
+
+if set([config['modules']['nfr']]).intersection(targets):
+	motif_cats.extend(['nfr'])
+
+if pairs:
+	motif_cats.extend(['pairwise'])
+
+
+# Dump params to json. Might be handy later
+macs2_param = set_params(config['macs2'], targets)
+with open(os.path.join(json_path, "macs2_param.json"), 'w') as fp:
+	json.dump(macs2_param, fp, indent = 4)
+
+peak_qc_param = set_params(config['peak_qc'], targets)
+with open(os.path.join(json_path, "peak_qc_param.json"), 'w') as fp:
+	json.dump(peak_qc_param, fp, indent = 4)
+
+motif_param = set_params(config['motif_analysis'], motif_cats)
+with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:
+	json.dump(motif_param, fp, indent = 4)
+
+profile_heatmap_param = set_params(config['profile_heatmaps'], targets)
+with open(os.path.join(json_path, "profile_heatmap_param.json"), 'w') as fp:
+	json.dump(profile_heatmap_param, fp, indent = 4)
+
+pairwise_param = set_params(config['pairwise'], pairs)
+with open(os.path.join(json_path, "pairwise_param.json"), 'w') as fp:
+	json.dump(pairwise_param, fp, indent = 4)
 
 #################
 ## Figure Type ##
@@ -226,7 +232,6 @@ def get_blacklist(x):
 	return(f)
 
 blacklist = get_blacklist(config)
-
 chrom_sizes = os.path.join(annotation_path, "chrom.sizes")
 
 #####################
