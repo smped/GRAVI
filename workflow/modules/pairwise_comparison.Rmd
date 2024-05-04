@@ -150,6 +150,13 @@ full_palette <- c(
     "None" = colours$direction[["undetected"]],
     "Other" = colours$direction[["unchanged"]])
 )
+scale_colour_pw <- scale_colour_manual(
+    values = pw_cols, 
+    labels = \(x) str_replace_all(
+      x,
+      "(.+) - (.+)", paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+    ) %>% str_wrap(15)
+  ) 
 ```
 
 ```{r figure-params}
@@ -584,18 +591,12 @@ df %>%
   scale_y_continuous() +
   scale_ysidex_discrete(
     position = "top",     
-    labels = \(x) paste(short_names$x, x) %>% str_wrap(15)
+    labels = \(x) paste(short_names$comp1, x) %>% str_wrap(15)
   ) +
   scale_xsidey_discrete(
-    labels = \(x) paste(short_names$y, x) %>% str_wrap(15)
+    labels = \(x) paste(short_names$comp2, x) %>% str_wrap(15)
   ) +
-  scale_colour_manual(
-    values = pw_cols, 
-    labels = \(x) str_replace_all(
-      x,
-      "(.+) - (.+)", paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-    ) %>% str_wrap(15)
-  ) +
+  scale_colour_pw +
   scale_fill_manual(values = full_palette) +
   labs(colour = "Combined Status") +
   theme(
@@ -689,19 +690,11 @@ df %>%
   facet_wrap(~region) +
   scale_x_continuous() +
   scale_y_continuous() +
-  scale_colour_manual(
-    values = pw_cols, 
-    labels = \(x) str_replace_all(
-      x,
-      "(.+) - (.+)", paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-    ) %>% str_wrap(15)
-  ) +
+  scale_colour_pw +
   labs(colour = "Combined Status") +
   theme(legend.position = "bottom")
 ```
 
-
-# HERE
 
 
 `r if (has_features) "## logFC By Feature"`
@@ -709,11 +702,6 @@ df %>%
 ```{r plot-dbwin-by-feature, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_names, sep = " and "), ", separated by feature. The range with most extreme combined change in signal for each separate feature is shown with any genes labelled as previously, noting that combined ranges may map to multiple features. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 if (has_features) {
   df %>% 
-    mutate(
-      feature = feature %>% 
-        mclapply(strsplit, split = "; ", mc.cores = threads) %>% 
-        mclapply(pluck, 1, mc.cores = threads)
-    ) %>% 
     unnest(feature, keep_empty = TRUE) %>% 
     mutate(
       feature = str_replace_na(feature, "no_feature") %>% 
@@ -723,8 +711,8 @@ if (has_features) {
     arrange(status) %>% 
     ggplot(
       aes(
-        x = !!sym(glue("{short_names$x} logFC")), 
-        y = !!sym(glue("{short_names$y} logFC")),
+        x = !!sym(glue("{short_names$comp1} logFC")), 
+        y = !!sym(glue("{short_names$comp2} logFC")),
         colour = status
       )
     ) +
@@ -737,8 +725,8 @@ if (has_features) {
         mutate(
           across(ends_with("logFC"), list(sq = \(x) x^2)),
           diam = (
-            !!sym(glue("{short_names$x} logFC_sq")) + 
-              !!sym(glue("{short_names$y} logFC_sq"))
+            !!sym(glue("{short_names$comp1} logFC_sq")) + 
+              !!sym(glue("{short_names$comp2} logFC_sq"))
           )
         ) %>% 
         dplyr::filter(diam > 1) %>% 
@@ -758,11 +746,11 @@ if (has_features) {
       fontface = "italic"
     ) +
     geom_hline(
-      yintercept = c(1, -1) * log2(diff_sig_param[[params$y]]$fc),
+      yintercept = c(1, -1) * log2(diff_sig_param[[params$tgt2]]$fc),
       linetype = 2, colour = "grey"
     ) +
     geom_vline(
-      xintercept = c(1, -1) * log2(diff_sig_param[[params$x]]$fc),
+      xintercept = c(1, -1) * log2(diff_sig_param[[params$tgt1]]$fc),
       linetype = 2, colour = "grey"
     ) +
     geom_smooth(
@@ -780,23 +768,23 @@ if (has_features) {
           \(x) {
             tibble(
               cor = cor(dplyr::select(x, ends_with("logFC")))[1, 2],
-              "{short_names$x} logFC" := min(x[[glue("{short_names$x} logFC")]]),
-              "{short_names$y} logFC" := max(x[[glue("{short_names$y} logFC")]])
+              "{short_names$comp1} logFC" := min(x[[glue("{short_names$comp1} logFC")]]),
+              "{short_names$comp2} logFC" := max(x[[glue("{short_names$comp2} logFC")]])
             )
           }, mc.cores = threads
         ) %>% 
         bind_rows(.id = "feature") %>% 
         mutate(
           label = paste("rho ==", round(cor, 3)),
-          "{short_names$x} logFC" := min(!!sym(glue("{short_names$x} logFC"))),
-          "{short_names$y} logFC" := max(!!sym(glue("{short_names$y} logFC")))
+          "{short_names$comp1} logFC" := min(!!sym(glue("{short_names$comp1} logFC"))),
+          "{short_names$comp2} logFC" := max(!!sym(glue("{short_names$comp2} logFC")))
         ),
       colour = "grey20", parse = TRUE, vjust = 1, hjust = 0, size = 3.5
     ) +
     facet_wrap(~feature) +
     scale_x_continuous() +
     scale_y_continuous() +
-    scale_colour_manual(values = full_palette, labels = label_wrap(15)) +
+    scale_colour_pw +
     labs(colour = "Combined Status") +
     theme(legend.position = "bottom")
 }
@@ -806,18 +794,79 @@ if (has_features) {
 
 ## Pairwise Signal
 
-```{r plot-pairwise-signal, fig.cap = glue("Pairwise signal levels with boxplots indicating the baseline signal whether signal was detected in both  or individual comparisons.")}
-db_results %>% 
-  plotPairwise(
-    var = cpm_column, alpha = 0.6, side_panel_width = 0.2,
-  ) +
-  scale_fill_manual(
-    values = setNames(
-      comp_cols, paste(names(comp_cols), c("Only", "Only", "Detected"))
+```{r plot-pairwise-signal, fig.cap = glue("Pairwise signal levels with boxplots indicating the baseline signal whether signal was detected in both or only the individual comparisons.")}
+combined_results %>% 
+  as_tibble() %>% 
+  ggplot(
+    aes(
+      !!sym(glue("{params$tgt1}_{params$comp1}_logCPM")),
+      !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
     )
+  ) +
+  geom_point(data = . %>% dplyr::filter(!grepl("Undetected", status))) +
+  geom_smooth(
+    se = FALSE, data = . %>% dplyr::filter(!grepl("Undetected", status))
+  ) +
+  geom_text(
+    aes(label = label),
+    data = . %>% 
+      dplyr::filter(!grepl("Undetected", status)) %>% 
+      summarise(
+        cor = cor(
+          !!sym(glue("{params$tgt1}_{params$comp1}_logCPM")),
+          !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
+        ),
+        "{params$tgt1}_{params$comp1}_logCPM" := min(
+          !!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))
+        ),
+        "{params$tgt2}_{params$comp2}_logCPM" := max(
+          !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
+        )
+      ) %>% 
+      mutate(label = glue("rho == {round(cor, 3)}")),
+    parse = TRUE, vjust = 1, hjust = 0
+  ) + 
+  geom_xsideboxplot(
+    aes(y = detected, x = !!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))),
+    data = . %>% 
+      mutate(
+        detected = ifelse(
+          is.na(!!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))),
+          paste(short_names$comp1, "Only"), "Both Detected"
+        ) 
+      ) %>% 
+          dplyr::filter(!is.na(!!sym(glue("{params$tgt1}_{params$comp1}_logCPM")))
+      ),
+    orientation = "y"
+  ) +
+  geom_ysideboxplot(
+    aes(x = detected, y = !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))),
+    data = . %>% 
+      mutate(
+        detected = ifelse(
+          is.na(!!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))),
+          paste(short_names$comp2, "Only"), "Both Detected"
+        ) 
+      ) %>% 
+          dplyr::filter(!is.na(!!sym(glue("{params$tgt2}_{params$comp2}_logCPM")))
+      ),
+    orientation = "x"
+  ) +
+  labs(
+    x = glue("logCPM ({short_names$comp1})"),
+    y = glue("logCPM ({short_names$comp2})"),
+  ) +
+  theme(
+    ggside.panel.scale.x = 0.25,
+    ggside.panel.scale.y = 0.25,
+    ggside.axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5),
+    legend.position = "bottom",
+    axis.title.y.left = element_text(vjust = -10, hjust = 0.4),
+    axis.title.x.bottom = element_text(hjust = 0.45)
   )
 ```
 
+# HERE
 
 ## Distribution By Region
 

@@ -42,8 +42,8 @@ cat_time <- function(...){
 
 ## For testing
 # all_wildcards <- list(
-#   tgt1 = "ER",
-#   tgt2 = "H3K27ac",
+#   tgt1 = "AR",
+#   tgt2 = "ER",
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )
@@ -83,7 +83,7 @@ cat_time <- function(...){
 # )
 # all_params <- list(
 #   pairwise_params = list(
-#     adj = "none",
+#     adj = "fdr",
 #     alpha = 0.05
 #   )
 # )
