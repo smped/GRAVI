@@ -45,5 +45,37 @@ rule prepare_pairwise_results:
     script:
         "../scripts/pairwise_results.R"
     
-
+rule pairwise_motif_analysis:
+    input:
+        bed = expand(
+            os.path.join(
+                pairs_path, "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}",
+                "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}-{f}.bed.gz"
+            ),
+            f = pw_dirs
+        ),
+        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        script = os.path.join(
+            "workflow", "scripts", "pairwise_motif_analysis.R"
+        ),
+        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+    output:
+		enrich_tsv = os.path.join(
+			pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+			"{tgt1}_{comp1}-{tgt2}_{comp2}-motif_enrichment.tsv.gz"
+		),
+		position_tsv = os.path.join(
+			pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+			"{tgt1}_{comp1}-{tgt2}_{comp2}-motif_position.tsv.gz"
+		),        
+    params:
+        motif_params = motif_param['pairwise']
+    threads: 8
+    conda: "../envs/rmarkdown.yml"
+    resources:
+        runtime = "30m",
+        mem_mb = 32000
+    log: os.path.join(log_path, "pairwise_motif_analysis", "{tgt1}_{comp1}-{tgt2}_{comp2}.log")
+    script:
+        "../scripts/pairwise_motif_analysis.R"    
 

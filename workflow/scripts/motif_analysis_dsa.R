@@ -151,7 +151,7 @@ cat_time(
 
 cat_time("Started getting best matches")
 matches <- getPwmMatches(
-  motif_list[!ignore], seq$changed, best_only = TRUE, 
+  motif_list[!ignore], seq$changed, best_only = TRUE,
   min_score = motif_params$min_score, break_ties = motif_params$break_ties,
   mc.cores = threads
 )
@@ -177,7 +177,6 @@ pos_res |>
 cat_time("Testing for motif enrichment")
 enrich_res <- testMotifEnrich(
   motif_list[!ignore], seq$changed, seq$unchanged, model = "hyper",
-    ## This should be ignored as motifTestR hasn't implemented this being parsed yet
   min_score = motif_params$min_score, mc.cores = threads
 )
 cat_time("Done")

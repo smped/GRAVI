@@ -9,7 +9,7 @@ rule check_r_packages:
         runtime = "30m",
         mem_mb = 2048,
     params:
-        min_extrachips = "1.7.9"
+        min_extrachips = "1.8.1"
     log: os.path.join(log_path, "initial_checks", "check_r_packages.log")
     conda: "../envs/rmarkdown.yml"
     localrule: True

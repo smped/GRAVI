@@ -47,10 +47,7 @@ cat_time <- function(...){
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )
-# full_comp <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>
-#   unlist() |>
-#   unname() |>
-#   paste(collapse = "_")
+# full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
 # bed_groups <- list(
 #   c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
 # ) |>
@@ -85,9 +82,13 @@ cat_time <- function(...){
 #   )
 # )
 # all_params <- list(
-#   adj = "none",
-#   alpha = 0.05
+#   pairwise_params = list(
+#     adj = "none",
+#     alpha = 0.05
+#   )
 # )
+# pw_params <- all_params$pairwise_params
+# rm(list = c("bed_groups", "full_comp"))
 # config <- yaml::read_yaml("config/config.yml")
 # threads <- 4
 
@@ -100,10 +101,11 @@ all_wildcards <- slot(snakemake, "wildcards")
 config <- slot(snakemake, "config")
 threads <- slot(snakemake, "threads")
 all_params <- slot(snakemake, "params")
+pw_params <- all_params$pairwise_params
 
 cat_list(all_input, "input:", "-")
 cat_list(all_wildcards, "wildcards:", "=")
-cat_list(all_params, "params:", "=")
+cat_list(pw_params, "pairwise_params:", "=")
 cat_list(all_output, "output:")
 
 ## Solidify file paths
@@ -120,7 +122,6 @@ library(rlang)
 library(plyranges)
 library(parallel)
 
-
 cat_time("Setting comparison names")
 both_comps <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>
   unlist() |>
@@ -130,7 +131,7 @@ both_comps <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>
   setNames(paste0("comp", 1:2))
 full_comp <- both_comps |>
   unlist() |>
-  paste(collapse = "_")
+  paste(collapse = "-")
 
 cat_time("Loading samples")
 treat_levels <- all_wildcards[c("comp1", "comp2")] %>%
@@ -207,8 +208,8 @@ mc[[stat1_col]] <- case_when(
   ## No change if significant nowhere
   !either_sig ~ mc[[stat1_col]],
 
-  ## No change if the adjusted p (mu0) is > alpha
-  p.adjust(mc[[p1_col]], all_params$adj) >= all_params$alpha ~ mc[[stat1_col]],
+  # ## No change if the adjusted p (mu0) is > alpha
+  p.adjust(mc[[p1_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat1_col]],
 
   ## The remaining sites will be significant somewhere & have a significant mu0
   ## p-value. Make significant if |lfc| > |lambda|
@@ -231,7 +232,7 @@ mc[[stat2_col]] <- case_when(
   !either_sig ~ mc[[stat2_col]],
 
   ## No change if the adjusted p (mu0) is > alpha
-  p.adjust(mc[[p2_col]], all_params$adj) >= all_params$alpha ~ mc[[stat2_col]],
+  p.adjust(mc[[p2_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat2_col]],
 
   ## The remaining sites will be significant somewhere & have a significant mu0
   ## p-value. Make significant if |lfc| > |lambda|
@@ -247,6 +248,25 @@ mc$status <- fct_cross(
   mc[[stat1_col]], mc[[stat2_col]], sep = " - ", keep_empty = TRUE
 )
 mcols(combined_results) <- mc[!str_detect(names(mc), "centre")]
+
+## There may be duplicated ranges at this point
+dup_ranges <- combined_results[duplicated(combined_results)] %>%
+  granges() %>%
+  GenomicRanges::reduce()
+cat_time("Found", length(dup_ranges), "duplicated ranges")
+## Choose the most significant pairing will be chosen, with ties split by which are closest
+merged_dup_ranges <- combined_results %>%
+  subsetByOverlaps(dup_ranges) %>%
+  arrange(1 / str_count(status, "(In|De)creased"), d) %>%
+  as_tibble() %>%
+  distinct(range, .keep_all = TRUE) %>%
+  colToRanges("range", seqinfo = seqinfo(combined_results)) %>%
+  sort()
+cat_time("Removing duplicated ranges")
+combined_results <- combined_results %>%
+  filter_by_non_overlaps(merged_dup_ranges) %>%
+  c(merged_dup_ranges) %>%
+  sort()
 
 cat_time("Re-mapping to regions")
 regions <- read_rds(all_input$regions)
@@ -337,7 +357,7 @@ names(split_ranges) %>%
     \(x) {
       tag <- str_to_lower(x) %>% str_replace_all(" - ", "_")
       bed <- str_subset(all_output$bed, tag)
-      write_bed(split_ranges[[x]], bed)
+      write_bed(split_ranges[[x]], bed, )
     }
   )
 cat_time("done")
