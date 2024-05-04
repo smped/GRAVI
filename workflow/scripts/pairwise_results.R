@@ -42,8 +42,8 @@ cat_time <- function(...){
 
 ## For testing
 # all_wildcards <- list(
-#   tgt1 = "AR",
-#   tgt2 = "ER",
+#   tgt1 = "ER",
+#   tgt2 = "H3K27ac",
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )
@@ -90,7 +90,7 @@ cat_time <- function(...){
 # pw_params <- all_params$pairwise_params
 # rm(list = c("bed_groups", "full_comp"))
 # config <- yaml::read_yaml("config/config.yml")
-# threads <- 4
+# threads <- 2
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -208,7 +208,7 @@ mc[[stat1_col]] <- case_when(
   ## No change if significant nowhere
   !either_sig ~ mc[[stat1_col]],
 
-  # ## No change if the adjusted p (mu0) is > alpha
+  ## No change if the adjusted p (mu0) is > alpha
   p.adjust(mc[[p1_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat1_col]],
 
   ## The remaining sites will be significant somewhere & have a significant mu0
