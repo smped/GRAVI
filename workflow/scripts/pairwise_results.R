@@ -270,7 +270,10 @@ combined_results <- combined_results %>%
 
 cat_time("Re-mapping to regions")
 regions <- read_rds(all_input$regions)
-combined_results$region <- bestOverlap(combined_results, unlist(regions), var = "region")
+region_levels <- map_chr(regions, \(x) x$region[1]) %>% setNames(names(regions))
+combined_results$region <- combined_results %>%
+  bestOverlap(unlist(regions), var = "region") %>%
+  factor(levels = region_levels)
 
 cat_time("Checking for features")
 features <- read_rds(all_input$features)
@@ -309,7 +312,6 @@ if (length(features)) {
 ## Map to genes, feature & regions
 cat_time("Loading all annotations")
 gtf_gene <- read_rds(all_input$gtf_gene)
-region_levels <- map_chr(regions, \(x) x$region[1]) %>% setNames(names(regions))
 hic <- read_rds(all_input$hic)
 mapping_params <- all_input$yaml %>%
   read_yaml() %>%
