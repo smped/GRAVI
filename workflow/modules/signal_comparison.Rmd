@@ -38,8 +38,6 @@ theme_set(
 panderOptions("big.mark", ",")
 panderOptions("table.split.table", Inf)
 source(here::here("workflow/scripts/custom_functions.R"))
-source(here::here("workflow/scripts/table_funs.R"))
-source(here::here("workflow/scripts/enrichment_funs.R"))
 config <- here::here("config", "config.yml") %>% read_yaml()
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
   jsonlite::fromJSON() %>% 
@@ -73,6 +71,8 @@ samples <- file.path(all_paths$macs2, "{targets}", "{targets}_qc_samples.tsv") %
   dplyr::select(-all_of("qc")) 
 targets <- unique(samples$target)
 n_targets <- length(targets)
+source(here::here("workflow/scripts/table_funs.R"))
+source(here::here("workflow/scripts/enrichment_funs.R"))
 ```
 
 ```{r annotations}

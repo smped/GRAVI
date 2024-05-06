@@ -39,10 +39,10 @@ library(motifTestR)
 # library(goseq)
 # library(GenomicInteractions)
 source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "table_funs.R"))
 source(here::here("workflow", "scripts", "enrichment_funs.R"))
 threads <- detectCores() - 1
 if (interactive()) threads <- 4
+config <- read_yaml(here::here("config", "config.yml"))
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
 library(bs_pkg, character.only = TRUE)
@@ -62,7 +62,6 @@ theme_set(
 
 
 ```{r get_params, echo = FALSE}
-config <- read_yaml(here::here("config", "config.yml"))
 targets <- params[c("tgt1", "tgt2")] %>% unlist()
 n_targets = length(unique(targets))
 treat_levels <- params[paste0("comp", 1:2)] %>% 
@@ -107,6 +106,7 @@ region_params <- here::here("config", "params.yml") %>%
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   .[targets]
+source(here::here("workflow", "scripts", "table_funs.R"))
 ```
 
 
@@ -1582,7 +1582,7 @@ grl_to_plot <- combined_results %>%
   arrange(
     (-1) * case_when(
       !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logCPM")),
-            !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logCPM")),
+            !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp1, "_logCPM")),
       TRUE ~ (
         !!sym(paste0(comp_names$comp1, "_logCPM")) +
           !!sym(paste0(comp_names$comp2, "_logCPM"))
@@ -1711,13 +1711,13 @@ By taking the two set of visualisations in this context, judgements can be made 
 ```{r grl-to-plot-logfc}
 grl_to_plot <- combined_results %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
-  arrange(
+  plyranges::arrange(
     (-1) * case_when(
-      !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logFC"))^2,
-      !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logFC"))^2,
+      !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ (!!sym(paste0(comp_names$comp2, "_logFC")))^2,
+      !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ (!!sym(paste0(comp_names$comp1, "_logFC")))^2,
       TRUE ~ (
-        !!sym(paste0(comp_names$comp1, "_logFC"))^2 +
-          !!sym(paste0(comp_names$comp2, "_logFC"))^2
+        (!!sym(paste0(comp_names$comp1, "_logFC")))^2 +
+          (!!sym(paste0(comp_names$comp2, "_logFC")))^2
       )
     )
   ) %>% 
@@ -1814,6 +1814,7 @@ adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
 net_layout <- c(network_params$layout, "fr")[[1]]
 ranges_by_status <- combined_results %>% 
   subset(grepl("(In|De)creased", status)) %>% 
+  mutate(status = fct_rev(status)) %>% 
   split(.$status) %>% 
   endoapply(plyranges::select, gene_id) %>% 
   .[map_int(., length) > 0] %>% 
@@ -1825,8 +1826,7 @@ ranges_by_status <- combined_results %>%
         "(.+) - (.+)", 
         paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
       )
-  ) %>% 
-  .[order(names(.))]
+  ) 
 ```
 
 `r desc_enrichment(enrich_method)`
@@ -2048,6 +2048,8 @@ if (any_networks) {
 
 # Region Analysis
 
+## Needs Writing
+
 # Motif Analysis
 
 ```{r setup-motif-analysis}
@@ -2060,6 +2062,7 @@ motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>%
   read_rds()
 fw_seq <- combined_results %>% 
   subset(grepl("(In|De)creased", status)) %>% 
+  mutate(status = fct_rev(status)) %>% 
   set_genome_info(ucsc$build) %>% 
   resize(width = motif_params$peak_width, fix = 'center') %>% 
   splitAsList(.$status) %>% 
@@ -2136,8 +2139,7 @@ In all sections below, only significant results are returned.
 ```{r motif-enrich-tables}
 tagList(
   motif_enrich_res %>% 
-  .[2] %>% 
-    lapply(
+    mclapply(
       \(x) {
         nm <- unique(x$comparison)
         n_seq <- unique(x$sequences)
@@ -2145,7 +2147,7 @@ tagList(
           str_replace_all(" - ", "-") %>% 
           str_replace_all(" ", "-") %>% 
           str_to_lower() 
-        id <- paste0(pre, "-table")
+        id <- paste0(pre, "-motif-enrich-table")
         tbl <- x %>% 
           dplyr::select(-all_of(c("comparison", "sequences"))) %>% 
           mutate(
@@ -2193,7 +2195,7 @@ tagList(
         htmltools::div(
           id = id, class = "section level4", htmltools::h4(nm), tl
         )
-      }
+      }, mc.cores = threads
     ) 
 )
 ```
@@ -2319,9 +2321,76 @@ if (any_motif_enrich) {
 }
 ```
 
-# HERE
 
 ## Motifs With Positional Bias {.tabset}
+
+`r ifelse(any_motif_pos, "### Result Tables {.tabset}", "*No groups were found to show positional bias for any motifs.*")`
+
+```{r motif-pos-tables}
+tagList(
+  motif_pos_res %>% 
+    lapply(
+      \(x) {
+        nm <- unique(x$comparison)
+        pre <- nm %>% 
+          str_replace_all(" - ", "-") %>% 
+          str_replace_all(" ", "-") %>% 
+          str_to_lower() 
+        id <- paste0(pre, "-motif-pos-table")
+        tbl <- x %>% 
+          dplyr::select(-all_of(c("comparison"))) %>% 
+          mutate(
+            PWM = lapply(altname, \(x) motif_uri[[x]])
+          ) %>% 
+          reactable(
+            showPageSizeOptions = nrow(.) > 10,
+            filterable = TRUE, groupBy = "cluster",
+            columns = motif_cols[names(motif_cols) %in% colnames(.)],
+            defaultSorted = "adj_p", defaultSortOrder = "asc",
+            theme = reactableTheme(style = list(fontSize = 12)),
+            elementId = id
+          )
+        cp <- htmltools::em(
+          glue(
+            "All {comma(nrow(x))} motifs showing positional bias within the ", 
+            "sites considered as '{nm}'. ", 
+            "Significance was determined using an adjusted p-value (method = ", 
+            "{motif_params$adj}) < {motif_params$alpha}. ",
+            " Highly similar motifs were clustered during preparation and are ", 
+            "grouped accordingly. Clicking the arrow next to the arbitrary ", 
+            "cluster id will reveal full details for all motifs within the ", 
+            "cluster that were considered significant, ", 
+            "including the sequence logo showing information content (ICM)"
+          )
+        )
+        tl <- tagList(
+          tags$button(
+            tagList(fontawesome::fa("download"), "Download as CSV"),
+            onclick = glue(
+              "Reactable.downloadDataCSV('{id}',",
+              "'{params$full_comp}-{pre}_motif_pos_res.csv')"
+            )
+          ),
+          tags$button(
+            "Expand/Collapse All",
+            onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
+          ),
+          tags$button(
+            "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
+          ),
+          tbl, htmltools::tags$caption(cp)
+        )
+        htmltools::div(
+          id = id, class = "section level4", htmltools::h4(nm), tl
+        )
+      }
+    ) 
+)
+```
+
+
+
+# HERE
 
 # Data Export
 

@@ -254,7 +254,7 @@ dup_ranges <- combined_results[duplicated(combined_results)] %>%
   granges() %>%
   GenomicRanges::reduce()
 cat_time("Found", length(dup_ranges), "duplicated ranges")
-## Choose the most significant pairing will be chosen, with ties split by which are closest
+## Choose the most significant pairing, with ties split by which are closest
 merged_dup_ranges <- combined_results %>%
   subsetByOverlaps(dup_ranges) %>%
   arrange(1 / str_count(status, "(In|De)creased"), d) %>%

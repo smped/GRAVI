@@ -49,8 +49,6 @@ theme_set(
 )
 register(MulticoreParam(workers = threads))
 source(here::here("workflow/scripts/custom_functions.R"))
-source(here::here("workflow/scripts/table_funs.R"))
-source(here::here("workflow/scripts/enrichment_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -80,6 +78,8 @@ peak_qc_params <- here::here("config", "json", "peak_qc_param.json") %>%
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
+source(here::here("workflow/scripts/table_funs.R"))
+source(here::here("workflow/scripts/enrichment_funs.R"))
 ```
 
 ```{r read-samples}

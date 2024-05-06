@@ -188,45 +188,6 @@
 
 }
 
-#' Setup the columns for enrichment tables
-enrich_cols <- list(
-  gs_name = colDef(
-    "GeneSet", minWidth = 180,
-    cell = function(value) htmltools::tags$a(
-      href = gs_url[[value]],
-      target = "_blank",
-      str_replace_all(value, "_", " ")
-    ),
-    html = TRUE
-  ),
-  genome_fraction = colDef(show = FALSE),
-  observed_region_hits = colDef(show = FALSE),
-  mean_tss_dist = colDef(
-    "Mean TSS Distance (kb)", cell = \(value) round(value / 1e3, 2),
-    filterMethod = js_greater
-  ),
-  gene_set_size = colDef(
-    "Gene Set Size", maxWidth = 100, filterMethod = js_greater
-  ),
-  observed_gene_hits = colDef(
-    "Gene Hits", maxWidth = 100, filterMethod = js_greater
-  ),
-  fold_enrichment = colDef(
-    name = "Fold Enrichment", format = colFormat(digits = 3),
-    minWidth = 110, filterMethod = js_greater
-  ),
-  genes_with_hits = colDef(
-    name = "Genes With Associated Peaks", minWidth = 200,
-    cell = \(value) with_tooltip(value, width = 60)
-  ),
-  gene_id = colDef(show = FALSE),
-  p = colDef(show = FALSE),
-  adj_p = colDef(
-    name = glue("P<sub>adj</sub>"),
-    html = TRUE, cell = \(value) sprint_pval(value),
-    maxWidth = 110, filterMethod = js_less
-  )
-)
 
 
 #' Produce the plain text describing the enrichment strategy...
