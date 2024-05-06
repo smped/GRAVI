@@ -110,7 +110,7 @@ make_tbl_graph <- function(
   )
   edges <- combs %>%
     t() %>%
-    set_colnames(c("from", "to")) %>%
+    magrittr::set_colnames(c("from", "to")) %>%
     as_tibble() %>%
     mutate(d = unlist(d), oc = 1 - d) %>%
     dplyr::filter(d <= min_dist)

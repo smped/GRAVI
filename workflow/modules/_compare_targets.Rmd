@@ -1,0 +1,199 @@
+### Shared Signal Regions
+
+```{r plot-common, fig.cap = glue("*Relationship between regions contained in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of peaks, which are themselves independent of treatment group.*"), fig.height = 8, fig.width = 8}
+library(VennDiagram)
+venn_args <- combined_results %>% 
+  as_tibble() %>% 
+  dplyr::select(range, ends_with("logCPM")) %>% 
+  mutate(
+    across(ends_with("logCPM"), \(x) !is.na(x))
+  ) %>% 
+  setNames(c("range", unlist(short_names))) %>% 
+  summarise(
+    area1 = sum(!!sym(short_names[[1]])),
+    area2 = sum(!!sym(short_names[[2]])),
+    cross.area = sum(!!sym(short_names[[1]]) & !!sym(short_names[[2]]))
+  ) %>% 
+  as.list()
+venn_args$fill <- unlist(colours$target)[targets]
+venn_args$category <- unname(unlist(short_names))
+grid::grid.newpage()
+do.call(draw.pairwise.venn, venn_args)
+```
+
+### Pairwise Signal
+
+```{r plot-pairwise-signal, fig.cap = glue("Pairwise signal levels with boxplots indicating the baseline signal based on whether signal was detected in both or only the individual dataset. The blue, smoothed line represents a GAM line of best-fit.")}
+combined_results %>% 
+  as_tibble() %>% 
+  ggplot(
+    aes(
+      !!sym(glue("{params$tgt1}_{params$comp1}_logCPM")),
+      !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
+    )
+  ) +
+  geom_point(data = . %>% dplyr::filter(!grepl("Undetected", status))) +
+  geom_smooth(
+    method = 'gam', formula = y ~ s(x, bs = "cs"),
+    se = FALSE, data = . %>% dplyr::filter(!grepl("Undetected", status))
+  ) +
+  geom_text(
+    aes(label = label),
+    data = . %>% 
+      dplyr::filter(!grepl("Undetected", status)) %>% 
+      summarise(
+        cor = cor(
+          !!sym(glue("{params$tgt1}_{params$comp1}_logCPM")),
+          !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
+        ),
+        "{params$tgt1}_{params$comp1}_logCPM" := min(
+          !!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))
+        ),
+        "{params$tgt2}_{params$comp2}_logCPM" := max(
+          !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
+        )
+      ) %>% 
+      mutate(label = glue("rho == {round(cor, 3)}")),
+    parse = TRUE, vjust = 1, hjust = 0
+  ) + 
+  geom_xsideboxplot(
+    aes(y = detected, x = !!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))),
+    data = . %>% 
+      mutate(
+        detected = ifelse(
+          is.na(!!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))),
+          paste(short_names$comp1, "Only"), "Both Detected"
+        ) 
+      ) %>% 
+          dplyr::filter(!is.na(!!sym(glue("{params$tgt1}_{params$comp1}_logCPM")))
+      ),
+    orientation = "y"
+  ) +
+  geom_ysideboxplot(
+    aes(x = detected, y = !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))),
+    data = . %>% 
+      mutate(
+        detected = ifelse(
+          is.na(!!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))),
+          paste(short_names$comp2, "Only"), "Both Detected"
+        ) 
+      ) %>% 
+          dplyr::filter(!is.na(!!sym(glue("{params$tgt2}_{params$comp2}_logCPM")))
+      ),
+    orientation = "x"
+  ) +
+  labs(
+    x = glue("logCPM ({short_names$comp1})"),
+    y = glue("logCPM ({short_names$comp2})"),
+  ) +
+  theme(
+    ggside.panel.scale.x = 0.25,
+    ggside.panel.scale.y = 0.25,
+    ggside.axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5),
+    legend.position = "bottom",
+    axis.title.y.left = element_text(vjust = -10, hjust = 0.4),
+    axis.title.x.bottom = element_text(hjust = 0.45)
+  )
+```
+
+## Distance Between Centres {.tabset}
+
+Where both targets were detected, the centre of each region was found and the distance between centres found across targets.
+In the case of ChIP targets, this gives an approximation of binding proximity.
+
+### Distance By Pairwise Signal Status
+
+```{r distances-by-status, fig.height = 6, fig.cap = "*Distances between loci where signal was detected for each target. Groups are only shown if 10 or more paired sites were found, with the CDF for all paired sites shown as the black dashed line. The x-axis is truncated at a maximum of 1kb*"}
+combined_results %>% 
+  plyranges::filter(!is.na(d)) %>% 
+  as_tibble() %>% 
+  arrange(status, d) %>% 
+  mutate(
+    n = dplyr::n(),
+    q = seq_along(status) / n,
+    .by = status
+  ) %>% 
+  arrange(d) %>% 
+  mutate(Q = seq_len(nrow(.)) / nrow(.)) %>% 
+  ggplot(aes(d, q)) +
+  geom_line(
+    aes(colour = status),
+    data = . %>%  dplyr::filter(n > 10, d < 1e3),
+    linewidth = 0.7
+  ) +
+  geom_line(aes(d, Q), colour = "black", linetype = 2) +
+  scale_y_continuous(
+    labels = percent, expand = expansion(c(0, 0.05)), 
+    breaks = seq(0, 1, by = 0.2)
+  ) +
+  scale_colour_pw(width = 80) +
+  labs(
+    x = "Distance Between Window Centres (bp)",
+    y = "Percentile"
+  )
+```
+
+
+### Distance by Region
+
+```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
+combined_results %>% 
+  plyranges::filter(!is.na(d)) %>% 
+  as_tibble() %>% 
+  arrange(region, d) %>% 
+  mutate(
+    n = dplyr::n(),
+    q = seq_along(region) / n,
+    .by = region
+  ) %>% 
+  dplyr::filter(d < 1e3) %>% 
+  ggplot(aes(d, q, colour = region)) +
+  geom_line() +
+  scale_y_continuous(
+    labels = percent, expand = expansion(c(0, 0.05)), 
+    breaks = seq(0, 1, by = 0.2)
+  ) +
+  scale_colour_manual(values = region_colours) +
+  labs(
+    x = "Distance Between Window Centres (bp)",
+    y = "Percentile",
+    colour = "Genomic Region"
+  )
+```
+
+`r if (has_features) "### Distance By Feature"`
+
+```{r distance-by-feature, echo = has_features, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
+if (has_features) {
+  combined_results %>% 
+    plyranges::filter(!is.na(d)) %>% 
+    as_tibble() %>% 
+    unnest(feature, keep_empty = TRUE) %>% 
+    mutate(
+      feature = feature %>% 
+        str_replace_na("no_feature") %>% 
+        fct_infreq() %>% 
+        fct_lump_prop(0.01)
+    ) %>% 
+    arrange(feature, d) %>% 
+    mutate(
+      n = dplyr::n(),
+      q = seq_along(feature) / n,
+      .by = feature
+    ) %>% 
+    dplyr::filter(d < 1e3) %>% 
+    droplevels() %>% 
+    ggplot(aes(d, q, colour = feature)) +
+    geom_line() +
+    scale_y_continuous(
+      labels = percent, expand = expansion(c(0, 0.05)), 
+      breaks = seq(0, 1, by = 0.2)
+    ) +
+    scale_colour_manual(values = unlist(feature_colours)) +
+    labs(
+      x = "Distance Between Window Centres (bp)",
+      y = "Percentile",
+      colour = "External Feature"
+    )
+}
+```

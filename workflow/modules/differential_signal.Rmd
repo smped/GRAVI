@@ -2123,6 +2123,8 @@ This test will identify any motifs which are centrally located, or have any othe
 
 ### Enriched Motifs {.tabset}
 
+`r if (!n_enrich_res) "*No motifs were detected as enriched*")`
+
 `r if (n_enrich_res > 0) "#### Enrichment Table"`
 
 ```{r tbl-res-enrich, eval = n_enrich_res > 0, echo = n_enrich_res > 0}
@@ -2141,40 +2143,7 @@ tbl <- motif_enrich_res %>%
     showPageSizeOptions = TRUE, filterable = TRUE,
     theme = reactableTheme(style = list(fontSize = 12)),
     defaultSorted = "adj_p", defaultSortOrder = "asc",
-    columns = list(
-      cluster = colDef("Cluster", maxWidth = 70),
-      altname = colDef(
-        "Motif", minWidth = 180, aggregate = "unique",
-        style = list(borderLeft = "1px solid rgba(0, 0, 0, 0.1)")
-      ),
-      name = colDef(
-        "Name", minWidth = 120, aggregate = "unique",
-        style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
-      ),
-      matches = colDef(
-        "Total", maxWidth = 60, format = comma_col, aggregate = "max",
-        filterMethod = js_greater
-      ),
-      expected = colDef(
-        "Expected", maxWidth = 80, format = comma_col, aggregate = "max",
-        filterMethod = js_greater
-      ),
-      enrichment = colDef(
-        "Enrichment", maxWidth = 90, format = colFormat(digits = 3),
-        aggregate = "max", filterMethod = js_greater,
-        style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
-      ),
-      p = colDef(show = FALSE),
-      adj_p = colDef(
-        glue("p<sub>{motif_params$adj}</sub>"), html = TRUE, maxWidth = 70,
-        cell = \(value) sprint_pval(value), aggregate = "min",
-        format = colFormat(digits = 3), filterMethod = js_less
-      ),
-      PWM = colDef(
-        name = "IC Matrix", minWidth = 180, filterable = FALSE,
-        cell = function(value) tags$img(src = value, height = '80px')
-      )
-    ),
+    columns = motif_cols[colnames(.)],
     elementId = "motif-enrich-table"
   )
 cp <- htmltools::em(
@@ -2183,7 +2152,7 @@ cp <- htmltools::em(
     changed {target} sites, relative to the unchanged sites, using a 
     hypergeometric test for enrichment and an adjusted p-value 
     ({motif_params$adj}) < {motif_params$alpha} as the criteria for significance. 
-    Motifs are grouped by clusters formed during setup, with all motifs
+    Motifs are grouped by the clusters formed during setup, with all motifs
     visible by clicking the arrow next to the arbitrary cluster identifier. All 
     columns are searchable and filterable."
   )
@@ -2284,106 +2253,66 @@ if (n_enrich_res > 1) {
 
 ### Motifs Showing Positional Bias {.tabset}
 
-```{r get-top-pos, eval = n_pos_res > 0, echo = n_pos_res > 0}
-top_pos <- motif_pos_res %>% 
-  dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
-  dplyr::slice(1:9) %>% 
-  dplyr::select(altname, name, cluster)
-clust_names <- motif_pos_res %>% 
-  dplyr::filter(
-    adj_p < motif_params$alpha,
-    cluster %in% top_pos$cluster
-  ) %>% 
-  arrange(desc(matches_in_region)) %>% 
-  summarise(
-    altname = altname[[1]], .by = cluster,
-    name = paste(name, collapse = "/")
-  ) %>% 
-  mutate(name = setNames(name, altname)) %>% 
-  pull(name)
+`r if (!n_pos_res) "*No motifs were detected with any positional bias*")`
+
+```{r get-top-pos, echo = n_pos_res > 0}
+if (n_pos_res) {
+  top_pos <- motif_pos_res %>% 
+    dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
+    dplyr::slice(1:9) %>% 
+    dplyr::select(altname, name, cluster)
+  clust_names <- motif_pos_res %>% 
+    dplyr::filter(
+      adj_p < motif_params$alpha,
+      cluster %in% top_pos$cluster
+    ) %>% 
+    arrange(desc(matches_in_region)) %>% 
+    summarise(
+      altname = altname[[1]], .by = cluster,
+      name = paste(name, collapse = "/")
+    ) %>% 
+    mutate(name = setNames(name, altname)) %>% 
+    pull(name)
+}
 ```
 
 `r if (n_pos_res > 0) "#### Results Table"`
 
-```{r tbl-res-pos, eval = n_pos_res > 0, echo = n_pos_res > 0}
-tbl <- motif_pos_res %>%
-  dplyr::filter(adj_p < motif_params$alpha) %>%
-  mutate(cluster = fct_inorder(as.character(cluster))) %>% 
-  dplyr::select(
-    cluster, contains("name"), ends_with("p"), start, end, centre, width,
-    contains("total"), matches_in_region, starts_with("e"), 
-  ) %>% 
-  mutate(
-    PWM = lapply(altname, \(x) motif_uri[[x]])
-  ) %>% 
-  reactable(
-    groupBy = "cluster", showPageSizeOptions = TRUE, filterable = TRUE,
-    columns = list(
-      cluster = colDef(maxWidth = 60),
-      name = colDef("Name", aggregate = "unique", maxWidth = 80),
-      altname = colDef("Motif", aggregate = "unique", minWidth = 180),
-      start = colDef(
-        "Start", aggregate = "min", maxWidth = 50, filterMethod = js_greater
-      ),
-      end = colDef(
-        "End", aggregate = "max", maxWidth = 50, filterMethod = js_greater
-      ),
-      centre = colDef(
-        "Centre", aggregate = "median", maxWidth = 60, show = FALSE
-      ),
-      width = colDef(
-        "Width", aggregate = "median", maxWidth = 60, filterMethod = js_less
-      ),
-      total_matches = colDef(
-        "Total", aggregate = "max", maxWidth = 60, format = comma_col,
-        filterMethod = js_greater
-      ),
-      matches_in_region = colDef(
-        "Region", aggregate = "max", maxWidth = 60, filterMethod = js_greater
-      ),
-      expected = colDef(
-        "Expected", aggregate = "max", maxWidth = 75, format = comma_col,
-        filterMethod = js_greater
-      ),
-      enrichment = colDef(
-        "Region Enrichment", aggregate = "max", format = colFormat(digits = 2),
-        maxWidth = 90, filterMethod = js_greater
-      ),
-      prop_total = colDef(
-        "% In Region", aggregate = "max", format = percent_col, maxWidth = 60,
-        filterMethod = js_greater
-      ),
-      p = colDef(show = FALSE),
-      adj_p = colDef(
-        glue("p<sub>{motif_params$adj}</sub>"), html = TRUE, maxWidth = 70,
-        cell = \(value) sprint_pval(value), format = colFormat(digits = 3),
-        aggregate = "min", filterMethod = js_less
-      ),
-      PWM = colDef(
-        name = "IC Matrix", minWidth = 180, filterable = FALSE,
-        cell = function(value) tags$img(src = value, height = '80px')
-      )
-    ),
-    columnGroups = list(
-      colGroup(
-        name = "Matches", 
-        columns = c(
-          "total_matches", "prop_total", "matches_in_region", "expected",
-          "enrichment"
+```{r tbl-res-pos, echo = n_pos_res > 0}
+if (n_pos_res) {
+  tbl <- motif_pos_res %>%
+    dplyr::filter(adj_p < motif_params$alpha) %>%
+    mutate(cluster = fct_inorder(as.character(cluster))) %>% 
+    dplyr::select(
+      cluster, contains("name"), ends_with("p"), start, end, centre, width,
+      contains("total"), matches_in_region, starts_with("e"), 
+    ) %>% 
+    mutate(
+      PWM = lapply(altname, \(x) motif_uri[[x]])
+    ) %>% 
+    reactable(
+      groupBy = "cluster", showPageSizeOptions = TRUE, filterable = TRUE,
+      columns = motif_cols[colnames(.)],
+      columnGroups = list(
+        colGroup(
+          name = "Matches", 
+          columns = c(
+            "total_matches", "prop_total", "matches_in_region", "expected",
+            "enrichment"
+          )
+        ),
+        colGroup(
+          name = "Positional Bias", 
+          columns = c("start", "end", "centre", "width")
         )
       ),
-      colGroup(
-        name = "Positional Bias", 
-        columns = c("start", "end", "centre", "width")
-      )
-    ),
-    defaultSorted = "adj_p", defaultSortOrder = "asc",
-    theme = reactableTheme(style = list(fontSize = 12)),
-    elementId = "motif-pos-table"
-  )
-cp <- htmltools::em(
-  glue(
-    "
+      defaultSorted = "adj_p", defaultSortOrder = "asc",
+      theme = reactableTheme(style = list(fontSize = 12)),
+      elementId = "motif-pos-table"
+    )
+  cp <- htmltools::em(
+    glue(
+      "
     All {sum(motif_pos_res$adj_p < motif_params$alpha)} TFBMs found to show
     positional bias within the changed sites, using an adjusted p-value 
     ({motif_params$adj}) below {motif_params$alpha} as the criteria for 
@@ -2393,30 +2322,31 @@ cp <- htmltools::em(
     for all motifs within the cluster which were found to be significant, 
     including the sequence logo showing information content (ICM).
     "
-  )
-)
-tl <- tagList(
-  tags$button(
-    tagList(fontawesome::fa("download"), "Download as CSV"),
-    onclick = glue(
-      "Reactable.downloadDataCSV('motif-pos-table', '{comp}_position_res.csv')"
     )
-  ),
-  tags$button(
-    "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('motif-pos-table')"
-  ),
-  tags$button(
-    "Clear All Filters",
-    onclick = "Reactable.setAllFilters('motif-pos-table', [])"
-  ),
-  tbl,
-  cp
-)
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
+  )
+  tl <- tagList(
+    tags$button(
+      tagList(fontawesome::fa("download"), "Download as CSV"),
+      onclick = glue(
+        "Reactable.downloadDataCSV('motif-pos-table', '{comp}_position_res.csv')"
+      )
+    ),
+    tags$button(
+      "Expand/Collapse All",
+      onclick = "Reactable.toggleAllRowsExpanded('motif-pos-table')"
+    ),
+    tags$button(
+      "Clear All Filters",
+      onclick = "Reactable.setAllFilters('motif-pos-table', [])"
+    ),
+    tbl,
+    cp
+  )
+  if (interactive()) {
+    htmltools::browsable(tl)
+  } else {
+    tl
+  }
 }
 ```
 

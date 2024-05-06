@@ -114,3 +114,63 @@ bar_style <- function(width = 1, fill = "#e6e6e6", height = "75%", align = c("le
 with_tooltip <- function(value, width = 30) {
   tags$span(title = value, str_trunc(value, width))
 }
+
+#' columns commonly in motif enrichment results
+motif_cols <- list(
+  cluster = colDef("Cluster", maxWidth = 70),
+  altname = colDef(
+    "Motif", minWidth = 180, aggregate = "unique",
+    style = list(borderLeft = "1px solid rgba(0, 0, 0, 0.1)")
+  ),
+  name = colDef(
+    "Name", minWidth = 120, aggregate = "unique",
+    style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+  ),
+  matches = colDef(
+    "Total", maxWidth = 60, format = comma_col, aggregate = "max",
+    filterMethod = js_greater
+  ),
+  expected = colDef(
+    "Expected", maxWidth = 80, format = comma_col, aggregate = "max",
+    filterMethod = js_greater
+  ),
+  enrichment = colDef(
+    "Enrichment", maxWidth = 90, format = colFormat(digits = 3),
+    aggregate = "max", filterMethod = js_greater,
+    style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)")
+  ),
+  p = colDef(show = FALSE),
+  adj_p = colDef(
+    glue("p<sub>{motif_params$adj}</sub>"), html = TRUE, maxWidth = 70,
+    cell = \(value) sprint_pval(value), aggregate = "min",
+    format = colFormat(digits = 3), filterMethod = js_less
+  ),
+  PWM = colDef(
+    name = "IC Matrix", minWidth = 180, filterable = FALSE,
+    cell = function(value) tags$img(src = value, height = '80px')
+  ),
+  start = colDef(
+    "Start", aggregate = "min", maxWidth = 50, filterMethod = js_greater
+  ),
+  end = colDef(
+    "End", aggregate = "max", maxWidth = 50, filterMethod = js_greater
+  ),
+  centre = colDef(
+    "Centre", aggregate = "median", maxWidth = 60, show = FALSE
+  ),
+  width = colDef(
+    "Width", aggregate = "median", maxWidth = 60, filterMethod = js_less
+  ),
+  total_matches = colDef(
+    "Total", aggregate = "max", maxWidth = 60, format = comma_col,
+    filterMethod = js_greater
+  ),
+  matches_in_region = colDef(
+    "Region", aggregate = "max", maxWidth = 60, filterMethod = js_greater
+  ),
+  prop_total = colDef(
+    "% In Region", aggregate = "max", format = percent_col, maxWidth = 60,
+    filterMethod = js_greater
+  ),
+  odds_ratio = colDef("Odds Ratio", show = FALSE)
+)

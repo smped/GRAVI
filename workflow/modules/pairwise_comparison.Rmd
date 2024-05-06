@@ -27,21 +27,26 @@ library(rlang)
 library(plyranges)
 library(parallel)
 library(rtracklayer)
-library(VennDiagram)
 library(patchwork)
-# library(magrittr)
-# library(rlang)
-# library(ggside)
+library(magrittr)
+library(rlang)
+library(ggside)
+library(ggraph)
+library(tidygraph)
+library(universalmotif)
+library(motifTestR)
 # library(msigdbr)
 # library(goseq)
 # library(GenomicInteractions)
-# library(ggraph)
-# library(tidygraph)
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("workflow", "scripts", "enrichment_funs.R"))
 threads <- detectCores() - 1
 if (interactive()) threads <- 4
-# register(MulticoreParam(workers = threads))
+ucsc <- get_ucsc(config$genome$build)
+bs_pkg <- glue("BSgenome.{ucsc$sp}.UCSC.{ucsc$build}")
+library(bs_pkg, character.only = TRUE)
+bs_genome <- get(bs_pkg)
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -84,12 +89,21 @@ diff_sig_param <- here::here(
 ) %>% 
   jsonlite::fromJSON() %>% 
   .[targets]
+enrich_params <- here::here("config", "params.yml") %>%
+  read_yaml() %>%
+  pluck("enrichment")
+network_params <- here::here("config", "params.yml") %>%
+  read_yaml() %>%
+  pluck("networks")
+motif_params <- here::here("config", "json", "motif_analysis_param.json") %>% 
+  jsonlite::fromJSON() %>% 
+  pluck("pairwise")
 pw_param <- here::here("config", "json", "pairwise_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck(params$full_comp)
-motif_param <- here::here("config", "json", "motif_analysis_param.json") %>% 
-  jsonlite::fromJSON() %>% 
-  pluck("pairwise")
+region_params <- here::here("config", "params.yml") %>%
+  read_yaml() %>%
+  pluck("gene_regions")
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   .[targets]
@@ -363,38 +377,14 @@ Across two comparisons, this gives 15 possible classifications for each region f
 <!-- Genes will be ranked to incorporate direction of change (i.e. Directional GSEA) or significance only (i.e Non-Directional GSEA). -->
 <!-- The results from enrichment analysis across ChIP target and RNA-Seq data will also be combined to reveal pathways under the regulatory influence in either comparison, for which we also have evidence of changed gene expression. -->
 
-<!-- # Peak Comparison {.tabset} -->
+# General Comparison
 
-<!-- Data was loaded for the initially-identified peaks to show the general level of similarity between signal regions from either dataset. -->
-
-
-`r if (n_targets > 1) "## Shared Signal Regions"`
-
-```{r plot-common, echo = n_targets > 1, fig.cap = glue("*Relationship between regions contained in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of peaks, which are themselves independent of treatment group.*"), fig.height = 8, fig.width = 8}
-if (n_targets > 1) {
-  library(VennDiagram)
-  venn_args <- combined_results %>% 
-    as_tibble() %>% 
-    dplyr::select(range, ends_with("logCPM")) %>% 
-    mutate(
-      across(ends_with("logCPM"), \(x) !is.na(x))
-    ) %>% 
-    setNames(c("range", unlist(short_names))) %>% 
-    summarise(
-      area1 = sum(!!sym(short_names[[1]])),
-      area2 = sum(!!sym(short_names[[2]])),
-      cross.area = sum(!!sym(short_names[[1]]) & !!sym(short_names[[2]]))
-    ) %>% 
-    as.list()
-  venn_args$fill <- unlist(colours$target)[targets]
-  venn_args$category <- unname(unlist(short_names))
-  grid::grid.newpage()
-  do.call(draw.pairwise.venn, venn_args)
-}
-```
+Data was loaded for the initially-identified peaks to show the general level of similarity between signal regions from either dataset.
 
 
-## Treatment Specific Peaks
+## Summary Figures {.tabset}
+
+### Treatment Specific Peaks
 
 ```{r treatment-peaks-upset, fig.height = 6, fig.cap = glue("*Peaks detected for ", glue_collapse(unique(targets), sep = " and " ), " in the treatment groups ", glue_collapse(unique(unlist(treat_levels)), sep = ", ", last = " & "), ".*")}
 filtered_peaks %>% 
@@ -405,6 +395,11 @@ filtered_peaks %>%
     set_col = treat_colours[str_replace_all(names(.), ".+\\((.+)\\)", "\\1")]
   )
 ```
+
+
+```{r compare-targets, eval = n_targets > 1, child = here::here('workflow/modules/_compare_targets.Rmd')}
+```
+
 
 # Combined Differential Signal Results 
 
@@ -1151,80 +1146,6 @@ if (has_features) {
 ```
 
 
-### Pairwise Signal
-
-```{r plot-pairwise-signal, fig.cap = glue("Pairwise signal levels with boxplots indicating the baseline signal based on whether signal was detected in both or only the individual dataset. The blue, smoothed line represents a GAM line of best-fit.")}
-combined_results %>% 
-  as_tibble() %>% 
-  ggplot(
-    aes(
-      !!sym(glue("{params$tgt1}_{params$comp1}_logCPM")),
-      !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
-    )
-  ) +
-  geom_point(data = . %>% dplyr::filter(!grepl("Undetected", status))) +
-  geom_smooth(
-    method = 'gam', formula = y ~ s(x, bs = "cs"),
-    se = FALSE, data = . %>% dplyr::filter(!grepl("Undetected", status))
-  ) +
-  geom_text(
-    aes(label = label),
-    data = . %>% 
-      dplyr::filter(!grepl("Undetected", status)) %>% 
-      summarise(
-        cor = cor(
-          !!sym(glue("{params$tgt1}_{params$comp1}_logCPM")),
-          !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
-        ),
-        "{params$tgt1}_{params$comp1}_logCPM" := min(
-          !!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))
-        ),
-        "{params$tgt2}_{params$comp2}_logCPM" := max(
-          !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))
-        )
-      ) %>% 
-      mutate(label = glue("rho == {round(cor, 3)}")),
-    parse = TRUE, vjust = 1, hjust = 0
-  ) + 
-  geom_xsideboxplot(
-    aes(y = detected, x = !!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))),
-    data = . %>% 
-      mutate(
-        detected = ifelse(
-          is.na(!!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))),
-          paste(short_names$comp1, "Only"), "Both Detected"
-        ) 
-      ) %>% 
-          dplyr::filter(!is.na(!!sym(glue("{params$tgt1}_{params$comp1}_logCPM")))
-      ),
-    orientation = "y"
-  ) +
-  geom_ysideboxplot(
-    aes(x = detected, y = !!sym(glue("{params$tgt2}_{params$comp2}_logCPM"))),
-    data = . %>% 
-      mutate(
-        detected = ifelse(
-          is.na(!!sym(glue("{params$tgt1}_{params$comp1}_logCPM"))),
-          paste(short_names$comp2, "Only"), "Both Detected"
-        ) 
-      ) %>% 
-          dplyr::filter(!is.na(!!sym(glue("{params$tgt2}_{params$comp2}_logCPM")))
-      ),
-    orientation = "x"
-  ) +
-  labs(
-    x = glue("logCPM ({short_names$comp1})"),
-    y = glue("logCPM ({short_names$comp2})"),
-  ) +
-  theme(
-    ggside.panel.scale.x = 0.25,
-    ggside.panel.scale.y = 0.25,
-    ggside.axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5),
-    legend.position = "bottom",
-    axis.title.y.left = element_text(vjust = -10, hjust = 0.4),
-    axis.title.x.bottom = element_text(hjust = 0.45)
-  )
-```
 
 ### Distribution By Region
 
@@ -1287,102 +1208,6 @@ if (has_features) {
 }
 ```
 
-`r if (n_targets > 1) "## Distance Between Individual Loci {.tabset}"`
-
-`r if (n_targets > 1) "### Distance By Status"`
-
-```{r distances-by-status, echo = n_targets > 1, fig.height = 6, fig.cap = "*Distances between loci where signal was detected for each target. Windows are only shown if 10 or more windows were found in each group. The x-axis is truncated at a maximum of 1kb*"}
-if (n_targets > 1) {
-  combined_results %>% 
-    plyranges::filter(!is.na(d)) %>% 
-    as_tibble() %>% 
-    arrange(status, d) %>% 
-    group_by(status) %>% 
-    mutate(
-      n = dplyr::n(),
-      q = seq_along(status) / n
-    ) %>% 
-    dplyr::filter(n > 10, d < 1e3) %>%
-    ggplot(aes(d, q, colour = status)) +
-    geom_line(linewidth = 1) +
-    scale_y_continuous(
-      labels = percent, expand = expansion(c(0, 0.05)), 
-      breaks = seq(0, 1, by = 0.2)
-    ) +
-    scale_colour_pw(width = 80) +
-    labs(
-      x = "Distance Between Window Centres (bp)",
-      y = "Percentile"
-    )
-}
-```
-
-
-`r if (n_targets > 1) "### Distance by Region"`
-
-```{r distance-by-region, echo = n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
-if (n_targets > 1) {
-  combined_results %>% 
-    plyranges::filter(!is.na(d)) %>% 
-    as_tibble() %>% 
-    arrange(region, d) %>% 
-    group_by(region) %>% 
-    mutate(
-      n = dplyr::n(),
-      q = seq_along(region) / n
-    ) %>% 
-    dplyr::filter(d < 1e3) %>% 
-    ggplot(aes(d, q, colour = region)) +
-    geom_line(linewidth = 1) +
-    scale_y_continuous(
-      labels = percent, expand = expansion(c(0, 0.05)), 
-      breaks = seq(0, 1, by = 0.2)
-    ) +
-    scale_colour_manual(values = region_colours) +
-    labs(
-      x = "Distance Between Window Centres (bp)",
-      y = "Percentile",
-      colour = "Genomic Region"
-    )
-}
-```
-
-`r if (has_features & n_targets > 1) "### Distance By Feature"`
-
-```{r distance-by-feature, echo = has_features & n_targets > 1, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
-if (has_features & n_targets > 1) {
-  combined_results %>% 
-    plyranges::filter(!is.na(d)) %>% 
-    as_tibble() %>% 
-    unnest(feature, keep_empty = TRUE) %>% 
-    mutate(
-      feature = feature %>% 
-        str_replace_na("no_feature") %>% 
-        fct_infreq() %>% 
-        fct_lump_prop(0.01)
-    ) %>% 
-    arrange(feature, d) %>% 
-    mutate(
-      n = dplyr::n(),
-      q = seq_along(feature) / n,
-      .by = feature
-    ) %>% 
-    dplyr::filter(d < 1e3) %>% 
-    droplevels() %>% 
-    ggplot(aes(d, q, colour = feature)) +
-    geom_line(linewidth = 1) +
-    scale_y_continuous(
-      labels = percent, expand = expansion(c(0, 0.05)), 
-      breaks = seq(0, 1, by = 0.2)
-    ) +
-    scale_colour_manual(values = unlist(feature_colours)) +
-    labs(
-      x = "Distance Between Window Centres (bp)",
-      y = "Percentile",
-      colour = "External Feature"
-    )
-}
-```
 
 # Combined Signal Visualisation
 
@@ -1487,7 +1312,8 @@ profile_heatmaps <- p_list %>%
   lapply(
     function(p){
       df <- p$data %>% 
-        mutate(treat = factor(treat, levels = unique(unlist(treat_levels))))
+        mutate(treat = factor(treat, levels = unique(unlist(treat_levels)))) %>% 
+        mutate(score = scale(score)[,1], .by = target)
       rng_levels <- df %>% 
         dplyr::filter(abs(bp) < 150, target == params$tgt1) %>% 
         dplyr::filter(score == max(score), .by = c(range, name)) %>% 
@@ -1528,7 +1354,7 @@ profile_heatmaps <- p_list %>%
               scale_colour_manual(values = treat_colours, name = "Treat") +
               scale_fill_gradientn(
                 colours = heat_params[[tgt]]$gradient,
-                name = glue("{tgt}\n{fill_type}")
+                name = glue("{tgt}")
               ) +
               theme(
                 ggside.panel.scale.x = 0.3,
@@ -1609,7 +1435,7 @@ htmltools::tagList(
         overlapping range, and ordered by taking the average signal rank across 
         all merged {params$tgt1} samples within 150bp of the peak centre. In the case of
         large sets of results, plots were restricted to {max_ranges} ranges. Values 
-        shown are {fill_type} taking the {bw_type} bigwig files produced by 
+        shown are scaled {fill_type} values taking the {bw_type} bigwig files produced by 
         macs callpeak.
         "
         )
@@ -1638,6 +1464,11 @@ htmltools::tagList(
 
 ## Windows With The Strongest Signal {.tabset}
 
+Loci showing differential signal tend to show the most extreme change where signal levels are low, whilst where signal is high the changes tend to be well statistically supported but less pronounced.
+As an initial data inspection, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown below.
+It is anticipated that change will appear less visually striking, whilst the actual signal should appear relatively strong.
+
+For all plots in this subsection, significant change was detected in at least of comparison.
 
 ```{r prepare-plot-objects}
 cb <- config$genome$build %>% 
@@ -1745,10 +1576,6 @@ if (length(rna)) {
 ```
 
 
-
-For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
-Groups were restricted to those where differential signal was seen in at least comparison.
-
 ```{r grl-to-plot-avexpr}
 grl_to_plot <- combined_results %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
@@ -1764,7 +1591,13 @@ grl_to_plot <- combined_results %>%
   ) %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) > 0] %>% 
-  endoapply(\(x) x[1])
+  endoapply(\(x) x[1]) %>% 
+  setNames(
+    names(.) %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") 
+  ) %>% 
+  .[order(names(.))]
 ```
 
 
@@ -1790,13 +1623,13 @@ grl_to_plot <- combined_results %>%
       grepl("^[AEIOUaeiou]", feat), paste("an", feat), paste("a", feat)
     )
     feat <- glue(
-      "When comparing to external features, this locus was most associated with {feat}."
+      "When comparing to external features, this locus was most associated with those designated as {feat}."
     )
   }
   w <- width(gr)
   rng <- as.character(gr)
   glue(
-    "This {comma(w)}bp region ({rng}) was classified as {status}, and overlaps {reg}. ",
+    "This {comma(w)}bp region ({rng}) was classified as {status}, and overlaps {reg} region. ",
     gn, feat
   )
 }
@@ -1849,19 +1682,17 @@ htmltools::tagList(
         )
       )
       htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level3",
+        htmltools::h3(pw_name),
         htmltools::div(
-          id = img_out %>% 
-            basename() %>% 
-            str_remove_all(glue(".{fig_type}$")) %>% 
-            str_to_lower() %>% 
-            str_replace_all("_", "-"),
-          class = "section level3",
-          htmltools::h3(pw_name),
-          htmltools::div(
-            class = "figure", style = "text-align: center",
-            htmltools::img(src = fig_link, width = 960),
-            cp
-          )
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = 960),
+          cp
         )
       )
     }
@@ -1869,1246 +1700,635 @@ htmltools::tagList(
 )  
 ```
 
-# HERE
-
 ## Windows With The Largest Change {.tabset}
 
-For the initial set of visualisations, the sets of windows with the strongest signal were selected from within each group.
-Groups were restricted to those where differential signal was seen in at least comparison.
+As a contrast to the previous set of results, the locus within each group where the combined logFC is the furthest from zero was selected.
+These positions may expected to show more pronounced change, but an overall lower signal level.
+The same limits for the y-axis are used for this set of plots as for the previous set.
+
+By taking the two set of visualisations in this context, judgements can be made about the true relevance of similar loci.
 
 ```{r grl-to-plot-logfc}
-grl_to_plot <- all_windows %>% 
-  filter(
-    !str_detect(status, "Un.+Un"),
-    vapply(detected, length, integer(1)) > 0
-  ) %>% 
-  as_tibble() %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.Vs\\.\\.", replacement = " Vs. "
-  ) %>% 
-  rename_all(
-    str_replace_all, pattern = "\\.\\.", replacement = ": "
-  ) %>% 
-  nest(
-    logFC = ends_with("logFC")
-  ) %>% 
-  mutate(
-    max_logFC = vapply(logFC, function(x) max(abs(unlist(x))), numeric(1))
-  ) %>% 
-  group_by(status) %>% 
-  filter(max_logFC == max(max_logFC)) %>% 
-  dplyr::select(
-    range, status, ends_with("logFC")
-  ) %>% 
-  droplevels() %>% 
-  split(.$status) %>% 
-  lapply(pull, "range") %>% 
-  lapply(GRanges, seqinfo = sq) %>% 
-  GRangesList()
-```
-
-```{r update-plot-objects}
-## Coverage y-limits
-gr <- unlist(grl_to_plot)
-y_lim <- lapply(
-  bwfl,
-  function(x) {
-    cov <- lapply(x, import.bw, which = gr)
-    unlist(lapply(cov, function(y) max(y$score))) %>% 
-      c(0) %>% 
-      range()
-  }
-)
-
-## External Coverage (Optional)
-if (!is.null(config$external$coverage)) {
-  y_ranges <- grl_to_plot %>% 
-    unlist() %>% 
-    granges() %>% 
-    resize(w = 10 * width(.), fix = 'center')
-  
-  y_lim <- c(
-    y_lim[comps],
-    bwfl[names(config$external$coverage)] %>% 
-      lapply(
-        function(x) {
-          GRangesList(lapply(x, import.bw, which = y_ranges)) %>% 
-            unlist() %>% 
-            filter(score == max(score)) %>% 
-            mcols() %>% 
-            .[["score"]] %>% 
-            c(0) %>% 
-            range()
-        }
+grl_to_plot <- combined_results %>% 
+  subset(str_detect(status, "(In|De)creased")) %>% 
+  arrange(
+    (-1) * case_when(
+      !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logFC"))^2,
+      !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logFC"))^2,
+      TRUE ~ (
+        !!sym(paste0(comp_names$comp1, "_logFC"))^2 +
+          !!sym(paste0(comp_names$comp2, "_logFC"))^2
       )
-  )
-  
-}
+    )
+  ) %>% 
+  splitAsList(.$status) %>% 
+  .[map_int(., length) > 0] %>% 
+  endoapply(\(x) x[1]) %>% 
+  setNames(
+    names(.) %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") 
+  ) %>% 
+  .[order(names(.))]
 ```
 
-```{r plot-top-ranges-logfc}
+
+```{r plot-top-ranges-logfc, echo=FALSE}
 htmltools::tagList(
-  mclapply(
+  lapply(
     seq_along(grl_to_plot),
-    function(x) {
+    function(i) {
       ## Export the image
+      pw <- names(grl_to_plot)[[i]]
+      pw_name <- pw %>% 
+        str_replace_all(
+          "(.+) - (.+)", 
+          paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+        )
       img_out <- file.path(
         fig_path,
-        names(grl_to_plot)[[x]] %>% 
-          str_remove_all("(:|Vs. |- )") %>% 
-          str_replace_all(" ", "_") %>% 
-          paste0("_logFC.", fig_type)
+        pw %>% 
+          str_to_lower() %>% 
+          str_replace_all(
+            "(.+) - (.+)", 
+            paste0(
+              comp_names$comp1, "-\\1-", 
+              comp_names$comp2, "-\\2-by-aveexpr.", fig_type
+            )
+          )
       )
-      fig_fun(
-        filename = img_out, width = 10, height = 8
-      )
-      ct <- FALSE
-      if (length(subsetByOverlaps(gtf_transcript, grl_to_plot[[x]])) > 10)
-        ct <- "meta"
+      fig_fun(filename = img_out, width = fw, height = fh)
       plotHFGC(
-        grl_to_plot[[x]],
-        features = feat_gr, featcol = feat_col_hfgc,
-        featsize = 1 + has_features,
-        genes = hfgc_genes, genecol = gene_col,
-        coverage = bwfl, linecol = line_col,
-        annotation = annot, annotcol = annot_col,
+        grl_to_plot[[i]],
+        hic = hic,
+        features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
+        coverage = bwfl, linecol = line_col,  ylim = y_lim,
+        annotation = annot, annotcol = direction_colours,
         cytobands = bands_df,
-        rotation.title = 90,
-        zoom = 10,
-        ylim = y_lim,
-        collapseTranscripts = ct,
-        col.title = "black", background.title = "white", showAxis = FALSE
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 20, max = max(1e4, width(range(grl_to_plot[[i]]))),
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10,
+        highlight = rgb(0, 0, 1, 0.3)
       )
       dev.off()
       ## Create html tags
       fig_link <- str_extract(img_out, "assets.+")
-      gn <- unlist(subsetByOverlaps(all_windows, grl_to_plot[[x]])$detected)
-      cp <- htmltools::tags$em(
-        glue(
-          "
-        Highlighted region corresponds to the largest change within the group 
-        {names(grl_to_plot)[[x]]}. The most likely target 
-        {ifelse(length(gn) == 1, 'gene is ', 'genes are ')}
-        {collapseGenes(gn, format = '')}
-        "
+      cp <- htmltools::tags$caption(
+        htmltools::tags$em(
+          .makeCaption(grl_to_plot[[i]])
         )
       )
       htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level3",
+        htmltools::h3(pw_name),
         htmltools::div(
-          id = names(grl_to_plot)[[x]] %>% 
-            str_remove_all("(:|Vs. |- )") %>% 
-            str_replace_all(" ", "-") %>% 
-            str_to_lower() %>% 
-            paste0("-logfc"),
-          class = "section level3",
-          htmltools::h3(names(grl_to_plot)[[x]]),
-          htmltools::div(
-            class = "figure", style = "text-align: center",
-            htmltools::img(src = fig_link, width = 960),
-            htmltools::p(
-              class = "caption", htmltools::tags$em(cp)
-            )
-          )
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = 960),
+          cp
         )
       )
-    },
-    mc.cores = threads
+    }
   )
 )  
 ```
 
-# Enrichment Analysis 
-
+# Enrichment Testing
 
 ```{r msigdb}
-min_gs_size <- extra_params$enrichment$min_size
-if (is.null(min_gs_size) | is.na(min_gs_size)) min_gs_size <- 0
-max_gs_size <- extra_params$enrichment$max_size
-if (is.null(max_gs_size) | is.na(max_gs_size)) max_gs_size <- Inf
-min_sig <- extra_params$enrichment$min_sig
-if (is.null(min_sig) | is.na(min_sig)) min_sig <- 1
-
-all_ids <- gtf_gene %>%
-  mutate(w = width) %>% 
-  as_tibble() %>% 
-  dplyr::select(gene_id, w) %>% 
-  arrange(desc(w)) %>% 
-  distinct(gene_id, w) %>% 
-  arrange(gene_id) %>% 
-  left_join(
-    all_windows$gene_id %>%
-      unlist() %>%
-      table() %>%
-      enframe(name = "gene_id", value = "n_windows"),
-    by = "gene_id"
+msigdb <- file.path(all_paths$annotation, "msigdb.rds") %>% read_rds()
+gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
+enrich_method <- match.arg(enrich_params$method, c("great", "gene_id"))
+enrich_fun <- c(
+  great = ".great_enrich", gene_id = ".geneid_enrich"
+)[enrich_method]
+adj_method <- match.arg(enrich_params$adj, p.adjust.methods)
+net_layout <- c(network_params$layout, "fr")[[1]]
+ranges_by_status <- combined_results %>% 
+  subset(grepl("(In|De)creased", status)) %>% 
+  split(.$status) %>% 
+  endoapply(plyranges::select, gene_id) %>% 
+  .[map_int(., length) > 0] %>% 
+  setNames(
+    names(.) %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
+      str_replace_all(
+        "(.+) - (.+)", 
+        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+      )
   ) %>% 
-  dplyr::filter(gene_id %in% gtf_gene$gene_id) %>% 
-  mutate(
-    n_windows = as.integer(ifelse(is.na(n_windows), 0, n_windows))
-  )
-msigdb <- msigdbr(species = extra_params$enrichment$species) %>% 
-  dplyr::filter(
-    gs_cat %in% unlist(extra_params$enrichment$msigdb$gs_cat) |
-      gs_subcat %in% unlist(extra_params$enrichment$msigdb$gs_subcat),
-    str_detect(ensembl_gene, "^E")
-  ) %>% 
-  dplyr::rename(gene_id = ensembl_gene, gene_name = gene_symbol) %>% # For easier integration 
-  dplyr::select(-starts_with("human"), -contains("entrez")) %>% 
-  dplyr::filter(gene_id %in% all_ids$gene_id) %>% 
-  group_by(gs_name) %>% 
-  mutate(n = dplyr::n()) %>% 
-  ungroup() %>% 
-  dplyr::filter(n >= min_gs_size, n <= max_gs_size) 
-gs_by_gsid <- msigdb %>% 
-  split(.$gs_name) %>% 
-  mclapply(pull, "gene_id", mc.cores = threads) %>% 
-  mclapply(unique, mc.cores = threads)
-gs_by_geneid <- msigdb %>% 
-  split(.$gene_id) %>% 
-  mclapply(pull, "gs_name", mc.cores = threads) %>% 
-  mclapply(unique, mc.cores = threads)
-gs_url <- msigdb %>% 
-  distinct(gs_name, gs_url) %>%
-  mutate(
-    gs_url = ifelse(
-      gs_url == "", "
-      http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",
-      gs_url
-    )
-  ) %>% 
-  with(setNames(gs_url, gs_name))
+  .[order(names(.))]
+```
 
-min_network_size <- extra_params$networks$min_size
-if (is.null(min_network_size) | is.na(min_network_size))
-  min_network_size <- 2
+`r desc_enrichment(enrich_method)`
 
-max_network_size <- extra_params$networks$max_size
-if (is.null(max_network_size) | is.na(max_network_size))
-  max_network_size <- Inf
+For all analyses below, the complete set of loci showing signal in either comparison were used as the background ranges.
+As such, if the majority of sites are showing change, there will be minimal opportunity for any pathways to emerge as enriched amongst the changed sites.
+Likewise, when very few sites are changed, no enrichment is likely to be observed.
 
-max_network_dist <- extra_params$networks$max_distance
-if (is.null(max_network_dist) | is.na(max_network_dist))
-  max_network_dist <- 1
+Only groups where change was detected in at least one comparison were tested, and as such, the following sets of loci were assessed.
 
-net_layout <- extra_params$networks$layout
-enrich_alpha <- extra_params$enrichment$alpha
-adj_method <- match.arg(extra_params$enrichment$adj, p.adjust.methods)
-adj_desc <- case_when(
-  p.adjust.methods %in% c("fdr", "BH") ~ "the Benjamini-Hochberg FDR",
-  p.adjust.methods %in% c("BY") ~ "the Benjamini-Yekutieli FDR",
-  p.adjust.methods %in% c("bonferroni") ~ "the Bonferroni",
-  p.adjust.methods %in% c("holm") ~ "Holm's",
-  p.adjust.methods %in% c("hommel") ~ "Hommel's",
-  p.adjust.methods %in% c("hochberg") ~ "Hochberg's",
-  p.adjust.methods %in% c("none") ~ "no"
-) %>% 
-  setNames(p.adjust.methods)
-comp_ids <- comps %>% 
+`r pander(as.list(names(ranges_by_status)))`
+
+All p-values will be adjusted using the `r adj_method` correction during testing, and gene-sets will be removed from the results after adjustment if fewer than `r enrich_params$min_sig` genes were mapped to them.
+For groups where no results were returned, no result tables or figures will be show
+
+```{r enrich-tests}
+enrich_by_status <- ranges_by_status %>% 
   lapply(
-    function(x) {
-      subset(all_windows, !str_detect(status, paste(x, "Undetected")))$gene_id
+    \(x) {
+      args <- list(
+        test_ranges = x, db = msigdb, gtf = gtf_gene, bg = combined_results, 
+        genome = ucsc$build, threads = threads, adj_method = adj_method, 
+        min_sig = enrich_params$min_sig, params = region_params$promoters
+      )
+      do.call(enrich_fun, args)
     }
   ) %>% 
-  lapply(unlist) %>% 
-  lapply(unique) %>% 
-  lapply(intersect, gtf_gene$gene_id) %>% 
-  setNames(comps)
-mapped_ids <- comp_ids %>% 
-  unlist() %>% 
-  unique()
-gene_lengths <- structure(width(gtf_gene), names = gtf_gene$gene_id)[mapped_ids]
-group_ids <- all_windows %>% 
-  split(f = .$status) %>% 
+  lapply(dplyr::filter, adj_p < enrich_params$alpha) 
+any_enrich <- enrich_by_status %>% 
+  map_int(\(x) sum(x$adj_p < enrich_params$alpha)) %>% 
+  as.logical() %>% 
+  any()
+tg_by_status <- enrich_by_status %>%
+  .[map_int(., nrow) > min(network_params$size)] %>% 
   mclapply(
-    function(x) unique(unlist(x$gene_id)),
+    mutate,
+    p = ifelse(p > 0, p, 1e-16), prop = observed_gene_hits / gene_set_size ,
     mc.cores = threads
-  ) 
-```
-
-## Comparison of Genes Mapped To Targets
-
-The first level of enrichment testing performed was to simply check the genes mapped to a site in either comparison, with no consideration being paid to the dynamics of signal in either comparison.
-This will capture and describe the overall biological activity being jointly regulated.
-
-The genes in each section and intersection in the following Venn Diagram will then be analysed against the complete set of `r comma(length(unique(unlist(comp_ids))))` genes mapped to either `r glue_collapse(comps, last = ' or ')`.
-Firstly, all `r comma(length(mapped_ids))` genes mapped to a site were tested for enrichment in comparison to the set of `r comma(length(unique(gtf_gene$gene_id)))` `r ifelse(has_rnaseq, "detected", "annotated")` genes.
-For this analysis, gene width was used as a potential source of sampling bias and Wallenius' Non-Central Hypergeometric was used as implemented in `goseq` [@YoungGoseq2010].
-
-The sets of genes mapped to each section of the Venn Diagram were then tested for enrichment in comparison to the larger set of `r comma(length(mapped_ids))` mapped genes.
-The standard hypergeometric distribution was used for these analyses.
-
-If `r min_network_size` or more gene-sets were considered to be enriched, a network plot was produced using the same methodology as for results from differential signal for individual comparisons.
-
-```{r venn-shared-genes, results = 'hide', fig.show = 'asis', fig.cap = glue("*Venn Diagram showing __genes__ mapped to a signal region associated with {glue_collapse(comps, sep = ' or ')}. Of the {comma(nrow(all_ids))} genes under consideration, a total of {comma(length(mapped_ids))} genes were mapped to a signal region across both comparisons, leaving {comma(nrow(all_ids) - length(mapped_ids))} genes unmapped to a signal region across either comparison.*")}
-plotOverlaps(
-  comp_ids, set_col = comp_cols[comps], cex = 1.2, cat.cex = 1.2
-)
-```
-
-### Result Tables {.tabset}
-
-#### Mapped Genes To Either `r glue_collapse(comps, last = " or ")`
-
-```{r goseq-mapped-res, fig.show = 'hide'}
-pwf_mapped <- gtf_gene %>%
-  mutate(w = width) %>%
-  as_tibble() %>% 
-  arrange(gene_id, desc(w)) %>%
-  distinct(gene_id, w) %>% 
-  mutate(mapped = gene_id %in% mapped_ids) %>% 
-  with(nullp(setNames(mapped, gene_id), bias.data = log10(w)))
-goseq_mapped_res <- pwf_mapped %>% 
-  goseq(gene2cat = gs_by_geneid) %>% 
-  dplyr::filter(numDEInCat > 0) %>% 
-  as_tibble() %>% 
-  dplyr::select(
-    gs_name = category, pval = over_represented_pvalue, starts_with("num")
   ) %>% 
-  mutate(
-    adj_p = p.adjust(pval, adj_method),
-    enriched = adj_p < enrich_alpha
-  ) %>% 
-  dplyr::filter(numDEInCat >= min_sig) %>% 
-  left_join(
-    dplyr::filter(msigdb, gene_id %in% mapped_ids)[c("gs_name", "gene_name", "gs_url", "gs_description")],
-    by = "gs_name"
-  ) %>% 
-  chop(gene_name) %>% 
-  mutate(
-    gene_name = vapply(gene_name, paste, character(1), collapse = "; ")
-  )
-any_goseq_mapped <- sum(goseq_mapped_res$adj_p < enrich_alpha) > 0
-tg_mapped <- make_tbl_graph(
-  goseq_mapped_res, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, rownames(subset(pwf_mapped, DEgenes))) %>% 
-    .[vapply(., length, integer(1)) > 0]
-)
-plot_network_mapped <- length(tg_mapped) >= min_network_size
-```
-
-
-```{r tbl-goseq-mapped-res, eval = any_goseq_mapped, echo = any_goseq_mapped}
-tbl <- goseq_mapped_res %>%
-  dplyr::filter(enriched) %>% 
-  dplyr::select(
-    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list2(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        html = TRUE,
-        maxWidth = 150
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) str_trunc(value, width = 150)
-      ),
-      pval = colDef(
-        name = "P-Value",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      numDEInCat = colDef(
-        name = "Mapped Genes",
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      numInCat = colDef(
-        name = "Genes in Gene-Set",
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      gene_name = colDef(
-        name = "Gene Names",
-        cell = function(value) with_tooltip(value, width = 150)
-      )
+    mclapply(
+      \(x) {
+        make_tbl_graph(
+          x, gs = x$gene_id, 
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "gs_name", 
+          hit_col = "observed_gene_hits", size_col = "gene_set_size", 
+          min_dist = network_params$max_distance, max_gs = max(network_params$size)
+        )
+      }, mc.cores = threads
     )
+enrich_networks <- tg_by_status %>% 
+  lapply(
+    \(x) {
+      x %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(
+            fill = -log10(p), size = observed_gene_hits, stroke = 1.5 * prop
+          ),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+          max.overlaps = 10,
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+    }
   )
-cp <- glue(
-  "
-  All {comma(length(mapped_ids))} genes with a mapped window from 
-  either comparison were compared to the complete set of 
-  {comma(length(unique(gtf_gene$gene_id)))} annotated genes, in order to 
-  ascertain which key gene-sets and pathways were likely to be targeted in either analysis. 
-  ",
-  ifelse(
-    has_rnaseq,
-    "Genes were restricted to those in the set of detected genes from the provided RNA-Seq dataset. ", 
-    ""
-  ),
-  "
-  Gene-length was included as the source of any potential sampling bias for a 
-  gene being mapped to any target-signal range. This analysis provides an overall 
-  viewpoint as to which pathways are regulated across either dataset.
-  "
-)
-div(class = "table",
-    div(class = "table-header", div(class = "caption", cp)),
-    tbl
-)
+any_networks <- as.logical(length(tg_by_status))
 ```
 
-`r if(!any_goseq_mapped) "No pathway enrichment was detected amongst genes mapped in either comparison."`
+`r ifelse(any_enrich, "## Enrichment Result Tables {.tabset}", "No sets of ranges were found to be enriched for any gene-sets or pathways")`
 
-
-`r if (n_targets == 2) glue("#### Genes Mapped to Both ", glue_collapse(comps, last = " and " ))`
-
-```{r empty-goseq-t1t2-res, echo = FALSE}
-goseq_t1t2_res <- tibble(
-  gs_name = character(), mapped = numeric(), enriched = logical(),
-  adj_p = numeric()
-)
-vec_t1t2 <- structure(
-  mapped_ids %in% intersect(comp_ids[[2]], comp_ids[[1]]),
-  names = mapped_ids
-)
-any_goseq_t1t2 <- plot_network_t1t2 <- FALSE
-para <- glue(
-  "
-  All {comma(length(intersect(comp_ids[[2]], comp_ids[[1]])))} genes with a 
-  mapped window to both {glue_collapse(comps, last = ' and ')} were compared to 
-  the {comma(length(mapped_ids))} genes mapped to either, 
-  in order to ascertain whether any key gene-sets were likely to be targeted by 
-  both factors in combination. No sampling bias offset was incorporated, instead 
-  using a simple Hypergeometric model for enrichment testing.
-  "
-)
-```
-
-
-```{r goseq_t1t2_res, eval = n_targets == 2, fig.show = 'hide'}
-pwf_t1t2 <- nullp(
-  vec_t1t2,
-  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-  plot.fit = TRUE
-) 
-if (sum(pwf_t1t2$DEgenes) > 0) {
-  goseq_t1t2_res <- pwf_t1t2 %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
-    mutate(
-      adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha,
-      DEgenes = lapply(DEgenes, function(x) id2gene[x])
-    ) %>% 
-    dplyr::filter(numDEInCat >= min_sig) %>% 
-    left_join(
-      distinct(msigdb, gs_name, gs_url, gs_description),
-      by = "gs_name"
-    ) %>% 
-    dplyr::rename(gene_name = DEgenes) %>% 
-    mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
-}
-any_goseq_t1t2 <- sum(goseq_t1t2_res$adj_p < enrich_alpha) > 0
-tg_t1t2 <- make_tbl_graph(
-  goseq_t1t2_res, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, names(which(vec_t1t2))) %>% 
-    .[vapply(., length, integer(1)) > 0]
-)
-plot_network_t1t2 <- length(tg_t1t2) >= min_network_size
-if (!any_goseq_t1t2) para <- glue(para, " No enrichment was found.")
-```
-
-`r if (!any_goseq_t1t2) para`
-
-```{r tbl-goseq-t1t2-res, eval = any_goseq_t1t2 & n_targets == 2, echo = any_goseq_t1t2}
-tbl <- goseq_t1t2_res %>%
-  dplyr::filter(enriched) %>% 
-  dplyr::select(
-    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list2(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        html = TRUE,
-        maxWidth = 150
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) str_trunc(value, width = 150)
-      ),
-      pval = colDef(
-        name = "P-Value",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      numDEInCat = colDef(
-        name = "Genes Mapped to Both",
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      numInCat = colDef(
-        name = "Genes Mapped to Either",
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      gene_name = colDef(
-        name = "Gene Names",
-        cell = function(value) with_tooltip(value, width = 150)
-      )
-    )
-  )
-div(class = "table",
-    div(class = "table-header", div(class = "caption", para)),
-    tbl
-)
-```
-
-
-`r if (n_targets == 2) glue("#### Genes Mapped to {comps[[1]]} Only")`
-
-
-```{r empty-goseq-t1only}
-goseq_t1only_res <- tibble(
-  gs_name = character(), mapped = numeric(), enriched = logical(),
-  adj_p = numeric()
-)
-vec_t1only <- structure(
-  mapped_ids %in% setdiff(comp_ids[[1]], comp_ids[[2]]),
-  names = mapped_ids
-)
-gs_method <- "Hypergeometric"
-any_goseq_t1only <- plot_network_t1only <- FALSE
-para <- glue(
-  "
-  All {comma(length(setdiff(comp_ids[[1]], comp_ids[[2]])))} genes with a 
-  mapped window to only {comps[[1]]} were compared to 
-  the {comma(length(mapped_ids))} genes mapped to either
-  {glue_collapse(comps, last = ' or ')}, in order to ascertain whether any gene-sets 
-  were likely to be targeted exclusively. No sampling bias offset was 
-  incorporated, instead using a simple Hypergeometric model for enrichment testing.
-  "
-)
-```
-
-```{r goseq-t1only-res, fig.show = 'hide'}
-pwf_t1only <- nullp(
-  vec_t1only,
-  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-  plot.fit = TRUE
-) 
-if (sum(pwf_t1only$DEgenes) > 0) {
-  goseq_t1only_res <- pwf_t1only %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
-    mutate(
-      adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha,
-      DEgenes = lapply(DEgenes, function(x) id2gene[x])
-    ) %>% 
-    dplyr::filter(numDEInCat >= min_sig) %>% 
-    left_join(
-      distinct(msigdb, gs_name, gs_url, gs_description),
-      by = "gs_name"
-    ) %>% 
-    dplyr::rename(gene_name = DEgenes) %>% 
-    mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
-}
-any_goseq_t1only <- sum(goseq_t1only_res$adj_p < enrich_alpha) > 0
-tg_t1only <- make_tbl_graph(
-  goseq_t1only_res, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, names(which(vec_t1only))) %>% 
-    .[vapply(., length, integer(1)) > 0]
-)
-plot_network_t1only <- length(tg_t1only) >= min_network_size
-if (!any_goseq_t1only) para <- glue(para, " No enrichment was found.")
-```
-
-`r if (!any_goseq_t1only) para`
-
-```{r tbl-goseq-t1only-res, eval = n_targets == 2 & any_goseq_t1only, echo = any_goseq_t1only}
-tbl <- goseq_t1only_res %>%
-  dplyr::filter(enriched) %>% 
-  dplyr::select(
-    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list2(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        html = TRUE,
-        maxWidth = 150
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) str_trunc(value, width = 150)
-      ),
-      pval = colDef(
-        name = "P-Value",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      numDEInCat = colDef(
-        name = glue("Genes Mapped to {comps[[1]]} Only"),
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      numInCat = colDef(
-        name = "Genes Mapped to Both",
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      gene_name = colDef(
-        name = "Gene Names",
-        cell = function(value) with_tooltip(value, width = 150)
-      )
-    )
-  )
-div(class = "table",
-    div(class = "table-header", div(class = "caption", para)),
-    tbl
-)
-```
-
-
-`r if (n_targets == 2) glue("#### Genes Mapped to {comps[[2]]} Only")`
-
-
-```{r empty-goseq-t2only}
-goseq_t2only_res <- tibble(
-  gs_name = character(), mapped = numeric(), enriched = logical(),
-  adj_p = numeric()
-)
-vec_t2only <- structure(
-  mapped_ids %in% setdiff(comp_ids[[2]], comp_ids[[1]]),
-  names = mapped_ids
-)
-gs_method <- "Hypergeometric"
-para <- glue(
-  "
-  All {comma(length(setdiff(comp_ids[[2]], comp_ids[[1]])))} genes with a 
-  mapped window to only {comps[[2]]} were compared to 
-  the {comma(length(mapped_ids))} genes mapped to either 
-  {glue_collapse(comps, last = ' or ')}, in order to ascertain whether any gene-sets 
-  were likely to be targeted exclusively. No sampling bias offset was 
-  incorporated, instead using a simple Hypergeometric model for enrichment testing.
-  "
-)
-any_goseq_t2only <- plot_network_t2only <- FALSE
-```
-
-```{r goseq-t2only-res, fig.show = 'hide'}
-pwf_t2only <- nullp(
-  vec_t2only,
-  bias.data = log10(setNames(all_ids$w, all_ids$gene_id)[mapped_ids]), 
-  plot.fit = TRUE
-) 
-if (sum(pwf_t2only$DEgenes) > 0) {
-  goseq_t2only_res <- pwf_t2only %>% 
-    goseq(gene2cat = gs_by_geneid, method = gs_method) %>% 
-    dplyr::filter(numDEInCat > 0) %>% 
-    mutate(
-      adj_p = p.adjust(pval, adj_method),
-      enriched = adj_p < enrich_alpha,
-      DEgenes = lapply(DEgenes, function(x) id2gene[x])
-    ) %>% 
-    dplyr::filter(numDEInCat >= min_sig) %>% 
-    left_join(
-      distinct(msigdb, gs_name, gs_url, gs_description),
-      by = "gs_name"
-    ) %>% 
-    dplyr::rename(gene_name = DEgenes) %>% 
-    mutate(gene_name = vapply(gene_name, paste, character(1), collapse = "; "))
-}
-any_goseq_t2only <- sum(goseq_t2only_res$adj_p < enrich_alpha) > 0
-tg_t2only <- make_tbl_graph(
-  goseq_t2only_res, 
-  gs = gs_by_gsid %>% 
-    lapply(intersect, names(which(vec_t2only))) %>% 
-    .[vapply(., length, integer(1)) > 0]
-)
-plot_network_t2only <- length(tg_t2only) >= min_network_size
-if (!any_goseq_t2only) para <- glue(para, " No enrichment was found.")
-```
-
-`r if (!any_goseq_t2only) para`
-
-```{r tbl-goseq-t2only-res, eval = any_goseq_t2only, echo = any_goseq_t2only}
-tbl <- goseq_t2only_res %>%
-  dplyr::filter(enriched) %>% 
-  dplyr::select(
-    gs_name, gs_description, pval, adj_p, starts_with("num"), gene_name
-  ) %>% 
-  reactable(
-    filterable = TRUE,
-    showPageSizeOptions = TRUE,
-    columns = list2(
-      gs_name = colDef(
-        name = "Gene Set",
-        cell = function(value) htmltools::tags$a(
-          href = gs_url[[value]], 
-          target = "_blank", 
-          str_replace_all(value, "_", " ")
-        ),
-        html = TRUE,
-        maxWidth = 150
-      ),
-      gs_description = colDef(
-        name = "Description",
-        cell = function(value) str_trunc(value, width = 150)
-      ),
-      pval = colDef(
-        name = "P-Value",
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      adj_p = colDef(
-        name = "p<sub>adj</sub>", html = TRUE,
-        cell = function(value) ifelse(
-          value < 0.001,
-          sprintf("%.2e", value),
-          sprintf("%.3f", value)
-        ),
-        maxWidth = 80
-      ),
-      numDEInCat = colDef(
-        name = glue("Genes Mapped to {comps[[2]]} Only"),
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      numInCat = colDef(
-        name = "Genes Mapped to Both",
-        cell = function(value) comma(value, 1),
-        maxWidth = 80
-      ),
-      gene_name = colDef(
-        name = "Gene Names",
-        cell = function(value) with_tooltip(value, width = 150)
-      )
-    )
-  )
-div(class = "table",
-    div(class = "table-header", div(class = "caption", para)),
-    tbl
-)
-```
-
-
-### Network Plots {.tabset}
-
-`r if (plot_network_mapped) "#### All Mapped Genes"`
-
-```{r plot-network-mapped, eval = plot_network_mapped, echo = plot_network_mapped, fig.cap = glue("*Network plot showing  gene-sets enriched amongst the overall set of sites with signal detected in __either__ comparison.*")}
-tg_mapped %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
-  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_mapped) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
-  theme_void() 
-```
-
-`r if (plot_network_t1t2) paste("#### Genes Mapped to Both", glue_collapse(comps, last = ' and '))`
-
-```{r plot-network-t1t2, eval = plot_network_t1t2, echo = plot_network_t1t2, fig.cap = glue("*Network plot showing gene-sets enriched amongst the overall set of sites with detected signal in __both__ {comps[[1]]} and {comps[[2]]}.*")}
-tg_t1t2 %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
-  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_t1t2) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
-  theme_void() 
-```
-
-`r if (plot_network_t1only) glue("#### Genes Mapped to {comps[[1]]} Only")`
-
-```{r plot-network-t1only, eval = plot_network_t1only, echo = plot_network_t1only, fig.cap = glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with detected signal in __{comps[[1]]} only__.*")}
-tg_t1only %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
-  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_t1only) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
-  theme_void() 
-```
-
-`r if (plot_network_t2only) glue("#### Genes Mapped to {comps[[2]]} Only")`
-
-```{r plot-network-t2only, eval = plot_network_t2only, echo = plot_network_t2only, fig.cap = glue("*Network plot showing all gene-sets enriched amongst the overall set of sites with detected signal in __{comps[[2]]} only__.*")}
-tg_t2only %>% 
-  ggraph(layout = net_layout, weights = oc^2) +
-  geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-  geom_node_point(
-    aes(fill = -log10(pval), size = numDEInCat),
-    shape = 21
-  ) +
-  geom_node_text(
-    aes(label = label),
-    colour = "black", size = 3, 
-    data = . %>%
-      mutate(
-        label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
-      ),
-    repel = TRUE, max.overlaps = max(10, round(length(tg_t2only) / 4, 0)),
-    bg.color = "white", bg.r = 0.1, 
-  ) +
-  scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-  scale_size_continuous(range = c(1, 10)) +
-  scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-  scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-  guides(edge_alpha = "none") +
-  labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
-  theme_void() 
-```
-
-
-## Comparison of Differential Signal Regions
-
-```{r goseq-groups, fig.show = 'hide'}
-n_peaks <- structure(all_ids$n_windows, names = all_ids$gene_id)[mapped_ids]
-goseq_group_res <- group_ids %>% 
-  .[str_detect(names(.), "Up|Down")] %>% 
-  .[vapply(., length, integer(1)) > 0] %>% 
-  mclapply(
-    function(x) {
-      vec <- structure(mapped_ids %in% x, names = mapped_ids)
-      res <- tibble(adj_p = numeric())
-      if (sum(vec) > 0) {
-        res <- data.frame(DEgenes = vec) %>% 
-          goseq_hyper(gene2cat = gs_by_geneid, cores = 1) %>% 
-          dplyr::filter(numDEInCat > 0) %>% 
-          mutate(adj_p = p.adjust(pval, adj_method)) %>% 
-          dplyr::filter(numDEInCat >= min_sig) %>% 
-          dplyr::select(gs_name, pval, adj_p, ends_with("InCat"), DEgenes) %>% 
-          left_join(
-            dplyr::distinct(msigdb, gs_name, gs_url, gs_description),
-            by = "gs_name"
-          ) %>% 
-          mutate(
-            gene_name = vapply(
-              DEgenes, function(x) paste(id2gene[x], collapse = "; "), character(1)
+```{r enrich-result-tables, echo = FALSE}
+if (any_enrich) {
+  tagList(
+    enrich_by_status %>% 
+      bind_rows(.id = "status") %>% 
+      droplevels() %>% 
+      split(.$status) %>% 
+      lapply(
+        \(x) {
+          status <- unique(x$status)
+          id <- status %>% 
+            str_replace_all(" - ", "-") %>% 
+            str_replace_all(" +", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-enrich-table")
+          cp <- htmltools::em(
+            glue(
+              "
+          Enrichment results for the set of {status} loci using an adjusted p-value 
+          ({adj_method}) < {enrich_params$alpha} to determine significance. 
+          The backround to determine relative enrichment was the entire set of 
+          sites contained in both comparisons. In the case of large numbers of 
+          significant gene-sets, results arelimited to the 100  most highly 
+          ranked. For gene-sets where the analysis has
+          returned a p-value of zero, the value <2e-16 will be printed. Where the 
+          identical set of genes were found represented by multiple gene-sets, only 
+          the most highly ranked gene-set is returned.
+          "
             )
           )
-      }
-      res
-    },
-    mc.cores = threads
-  ) %>% 
-  ## This step at the end basically removes any groups with no results
-  lapply(list) %>% 
-  as_tibble() %>% 
-  pivot_longer(everything(), names_to = "group") %>% 
-  unnest(everything()) %>% 
-  split(.$group)
-goseq_group_sig <- goseq_group_res %>% 
-  lapply(dplyr::filter, adj_p < enrich_alpha) %>% 
-  .[vapply(., nrow, integer(1)) > 0]
-tg_group_res <- names(goseq_group_sig) %>% 
-  lapply(
-    function(x) {
-      make_tbl_graph(
-        goseq_group_sig[[x]],
-        gs_by_gsid[goseq_group_sig[[x]]$gs_name] %>%
-          lapply(intersect, group_ids[[x]])
-      )
-    }
-  ) %>% 
-  setNames(names(goseq_group_sig)) %>% 
-  .[vapply(., length, integer(1)) >= min_network_size]
-```
-
-The same MSigDB gene sets were used for associating any pathways with the combined changes in both `r collapseGenes(comps)`.
-The 'universe' of genes was defined as all `r comma(length(mapped_ids))` gene ids with a window mapped from either target.
-No sampling bias was included, with test results using a simple Hypergeometric Distribution.
-`r if(length(goseq_group_sig) == 0) "No enrichment was found amongst any group of windows"`
-
-
-`r if(length(goseq_group_sig) > 0) "### Results {.tabset}"`
-
-
-```{r tbl-goseq-groups, eval = length(goseq_group_sig) > 0, echo = length(goseq_group_sig) > 0}
-htmltools::tagList(
-  names(goseq_group_sig) %>% 
-    mclapply(
-      function(x) {
-        cp <- glue(
-          "
-          All {comma(length(group_ids[[x]]), 1)} genes mapped to windows
-           with the pattern {x} were compared to the complete set of 
-          {comma(length(mapped_ids), 1)} genes mapped to at least one
-          window. {nrow(goseq_group_sig[[x]])} gene-sets were considered as 
-          enriched using a threshold of {enrich_alpha} for adjusted-p-values.
-          "
-        )
-        htmltools::div(
-          htmltools::div(
-            id = x %>% 
-              str_to_lower %>% 
-              str_replace_all(" ", "-") %>% 
-              str_replace_all("-+", "-"),
-            class = "section level4",
-            htmltools::h4(class = "tabset", x),
-            htmltools::tags$em(cp),
-            goseq_group_sig[[x]] %>% 
-              separate(group, into = comps, sep = " - ") %>% 
-              dplyr::select(
-                all_of(comps), gs_name, gs_description, pval, adj_p, everything()
-              ) %>% 
-              reactable(
-                filterable = TRUE,
-                showPageSizeOptions = TRUE,
-                columns = list2(
-                  "{comps[[1]]}" := colDef(
-                    cell = function(value) {
-                      value <- str_extract(value, "Up|Down|Unchanged|Undetected")
-                      if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
-                      if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
-                      paste(targets[[1]], value)
-                    },
-                    style = function(value) {
-                      colour <- case_when(
-                        str_detect(value, "Up") ~ colours$direction[["up"]],
-                        str_detect(value, "Down") ~ colours$direction[["down"]],
-                        str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-                        str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-                      )
-                      list(color = colour)
-                    },
-                    maxWidth = 120
-                  ),
-                  "{comps[[2]]}" := colDef(
-                    cell = function(value) {
-                      value <- str_extract(value, "Up|Down|Unchanged|Undetected")
-                      if (str_detect(value, "Up")) value <- paste(value, "\u21E7")
-                      if (str_detect(value, "Down")) value <- paste(value, "\u21E9")
-                      paste(targets[[2]], value)
-                    },
-                    style = function(value) {
-                      colour <- case_when(
-                        str_detect(value, "Up") ~ colours$direction[["up"]],
-                        str_detect(value, "Down") ~ colours$direction[["down"]],
-                        str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-                        str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-                      )
-                      list(color = colour)
-                    },
-                    maxWidth = 120
-                  ),
-                  gs_name = colDef(
-                    name = "Gene Set",
-                    cell = function(value) {
-                      htmltools::tags$a(
-                        href = gs_url[[value]], target = "_blank",
-                        str_replace_all(value, "_", " ")
-                      )
-                    },
-                    html = TRUE,
-                    maxWidth = 150
-                  ),
-                  gs_description = colDef(
-                    name = "Description",
-                    cell = function(value) str_trunc(value, width = 150)
-                  ),
-                  gs_url = colDef(show = FALSE),
-                  pval = colDef(
-                    name = "P-Value",
-                    cell = function(value) ifelse(
-                      value < 0.001,
-                      sprintf("%.2e", value),
-                      sprintf("%.3f", value)
-                    ),
-                    maxWidth = 80
-                  ),
-                  adj_p = colDef(
-                    name = "p<sub>adj</sub>", html = TRUE,
-                    cell = function(value) ifelse(
-                      value < 0.001,
-                      sprintf("%.2e", value),
-                      sprintf("%.3f", value)
-                    ),
-                    maxWidth = 80
-                  ),
-                  numDEInCat = colDef(
-                    name = "Mapped Genes",
-                    cell = function(value) comma(value, 1),
-                    maxWidth = 80
-                  ),
-                  numInCat = colDef(
-                    name = "Genes in Gene-Set",
-                    cell = function(value) comma(value, 1),
-                    maxWidth = 80
-                  ),
-                  gene_name = colDef(
-                    name = "Gene Names",
-                    cell = function(value) with_tooltip(value, width = 150)
-                  ),
-                  DEgenes = colDef(show = FALSE)
+          tbl <- x %>% 
+            dplyr::select(-status) %>% 
+            dplyr::slice(seq_len(100)) %>%
+            dplyr::select(-any_of(c("gene_id"))) %>% 
+            dplyr::select(
+              gs_name, genes_with_hits, contains("gene"), everything()
+            ) %>% 
+            distinct(genes_with_hits, .keep_all = TRUE) %>%
+            reactable(
+              sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+              columns = enrich_cols[colnames(.)],
+              details =  function(index){
+                htmltools::div(
+                  htmltools::tags$pre(
+                    str_wrap(
+                      paste(
+                        capture.output(x$genes_with_hits[index]), collapse = "\n"
+                      ),
+                      width = 120
+                    )
+                  )
                 )
-              )
+              },
+              elementId = id
+            )
+          tl <- tagList(
+            tags$button(
+              tagList(fontawesome::fa("download"), "Download as CSV"),
+              onclick = glue("Reactable.downloadDataCSV('{id}','{id}_enrich_res.csv')")
+            ),
+            tags$button(
+              "Expand/Collapse All",
+              onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
+            ),
+            tags$button(
+              "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
+            ),
+            tbl, htmltools::tags$caption(cp)
           )
-        )
-      },
-      mc.cores = threads
-    )
-)
-```
-
-`r if (length(goseq_group_sig)) "#### All Groups"`
-
-```{r plot-all-enriched, eval = length(goseq_group_sig) > 0, echo = length(goseq_group_sig) > 0, fig.width = min(5 + length(goseq_group_sig), knitr::opts_chunk$get("fig.width")), fig.cap = glue("*Combined enrichment across all groups, showing only significant results for enrichment. The top panel shows how many genes were mapped to sites for each group, whilst the right panel shows gene set size. Point sizes indicate the proportion of mapped genes which are from each pathway.*")}
-goseq_group_sig %>%  
-  bind_rows() %>% 
-  arrange(pval) %>% 
-  left_join(n_mapped, by = c("group" = "status")) %>% 
-  mutate(
-    gs_name = fct_inorder(gs_name) %>% 
-      fct_relabel(str_replace_all, "_", " ") %>% 
-      fct_relabel(str_trunc, width = 60),
-    prop = numDEInCat / mapped,
-    group = factor(group, levels = n_mapped$status)
-  ) %>%
-  droplevels() %>% 
-  ggplot(aes(group, fct_rev(gs_name))) + 
-  geom_point(aes(size = prop, fill = -log10(pval)), shape = 21) +
-  geom_ysidecol(
-    aes(x = numInCat), data = . %>% distinct(gs_name, numInCat),
-  ) +
-  geom_xsidecol(
-    aes(y = mapped),
-    data = n_mapped %>% 
-      dplyr::filter(status %in% names(goseq_group_sig)) %>% 
-      dplyr::rename(group = status),
-    width = 0.5
-  ) +
-  scale_x_discrete(labels = label_wrap(10)) +
-  scale_ysidex_continuous(expand = expansion(c(0, 0.15))) +
-  scale_xsidey_continuous(
-    expand = expansion(c(0, 0.15))
-  ) +
-  scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-  scale_size(range = c(0, 5), labels = percent) + 
-  labs(
-    x = c(), y = c(), size = "% Mapped\nGenes", fill = expr(paste(-log[10], "p"))
-  ) +
-  theme(
-    panel.grid = element_blank(), 
-    axis.text = element_text(size = 8),
-    legend.position = "right",
-    ggside.panel.scale.x = 0.2,
-    ggside.panel.scale.y = 0.3,
-    ggside.axis.text.x.bottom = element_text(angle = 270, hjust = 0, vjust = 0.5)
-  ) 
-```
-
-
-
-`r if(length(tg_group_res) > 0) "### Network Plots {.tabset}"`
-
-
-```{r network-plots-goseq-groups, eval = length(tg_group_res) > 0, echo = length(tg_group_res) > 0}
-htmltools::tagList(
-  names(tg_group_res) %>% 
-    mclapply(
-      function(x) {
-        ## Export the image
-        img_out <- file.path(
-          fig_path,
-          x %>% 
-            str_replace_all(" ", "_") %>% 
-            str_replace_all("_-_", "-") %>% 
-            paste0("_network.", fig_type)
-        )
-        fig_fun(
-          filename = img_out,
-          width = knitr::opts_current$get("fig.width"),
-          height = knitr::opts_current$get("fig.height")
-        )
-        p <- tg_group_res[[x]] %>%
-          ggraph(layout = net_layout, weights = oc^2) +
-          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-          geom_node_point(
-            aes(fill = -log10(pval), size = numDEInCat),
-            shape = 21
-          ) +
-          geom_node_text(
-            aes(label = label),
-            colour = "black", size = 3, 
-            data = . %>%
-              mutate(
-                label = str_replace_all(label, "_", " ") %>% str_trunc(60) %>% str_wrap(width = 18)
-              ),
-            repel = TRUE,
-            max.overlaps = max(10, round(length(tg_group_res[[x]]) / 4, 0)),
-            bg.color = "white", bg.r = 0.1
-          ) +
-          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-          scale_fill_viridis_c(option = "inferno", begin = 0.25) +
-          scale_size_continuous(range = c(1, 10)) +
-          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1)) +
-          guides(edge_alpha = "none") +
-          labs(size = "Mapped Genes", edge_width = expr(paste(OC^2))) +
-          theme_void()
-        print(p)
-        dev.off()
-        ## Create html tags
-        fig_link <- str_extract(img_out, "assets.+")
-        cp <- htmltools::tags$em(
-          glue(
-            "
-            Network plot showing enriched pathways mapped to genes 
-            associated with {x}. 
-            "
-          )
-        )
-        htmltools::div(
           htmltools::div(
-            id = img_out %>%
-              basename() %>%
-              str_remove_all(glue(".{fig_type}$")) %>%
-              str_to_lower() %>%
-              str_replace_all("_", "-"),
-            class = "section level4",
-            htmltools::h4(x),
+            id = id, class = "section level3", htmltools::h3(status), tl
+          )
+        }
+      )
+  )
+}
+```
+
+`r ifelse(any_networks, "## Enrichment Network Plots {.tabset}", "")`
+
+```{r plot-networks, echo = FALSE}
+if (any_networks) {
+  htmltools::tagList(
+    enrich_networks %>% 
+      names() %>% 
+      lapply(
+        \(x){
+          
+          ## Export the image
+          id <- x %>% 
+            str_replace_all(" - ", "-") %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-enrichment-network")
+          img_out <- file.path(fig_path, paste0(id, ".", fig_type))
+          fig_fun(filename = img_out, width = fw, height = fh)
+          print(enrich_networks[[x]])
+          dev.off()
+          
+          ## Create html tags
+          fig_link <- str_extract(img_out, "assets.+")
+          cp <- htmltools::tags$caption(
+            htmltools::tags$em(
+              glue(
+                "Enrichment network for the set of loci considered as {x}. ",
+                "Node sizes reflect the number of genes mapped to each gene-set, ",
+                "with colour indicating statistical significance. ",
+                "Nodes with heavier borders reflect those where the number of ",
+                "mapped genes is a higher proportion of those within the gene-set, ",
+                "noting that some smaller gene-sets may have larger proportions ",
+                "of the possible genes mapped to a region within the set of loci."
+              )
+            )
+          )
+          htmltools::div(
+            id = id, class = "section level3", htmltools::h3(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
-              htmltools::img(src = fig_link, width = "100%"),
-              htmltools::tags$caption(cp)
+              htmltools::img(src = fig_link, width = 960),
+              cp
             )
           )
+        }
+      )
+  )
+}
+```
+
+
+# Region Analysis
+
+# Motif Analysis
+
+```{r setup-motif-analysis}
+motif_db <- all_paths$annotation %>% 
+  file.path("motif_list.rds") %>% 
+  read_rds() %>% 
+  to_df() %>% 
+  as_tibble()
+motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
+  read_rds()
+fw_seq <- combined_results %>% 
+  subset(grepl("(In|De)creased", status)) %>% 
+  set_genome_info(ucsc$build) %>% 
+  resize(width = motif_params$peak_width, fix = 'center') %>% 
+  splitAsList(.$status) %>% 
+  .[map_int(., length) > 0] %>% 
+  mclapply(\(x) getSeq(bs_genome, x), mc.cores = threads) %>% 
+  lapply(\(x) x[letterFrequency(x, "N")[,1] == 0]) %>% 
+  setNames(
+    names(.)  %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
+      str_replace_all(
+        "(.+) - (.+)", 
+        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+      )
+  ) 
+motif_enrich_res <- params$motif_enrichment %>%
+  here::here() %>%
+  read_tsv() %>%
+  dplyr::rename(adj_p = fdr) %>% 
+  mutate(adj_p = p.adjust(p, motif_params$adj), .by = comparison) %>% 
+  dplyr::filter(
+    adj_p < motif_params$alpha, enrichment > 1, 
+    grepl("(in|de)creased", comparison)
+  ) %>% 
+  mutate(
+    comparison = comparison %>% 
+      str_replace_all("_", " - ") %>% 
+      str_to_title() %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
+      str_replace_all(
+        "(.+) - (.+)", 
+        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+      )
+  ) %>% 
+  split(.$comparison)
+motif_pos_res <- params$motif_position %>% 
+  here::here() %>%
+  read_tsv() %>%
+  dplyr::rename(adj_p = fdr) %>% 
+  mutate(adj_p = p.adjust(p, motif_params$adj), .by = comparison) %>% 
+  dplyr::filter(
+    adj_p < motif_params$alpha, enrichment > 1, 
+    grepl("(in|de)creased", comparison)
+  ) %>% 
+  mutate(
+    comparison = comparison %>% 
+      str_replace_all("_", " - ") %>% 
+      str_to_title() %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
+      str_replace_all(
+        "(.+) - (.+)", 
+        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+      )
+  ) %>% 
+  split(.$comparison) 
+any_motif_enrich <- length(motif_enrich_res) > 0
+any_motif_pos <- length(motif_pos_res) > 0
+```
+
+Motif enrichment analysis was performed on each subset of sites within each group.
+An enrichment analysis was first performed comparing the loci within each group to the loci in all other groups, using a one-sided hypergeometric test, noting that if few sites, or nearly all sites are changed, results may of minor interest.
+
+A second test was subsequently performed testing for any positional bias of motifs within the set of changed sites, with no requirement for any background set of sequences.
+This test will identify any motifs which are centrally located, or have any other type of positional bias within the set of changed sites.
+
+In all sections below, only significant results are returned.
+
+## Motif Enrichment 
+
+`r ifelse(any_motif_enrich, "### Result Tables {.tabset}", "*No groups were found to be enriched for any of the tested motifs.*")`
+
+```{r motif-enrich-tables}
+tagList(
+  motif_enrich_res %>% 
+  .[2] %>% 
+    lapply(
+      \(x) {
+        nm <- unique(x$comparison)
+        n_seq <- unique(x$sequences)
+        pre <- nm %>% 
+          str_replace_all(" - ", "-") %>% 
+          str_replace_all(" ", "-") %>% 
+          str_to_lower() 
+        id <- paste0(pre, "-table")
+        tbl <- x %>% 
+          dplyr::select(-all_of(c("comparison", "sequences"))) %>% 
+          mutate(
+            PWM = lapply(altname, \(x) motif_uri[[x]])
+          ) %>% 
+          reactable(
+            showPageSizeOptions = nrow(.) > 10,
+            filterable = TRUE, groupBy = "cluster",
+            columns = motif_cols[names(motif_cols) %in% colnames(.)],
+            defaultSorted = "adj_p", defaultSortOrder = "asc",
+            theme = reactableTheme(style = list(fontSize = 12)),
+            elementId = id
+          )
+        cp <- htmltools::em(
+          glue(
+            "Motif enrichment results when comparing all sites considered as ", 
+            "'{nm}' to the sites from all other groups, using a one-sided ", 
+            "hypergeometric test to determine enrichment. ", 
+            "A total of {comma(n_seq)} sequences were tested within this group. ",
+            "Motifs were considered as enriched using an adjusted p-value ",
+            "(method = {motif_params$adj}) < {motif_params$alpha} as the sole ", 
+            "criteria. Motifs are grouped by the clusters formed during setup, ", 
+            "with all motifs able to be made visible by clicking the arrow ", 
+            "next to the arbitrary cluster identifier in the first column. ", 
+            "All columns are searchable and filterable."
+          )
         )
-      },
-      mc.cores = threads
-    )
+        tl <- tagList(
+          tags$button(
+            tagList(fontawesome::fa("download"), "Download as CSV"),
+            onclick = glue(
+              "Reactable.downloadDataCSV('{id}',",
+              "'{params$full_comp}-{pre}_motif_enrich_res.csv')"
+            )
+          ),
+          tags$button(
+            "Expand/Collapse All",
+            onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
+          ),
+          tags$button(
+            "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
+          ),
+          tbl, htmltools::tags$caption(cp)
+        )
+        htmltools::div(
+          id = id, class = "section level4", htmltools::h4(nm), tl
+        )
+      }
+    ) 
 )
 ```
 
+`r if (any_motif_enrich), "### Motif Co-Ocurrence {.tabset}"`
 
-
-
-```{r add-rna, eval = has_rnaseq, child = here::here('workflow/modules/rnaseq_pairwise.Rmd')}
+```{r motif-corplot, echo = any_motif_enrich}
+if (any_motif_enrich) {
+  motif_corplot <- motif_enrich_res %>% 
+    lapply(
+      \(x) {
+        comp <- unique(x$comparison)
+        top_enrich <- x %>%
+          dplyr::filter(enrichment > 1, adj_p < motif_params$alpha) %>% 
+          dplyr::slice(1:20) %>% 
+          pull("altname")
+        cor_mat <- motif_db %>% 
+          dplyr::filter(altname %in% top_enrich) %>% 
+          to_list() %>% 
+          getPwmMatches(fw_seq[[comp]], mc.cores = threads) %>% 
+          lapply(\(x) tibble(seq = unique(x$seq))) %>% 
+          bind_rows(.id = "altname") %>%
+          distinct(altname, seq) %>% 
+          left_join(dplyr::select(x, altname, name), by = "altname") %>% 
+          mutate(detected = TRUE) %>% 
+          dplyr::select(seq, name, detected) %>% 
+          pivot_wider(
+            names_from = "name", values_from = "detected", values_fill = FALSE
+          ) %>% 
+          dplyr::select(-seq) %>% 
+          dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
+          cor(method = "spearman")
+        hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
+        dend <- ggdendro::dendro_data(as.dendrogram(hc))
+        levels <- dend$labels$label
+        ym <- max(dend$segments$xend)
+        dend_aes <- aes(yend, xend, xend = y, yend = x)
+        dend_plot <- ggplot(dend$segments) +
+          geom_segment(dend_aes) + 
+          scale_x_reverse(expand = expansion(0)) + 
+          scale_y_reverse(limits = c(ym, 0) + 0.5, expand = expansion(0)) +
+          labs(x = "", y = c()) + 
+          theme_minimal() + 
+          theme(
+            panel.grid = element_blank(), 
+            axis.text = element_blank(), axis.ticks = element_blank(), 
+            plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
+          )
+        p <- cor_mat %>% 
+          as_tibble(rownames = "m1") %>% 
+          pivot_longer(cols = all_of(.$m1), names_to = "m2", values_to = "cor") %>% 
+          mutate(across(starts_with("m"), \(x) factor(x, levels = levels))) %>% 
+          dplyr::filter(m1 != m2) %>% 
+          ggplot(aes(m1, fct_rev(m2))) +
+          geom_point(aes(size = abs(cor), colour = cor, alpha = abs(cor))) +
+          geom_text(
+            aes(label = round(cor*100, 0), alpha = abs(cor)), show.legend = FALSE
+          ) +
+          scale_size(range = c(0, 10), guide = "none") +
+          scale_alpha(range = c(0, 1), guide = "none") +
+          scale_colour_gradient2(
+            low = direction_colours[["Decreased"]], 
+            high = direction_colours[["Increased"]],
+            limits = c(-1, 1), labels = percent_format(suffix = "")
+          ) +
+          scale_x_discrete(position = "top") +
+          labs(x = NULL, y = NULL, colour = expr(paste(rho))) +
+          theme(
+            panel.grid = element_blank(), 
+            axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5)
+          )
+        dend_plot + p + plot_layout(widths = c(0.1, 0.9), axes = "collect")
+      }
+    )
+}  
 ```
 
+```{r show-motif-corplot, echo = FALSE}
+if (any_motif_enrich) {
+  tagList(
+    names(motif_corplot) %>% 
+      lapply(
+        \(x) {
+          ## Export the image
+          id <- x %>% 
+            str_replace_all(" - ", "-") %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() %>% 
+            paste0("-motif-correlation")
+          img_out <- file.path(fig_path, paste0(id, ".", fig_type))
+          fig_fun(filename = img_out, width = fw, height = fh)
+          print(motif_corplot[[x]])
+          dev.off()
+          
+          ## Create html tags
+          fig_link <- str_extract(img_out, "assets.+")
+          cp <- htmltools::tags$caption(
+            htmltools::tags$em(
+              glue(
+                "The top 20 motifs ranked for enrichment in the group '{x}', ", 
+                "were compared to each other using correlations derived from ", 
+                "simple presence/absence calls. ", 
+                "Highly correlated motifs may indicate similarity between ", 
+                "TFBMs and the same sequence match being identified, or may ", 
+                "indicate motifs which co-occur. ",
+                "Motifs detected in all sequences were excluded after the ", 
+                "initial selction and as such, fewer than the selected 20 ", 
+                "motifs may be shown."
+              )
+            )
+          )
+          htmltools::div(
+            id = id, class = "section level4", htmltools::h4(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = 960),
+              cp
+            )
+          )
+        }
+    )
+  )
+}
+```
+
+# HERE
+
+## Motifs With Positional Bias {.tabset}
+
 # Data Export
+
+```{r turn-off, echo = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
 
 ```{r all-out}
 write_rds(all_windows, all_out$results, compress = "gz")
