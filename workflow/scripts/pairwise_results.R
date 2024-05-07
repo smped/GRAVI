@@ -43,7 +43,7 @@ cat_time <- function(...){
 ## For testing
 # all_wildcards <- list(
 #   tgt1 = "AR",
-#   tgt2 = "ER",
+#   tgt2 = "H3K27ac",
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )

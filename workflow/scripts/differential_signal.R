@@ -213,10 +213,12 @@ pcols <- c("PValue", "p_mu0")
 
 if (win_type == "sliding") {
   cat_time("Merging windows")
+  ## This is set to merge within 2 window steps, with minimum window set via params
+  ## It's hard-wired to return the 'adaptive' region that's changed as keyval_range
   results <- mergeByHMP(
     fit, pval = pcols,
-    merge_within = floor(1 + 2 * all_params$window_size / 3),
-    hm_pre = "", keyval = "merged"
+    merge_within = floor(1 + 2 * all_params$window_step / 3),
+    hm_pre = "", keyval = "merged", min_win = all_params$min_win
   ) %>%
     plyranges::select(
       starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
@@ -274,7 +276,7 @@ if (win_type == "sliding") {
     ## Exclude any 'weak enhancers'
     endoapply(subset, grepl("enh[^w]", str_to_lower(feature))) %>%
     unlist() %>%
-    GenomicRanges::reduce() %>% 
+    GenomicRanges::reduce() %>%
     filter_by_non_overlaps(prom)
   cat_time("Found", length(feat_enh), "enhancers in provided features")
 

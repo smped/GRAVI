@@ -1,13 +1,13 @@
 ```{r dummy-params, eval = interactive()}
 params <- list(
   tgt1 = "AR",
-  tgt2 = "ER",
+  tgt2 = "H3K27ac",
   comp1 = "E2_E2DHT",
   comp2 = "E2_E2DHT",
-  full_comp = "AR_E2_E2DHT-ER_E2_E2DHT",
-  results = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_results.rds",
-  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_enrichment.tsv.gz",
-  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_position.tsv.gz"
+  full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
+  results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_results.rds",
+  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
+  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
 )
 ```
 
@@ -405,8 +405,7 @@ filtered_peaks %>%
 
 A set of `r comma(length(combined_results))` loci with signal was formed by obtaining the union of windows produced during the analysis of `r glue_collapse(unlist(short_names), last = " and ")` individually.
 These common windows were formed using any overlap between analysis-specific windows.
-After merging across datasets, the merged ranges were re-mapped to regions, features and genes, using the same methods are previously.
-
+After merging across datasets, the merged ranges were re-mapped to regions, features and genes, using the same methods as previously.
 
 The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. 
 As windows were detected in an un-stranded manner, all distance values were set to be positive.
@@ -565,7 +564,7 @@ tbl <- combined_results %>%
           }")
       ),
       d = colDef(
-        "Mean Distance", format = comma_col, filterMethod = js_greater,
+        "Median Distance", format = comma_col, filterMethod = js_greater,
         maxWidth = 120, aggregate = "median",
         aggregated = JS("function(cellInfo, state) {
            let total = 0;
@@ -629,149 +628,150 @@ if (interactive()) {
 
 `r if (has_features) "### Summary Table By Feature"`
 
-```{r tbl-summary-by-feature, eval = has_features, echo = FALSE}
-id <- 'summary-table-by-feature'
-cp <- htmltools::tags$caption(
-  htmltools::tags$em(
-    glue(
-      "Summary of combined results for ",
-      glue_collapse(short_names, sep = " and "),
-      "grouping results by feature. Ranges were classified as described above. ",
-      "Where signal was deteted in both comparisons, the median distance ",
-      "between peak centres is given.",
-      "The number of loci showing each combined pattern are given summarised ",
-      "across all overlapping gene-centric regions, with these able to be ",
-      "included in filtering interactively, and expanded using the arrows in the ",
-      "leftmost column. The number of loci re-classified when combining results ",
-      "is also provided in the last column, with sites generally expected to be ",
-      "reclassified from an unchanged category to either 'increased' or 'decreased'.",
-      "Given that loci may map to multiple features and contribute to ", 
-      "multiple summary values, totals are not provided."
+```{r tbl-summary-by-feature, echo = FALSE}
+if (has_features) {
+  id <- 'summary-table-by-feature'
+  cp <- htmltools::tags$caption(
+    htmltools::tags$em(
+      glue(
+        "Summary of combined results for ",
+        glue_collapse(short_names, sep = " and "),
+        "grouping results by feature. Ranges were classified as described above. ",
+        "Where signal was deteted in both comparisons, the median distance ",
+        "between peak centres is given.",
+        "The number of loci showing each combined pattern are given summarised ",
+        "across all overlapping gene-centric regions, with these able to be ",
+        "included in filtering interactively, and expanded using the arrows in the ",
+        "leftmost column. The number of loci re-classified when combining results ",
+        "is also provided in the last column, with sites generally expected to be ",
+        "reclassified from an unchanged category to either 'increased' or 'decreased'.",
+        "Given that loci may map to multiple features and contribute to ", 
+        "multiple summary values, totals are not provided."
+      )
     )
   )
-)
-tbl <- combined_results %>%
-  as_tibble() %>%
-  unnest(feature, keep_empty = TRUE) %>% 
-  mutate(feature = str_replace_na(feature, "no_feature")) %>% 
-  summarise(
-    total = dplyr::n(),
-    d = median(d, na.rm = TRUE),
-    .by = c(status, feature)
-  ) %>% 
-  arrange(desc(total)) %>% 
-  separate(status, into = unlist(short_names), sep = " - ", remove = FALSE) %>% 
-  mutate(
-    across(
-      all_of(unname(unlist(short_names))), 
-      \(x) factor(x, levels = names(direction_colours))
-    )
-  ) %>% 
-  droplevels() %>% 
-  arrange(!!!syms(unname(short_names)), feature) %>% 
-  left_join(
-    reclass_by_feature, by = c("feature", "status")
-  ) %>% 
-  mutate(
-    orig_n = ifelse(is.na(orig_n), 0, orig_n),
-    reclass = total - orig_n
-  ) %>% 
-  dplyr::select(
-    feature, all_of(unname(unlist(short_names))), total, d, reclass
-  ) %>% 
-  reactable(
-    groupBy = "feature", showPageSizeOptions = nrow(.) > 10,
-    filterable = TRUE,
-    columns = list2(
-      feature = colDef(
-        "Feature",
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-              id, name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px;"
-          )
-        }
-      ),
-      !!sym(short_names$comp1) := colDef(
-        aggregate = "unique",
-        cell = function(value) {
-          value <- str_extract(value, "Increased|Decreased|Unchanged|Undetected")
-          if (str_detect(value, "Increased")) value <- paste(value, "\u21E7")
-          if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
-          paste(targets[[1]], value)
-        },
-        style = function(value) {
-          colour <- case_when(
-            str_detect(value, "Increased") ~ colours$direction[["increased"]],
-            str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
-            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-          )
-          list(color = colour)
-        },
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-              id, name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px;"
-          )
-        }
-      ),
-      !!sym(short_names$comp2) := colDef(
-        aggregate = "unique",        
-        cell = function(value) {
-          value <- str_extract(value, "Increased|Decreased|Unchanged|Undetected")
-          if (str_detect(value, "Increased")) value <- paste(value, "\u21E7")
-          if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
-          paste(targets[[2]], value)
-        },
-        style = function(value) {
-          colour <- case_when(
-            str_detect(value, "Increased") ~ colours$direction[["increased"]],
-            str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
-            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-          )
-          list(color = colour)
-        },
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-              id, name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px;"
-          )
-        }
-      ),
-      total = colDef(
-        name = "Number of Ranges", format = comma_col, aggregate = "sum",
-        filterMethod = js_greater, maxWidth = 150
-      ),
-      d = colDef(
-        "Mean Distance", format = comma_col, filterMethod = js_greater,
-        maxWidth = 120, aggregate = "median",
-        aggregated = JS("function(cellInfo, state) {
+  tbl <- combined_results %>%
+    as_tibble() %>%
+    unnest(feature, keep_empty = TRUE) %>% 
+    mutate(feature = str_replace_na(feature, "no_feature")) %>% 
+    summarise(
+      total = dplyr::n(),
+      d = median(d, na.rm = TRUE),
+      .by = c(status, feature)
+    ) %>% 
+    arrange(desc(total)) %>% 
+    separate(status, into = unlist(short_names), sep = " - ", remove = FALSE) %>% 
+    mutate(
+      across(
+        all_of(unname(unlist(short_names))), 
+        \(x) factor(x, levels = names(direction_colours))
+      )
+    ) %>% 
+    droplevels() %>% 
+    arrange(!!!syms(unname(short_names)), feature) %>% 
+    left_join(
+      reclass_by_feature, by = c("feature", "status")
+    ) %>% 
+    mutate(
+      orig_n = ifelse(is.na(orig_n), 0, orig_n),
+      reclass = total - orig_n
+    ) %>% 
+    dplyr::select(
+      feature, all_of(unname(unlist(short_names))), total, d, reclass
+    ) %>% 
+    reactable(
+      groupBy = "feature", showPageSizeOptions = nrow(.) > 10,
+      filterable = TRUE,
+      columns = list2(
+        feature = colDef(
+          "Feature",
+          filterInput = function(values, name) {
+            tags$select(
+              # Set to undefined to clear the filter
+              onchange = sprintf(
+                "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                id, name
+              ),
+              # "All" has an empty value to clear the filter, and is the default option
+              tags$option(value = "", "All"),
+              lapply(unique(values), tags$option),
+              "aria-label" = sprintf("Filter %s", name),
+              style = "width: 100%; height: 28px;"
+            )
+          }
+        ),
+        !!sym(short_names$comp1) := colDef(
+          aggregate = "unique",
+          cell = function(value) {
+            value <- str_extract(value, "Increased|Decreased|Unchanged|Undetected")
+            if (str_detect(value, "Increased")) value <- paste(value, "\u21E7")
+            if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
+            paste(targets[[1]], value)
+          },
+          style = function(value) {
+            colour <- case_when(
+              str_detect(value, "Increased") ~ colours$direction[["increased"]],
+              str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
+              str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
+              str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
+            )
+            list(color = colour)
+          },
+          filterInput = function(values, name) {
+            tags$select(
+              # Set to undefined to clear the filter
+              onchange = sprintf(
+                "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                id, name
+              ),
+              # "All" has an empty value to clear the filter, and is the default option
+              tags$option(value = "", "All"),
+              lapply(unique(values), tags$option),
+              "aria-label" = sprintf("Filter %s", name),
+              style = "width: 100%; height: 28px;"
+            )
+          }
+        ),
+        !!sym(short_names$comp2) := colDef(
+          aggregate = "unique",        
+          cell = function(value) {
+            value <- str_extract(value, "Increased|Decreased|Unchanged|Undetected")
+            if (str_detect(value, "Increased")) value <- paste(value, "\u21E7")
+            if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
+            paste(targets[[2]], value)
+          },
+          style = function(value) {
+            colour <- case_when(
+              str_detect(value, "Increased") ~ colours$direction[["increased"]],
+              str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
+              str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
+              str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
+            )
+            list(color = colour)
+          },
+          filterInput = function(values, name) {
+            tags$select(
+              # Set to undefined to clear the filter
+              onchange = sprintf(
+                "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                id, name
+              ),
+              # "All" has an empty value to clear the filter, and is the default option
+              tags$option(value = "", "All"),
+              lapply(unique(values), tags$option),
+              "aria-label" = sprintf("Filter %s", name),
+              style = "width: 100%; height: 28px;"
+            )
+          }
+        ),
+        total = colDef(
+          name = "Number of Ranges", format = comma_col, aggregate = "sum",
+          filterMethod = js_greater, maxWidth = 150
+        ),
+        d = colDef(
+          "Mean Distance", format = comma_col, filterMethod = js_greater,
+          maxWidth = 120, aggregate = "median",
+          aggregated = JS("function(cellInfo, state) {
            let total = 0;
            let n = 0;
            state.sortedData.forEach(function(row) {
@@ -785,35 +785,36 @@ tbl <- combined_results %>%
            }
           }
           ")
+        ),
+        reclass = colDef(
+          "Re-Classified", aggregate = "sum", filterMethod = js_greater
+        )
       ),
-      reclass = colDef(
-        "Re-Classified", aggregate = "sum", filterMethod = js_greater
+      elementId = id
+    )
+  tl <- tagList(
+    tags$button(
+      tagList(fontawesome::fa("download"), "Download as CSV"),
+      onclick = sprintf(
+        "Reactable.downloadDataCSV('%s', '%s_summary_by_feature.csv')",
+        id, params$full_comp
       )
     ),
-    elementId = id
+    tags$button(
+      "Expand/Collapse All",
+      onclick = sprintf("Reactable.toggleAllRowsExpanded('%s')", id)
+    ),
+    tags$button(
+      "Clear All Filters",
+      onclick = sprintf("Reactable.setAllFilters('%s', [])", id)
+    ),
+    tbl, cp
   )
-tl <- tagList(
-  tags$button(
-    tagList(fontawesome::fa("download"), "Download as CSV"),
-    onclick = sprintf(
-      "Reactable.downloadDataCSV('%s', '%s_summary_by_feature.csv')",
-      id, params$full_comp
-    )
-  ),
-  tags$button(
-    "Expand/Collapse All",
-    onclick = sprintf("Reactable.toggleAllRowsExpanded('%s')", id)
-  ),
-  tags$button(
-    "Clear All Filters",
-    onclick = sprintf("Reactable.setAllFilters('%s', [])", id)
-  ),
-  tbl, cp
-)
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
+  if (interactive()) {
+    htmltools::browsable(tl)
+  } else {
+    tl
+  }
 }
 ```
 
@@ -821,8 +822,9 @@ if (interactive()) {
 
 ### Overall Status
 
-```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either copmarison. Ranges where signal is changed in either comparisons are exploded."}
+```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either comparison. Ranges where signal is changed in either comparisons are exploded."}
 combined_results %>% 
+  subset(!grepl("Undetected", status)) %>% 
   as_tibble() %>% 
   dplyr::select(ends_with("_status")) %>% 
   setNames(unlist(short_names)) %>% 
@@ -1268,11 +1270,12 @@ prof_widths <- seq_len(2) %>%
   .[names(bwfl)]
 n_bins <- max(map_dbl(heat_params, pluck, "n_bins"))
 ## Get the profile data
+#### PERHAPS THESE Should be centred at THE CONSENSUS PEAKS??? ####
 sig_profiles <- sig_ranges %>% 
   mclapply(
     \(x) {
       ## step through each bwfl separately to ensure variable widths
-      gr <- names(bwfl) %>% 
+      gr_as_list <- names(bwfl) %>% 
         lapply(
           \(i) {
             getProfileData(
@@ -1281,13 +1284,15 @@ sig_profiles <- sig_ranges %>%
             )
           }
         )
-      names(gr) <- names(bwfl)
-      GRangesList(gr)
+      names(gr_as_list) <- names(bwfl)
+      gr_as_list
     },
     mc.cores = min(length(.), threads)
   ) 
 ## Run as a list to enable using different gradients
 p_list <- sig_profiles %>% 
+  .[2] %>% 
+  lapply(GRangesList) %>% 
   lapply(unlist) %>% 
   lapply(names_to_column, "name") %>% 
   lapply(
@@ -1300,7 +1305,16 @@ p_list <- sig_profiles %>%
       name, paste0("^(", paste(targets, collapse = "|"), ")_"), "\\1: "
     )
   ) %>% 
-  mclapply(plotProfileHeatmap, mc.cores = min(length(sig_profiles), threads))
+  mclapply(
+    \(x) {
+      x %>% 
+        splitAsList(.$target) %>% 
+        lapply(plotProfileHeatmap, facetX = "name") %>% 
+        lapply(\(p) p$data) %>% 
+        bind_rows()
+    },
+    mc.cores = threads
+  )
 x_axis <- list(
   ggplot(data.frame(x = c(0, 1)), aes(x = x)) + geom_blank() +
     theme_void() + 
@@ -1311,15 +1325,13 @@ x_axis <- list(
 profile_heatmaps <- p_list %>% 
   lapply(
     function(p){
-      df <- p$data %>% 
+      df <- p %>% 
         mutate(treat = factor(treat, levels = unique(unlist(treat_levels)))) %>% 
         mutate(score = scale(score)[,1], .by = target)
       rng_levels <- df %>% 
-        dplyr::filter(abs(bp) < 150, target == params$tgt1) %>% 
-        dplyr::filter(score == max(score), .by = c(range, name)) %>% 
-        mutate(rank = rank(-score), .by = name) %>% 
-        summarise(rank = mean(rank), .by = range) %>% 
-        arrange(rank) %>% 
+        dplyr::filter(target == params$tgt1) %>% 
+        dplyr::filter(score == max(score), .by = c(range)) %>% 
+        arrange(desc(score)) %>% 
         pull(range) %>% 
         fct_rev() %>% 
         levels()
@@ -1461,14 +1473,7 @@ htmltools::tagList(
 )
 ```
 
-
-## Windows With The Strongest Signal {.tabset}
-
-Loci showing differential signal tend to show the most extreme change where signal levels are low, whilst where signal is high the changes tend to be well statistically supported but less pronounced.
-As an initial data inspection, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown below.
-It is anticipated that change will appear less visually striking, whilst the actual signal should appear relatively strong.
-
-For all plots in this subsection, significant change was detected in at least of comparison.
+## Most Highly Ranked Loci {.loci}
 
 ```{r prepare-plot-objects}
 cb <- config$genome$build %>% 
@@ -1525,8 +1530,9 @@ max_ranges <- comp_names %>%
           max = !!sym(cols[[1]]) + !!sym(cols[[2]])
         ) %>% 
         arrange(-1 * max) %>% 
-        .[1:10] %>% 
-        granges()
+        .[1:100] %>% 
+        granges() %>% 
+        resize(width = 2*width(.), fix = "center")
     }
   ) %>% 
   GRangesList() %>% 
@@ -1576,32 +1582,29 @@ if (length(rna)) {
 ```
 
 
-```{r grl-to-plot-avexpr}
-grl_to_plot <- combined_results %>% 
+An initial set of ranges is shown below, based on the respective p-values from the original comparison.
+
+```{r grl_most_sig}
+grl_most_sig <- combined_results %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
-  arrange(
-    (-1) * case_when(
-      !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logCPM")),
-            !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp1, "_logCPM")),
-      TRUE ~ (
-        !!sym(paste0(comp_names$comp1, "_logCPM")) +
-          !!sym(paste0(comp_names$comp2, "_logCPM"))
+  mutate(
+    ranking_p = case_when(
+      is.na(!!sym(paste0(comp_names$comp1, "_FDR"))) ~ !!sym(paste0(comp_names$comp2, "_FDR")),
+      is.na(!!sym(paste0(comp_names$comp2, "_FDR"))) ~ !!sym(paste0(comp_names$comp1, "_FDR")),
+      TRUE ~ 10 ^ (
+        0.5 * log10(!!sym(paste0(comp_names$comp1, "_FDR"))) +
+          0.5 * log10(!!sym(paste0(comp_names$comp2, "_FDR")))
       )
     )
   ) %>% 
+  arrange(ranking_p) %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) > 0] %>% 
-  endoapply(\(x) x[1]) %>% 
-  setNames(
-    names(.) %>% 
-      str_replace_all("Increased - Increased", "Both Increased") %>% 
-      str_replace_all("Decreased - Decreased", "Both Decreased") 
-  ) %>% 
-  .[order(names(.))]
+  endoapply(\(x) x[1])
 ```
 
 
-```{r plot-top-ranges-aveexpr, echo=FALSE}
+```{r plot-top-ranges-sig, echo=FALSE}
 .makeCaption <- function(gr, feat = "") {
   status <- gr$status %>% 
     str_replace_all(
@@ -1635,9 +1638,10 @@ grl_to_plot <- combined_results %>%
 }
 htmltools::tagList(
   lapply(
-    seq_along(grl_to_plot),
+    seq_along(grl_most_sig),
     function(i) {
-      ## Export the image
+      ## Set the key variables
+      x <- grl_most_sig[[i]]
       pw <- names(grl_to_plot)[[i]]
       pw_name <- pw %>% 
         str_replace_all(
@@ -1656,6 +1660,112 @@ htmltools::tagList(
             )
           )
       )
+      
+      ## Export the image
+      fig_fun(filename = img_out, width = fw, height = fh)
+      plotHFGC(
+        x,
+        hic = hic,
+        features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
+        coverage = bwfl, linecol = line_col,  ylim = y_lim,
+        annotation = annot, annotcol = direction_colours,
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 20, max = max(1e4, width(range(x))),
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10,
+        highlight = rgb(0, 0, 1, 0.3)
+      )
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$caption(
+        htmltools::tags$em(.makeCaption(x))
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level3",
+        htmltools::h3(pw_name),
+        htmltools::div(
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = 960),
+          cp
+        )
+      )
+    }
+  )
+)  
+```
+
+
+## Windows With The Strongest Signal {.tabset}
+
+Loci showing differential signal tend to show the most extreme change where signal levels are low, whilst where signal is high the changes tend to be well statistically supported but less pronounced.
+As an initial data inspection, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown below.
+It is anticipated that change will appear less visually striking, whilst the actual signal should appear relatively strong.
+
+For all plots in this subsection, significant change was detected in at least of comparison.
+
+
+
+```{r grl-to-plot-avexpr}
+grl_to_plot <- combined_results %>% 
+  filter_by_non_overlaps(grl_most_sig) %>% 
+  subset(str_detect(status, "(In|De)creased")) %>% 
+  arrange(
+    (-1) * case_when(
+      !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logCPM")),
+            !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp1, "_logCPM")),
+      TRUE ~ (
+        !!sym(paste0(comp_names$comp1, "_logCPM")) +
+          !!sym(paste0(comp_names$comp2, "_logCPM"))
+      )
+    )
+  ) %>% 
+  splitAsList(.$status) %>% 
+  .[map_int(., length) > 0] %>% 
+  endoapply(\(x) x[1]) %>% 
+  setNames(
+    names(.) %>% 
+      str_replace_all("Increased - Increased", "Both Increased") %>% 
+      str_replace_all("Decreased - Decreased", "Both Decreased") 
+  ) %>% 
+  .[order(names(.))]
+```
+
+
+```{r plot-top-ranges-aveexpr, echo=FALSE}
+htmltools::tagList(
+  lapply(
+    seq_along(grl_to_plot),
+    function(i) {
+      ## Set the key variables
+      pw <- names(grl_to_plot)[[i]]
+      pw_name <- pw %>% 
+        str_replace_all(
+          "(.+) - (.+)", 
+          paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+        )
+      img_out <- file.path(
+        fig_path,
+        pw %>% 
+          str_to_lower() %>% 
+          str_replace_all(
+            "(.+) - (.+)", 
+            paste0(
+              comp_names$comp1, "-\\1-", 
+              comp_names$comp2, "-\\2-by-aveexpr.", fig_type
+            )
+          )
+      )
+      ## Export the image
       fig_fun(filename = img_out, width = fw, height = fh)
       plotHFGC(
         grl_to_plot[[i]],
@@ -1710,6 +1820,7 @@ By taking the two set of visualisations in this context, judgements can be made 
 
 ```{r grl-to-plot-logfc}
 grl_to_plot <- combined_results %>% 
+  filter_by_non_overlaps(grl_most_sig) %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
   plyranges::arrange(
     (-1) * case_when(
