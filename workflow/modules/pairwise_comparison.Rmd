@@ -435,9 +435,12 @@ cp <- htmltools::tags$caption(
   )
 )
 tbl <- combined_results %>%
+  mutate(w = width) %>% 
   as_tibble() %>%
   summarise(
     total = dplyr::n(),
+    width_kb = sum(w) / 1e3,
+    median_width = median(w),
     d = median(d, na.rm = TRUE),
     .by = c(status, region)
   ) %>% 
@@ -563,6 +566,29 @@ tbl <- combined_results %>%
             return total.toLocaleString('en-US')
           }")
       ),
+      width_kb = colDef(
+        "Total Width (kb)", format = colFormat(separators = TRUE, digits = 1),
+        filterMethod = js_greater,
+        maxWidth = 120, aggregate = "median",
+        footer = JS("function(column, state) {
+            let total = 0
+            let n = 0
+            state.sortedData.forEach(function(row) {
+              let value = parseFloat(row[column.id]);
+              if (!isNaN(value)) {
+                total += value;
+                n += 1;
+              }
+            })
+            mn = total / n
+            return mn.toFixed(1)
+          }")
+      ),
+      median_width = colDef(
+        "Median Width (bp)", format = colFormat(separators = TRUE, digits = 0),
+        filterMethod = js_greater,
+        maxWidth = 120, aggregate = "median"
+      ),
       d = colDef(
         "Median Distance", format = comma_col, filterMethod = js_greater,
         maxWidth = 120, aggregate = "median",
@@ -651,11 +677,14 @@ if (has_features) {
     )
   )
   tbl <- combined_results %>%
+    mutate(w = width) %>% 
     as_tibble() %>%
     unnest(feature, keep_empty = TRUE) %>% 
     mutate(feature = str_replace_na(feature, "no_feature")) %>% 
     summarise(
       total = dplyr::n(),
+      width_kb = sum(w) / 1e3,
+      median_width = median(w),
       d = median(d, na.rm = TRUE),
       .by = c(status, feature)
     ) %>% 
@@ -677,7 +706,8 @@ if (has_features) {
       reclass = total - orig_n
     ) %>% 
     dplyr::select(
-      feature, all_of(unname(unlist(short_names))), total, d, reclass
+      feature, all_of(unname(unlist(short_names))), total, contains("width"), 
+      d, reclass
     ) %>% 
     reactable(
       groupBy = "feature", showPageSizeOptions = nrow(.) > 10,
@@ -768,6 +798,29 @@ if (has_features) {
           name = "Number of Ranges", format = comma_col, aggregate = "sum",
           filterMethod = js_greater, maxWidth = 150
         ),
+        width_kb = colDef(
+        "Total Width (kb)", format = colFormat(separators = TRUE, digits = 1),
+        filterMethod = js_greater,
+        maxWidth = 120, aggregate = "median",
+        footer = JS("function(column, state) {
+            let total = 0
+            let n = 0
+            state.sortedData.forEach(function(row) {
+              let value = parseFloat(row[column.id]);
+              if (!isNaN(value)) {
+                total += value;
+                n += 1;
+              }
+            })
+            mn = total / n
+            return mn.toFixed(1)
+          }")
+      ),
+      median_width = colDef(
+        "Median Width (bp)", format = colFormat(separators = TRUE, digits = 0),
+        filterMethod = js_greater,
+        maxWidth = 120, aggregate = "median"
+      ),
         d = colDef(
           "Mean Distance", format = comma_col, filterMethod = js_greater,
           maxWidth = 120, aggregate = "median",

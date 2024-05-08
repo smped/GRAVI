@@ -41,67 +41,67 @@ cat_time <- function(...){
 }
 
 ## For testing
-# all_wildcards <- list(
-#   tgt1 = "AR",
-#   tgt2 = "H3K27ac",
-#   comp1 = "E2_E2DHT",
-#   comp2 = "E2_E2DHT"
-# )
-# full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
-# bed_groups <- list(
-#   c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
-# ) |>
-#   expand.grid() |>
-#   as.matrix() |>
-#   apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
-#   paste0(".bed.gz")
-# all_input <- list(
-#   sq = "output/annotations/seqinfo.rds",
-#   blacklist = "output/annotations/blacklist.rds",
-#   features = "output/annotations/features.rds",
-#   greylist = "output/greylist/greylists.rds",
-#   gtf_gene = "output/annotations/gtf_gene.rds",
-#   hic = "output/annotations/hic.rds",
-#   regions = "output/annotations/gene_regions.rds",
-#   results1 = file.path(
-#     "output/differential_signal", all_wildcards$tgt1,
-#     paste0(all_wildcards$tgt1, "_", all_wildcards$comp1, "-differential-signal.rds")
-#   ),
-#   results2 = file.path(
-#     "output/differential_signal", all_wildcards$tgt2,
-#     paste0(all_wildcards$tgt2, "_", all_wildcards$comp2, "-differential-signal.rds")
-#   ),
-#   yaml = "config/params.yml"
-# )
-# all_output <- list(
-#   rds = file.path(
-#     "output/pairwise_comparisons", full_comp, paste0(full_comp, "-pairwise_results.rds")
-#   ),
-#   bed = file.path(
-#     "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
-#   )
-# )
-# all_params <- list(
-#   pairwise_params = list(
-#     adj = "fdr",
-#     alpha = 0.05
-#   )
-# )
-# pw_params <- all_params$pairwise_params
-# rm(list = c("bed_groups", "full_comp"))
-# config <- yaml::read_yaml("config/config.yml")
-# threads <- 2
-
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-all_wildcards <- slot(snakemake, "wildcards")
-config <- slot(snakemake, "config")
-threads <- slot(snakemake, "threads")
-all_params <- slot(snakemake, "params")
+all_wildcards <- list(
+  tgt1 = "AR",
+  tgt2 = "H3K27ac",
+  comp1 = "E2_E2DHT",
+  comp2 = "E2_E2DHT"
+)
+full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
+bed_groups <- list(
+  c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
+) |>
+  expand.grid() |>
+  as.matrix() |>
+  apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
+  paste0(".bed.gz")
+all_input <- list(
+  sq = "output/annotations/seqinfo.rds",
+  blacklist = "output/annotations/blacklist.rds",
+  features = "output/annotations/features.rds",
+  greylist = "output/greylist/greylists.rds",
+  gtf_gene = "output/annotations/gtf_gene.rds",
+  hic = "output/annotations/hic.rds",
+  regions = "output/annotations/gene_regions.rds",
+  results1 = file.path(
+    "output/differential_signal", all_wildcards$tgt1,
+    paste0(all_wildcards$tgt1, "_", all_wildcards$comp1, "-differential-signal.rds")
+  ),
+  results2 = file.path(
+    "output/differential_signal", all_wildcards$tgt2,
+    paste0(all_wildcards$tgt2, "_", all_wildcards$comp2, "-differential-signal.rds")
+  ),
+  yaml = "config/params.yml"
+)
+all_output <- list(
+  rds = file.path(
+    "output/pairwise_comparisons", full_comp, paste0(full_comp, "-pairwise_results.rds")
+  ),
+  bed = file.path(
+    "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
+  )
+)
+all_params <- list(
+  pairwise_params = list(
+    adj = "fdr",
+    alpha = 0.05
+  )
+)
 pw_params <- all_params$pairwise_params
+rm(list = c("bed_groups", "full_comp"))
+config <- yaml::read_yaml("config/config.yml")
+threads <- 2
+
+# log <- slot(snakemake, "log")[[1]]
+# message("Setting stdout to ", log, "\n")
+# sink(log, split = TRUE)
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+# all_wildcards <- slot(snakemake, "wildcards")
+# config <- slot(snakemake, "config")
+# threads <- slot(snakemake, "threads")
+# all_params <- slot(snakemake, "params")
+# pw_params <- all_params$pairwise_params
 
 cat_list(all_input, "input:", "-")
 cat_list(all_wildcards, "wildcards:", "=")
@@ -159,16 +159,110 @@ dsa_results <- list2(
       p_col <- ifelse(metadata(x)$fc == 1, "PValue", "p_mu0")
       x %>%
         mutate(FDR = !!sym(fdr_col), PValue = !!sym(p_col)) %>%
-        select(all_of(grl_cols))
+        select(all_of(grl_cols)) %>%
+        mutate(centre = start + 0.5 * width)
     },
     mc.cores = 2
-  ) %>%
-  GRangesList()
+  )
+lv <- c("Unchanged", "Decreased", "Increased", "Undetected")
 
-cat_time("Merging results")
-combined_results <- dsa_results %>%
-  endoapply(mutate, centre = start + 0.5 * width) %>%
-  mapGrlCols(var = c("centre", grl_cols))
+cat_time("Comparing widths")
+p <- wilcox.test(width(dsa_results[[1]]), width(dsa_results[[2]]))$p.value
+if (p < 0.05) {
+  cat_time("Datasets have significantly different widths (Wilcoxon p < 0.05)")
+  min_ds <- dsa_results %>%
+    lapply(width) %>%
+    map_dbl(median) %>%
+    which.min() %>%
+    names()
+  max_ds <-  dsa_results %>%
+    lapply(width) %>%
+    map_dbl(median) %>%
+    which.max() %>%
+    names()
+  cat_time(min_ds, "appears to contain narrower ranges, and will be used to scaffold", max_ds)
+
+  cat_time("Manually renaming mcols for merging")
+  colnames(mcols(dsa_results[[1]])) <- paste0(
+    names(dsa_results)[[1]], "_", colnames(mcols(dsa_results[[1]]))
+  )
+  colnames(mcols(dsa_results[[2]])) <- paste0(
+    names(dsa_results)[[2]], "_", colnames(mcols(dsa_results[[2]]))
+  )
+
+  cat_time("Finding overlaps")
+  hits <- findOverlaps(dsa_results[[min_ds]], dsa_results[[max_ds]]) %>%
+    as_tibble()
+  cat_time("Resolving duplicate overlaps")
+  dup_queries <- hits$queryHits[duplicated(hits$queryHits)]
+  dedup_hits <- hits %>%
+    subset(queryHits %in% dup_queries) %>%
+    split(.$queryHits) %>%
+    mclapply(
+      \(x) {
+        qr <- dsa_results[[min_ds]][x$queryHits[[1]]]
+        subj <- dsa_results[[max_ds]][x$subjectHits]
+        i <- splitAsList(subj, seq_along(subj)) %>%
+          map_dbl(\(x) propOverlap(qr, x)) %>%
+          which.max() %>%
+          as.integer() %>%
+          .[[1]]
+        tibble(
+          queryHits = x$queryHits[[1]],
+          subjectHits = x$subjectHits[[i]]
+        )
+      },
+      mc.cores = threads
+    ) %>%
+    bind_rows()
+  hits <- hits %>%
+    dplyr::filter(!(queryHits %in% dedup_hits$queryHits)) %>%
+    bind_rows(dedup_hits) %>%
+    arrange(queryHits)
+
+  cat_time("Creating new object")
+  #'The tricky step here will be to merge ranges to give a combined range
+  #' where the two overlap, which may not be possible. If two peaks from the
+  #' narrower target overlap the same region from the broad one, multi-mapping
+  #' will lead to identical ranges, but with different logFC etc.
+  #' The best bet may be to just map into the narrow target and slice those
+  #' ranges out from the broad one. The boundaries won't be perfect at all, but
+  #' it may be the best realistic solution
+  #'
+
+  shared <- dsa_results[[min_ds]][hits$queryHits]
+  mcols(shared) <- cbind(
+    mcols(shared), mcols(dsa_results[[max_ds]][hits$subjectHits])
+  )
+  #' The remaining ranges from the narrower target are easy here using the hits,
+  #' but pulling these ranges out of the broad target may be trickier
+  #' We can't remove the hits as those regions have effectively been sliced.
+  #' Using setdiff will merge neighbouring ranges
+  gp <- dsa_results[[max_ds]] %>%
+    GPos() %>%
+    .[!overlapsAny(., shared)]
+  gp_hits <- findOverlaps(gp, dsa_results[[max_ds]])
+  broad_sliced <- gp %>%
+    splitAsList(subjectHits(gp_hits)) %>%
+    range() %>%
+    unlist() %>%
+    names_to_column("subjectHit")
+  mcols(broad_sliced) <- mcols(dsa_results[[max_ds]])[as.integer(broad_sliced$subjectHit), ]
+
+  combined_results <- list(
+    shared, dsa_results[[min_ds]][-hits$queryHits], broad_sliced
+  ) %>%
+    GRangesList() %>%
+    unlist() %>%
+    unname() %>%
+    sort()
+
+} else {
+  cat_time("Datasets have similar widths (Wilcoxon p >= 0.05")
+  cat_time("Merging results")
+  combined_results <- dsa_results %>%
+    mapGrlCols(var = c("centre", grl_cols))
+}
 
 cat_time("Removing any black/grey-listed regions")
 bl <- read_rds(all_input$blacklist)
@@ -177,7 +271,7 @@ exclude_ranges <- c(bl, gl)
 combined_results <- combined_results[!overlapsAny(combined_results, exclude_ranges)]
 
 cat_time("Updating mcols")
-## Updated the status to undetected where apropriate
+## Updated the status to undetected where appropriate
 mc <- mcols(combined_results)
 mc[str_ends(names(mc), "status")] <- mc[str_ends(names(mc), "status")] %>%
   mclapply(fct_na_value_to_level, "Undetected", mc.cores = 2)
@@ -220,7 +314,7 @@ mc[[stat1_col]] <- case_when(
   TRUE ~ mc[[stat1_col]]
 
 ) %>%
-  factor(levels = levels(dsa_results[[1]]$status))
+  factor(levels = lv)
 
 cat_time("Updating status for", both_comps$comp2)
 stat2_col <- paste0(both_comps$comp2, "_status")
@@ -243,7 +337,8 @@ mc[[stat2_col]] <- case_when(
   TRUE ~ mc[[stat2_col]]
 
 ) %>%
-  factor(levels = levels(dsa_results[[2]]$status))
+  factor(levels = lv)
+
 mc$status <- fct_cross(
   mc[[stat1_col]], mc[[stat2_col]], sep = " - ", keep_empty = TRUE
 )
@@ -352,7 +447,9 @@ write_rds(combined_results, all_output$rds, compress = "gz")
 cat_time("Exporting all joint status bed files")
 split_ranges <- combined_results %>%
   splitAsList(.$status) %>%
-  endoapply(granges)
+  endoapply(granges) %>%
+  GenomicRanges::reduce()
+
 names(split_ranges) %>%
   str_subset("Undetected", negate = TRUE) %>%
   lapply(

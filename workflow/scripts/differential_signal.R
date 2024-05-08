@@ -47,7 +47,7 @@ cat_time <- function(...){
 
 ## For testing
 # all_input <- list(
-#   counts = "output/differential_signal/AR/AR_counts.rds",
+#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
 #   gtf_gene = "output/annotations/gtf_gene.rds",
 #   hic = "output/annotations/hic.rds",
 #   features = "output/annotations/features.rds",
@@ -62,14 +62,14 @@ cat_time <- function(...){
 #   yaml = "config/params.yml"
 # )
 # all_output <- list(
-#   changed = "output/differential_signal/AR/AR_E2_E2DHT-changed.bed.gz",
-#   decreased = "output/differential_signal/AR/AR_E2_E2DHT-decreased.bed.gz",
-#   increased = "output/differential_signal/AR/AR_E2_E2DHT-increased.bed.gz",
-#   ihw = "output/differential_signal/AR/AR_E2_E2DHT-ihw.rds",
-#   rds = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds"
+#   changed = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-changed.bed.gz",
+#   decreased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-decreased.bed.gz",
+#   increased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-increased.bed.gz",
+#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds",
+#   rds = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds"
 # )
-# all_params <- jsonlite::fromJSON("config/json/differential_signal_param.json")[["AR"]]
-# all_wildcards <- list(target = "AR", ref = "E2", treat = "E2DHT")
+# all_params <- jsonlite::fromJSON("config/json/differential_signal_param.json")[["H3K27ac"]]
+# all_wildcards <- list(target = "H3K27ac", ref = "E2", treat = "E2DHT")
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 # threads <- 4
 
@@ -212,9 +212,32 @@ fit <- fitAssayDiff(
 pcols <- c("PValue", "p_mu0")
 
 if (win_type == "sliding") {
+
   cat_time("Merging windows")
   ## This is set to merge within 2 window steps, with minimum window set via params
   ## It's hard-wired to return the 'adaptive' region that's changed as keyval_range
+  ## This is the initial approach. Uncomment to re-activate
+  # results <- mergeByHMP(
+  #   fit, pval = pcols,
+  #   merge_within = floor(1 + 2 * all_params$window_step / 3),
+  #   hm_pre = "", keyval = "merged", min_win = all_params$min_win
+  # ) %>%
+  #   plyranges::select(
+  #     starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
+  #     FDR = PValue_fdr
+  #   ) %>%
+  #   addDiffStatus(alpha = fdr_alpha)
+
+  #' As an experimental step, moved the keyval_range to the core ranges,
+  #' slice out any ranges which are not within the keyval range, and re-analyse
+  #' The nett effect is that ranges outside the keyval_range which were
+  #' originally significant can still remain significant, but can also switch
+  #' to unchanged. This gives more precise ranges which are changed & decreases
+  #' the total width of changed ranges. In the test H3K27ac dataset, 267KB of
+  #' previously changed BP are switched to unchanged, which 16KB are switched
+  #' from unchanged to changed. The total loss in changed BP is 251KB, but
+  #' hopefully results retain far greater precision as to actual changed regions
+  #' Importantly, the keyval_range will now be **absent** from the results
   results <- mergeByHMP(
     fit, pval = pcols,
     merge_within = floor(1 + 2 * all_params$window_step / 3),
@@ -223,12 +246,32 @@ if (win_type == "sliding") {
     plyranges::select(
       starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
       FDR = PValue_fdr
+    )
+  results <- rowRanges(fit) %>%
+    .[!overlapsAny(., results$keyval_range)] %>%
+    mergeByHMP(
+      pval = pcols,
+      merge_within = floor(1 + 2 * all_params$window_step / 3),
+      hm_pre = "", keyval = "merged"
     ) %>%
-    addDiffStatus(alpha = fdr_alpha)
+    plyranges::select(
+      starts_with("n_"), starts_with("log"), any_of(pcols),
+      FDR = PValue_fdr
+    ) %>%
+    c(
+      colToRanges(results, "keyval_range")
+    ) %>%
+    sort() %>%
+    ## Now readjust PValues & add status
+    mutate(FDR = p.adjust(PValue, "fdr")) %>%
+    addDiffStatus(alpha = fdr_alpha) %>%
+    subset(n_windows >= all_params$min_win)
+
 
   ## Map genes, features & regions, which are otherwise propagated through
   cat_time("Mapping merged windows to regions")
-  results$region <- bestOverlap(results$keyval_range, unlist(regions), var = "region")
+  # results$region <- bestOverlap(results$keyval_range, unlist(regions), var = "region")
+  results$region <- bestOverlap(results, unlist(regions), var = "region")
   results$region <- factor(
     results$region, levels = map_chr(regions, \(x) x$region[1])
   )
@@ -236,7 +279,8 @@ if (win_type == "sliding") {
     cat_time("Mapping merged windows to features")
     feat_df <- features %>%
       lapply(
-        \(x) bestOverlap(results$keyval_range, x, var = "feature")
+        # \(x) bestOverlap(results$keyval_range, x, var = "feature")
+        \(x) bestOverlap(results, x, var = "feature")
       ) %>%
       as_tibble() %>%
       mutate(range = as.character(results))

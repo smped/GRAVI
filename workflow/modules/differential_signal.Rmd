@@ -93,7 +93,6 @@ comp <- params$results %>%
   basename() %>% 
   str_remove_all("-differential-signal.rds")
 win_type <- diff_sig_params$window_type
-rng_col <- c(sliding = "keyval_range", fixed = "centred_peak")[[win_type]]
 
 enrich_params <- here::here("config", "params.yml") %>%
   read_yaml() %>%
@@ -374,16 +373,17 @@ tbl_cols <- list(
 #### Overall Results
 
 ```{r tab-overall}
-tbl <- results %>% 
+tbl <- results %>%
   mutate(w = width) %>% 
   as_tibble() %>% 
   summarise(
     n = dplyr::n(), 
-    width = median(w),
+    total_kb = sum(w) / 1e3,
+    med_width = median(w),
     logCPM = median(logCPM),
     .by = all_of("status")
   ) %>% 
-  mutate(`%` = n / sum(n)) %>% 
+  mutate(`%` = total_kb / sum(total_kb)) %>% 
   dplyr::select(status, n, `%`, everything()) %>% 
   reactable(
     searchable = FALSE, filterable = FALSE,
@@ -397,13 +397,18 @@ tbl <- results %>%
         maxWidth = 150, format = colFormat(separators = TRUE),
         footer = htmltools::tags$b(comma(length(results)))
       ),
-      width = colDef(
-        name = "Median Width (bp)", format = colFormat(digits = 1),
-        footer = htmltools::tags$b(round(median(width(results)), 1)),
+      total_kb = colDef(
+        name = "Total Width (kb)", format = colFormat(digits = 1, separators = TRUE),
+        footer = htmltools::tags$b(comma(sum(width(results)), scale = 1e-3)),
+        maxWidth = 200
+      ),
+      med_width = colDef(
+        name = "Median Width (bp)", format = colFormat(digits = 0, separators = TRUE),
+        footer = htmltools::tags$b(comma(median(width(results)), 1)),
         maxWidth = 200
       ),
       `%` = colDef(
-        name = glue("% Total {region_type}"), 
+        name = glue("% Total"), 
         format = colFormat(percent = TRUE, digits = 1),
         style = \(value) bar_style(width = value, align = "right"),
         maxWidth = 150
@@ -694,7 +699,7 @@ results %>%
     aes(x = region, y = logFC, fill = region), orientation = "x",
     show.legend = FALSE
   ) +
-  geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
+  geom_smooth(se = FALSE, method = "loess") +
   geom_hline(yintercept = 0) +
   geom_label_repel(
     aes(y = logFC, label = annot, colour = status),
@@ -771,7 +776,7 @@ if (has_features) {
       aes(x = feature, y = logFC, fill = feature), orientation = "x",
       show.legend = FALSE
     ) +
-    geom_smooth(se = FALSE, method = "gam", formula = y ~ s(x, bs = "cs")) +
+    geom_smooth(se = FALSE, method = "loess") +
     geom_hline(yintercept = 0) +
     geom_label_repel(
       aes(y = logFC, label = annot, colour = status),
@@ -935,16 +940,14 @@ if (file.exists(nfr_rds)) {
 nfr$nfr <- as.character(nfr)
 sig_ranges <- results %>% 
   filter(!!sym(fdr_column) < fdr_alpha) %>%
-  join_overlap_left(nfr) %>% 
+  # This will duplicate some ranges with multiple NFR
+  join_overlap_left(nfr) %>%
   mutate(
     ## Manage any ranges without an NFR
-    nfr = ifelse(is.na(nfr), as.character(!!sym(rng_col)), nfr),
+    nfr = ifelse(is.na(nfr), as.character(.), nfr),
     nfr = GRanges(nfr),
-    d = abs(
-      start(nfr) + 0.5 * width(nfr) - (
-        start(!!sym(rng_col)) + 0.5 * width(!!sym(rng_col))
-      )
-    )
+    ## Find the closest NFR to the peak centre
+    d = abs(start(nfr) + 0.5 * width(nfr) - (start(.) + 0.5 * width(.)))
   ) %>% 
   ## Select the nearest NFR to the centre of the existing range
   arrange(d) %>% 
