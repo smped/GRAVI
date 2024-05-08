@@ -18,10 +18,6 @@ library(extraChIPs)
 library(GenomeInfoDb)
 library(universalmotif)
 library(patchwork)
-```
-
-
-```{r options}
 panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
@@ -29,15 +25,13 @@ theme_set(
   theme_bw() +
     theme(plot.title = element_text(hjust = 0.5))
 )
-source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "table_funs.R"))
+```
+
+```{r config}
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON()
 all_out <- lapply(params, here::here)
-```
-
-```{r config}
 enrich_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("enrichment")
 mapping_params <- read_yaml(here::here("config", "params.yml")) %>%
@@ -48,6 +42,13 @@ msigdb_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("msigdb")
 region_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("gene_regions")
+all_heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
+  jsonlite::fromJSON() 
+source(here::here("workflow", "scripts", "custom_functions.R"))
+source(here::here("workflow", "scripts", "table_funs.R"))
+```
+
+```{r colours}
 colours <- read_yaml(here::here("config", "colours.yml"))
 treat_levels <- config$comparisons$contrasts %>% 
   unlist() %>% 
@@ -832,11 +833,10 @@ if (length(missing_pw_cols)) {
 }
 
 
-all_heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
-  jsonlite::fromJSON() 
 heat_cols <- targets %>% 
+  as.character() %>% 
   lapply(\(x) all_heat_params[[x]]$gradient) %>% 
-  setNames(targets)
+  setNames(as.character(targets))
 
 target_cols <- map_chr(heat_cols, \(x) x[length(x)])
 if (any(duplicated(target_cols))) {
