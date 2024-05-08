@@ -29,10 +29,10 @@ rule macs2_individual:
         ]['fdr'],
         keep_dup = lambda wildcards: peak_calling_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
-        ]['keep_dup'],
+        ]['keep_duplicates'],
         extra = lambda wildcards: peak_calling_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
-        ]['extra']
+        ]['macs2_extra']
     threads: 1
     resources:
         mem_mb = 8192,
@@ -140,7 +140,7 @@ rule macs2_merged:
         prefix = "{target}_{treat}_merged",
         gsize = lambda wildcards: peak_calling_param[wildcards.target]['gsize'],
         fdr = lambda wildcards: peak_calling_param[wildcards.target]['fdr'],
-        keep_dup = lambda wildcards: peak_calling_param[wildcards.target]['keep_dup'],
+        keep_dup = lambda wildcards: peak_calling_param[wildcards.target]['keep_duplicates'],
         extra = lambda wildcards: peak_calling_param[wildcards.target]['macs2_extra']
     threads: 1
     resources:
