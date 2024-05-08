@@ -23,17 +23,22 @@ external:
 ## This is passed to all targets, however, if a different value is required
 ## in any field for a specific target, then adding that field for the given
 ## target can be done, e.g. AR: fdr: 0.01 (in the correct YAML format)
-macs2:
+peak_calling:
   default:
+    ## Passed to macs2
     gsize: "hs"
     fdr: 0.05
     keep_duplicates: "all"
-
-peak_qc:
-  default:
-    outlier_threshold: 10
+    macs2_extra: "" 
+    peak_type: "narrow" ## **Currently ignored** ##
+    ## Used during creation of consensus peaks
+    merge_within: 0 
+    min_width: 0
+    ## QC params
     allow_zero: false
     min_prop_reps: 0.5
+    outlier_threshold: 10
+
 
 ## Name any targets here which should have these additional modules run
 modules:
@@ -46,9 +51,12 @@ motif_analysis:
     adj: "fdr"
     alpha: 0.05
     binwidth: 10
+    break_ties: "all"
+    # Motifs found in fewer sequences won't be tested for positional bias
     ignore_below: 0.01
     iterations: 100
     model: "quasipoisson"
+    min_score: "80%"
     peak_width: 400
 
 ## Set the defaults across all targets here and set any changes as desired

@@ -37,43 +37,43 @@ cat_time <- function(...){
 }
 
 ## For testing
-# all_input <- list(
-#     peaks = c(
-#         "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2.nfr.bed.gz",
-#         "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_E2DHT.nfr.bed.gz"
-#     ),
-#     sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
-#     blacklist = "../GRAVI_testing/output/annotations/blacklist.rds",
-#     features = "../GRAVI_testing/output/annotations/features.rds",
-#     greylist = "../GRAVI_testing/output/greylist/greylists.rds",
-#     gtf_gene = "../GRAVI_testing/output/annotations/gtf_gene.rds",
-#     hic = "../GRAVI_testing/output/annotations/hic.rds",
-#     qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
-#     regions = "../GRAVI_testing/output/annotations/gene_regions.rds",
-#     yaml = "../GRAVI_testing/config/params.yml"
-# )
-# all_output <- list(
-#     bed = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
-#     rds = "../GRAVI_testing/output/nfr/H3K27ac/H3K27ac_consensus_nfr.rds"
-# )
-# all_wildcards <- list(target = "H3K27ac")
-# all_params <- list(
-#   method = 'coverage',
-#   min_width = 75,
-#   p = 1,
-#   min_gapwidth = 52
-# )
-# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+all_input <- list(
+    peaks = c(
+        "output/peak_analysis/H3K27ac/H3K27ac_E2_filtered_peaks.narrowPeak",
+        "output/peak_analysis/H3K27ac/H3K27ac_E2DHT_filtered_peaks.narrowPeak"
+    ),
+    sq = "output/annotations/seqinfo.rds",
+    blacklist = "output/annotations/blacklist.rds",
+    features = "output/annotations/features.rds",
+    greylist = "output/greylist/greylists.rds",
+    gtf_gene = "output/annotations/gtf_gene.rds",
+    hic = "output/annotations/hic.rds",
+    qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
+    regions = "output/annotations/gene_regions.rds",
+    yaml = "config/params.yml"
+)
+all_output <- list(
+    bed = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
+    rds = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.rds"
+)
+all_wildcards <- list(target = "H3K27ac")
+all_params <- list(
+  method = 'union',
+  min_width = 0,
+  peak_type = "narrow",
+  p = 0,
+  merge_within = 300
+)
+config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-config <- slot(snakemake, "config")
-all_wildcards <- slot(snakemake, "wildcards")
-all_params <- slot(snakemake, "params")
+# log <- slot(snakemake, "log")[[1]]
+# message("Setting stdout to ", log, "\n")
+# sink(log, split = TRUE)
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+# config <- slot(snakemake, "config")
+# all_wildcards <- slot(snakemake, "wildcards")
+# all_params <- slot(snakemake, "params")
 
 cat_list(all_input, "input")
 cat_list(all_wildcards, "wildcards:", "=")
@@ -100,45 +100,45 @@ gl <- read_rds(all_input$greylist)[unique(samples$input)] %>% unlist()
 exclude_ranges <- c(bl, gl)
 
 cat_time("Checking peak type")
-peak_type <- "narrow"
+peak_type <- match.arg(all_params$peak_type, c("narrow", "bed"))
 vars <- c("score", "centre")
-if (any(str_detect(all_input$peaks, "(bed|bed.gz)$"))) peak_type <- "bed"
 
 cat_time("Loading peaks/ranges using type =", peak_type)
 filtered_peaks <- all_input$peaks %>%
   importPeaks(
     type = peak_type, seqinfo = sq, blacklist = exclude_ranges,
-    nameRanges = FALSE, centre = TRUE
+    nameRanges = FALSE, centre = peak_type == "narrow"
   )
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
 if (length(vars) == 0) vars <- NULL
 
-cat_time("Checking params")
-# From  names(Rdpack::S4formals("reduce", c(x = "GenomicRanges")))
-valid_args <- list(formals(makeConsensus), formals(reduceMC)) %>%
-  lapply(names) %>%
-  unlist() %>%
-  unique() %>%
-  setdiff("...")
-cons_params <- list(
-  ## These all need to be set on a cluster, but not when running interactively
-  ## Don't know why...
-  x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE,
-  p = 0, method = 'union'
-) %>%
-  .[!names(.) %in% names(all_params)] %>%
-  c(all_params) %>%
-  .[names(.) %in% valid_args]
-cat_time("Forming consensus peaks")
+cat_time("Setting params")
+## These all need to be set on a cluster, but not when running interactively
+## Don't know why...
+cons_params <- all_params[names(all_params) != "peak_type"] %>%
+  c(
+    list(x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE)
+  )
 cons_peaks <- do.call("makeConsensus", cons_params)
+cat_time("Formed",  scales::comma(length(cons_peaks)), "consensus peaks")
 
+if ("centre" %in% vars) {
+  if ("score" %in% vars) {
+    ## This weights any centre positions to the highest confidence peaks
+    ## When merging across large regions, results still need a bit of checking
+    cat_time("Taking the score-weighted mean position for the centre")
+    cons_peaks$centre <- mapply(
+      weighted.mean, x = cons_peaks$centre, w = cons_peaks$score
+    )
+  } else {
+    cat_time("Taking the median centre for each peak")
+    cons_peaks$centre <- floor(map_dbl(cons_peaks$centre, median))
+  }
+}
 if ("score" %in% vars) {
+  # This really represents the 'highest confidence' call
   cat_time("Taking the maximum score for each peak")
   cons_peaks$score <- map_dbl(cons_peaks$score, max)
-}
-if ("centre" %in% vars) {
-  cat_time("Taking the median centre for each peak")
-  cons_peaks$centre <- floor(map_dbl(cons_peaks$centre, median))
 }
 cons_peaks <- plyranges::select(cons_peaks, any_of(vars))
 

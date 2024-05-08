@@ -16,7 +16,7 @@ rule filter_merged_peaks:
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
         )
     params:
-        min_prop = lambda wildcards: peak_qc_param[wildcards.target]['min_prop_reps']
+        min_prop = lambda wildcards: peak_calling_param[wildcards.target]['min_prop_reps']
     conda: "../envs/rmarkdown.yml"
     threads: 1
     retries: 1
@@ -53,6 +53,12 @@ rule make_consensus_peaks:
         rds =  os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.rds"
         ),
+    params:
+        method = "union",
+        merge_within =  lambda wildcards: peak_calling_param[wildcards.target]['merge_within'],
+        min_width = lambda wildcards: peak_calling_param[wildcards.target]['min_width'],
+        peak_type = lambda wildcards: peak_calling_param[wildcards.target]['peak_type'],
+        p = 0,
     conda: "../envs/rmarkdown.yml"
     threads: 1
     retries: 1
@@ -80,7 +86,7 @@ rule make_shared_consensus_peaks:
         yaml = os.path.join("config", "params.yml"),
     output:
         bed = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
-        rds =  os.path.join(peak_path, "shared", "shared_peaks.rds"),        
+        rds =  os.path.join(peak_path, "shared", "shared_peaks.rds"),    
     conda: "../envs/rmarkdown.yml"
     threads: 1
     retries: 1

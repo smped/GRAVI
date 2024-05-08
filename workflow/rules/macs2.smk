@@ -21,16 +21,16 @@ rule macs2_individual:
     shadow: 'minimal'
     params:
         outdir = os.path.join(macs2_path, "{sample}"),
-        gsize = lambda wildcards: macs2_param[
+        gsize = lambda wildcards: peak_calling_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
         ]['gsize'],
-        fdr = lambda wildcards: macs2_param[
+        fdr = lambda wildcards: peak_calling_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
         ]['fdr'],
-        keep_dup = lambda wildcards: macs2_param[
+        keep_dup = lambda wildcards: peak_calling_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
         ]['keep_dup'],
-        extra = lambda wildcards: macs2_param[
+        extra = lambda wildcards: peak_calling_param[
             list(df[df['sample'] == wildcards.sample]['target'])[0]
         ]['extra']
     threads: 1
@@ -81,8 +81,8 @@ rule peak_qc:
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
     params:
-        allow_zero = lambda wildcards: peak_qc_param[wildcards.target]['allow_zero'],
-        outlier_threshold = lambda wildcards: peak_qc_param[wildcards.target]['outlier_threshold']
+        allow_zero = lambda wildcards: peak_calling_param[wildcards.target]['allow_zero'],
+        outlier_threshold = lambda wildcards: peak_calling_param[wildcards.target]['outlier_threshold']
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
     resources:
@@ -138,10 +138,10 @@ rule macs2_merged:
         bamdir = bam_path,
         outdir = os.path.join(macs2_path, "{target}"),
         prefix = "{target}_{treat}_merged",
-        gsize = lambda wildcards: macs2_param[wildcards.target]['gsize'],
-        fdr = lambda wildcards: macs2_param[wildcards.target]['fdr'],
-        keep_dup = lambda wildcards: macs2_param[wildcards.target]['keep_dup'],
-        extra = lambda wildcards: macs2_param[wildcards.target]['extra']
+        gsize = lambda wildcards: peak_calling_param[wildcards.target]['gsize'],
+        fdr = lambda wildcards: peak_calling_param[wildcards.target]['fdr'],
+        keep_dup = lambda wildcards: peak_calling_param[wildcards.target]['keep_dup'],
+        extra = lambda wildcards: peak_calling_param[wildcards.target]['macs2_extra']
     threads: 1
     resources:
         mem_mb = 8192	

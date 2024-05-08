@@ -161,13 +161,10 @@ if pairs:
 
 
 # Dump params to json. Might be handy later
-macs2_param = set_params(config['macs2'], targets)
-with open(os.path.join(json_path, "macs2_param.json"), 'w') as fp:
-	json.dump(macs2_param, fp, indent = 4)
+peak_calling_param = set_params(config['peak_calling'], targets)
+with open(os.path.join(json_path, "peak_calling_param.json"), 'w') as fp:
+	json.dump(peak_calling_param, fp, indent = 4)
 
-peak_qc_param = set_params(config['peak_qc'], targets)
-with open(os.path.join(json_path, "peak_qc_param.json"), 'w') as fp:
-	json.dump(peak_qc_param, fp, indent = 4)
 
 motif_param = set_params(config['motif_analysis'], motif_cats)
 with open(os.path.join(json_path, "motif_analysis_param.json"), 'w') as fp:

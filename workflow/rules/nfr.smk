@@ -98,7 +98,8 @@ rule make_consensus_nfr:
         method = 'coverage',
         min_width = min(nfr_params['nfr_width']),
         p = 1,
-        min_gapwidth = nfr_params['merge_nfrs_within']
+        peak_type = "bed",
+        merge_within = nfr_params['merge_nfrs_within']
     conda: "../envs/rmarkdown.yml"
     threads: 1
     log: os.path.join(log_path, "make_consensus_peaks", "{target}_nfr.log")

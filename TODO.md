@@ -16,7 +16,8 @@
 - [ ] Motif Detection
   - [x] Macs2 Summary
   - [x] Shared Peaks
-  - [ ] Differential Signal
+  - [x] Differential Signal
+  - [ ] Pairwise
 - [ ] Update index for more complete description of parameters 
   
 ## Annotation Setup
@@ -28,6 +29,7 @@
 
 - [x] Add goseq as well as GREAT
 - [x] Add RNA comparison
+- [ ] Allow broadPeak as well as narrowPeak
 
 ## Differential Signal
 
@@ -45,7 +47,7 @@
 - [x] Fix bug in creating figures
 - [x] Update RNA-Seq module
     + Wrangle multiple files
-- [ ] Motif Analysis
+- [x] Motif Analysis
 - [ ] NFR incorporation
 
 
@@ -78,6 +80,7 @@
 - [ ] Add `pairwise_comparisons/{t1}_{t2}/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}-de_genes.csv` to output of pairwise_comparisons when RNA-Seq data is provided
 - [ ] Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
 - [ ] Cleanup handling of detected genes, particularly in the setup of annotations
+- [ ] Place all gtf objects back into a single GRangesList...
 
 ## Additional Notes
 
