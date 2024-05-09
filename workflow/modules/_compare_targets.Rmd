@@ -4,6 +4,7 @@
 library(VennDiagram)
 venn_args <- combined_results %>% 
   as_tibble() %>% 
+  distinct(range, .keep_all = TRUE) %>% 
   dplyr::select(range, ends_with("logCPM")) %>% 
   mutate(
     across(ends_with("logCPM"), \(x) !is.na(x))
@@ -115,6 +116,7 @@ combined_results %>%
   ) %>% 
   arrange(d) %>% 
   mutate(Q = seq_len(nrow(.)) / nrow(.)) %>% 
+  dplyr::filter(d < 1e3) %>% 
   ggplot(aes(d, q)) +
   geom_line(
     aes(colour = status),

@@ -40,68 +40,68 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-## For testing
-all_wildcards <- list(
-  tgt1 = "AR",
-  tgt2 = "H3K27ac",
-  comp1 = "E2_E2DHT",
-  comp2 = "E2_E2DHT"
-)
-full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
-bed_groups <- list(
-  c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
-) |>
-  expand.grid() |>
-  as.matrix() |>
-  apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
-  paste0(".bed.gz")
-all_input <- list(
-  sq = "output/annotations/seqinfo.rds",
-  blacklist = "output/annotations/blacklist.rds",
-  features = "output/annotations/features.rds",
-  greylist = "output/greylist/greylists.rds",
-  gtf_gene = "output/annotations/gtf_gene.rds",
-  hic = "output/annotations/hic.rds",
-  regions = "output/annotations/gene_regions.rds",
-  results1 = file.path(
-    "output/differential_signal", all_wildcards$tgt1,
-    paste0(all_wildcards$tgt1, "_", all_wildcards$comp1, "-differential-signal.rds")
-  ),
-  results2 = file.path(
-    "output/differential_signal", all_wildcards$tgt2,
-    paste0(all_wildcards$tgt2, "_", all_wildcards$comp2, "-differential-signal.rds")
-  ),
-  yaml = "config/params.yml"
-)
-all_output <- list(
-  rds = file.path(
-    "output/pairwise_comparisons", full_comp, paste0(full_comp, "-pairwise_results.rds")
-  ),
-  bed = file.path(
-    "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
-  )
-)
-all_params <- list(
-  pairwise_params = list(
-    adj = "fdr",
-    alpha = 0.05
-  )
-)
-pw_params <- all_params$pairwise_params
-rm(list = c("bed_groups", "full_comp"))
-config <- yaml::read_yaml("config/config.yml")
-threads <- 2
-
-# log <- slot(snakemake, "log")[[1]]
-# message("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# all_wildcards <- slot(snakemake, "wildcards")
-# config <- slot(snakemake, "config")
-# threads <- slot(snakemake, "threads")
-# all_params <- slot(snakemake, "params")
+# ## For testing
+# all_wildcards <- list(
+#   tgt1 = "AR",
+#   tgt2 = "H3K27ac",
+#   comp1 = "E2_E2DHT",
+#   comp2 = "E2_E2DHT"
+# )
+# full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
+# bed_groups <- list(
+#   c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
+# ) |>
+#   expand.grid() |>
+#   as.matrix() |>
+#   apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
+#   paste0(".bed.gz")
+# all_input <- list(
+#   sq = "output/annotations/seqinfo.rds",
+#   blacklist = "output/annotations/blacklist.rds",
+#   features = "output/annotations/features.rds",
+#   greylist = "output/greylist/greylists.rds",
+#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   hic = "output/annotations/hic.rds",
+#   regions = "output/annotations/gene_regions.rds",
+#   results1 = file.path(
+#     "output/differential_signal", all_wildcards$tgt1,
+#     paste0(all_wildcards$tgt1, "_", all_wildcards$comp1, "-differential-signal.rds")
+#   ),
+#   results2 = file.path(
+#     "output/differential_signal", all_wildcards$tgt2,
+#     paste0(all_wildcards$tgt2, "_", all_wildcards$comp2, "-differential-signal.rds")
+#   ),
+#   yaml = "config/params.yml"
+# )
+# all_output <- list(
+#   rds = file.path(
+#     "output/pairwise_comparisons", full_comp, paste0(full_comp, "-pairwise_results.rds")
+#   ),
+#   bed = file.path(
+#     "output/pairwise_comparisons", full_comp, paste(full_comp, bed_groups, sep = "-")
+#   )
+# )
+# all_params <- list(
+#   pairwise_params = list(
+#     adj = "fdr",
+#     alpha = 0.05
+#   )
+# )
 # pw_params <- all_params$pairwise_params
+# rm(list = c("bed_groups", "full_comp"))
+# config <- yaml::read_yaml("config/config.yml")
+# threads <- 2
+
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+all_wildcards <- slot(snakemake, "wildcards")
+config <- slot(snakemake, "config")
+threads <- slot(snakemake, "threads")
+all_params <- slot(snakemake, "params")
+pw_params <- all_params$pairwise_params
 
 cat_list(all_input, "input:", "-")
 cat_list(all_wildcards, "wildcards:", "=")
@@ -167,9 +167,43 @@ dsa_results <- list2(
 lv <- c("Unchanged", "Decreased", "Increased", "Undetected")
 
 cat_time("Comparing widths")
-p <- wilcox.test(width(dsa_results[[1]]), width(dsa_results[[2]]))$p.value
+t <- do.call(
+  "t.test",
+  dsa_results %>%
+    lapply(width) %>%
+    lapply(log10) %>%
+    lapply(sample, size = 1e3, replace = TRUE) %>%
+    setNames(c("x", "y"))
+)
+p <- t$p.value
+
+
+#' The key issue which needs to be resolved is setting the centre of any
+#' overlapping loci. If both datasets contain similar sized ranges, just find
+#' the overlaps, take the average positions of the centre & position there
+#'
+#' However, if the peaks are noticeably different in size, setting the centres
+#' to the average will always skew positions towards the broader peak (e.g.
+#' H3K27ac) and shit away from the narrower peak (e.g. a TF). This is also
+#' heavily impacted when multiple narrow peaks overlap the broad peak, as there
+#' should effectively be the one region, but with **two** possible centre
+#' locations and eve **two** possible ways to classify the overlapping loci.
+#'
+#' One possible solution is to provide two sets of values for these loci, where
+#' the values from the broader peak are repeated for both smaller peaks, but
+#' the values can change for the narrower target. However, this may raise
+#' problems for motif/enrichment testing where sequences/ranges are potentially
+#' duplicated. Careful re-centering when merging & producing downstream results
+#' will be essential
+#'
+#' As a solution, when the Wilcoxon Test determines a difference in widths,
+#' set peak centres at the loci from the narrower target, with overlapping
+#' ranges expected, but with different centres specified, along with different
+#' results/values for the narrower target. If widths are about the same,
+#' just overlap with a simple approach averaging the centres
 if (p < 0.05) {
-  cat_time("Datasets have significantly different widths (Wilcoxon p < 0.05)")
+
+  cat_time("Datasets have significantly different widths (p < 0.05)")
   min_ds <- dsa_results %>%
     lapply(width) %>%
     map_dbl(median) %>%
@@ -182,86 +216,91 @@ if (p < 0.05) {
     names()
   cat_time(min_ds, "appears to contain narrower ranges, and will be used to scaffold", max_ds)
 
-  cat_time("Manually renaming mcols for merging")
-  colnames(mcols(dsa_results[[1]])) <- paste0(
-    names(dsa_results)[[1]], "_", colnames(mcols(dsa_results[[1]]))
-  )
-  colnames(mcols(dsa_results[[2]])) <- paste0(
-    names(dsa_results)[[2]], "_", colnames(mcols(dsa_results[[2]]))
-  )
+  # cat_time("Manually renaming mcols for merging")
+  # colnames(mcols(dsa_results[[1]])) <- paste0(
+  #   names(dsa_results)[[1]], "_", colnames(mcols(dsa_results[[1]]))
+  # )
+  # colnames(mcols(dsa_results[[2]])) <- paste0(
+  #   names(dsa_results)[[2]], "_", colnames(mcols(dsa_results[[2]]))
+  # )
 
   cat_time("Finding overlaps")
   hits <- findOverlaps(dsa_results[[min_ds]], dsa_results[[max_ds]]) %>%
     as_tibble()
-  cat_time("Resolving duplicate overlaps")
-  dup_queries <- hits$queryHits[duplicated(hits$queryHits)]
-  dedup_hits <- hits %>%
-    subset(queryHits %in% dup_queries) %>%
-    split(.$queryHits) %>%
-    mclapply(
-      \(x) {
-        qr <- dsa_results[[min_ds]][x$queryHits[[1]]]
-        subj <- dsa_results[[max_ds]][x$subjectHits]
-        i <- splitAsList(subj, seq_along(subj)) %>%
-          map_dbl(\(x) propOverlap(qr, x)) %>%
-          which.max() %>%
-          as.integer() %>%
-          .[[1]]
-        tibble(
-          queryHits = x$queryHits[[1]],
-          subjectHits = x$subjectHits[[i]]
-        )
-      },
-      mc.cores = threads
-    ) %>%
-    bind_rows()
-  hits <- hits %>%
-    dplyr::filter(!(queryHits %in% dedup_hits$queryHits)) %>%
-    bind_rows(dedup_hits) %>%
-    arrange(queryHits)
 
-  cat_time("Creating new object")
-  #'The tricky step here will be to merge ranges to give a combined range
-  #' where the two overlap, which may not be possible. If two peaks from the
-  #' narrower target overlap the same region from the broad one, multi-mapping
-  #' will lead to identical ranges, but with different logFC etc.
-  #' The best bet may be to just map into the narrow target and slice those
-  #' ranges out from the broad one. The boundaries won't be perfect at all, but
-  #' it may be the best realistic solution
+  #' For results, where the narrower target overlaps multiple broad regions,
+  #' should we choose the closer of the two? The most significant? Both?
+  #' Maybe all possible combinations may be the best strategy?
+  #' For H3K27ac, the most likely scenario is that an NFR has been separated
+  #' into multiple regions
   #'
-
-  shared <- dsa_results[[min_ds]][hits$queryHits]
-  mcols(shared) <- cbind(
-    mcols(shared), mcols(dsa_results[[max_ds]][hits$subjectHits])
+  #' Start with the parallel union of ranges
+  cat_time("Building output with possible duplicate ranges")
+  shared <- punion(
+    granges(dsa_results[[min_ds]])[hits$queryHits],
+    granges(dsa_results[[max_ds]])[hits$subjectHits]
   )
-  #' The remaining ranges from the narrower target are easy here using the hits,
-  #' but pulling these ranges out of the broad target may be trickier
-  #' We can't remove the hits as those regions have effectively been sliced.
-  #' Using setdiff will merge neighbouring ranges
-  gp <- dsa_results[[max_ds]] %>%
-    GPos() %>%
-    .[!overlapsAny(., shared)]
-  gp_hits <- findOverlaps(gp, dsa_results[[max_ds]])
-  broad_sliced <- gp %>%
-    splitAsList(subjectHits(gp_hits)) %>%
-    range() %>%
+  mcols(shared) <- cbind(
+    data.frame(centre = mcols(dsa_results[[min_ds]])[hits$queryHits, "centre"]),
+    dsa_results[[min_ds]][hits$queryHits] %>%
+      mcols() %>%
+      setNames(paste0(min_ds, "_", names(.))),
+    dsa_results[[max_ds]][hits$subjectHits] %>%
+      mcols() %>%
+      setNames(paste0(max_ds, "_", names(.)))
+  )
+  combined_results <- list(shared = shared)
+  ## Now add the narrower dataset
+  combined_results[[min_ds]] <- granges(dsa_results[[min_ds]][-hits$queryHits])
+  mcols(combined_results[[min_ds]]) <- cbind(
+    data.frame(centre = mcols(dsa_results[[min_ds]][-hits$queryHits])$centre),
+    dsa_results[[min_ds]][-hits$queryHits] %>%
+      mcols() %>%
+      setNames(paste0(min_ds, "_", names(.)))
+  )
+  ## And the broader one
+  combined_results[[max_ds]] <- granges(dsa_results[[max_ds]][-hits$subjectHits])
+  mcols(combined_results[[max_ds]]) <- cbind(
+    data.frame(centre = mcols(dsa_results[[max_ds]][-hits$subjectHits])$centre),
+    dsa_results[[max_ds]][-hits$subjectHits] %>%
+      mcols() %>%
+      setNames(paste0(max_ds, "_", names(.)))
+  )
+  cat_time("Merging all sets of ranges")
+  combined_results <- GRangesList(combined_results) %>%
     unlist() %>%
-    names_to_column("subjectHit")
-  mcols(broad_sliced) <- mcols(dsa_results[[max_ds]])[as.integer(broad_sliced$subjectHit), ]
+    sort() %>%
+    unname()
 
-  combined_results <- list(
-    shared, dsa_results[[min_ds]][-hits$queryHits], broad_sliced
-  ) %>%
-    GRangesList() %>%
-    unlist() %>%
-    unname() %>%
-    sort()
+  desc <- "
+  The two datasets were found to have different size loci (p = {sprintf('%.2e', p)}),
+  and as such pairwise information was produced by mapping each distinct locus
+  within the narrower dataset ({min_ds}) to the regions within the broader
+  {max_ds} dataset. As such ranges may be present multiple times, but with
+  different associated logFC estimates, p-values etc.
+  For each mapped narrow peak with {min_ds}, the centre for the combined range
+  was taken to be the centre of this narrower range.
+  "
 
 } else {
-  cat_time("Datasets have similar widths (Wilcoxon p >= 0.05")
+  cat_time("Datasets have similar widths (p >= 0.05)")
   cat_time("Merging results")
   combined_results <- dsa_results %>%
+    GRangesList() %>%
     mapGrlCols(var = c("centre", grl_cols))
+  combined_results$centre <- combined_results %>%
+    plyranges::select(ends_with("centre")) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    as.matrix() %>%
+    rowMeans(na.rm = TRUE)
+
+  desc <- "
+  The two datasets were found to have similar size loci (p = {sprintf('%.2e', p)}),
+  and as such, pairwise information was produced by taking the simple overlap
+  between ranges within each dataset.
+  "
+
 }
 
 cat_time("Removing any black/grey-listed regions")
@@ -276,7 +315,7 @@ mc <- mcols(combined_results)
 mc[str_ends(names(mc), "status")] <- mc[str_ends(names(mc), "status")] %>%
   mclapply(fct_na_value_to_level, "Undetected", mc.cores = 2)
 ## Distance between gr centres
-mc$d <- mc[str_ends(names(mc), "centre")] %>%
+mc$d <- mc[str_ends(names(mc), "_centre")] %>%
   as.matrix() %>%
   rowDiffs() %>%
   abs() %>%
@@ -342,26 +381,7 @@ mc[[stat2_col]] <- case_when(
 mc$status <- fct_cross(
   mc[[stat1_col]], mc[[stat2_col]], sep = " - ", keep_empty = TRUE
 )
-mcols(combined_results) <- mc[!str_detect(names(mc), "centre")]
-
-## There may be duplicated ranges at this point
-dup_ranges <- combined_results[duplicated(combined_results)] %>%
-  granges() %>%
-  GenomicRanges::reduce()
-cat_time("Found", length(dup_ranges), "duplicated ranges")
-## Choose the most significant pairing, with ties split by which are closest
-merged_dup_ranges <- combined_results %>%
-  subsetByOverlaps(dup_ranges) %>%
-  arrange(1 / str_count(status, "(In|De)creased"), d) %>%
-  as_tibble() %>%
-  distinct(range, .keep_all = TRUE) %>%
-  colToRanges("range", seqinfo = seqinfo(combined_results)) %>%
-  sort()
-cat_time("Removing duplicated ranges")
-combined_results <- combined_results %>%
-  filter_by_non_overlaps(merged_dup_ranges) %>%
-  c(merged_dup_ranges) %>%
-  sort()
+mcols(combined_results) <- mc[!str_detect(names(mc), "_centre")]
 
 cat_time("Re-mapping to regions")
 regions <- read_rds(all_input$regions)
@@ -439,16 +459,34 @@ mapping_params <- c(
 )
 combined_results <- do.call("mapByFeature", mapping_params)
 
+cat_time("Updating metadata")
+desc <- desc %>%
+  c(
+    "
+    After mapping between datasets, some joint loci had their status
+    reclassified by checking for significance in the alternate dataset.
+    If considered significant the alternate dataset, some sites formerly
+    considered unchanged were shifted to increased/decreased if the adjusted
+    p-value ({pw_params$adj}) was then < {pw_params$alpha}, taking p-values from
+    the point-based H~0~.
+    "
+  ) %>%
+  paste(collapse = "") %>%
+  glue::glue()
+metadata(combined_results) <- pw_params %>%
+  c(list(description = desc))
+
+
 cat_time("Exporting complete set of results to", all_output$rds)
 if (!dir.exists(dirname(all_output$rds)))
   dir.create(dirname(all_output$rds), recursive = TRUE)
 write_rds(combined_results, all_output$rds, compress = "gz")
 
-cat_time("Exporting all joint status bed files")
+cat_time("Exporting all joint status bed files, placing the centre as the score")
 split_ranges <- combined_results %>%
+  plyranges::select(status, score = centre) %>%
   splitAsList(.$status) %>%
-  endoapply(granges) %>%
-  GenomicRanges::reduce()
+  endoapply(plyranges::select, -status)
 
 names(split_ranges) %>%
   str_subset("Undetected", negate = TRUE) %>%
@@ -456,7 +494,7 @@ names(split_ranges) %>%
     \(x) {
       tag <- str_to_lower(x) %>% str_replace_all(" - ", "_")
       bed <- str_subset(all_output$bed, tag)
-      write_bed(split_ranges[[x]], bed, )
+      write_bed(split_ranges[[x]], bed)
     }
   )
 cat_time("done")

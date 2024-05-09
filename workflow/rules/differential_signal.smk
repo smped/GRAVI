@@ -86,7 +86,8 @@ rule differential_signal_analysis:
             "{target}_{ref}_{treat}-differential-signal.rds"
         ),
     params:
-        diff_sig_params = lambda wildcards: diff_sig_param[wildcards.target]
+        diff_sig_params = lambda wildcards: diff_sig_param[wildcards.target],
+        peak_calling_params = lambda wildcards: peak_calling_param[wildcards.target],
     threads: 6
     conda: "../envs/rmarkdown.yml"
     log: os.path.join(log_path, "differential_signal", "{target}_{ref}_{treat}.log")

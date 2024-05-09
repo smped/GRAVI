@@ -46,30 +46,38 @@ cat_time <- function(...){
 }
 
 ## For testing
+# target <- "H3K27ac"
 # all_input <- list(
-#   counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
+#   counts = "output/differential_signal/{target}/{target}_counts.rds",
 #   gtf_gene = "output/annotations/gtf_gene.rds",
 #   hic = "output/annotations/hic.rds",
 #   features = "output/annotations/features.rds",
-#   peaks = vapply(
-#     c("AR", "ER", "H3K27ac"),
-#     \(x) file.path(
-#       "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
-#     ), character(1)
-#   ),
 #   regions = "output/annotations/gene_regions.rds",
 #   sq = "output/annotations/seqinfo.rds",
 #   yaml = "config/params.yml"
 # )
-# all_output <- list(
-#   changed = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-changed.bed.gz",
-#   decreased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-decreased.bed.gz",
-#   increased = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-increased.bed.gz",
-#   ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds",
-#   rds = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds"
+# all_input <- lapply(all_input, glue::glue)
+# all_input$peaks <- vapply(
+#   c("AR", "ER", "H3K27ac"),
+#   \(x) file.path(
+#     "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
+#   ),
+#   character(1)
 # )
-# all_params <- jsonlite::fromJSON("config/json/differential_signal_param.json")[["H3K27ac"]]
-# all_wildcards <- list(target = "H3K27ac", ref = "E2", treat = "E2DHT")
+# all_output <- list(
+#   changed = "output/differential_signal/{target}/{target}_E2_E2DHT-changed.bed.gz",
+#   decreased = "output/differential_signal/{target}/{target}_E2_E2DHT-decreased.bed.gz",
+#   increased = "output/differential_signal/{target}/{target}_E2_E2DHT-increased.bed.gz",
+#   ihw = "output/differential_signal/{target}/{target}_E2_E2DHT-ihw.rds",
+#   rds = "output/differential_signal/{target}/{target}_E2_E2DHT-differential-signal.rds"
+# ) |>
+#   lapply(glue::glue)
+# all_params <- list(
+#   diff_sig_params = jsonlite::fromJSON("config/json/differential_signal_param.json")[[target]],
+#   peak_calling_params = jsonlite::fromJSON("config/json/peak_calling_param.json")[[target]]
+# )
+# all_wildcards <- list(target = target, ref = "E2", treat = "E2DHT")
+# rm(target)
 # config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 # threads <- 4
 
@@ -80,13 +88,17 @@ all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
 all_wildcards <- slot(snakemake, "wildcards")
-all_params <- slot(snakemake, "params")$diff_sig_params
+all_params <- slot(snakemake, "params")
 threads <- slot(snakemake, "threads")
+
+diff_sig_params <- all_params$diff_sig_params
+peak_params <- all_params$peak_calling_params
 
 cat_list(all_input, "input")
 cat_list(all_output, "output")
 cat_list(all_wildcards, "wildcards:", "=")
-cat_list(all_params, "DiffSig Params:", "=")
+cat_list(diff_sig_params, "DiffSig Params:", "=")
+cat_list(peak_params, "Peak Params:", "=")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -108,10 +120,10 @@ cat_time("Setting to run using", threads, "threads")
 register(MulticoreParam(workers = threads))
 
 cat_time("Checking parameters")
-win_type <- match.arg(all_params$window_type, c("sliding", "fixed"))
-method <- match.arg(all_params$method, c("qlf", "lt", "wald"))
+win_type <- match.arg(diff_sig_params$window_type, c("sliding", "fixed"))
+method <- match.arg(diff_sig_params$method, c("qlf", "lt", "wald"))
 norm <- match.arg(
-  all_params$norm, c("TMM", "TMMwsp", "RLE", "upperquartile", "none", "sq")
+  diff_sig_params$norm, c("TMM", "TMMwsp", "RLE", "upperquartile", "none", "sq")
 )
 if (norm == "sq") {
   if (!method == "lt" & !win_type == "sliding") {
@@ -120,9 +132,9 @@ if (norm == "sq") {
   }
 }
 ihw_method <- match.arg(
-  all_params$ihw, c("none", "targets", "regions", "features")
+  diff_sig_params$ihw, c("none", "targets", "regions", "features")
 )
-fdr_alpha <- all_params$alpha
+fdr_alpha <- diff_sig_params$alpha
 
 cat_time("Loading annotations")
 gtf_gene <- read_rds(all_input$gtf_gene)
@@ -177,8 +189,8 @@ if (norm == "sq") {
 
 cat_time("Defining model parameters")
 nesting <- NULL
-if (!is.null(all_params$nesting)) {
-  nesting <- match.arg(all_params$nesting, colnames(colData(counts)))
+if (!is.null(diff_sig_params$nesting)) {
+  nesting <- match.arg(diff_sig_params$nesting, colnames(colData(counts)))
 }
 fm <- as.formula(
   ifelse(is.null(nesting), "~treat", paste("~", nesting, "+treat"))
@@ -207,26 +219,32 @@ cat_time("Fitting model")
 fit <- fitAssayDiff(
   counts, assay = assay_name, design = X, coef = all_wildcards$treat,
   method = method, norm = ifelse(norm == "sq", "none", norm),
-  fc = all_params$fc, block = block, correlation = paired_cors
+  fc = diff_sig_params$fc, block = block, correlation = paired_cors
 )
 pcols <- c("PValue", "p_mu0")
 
 if (win_type == "sliding") {
 
   cat_time("Merging windows")
-  ## This is set to merge within 2 window steps, with minimum window set via params
-  ## It's hard-wired to return the 'adaptive' region that's changed as keyval_range
-  ## This is the initial approach. Uncomment to re-activate
-  # results <- mergeByHMP(
-  #   fit, pval = pcols,
-  #   merge_within = floor(1 + 2 * all_params$window_step / 3),
-  #   hm_pre = "", keyval = "merged", min_win = all_params$min_win
-  # ) %>%
-  #   plyranges::select(
-  #     starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
-  #     FDR = PValue_fdr
-  #   ) %>%
-  #   addDiffStatus(alpha = fdr_alpha)
+  #' This is set to merge within 2 window steps, with minimum window set via params.
+  #' Perhaps a more rational solution would be to use the 'merge_within' value
+  #' from peak calling. This should've been set for broader signal targets,
+  #' whilst will often be zero for narrow-type targets. Given there is a
+  #' parallel between peak calling & detection of windows, this may be a simple
+  #' strategy that won't require setting of any additional parameters. It will
+  #' however, require passing the peak-callaing parameters to the snakemake rule
+  #'
+  #' Hard-wired to return the 'adaptive' region that's changed as keyval_range
+  results <- mergeByHMP(
+    fit, pval = pcols,
+    merge_within = peak_params$merge_within,
+    hm_pre = "", keyval = "merged", min_win = diff_sig_params$min_win
+  ) %>%
+    plyranges::select(
+      starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
+      FDR = PValue_fdr
+    ) %>%
+    addDiffStatus(alpha = fdr_alpha)
 
   #' As an experimental step, moved the keyval_range to the core ranges,
   #' slice out any ranges which are not within the keyval range, and re-analyse
@@ -238,34 +256,38 @@ if (win_type == "sliding") {
   #' from unchanged to changed. The total loss in changed BP is 251KB, but
   #' hopefully results retain far greater precision as to actual changed regions
   #' Importantly, the keyval_range will now be **absent** from the results
-  results <- mergeByHMP(
-    fit, pval = pcols,
-    merge_within = floor(1 + 2 * all_params$window_step / 3),
-    hm_pre = "", keyval = "merged", min_win = all_params$min_win
-  ) %>%
-    plyranges::select(
-      starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
-      FDR = PValue_fdr
-    )
-  results <- rowRanges(fit) %>%
-    .[!overlapsAny(., results$keyval_range)] %>%
-    mergeByHMP(
-      pval = pcols,
-      merge_within = floor(1 + 2 * all_params$window_step / 3),
-      hm_pre = "", keyval = "merged"
-    ) %>%
-    plyranges::select(
-      starts_with("n_"), starts_with("log"), any_of(pcols),
-      FDR = PValue_fdr
-    ) %>%
-    c(
-      colToRanges(results, "keyval_range")
-    ) %>%
-    sort() %>%
-    ## Now readjust PValues & add status
-    mutate(FDR = p.adjust(PValue, "fdr")) %>%
-    addDiffStatus(alpha = fdr_alpha) %>%
-    subset(n_windows >= all_params$min_win)
+  #'
+  #' Testing on real data didn't really work that well as the DSA regions tended
+  #' to be too small & overlapping with other targets ended up being poor
+  #'
+  # results <- mergeByHMP(
+  #   fit, pval = pcols,
+  #   merge_within = floor(1 + 2 * diff_sig_params$window_step / 3),
+  #   hm_pre = "", keyval = "merged", min_win = diff_sig_params$min_win
+  # ) %>%
+  #   plyranges::select(
+  #     starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
+  #     FDR = PValue_fdr
+  #   )
+  # results <- rowRanges(fit) %>%
+  #   .[!overlapsAny(., results$keyval_range)] %>%
+  #   mergeByHMP(
+  #     pval = pcols,
+  #     merge_within = floor(1 + 2 * diff_sig_params$window_step / 3),
+  #     hm_pre = "", keyval = "merged"
+  #   ) %>%
+  #   plyranges::select(
+  #     starts_with("n_"), starts_with("log"), any_of(pcols),
+  #     FDR = PValue_fdr
+  #   ) %>%
+  #   c(
+  #     colToRanges(results, "keyval_range")
+  #   ) %>%
+  #   sort() %>%
+  #   ## Now readjust PValues & add status
+  #   mutate(FDR = p.adjust(PValue, "fdr")) %>%
+  #   addDiffStatus(alpha = fdr_alpha) %>%
+  #   subset(n_windows >= diff_sig_params$min_win)
 
 
   ## Map genes, features & regions, which are otherwise propagated through
@@ -431,7 +453,7 @@ vals <- c(
   "window_size","window_step"
 )
 metadata(results) <- c(
-  all_params[vals],
+  diff_sig_params[vals],
   list(
     norm = norm, ref = all_wildcards$ref, treat = all_wildcards$treat,
     ihw = ihw_method
@@ -439,10 +461,10 @@ metadata(results) <- c(
 ) %>%
   .[sort(names(.))]
 metadata(results)$description <- glue(
-    "Differential Signal for {all_wildcards$target} was assessed using {win_type} windows of {all_params$window_size}bp ",
+    "Differential Signal for {all_wildcards$target} was assessed using {win_type} windows of {diff_sig_params$window_size}bp ",
     ifelse(
         win_type == "sliding",
-        "with a step-size of {all_params$window_step}. Windows were merged after testing using the
+        "with a step-size of {diff_sig_params$window_step}. Windows within {peak_params$merge_within}bp were merged after testing using the
         harmonic-mean p-value [@Wilson2019-ln] to obtain a representative p-value for merged regions. ",
         "centred at the estimated peak-centres returned by `macs2 callpeak` [@Zhang18798982]. "
     ),
@@ -474,8 +496,8 @@ metadata(results)$description <- glue(
         method == "wald" ~ "the negative binomial Wald Test on counts [@Love2014Wald]"
     ),
     ifelse(
-        all_params$fc > 0,
-        "and a range-based H~0~, setting changed signal within the range [-{round(log2(all_params$fc), 3)}, {round(log2(all_params$fc), 3)}] as not being of interest [@McCarthyTreat2009]. ",
+        diff_sig_params$fc > 0,
+        "and a range-based H~0~, setting changed signal within the range [-{round(log2(diff_sig_params$fc), 3)}, {round(log2(diff_sig_params$fc), 3)}] as not being of interest [@McCarthyTreat2009]. ",
         "and a conventional H~0~, testing whether any change in signal is zero or non-zero. "
     ),
     "The analysis tested the treatment {all_wildcards$treat} against the baseline condition of {all_wildcards$ref}. ",

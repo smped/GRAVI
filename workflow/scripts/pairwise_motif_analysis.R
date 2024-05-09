@@ -121,9 +121,17 @@ all_bed <- all_input$bed %>%
 cat_time("Centering regions and setting to", motif_params$peak_width, "bp")
 cat_time("Getting sequences...")
 seq_list <- all_bed %>%
+  .[map_int(., length) > 0] %>%
+  mclapply(
+    mutate,
+    centre = GRanges(paste0(seqnames, ":", score), seqinfo = sq),
+    mc.cores = threads
+  ) %>%
+  mclapply(colToRanges, "centre", mc.cores = threads) %>%
   mclapply(
     resize, fix = 'center', width = motif_params$peak_width, mc.cores = threads
   ) %>%
+  lapply(unique) %>%
   lapply(\(x) setNames(x, as.character(x))) %>%
   mclapply(\(x) getSeq(bs_genome, x), mc.cores = threads) %>%
   mclapply(\(x) x[letterFrequency(x, "N")[,1] == 0], mc.cores = threads) %>%

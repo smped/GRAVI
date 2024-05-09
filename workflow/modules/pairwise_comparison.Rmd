@@ -1,13 +1,15 @@
 ```{r dummy-params, eval = interactive()}
 params <- list(
   tgt1 = "AR",
-  tgt2 = "H3K27ac",
+  tgt2 = "ER",
   comp1 = "E2_E2DHT",
   comp2 = "E2_E2DHT",
-  full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
-  results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_results.rds",
-  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
-  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
+  full_comp = "AR_E2_E2DHT-ER_E2_E2DHT",
+  results = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_results.rds",
+  dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
+  dsa2 = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_enrichment.tsv.gz",
+  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_position.tsv.gz"
 )
 ```
 
@@ -238,6 +240,9 @@ filtered_peaks <- list(
   importPeaks(seqinfo = sq) %>% 
   setNames(str_remove_all(names(.), "_filtered.+"))
 combined_results <- params$results %>% read_rds()
+dsa_results <- params[c("dsa1", "dsa2")] %>% 
+  lapply(read_rds) %>% 
+  setNames(short_names)
 ```
 
 ```{r reclass-df}
@@ -1276,12 +1281,16 @@ Scales for fill and average signal (both logCPM) are held constant across all pl
 ```{r form-profile-heatmaps}
 min_ranges <- min(map_dbl(heat_params, \(x) x$min_ranges))
 max_ranges <- max(map_dbl(heat_params, \(x) x$max_ranges))
-sig_ranges <- combined_results %>% 
+## Place the centre as the range centre based on the pairwise setup
+sig_ranges <- combined_results %>%
   subset(grepl("(In|De)creased", status)) %>% 
   subset(!grepl("Undetected", status)) %>% 
+  mutate(centred = GRanges(paste0(seqnames, ":", centre), seqinfo = sq)) %>% 
+  colToRanges("centred") %>% 
   splitAsList(.$status) %>% 
-  endoapply(granges) %>% 
   .[map_int(., length) >= min_ranges] %>% 
+  endoapply(granges) %>% 
+  endoapply(unique) %>% 
   endoapply(
     \(x) {
       if (length(x) > max_ranges) {
@@ -1291,7 +1300,6 @@ sig_ranges <- combined_results %>%
       x
     }
   )
-
 ## Hardwire to the first bw_type. Can't be different...
 ## Does this need to go into a separate spot for heat or pairwise params?
 bw_type <- match.arg(heat_params[[1]]$bw_type, c("FE", "coverage"))
@@ -1323,7 +1331,6 @@ prof_widths <- seq_len(2) %>%
   .[names(bwfl)]
 n_bins <- max(map_dbl(heat_params, pluck, "n_bins"))
 ## Get the profile data
-#### PERHAPS THESE Should be centred at THE CONSENSUS PEAKS??? ####
 sig_profiles <- sig_ranges %>% 
   mclapply(
     \(x) {
@@ -1344,7 +1351,6 @@ sig_profiles <- sig_ranges %>%
   ) 
 ## Run as a list to enable using different gradients
 p_list <- sig_profiles %>% 
-  .[2] %>% 
   lapply(GRangesList) %>% 
   lapply(unlist) %>% 
   lapply(names_to_column, "name") %>% 
@@ -1382,8 +1388,8 @@ profile_heatmaps <- p_list %>%
         mutate(treat = factor(treat, levels = unique(unlist(treat_levels)))) %>% 
         mutate(score = scale(score)[,1], .by = target)
       rng_levels <- df %>% 
-        dplyr::filter(target == params$tgt1) %>% 
-        dplyr::filter(score == max(score), .by = c(range)) %>% 
+        dplyr::filter(abs(bp) <= min(prof_widths / 10)) %>% 
+        summarise(score = mean(score), .by = c(range, target)) %>% 
         arrange(desc(score)) %>% 
         pull(range) %>% 
         fct_rev() %>% 
@@ -1560,17 +1566,9 @@ bwfl <- seq_len(2) %>%
   lapply(BigWigFileList)
 line_col <- bwfl %>% lapply(\(x) treat_colours[names(x)])
 ## Coverage annotations. 
-annot <- comp_names %>% 
-  paste0("_status") %>% 
-  lapply(
-    \(x) {
-      combined_results %>% 
-        splitAsList(mcols(combined_results)[[x]]) %>% 
-        .[!grepl("Undetected", names(.))] %>% 
-        endoapply(granges)
-    }
-  ) %>% 
-  setNames(short_names)
+annot <- dsa_results %>% 
+  lapply(\(x) splitAsList(x, x$status)) %>% 
+  lapply(endoapply, GenomicRanges::reduce)
 annot_col <- direction_colours
 ## Coverage y-limits
 max_ranges <- comp_names %>% 
@@ -1673,8 +1671,9 @@ grl_most_sig <- combined_results %>%
   reg <- ifelse(
     grepl("^[AEIOUaeiou]", reg), paste("an", reg), paste("a", reg)
   )
+  reg <- ifelse(grepl("on$", reg), paste0(reg, "ic"), reg)
   if (has_features) {
-    feat <- glue_collapse(unlist(gr$feature), sep = ", ", last = " & ")
+    feat <- glue_collapse(unique(unlist(gr$feature)), sep = ", ", last = " & ")
     feat <- ifelse(
       grepl("^[AEIOUaeiou]", feat), paste("an", feat), paste("a", feat)
     )
@@ -1686,6 +1685,8 @@ grl_most_sig <- combined_results %>%
   rng <- as.character(gr)
   glue(
     "This {comma(w)}bp region ({rng}) was classified as {status}, and overlaps {reg} region. ",
+    "The highlighted region indicates the entire range, whilst results from individual analyses are indicated by coloured bars above each individual track. ",
+    "Colours indicate status before any reclassification has taken place and can be additionally used to make an assessment of any reclassification in these cases. ",
     gn, feat
   )
 }
@@ -1695,7 +1696,7 @@ htmltools::tagList(
     function(i) {
       ## Set the key variables
       x <- grl_most_sig[[i]]
-      pw <- names(grl_to_plot)[[i]]
+      pw <- names(grl_most_sig)[[i]]
       pw_name <- pw %>% 
         str_replace_all(
           "(.+) - (.+)", 
@@ -1979,7 +1980,8 @@ net_layout <- c(network_params$layout, "fr")[[1]]
 ranges_by_status <- combined_results %>% 
   subset(grepl("(In|De)creased", status)) %>% 
   mutate(status = fct_rev(status)) %>% 
-  split(.$status) %>% 
+  split(.$status) %>%  
+  endoapply(unique) %>% 
   endoapply(plyranges::select, gene_id) %>% 
   .[map_int(., length) > 0] %>% 
   setNames(
