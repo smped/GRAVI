@@ -37,43 +37,43 @@ cat_time <- function(...){
 }
 
 ## For testing
-all_input <- list(
-    peaks = c(
-        "output/peak_analysis/H3K27ac/H3K27ac_E2_filtered_peaks.narrowPeak",
-        "output/peak_analysis/H3K27ac/H3K27ac_E2DHT_filtered_peaks.narrowPeak"
-    ),
-    sq = "output/annotations/seqinfo.rds",
-    blacklist = "output/annotations/blacklist.rds",
-    features = "output/annotations/features.rds",
-    greylist = "output/greylist/greylists.rds",
-    gtf_gene = "output/annotations/gtf_gene.rds",
-    hic = "output/annotations/hic.rds",
-    qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
-    regions = "output/annotations/gene_regions.rds",
-    yaml = "config/params.yml"
-)
-all_output <- list(
-    bed = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
-    rds = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.rds"
-)
-all_wildcards <- list(target = "H3K27ac")
-all_params <- list(
-  method = 'union',
-  min_width = 0,
-  peak_type = "narrow",
-  p = 0,
-  merge_within = 300
-)
-config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+# all_input <- list(
+#     peaks = c(
+#         "output/peak_analysis/H3K27ac/H3K27ac_E2_filtered_peaks.narrowPeak",
+#         "output/peak_analysis/H3K27ac/H3K27ac_E2DHT_filtered_peaks.narrowPeak"
+#     ),
+#     sq = "output/annotations/seqinfo.rds",
+#     blacklist = "output/annotations/blacklist.rds",
+#     features = "output/annotations/features.rds",
+#     greylist = "output/greylist/greylists.rds",
+#     gtf_gene = "output/annotations/gtf_gene.rds",
+#     hic = "output/annotations/hic.rds",
+#     qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
+#     regions = "output/annotations/gene_regions.rds",
+#     yaml = "config/params.yml"
+# )
+# all_output <- list(
+#     bed = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
+#     rds = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.rds"
+# )
+# all_wildcards <- list(target = "H3K27ac")
+# all_params <- list(
+#   method = 'union',
+#   min_width = 0,
+#   peak_type = "narrow",
+#   p = 0,
+#   merge_within = 300
+# )
+# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
 
-# log <- slot(snakemake, "log")[[1]]
-# message("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# config <- slot(snakemake, "config")
-# all_wildcards <- slot(snakemake, "wildcards")
-# all_params <- slot(snakemake, "params")
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+config <- slot(snakemake, "config")
+all_wildcards <- slot(snakemake, "wildcards")
+all_params <- slot(snakemake, "params")
 
 cat_list(all_input, "input")
 cat_list(all_wildcards, "wildcards:", "=")
@@ -112,14 +112,12 @@ filtered_peaks <- all_input$peaks %>%
 vars <- intersect(vars, colnames(mcols(filtered_peaks[[1]])))
 if (length(vars) == 0) vars <- NULL
 
-cat_time("Setting params")
-## These all need to be set on a cluster, but not when running interactively
-## Don't know why...
-cons_params <- all_params[names(all_params) != "peak_type"] %>%
-  c(
-    list(x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE)
-  )
-cons_peaks <- do.call("makeConsensus", cons_params)
+cat_time("Forming peaks")
+cons_peaks <- makeConsensus(
+  x = filtered_peaks, var = vars, simplify = FALSE, ignore.strand = TRUE,
+  method = all_params$method, merge_within = all_params$merge_within,
+  min_width = all_params$min_width, p = all_params$p
+)
 cat_time("Formed",  scales::comma(length(cons_peaks)), "consensus peaks")
 
 if ("centre" %in% vars) {
