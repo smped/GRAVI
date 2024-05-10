@@ -8,6 +8,7 @@ params <- list(
   results = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_results.rds",
   dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
   dsa2 = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+  localz = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_localz.rds",
   motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_enrichment.tsv.gz",
   motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_position.tsv.gz"
 )
@@ -240,6 +241,11 @@ filtered_peaks <- list(
   importPeaks(seqinfo = sq) %>% 
   setNames(str_remove_all(names(.), "_filtered.+"))
 combined_results <- params$results %>% read_rds()
+n_by_status <- combined_results %>% 
+  splitAsList(.$status) %>% 
+  endoapply(granges) %>% 
+  endoapply(unique) %>% 
+  map_int(length)
 dsa_results <- params[c("dsa1", "dsa2")] %>% 
   lapply(read_rds) %>% 
   setNames(short_names)
@@ -1271,7 +1277,7 @@ if (has_features) {
 
 # Combined Signal Visualisation
 
-## Heatmaps {.tabset}
+## Profile Heatmaps {.tabset}
 
 A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where signal was detected as changed in at least one of the comparisons.
 If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
@@ -2212,9 +2218,272 @@ if (any_networks) {
 ```
 
 
-# Region Analysis
+# Region Analysis {.tabset}
 
-## Needs Writing
+```{r load-localz}
+mlz_list <- read_rds(params$localz)
+localz_df <- mlz_list %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(pluck, "resumeTab") %>% 
+  bind_rows(.id = 'comparison') %>% 
+  dplyr::rename(region = name) %>% 
+  mutate(
+    p_value = 1 - pchisq(norm_zscore^2, 1),
+    adj.p_value = p.adjust(p_value, regioner_params$adj)
+  ) %>% 
+  mutate(
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ region
+    ) %>% 
+      factor(all_regions),
+    enrichment = log2(n_overlaps / mean_perm_test),
+    prop = n_overlaps / n_by_status[comparison],
+    comparison =  comparison %>% 
+      str_replace_all("Increased.+Increased", "Both Increased") %>% 
+      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
+      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
+      str_replace_all(
+        "(.+) - (.+)", 
+        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+      ) 
+  ) %>% 
+  as_tibble()
+
+shifted_z <- mlz_list %>% 
+  lapply(slot, "multiLocalZscores") %>% 
+  lapply(
+    \(x) {
+      tbl <- as_tibble(x$shifed_ZSs)
+      tbl$shift <- x$shifts
+      tbl
+    }
+  ) %>% 
+  bind_rows(.id = 'comparison') %>% 
+  pivot_longer(
+    cols = -all_of(c("shift", "comparison")), names_to = "region", values_to = "Z"
+  ) %>% 
+  mutate(
+    region = case_when(
+      region %in% names(regions) ~ regions[region],
+      TRUE ~ region
+    ) %>% 
+      factor(all_regions),
+    Z = Z / sqrt(n_by_status[comparison]),
+    comparison =  comparison %>% 
+      str_replace_all("Increased.+Increased", "Both Increased") %>% 
+      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
+      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
+      str_replace_all(
+        "(.+) - (.+)", 
+        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
+      ) 
+  ) 
+heat_col <- c(
+  rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
+  RColorBrewer::brewer.pal(9, "YlOrRd")
+)
+```
+
+In addition to enrichment of pathways, the loci belonging to each pairwise grouping were assessed for their relationship to the pre-defined gene-regions`r ifelse(has_features, " and the supplied external features.", ".")`.
+The package `regioneReloaded` [@Malinverni2023-ee] was used, which uses a permutation-based strategy to determine the expected overlap between a random region-set and the regions of interest.
+This effectively defines a viable H~0~ against which the observed number of overlaps can be tested, accounting for the size of each type of region or feature.
+Using the Central Limit Theorem, the *normalised Z-scores* returned can be expected to to follow an approximate $\mathcal{N}(0,1)$ distribution, and these are used to regenerate adjusted p-values, as a more conservative alternative to those returned by the package.
+
+In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
+
+## Z-Score Heatmap
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
+  arrange(abs(shift), Z) %>% 
+  mutate(
+    region = fct_inorder(as.character(region)),
+    source = ifelse(region %in% regions, "Region", "Feature")
+  ) %>% 
+  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  geom_raster() +
+  facet_grid(
+    cols = vars(comparison), rows = vars(source), 
+    scales = "free", space = "free"
+  ) +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
+  )
+```
+
+## Results Table
+
+```{r tbl-regioner, echo=FALSE}
+fs <- 12
+tbl_id <- 'localz-res-table'
+tbl <- localz_df %>% 
+  dplyr::select(
+    comparison, region, mean_perm_test, n_overlaps, prop, enrichment,
+    norm_zscore, adj.p_value
+  ) %>% 
+  arrange(desc(abs(norm_zscore))) %>% 
+  mutate(
+    source = str_extract(region, ".+: ") %>% 
+      str_remove_all(": ") %>% 
+      str_replace_na(""),
+    region = str_remove_all(region, ".+: ")
+  ) %>% 
+  dplyr::select(comparison, source, region, everything()) %>% 
+  dplyr::select(where(\(x) !all(x == ""))) %>% 
+  dplyr::mutate(
+    across(any_of("source"), \(x) str_replace(x, "$^", "GRAVI")),
+    Sig = adj.p_value < regioner_params$alpha
+  ) %>% 
+  reactable(
+    showPageSizeOptions = TRUE, filterable = TRUE,
+    columns = list(
+      comparison = colDef(
+        "Comparison",  minWidth = 150, maxWidth = 200,
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+              tbl_id, name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
+        }
+      ),
+      source = colDef(
+        "Source", minWidth = 150, maxWidth = 120,
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+              tbl_id, name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
+        }
+      ),
+      region = colDef(
+        "Region", minWidth = 150, maxWidth = 120,
+        style = \(value) {
+          bg <- do.call(
+            "rgb", 
+            c(region_colours, feature_colours)[[value]] %>% 
+              col2rgb() %>% 
+              .[,1] %>% 
+              divide_by(255) %>% 
+              as.list() %>% 
+              c(list(alpha = 0.7))
+          )
+          list(backgroundColor = bg)
+        },
+        filterInput = function(values, name) {
+          tags$select(
+            # Set to undefined to clear the filter
+            onchange = sprintf(
+              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+              tbl_id, name
+            ),
+            # "All" has an empty value to clear the filter, and is the default option
+            tags$option(value = "", "All"),
+            lapply(unique(values), tags$option),
+            "aria-label" = sprintf("Filter %s", name),
+            style = "width: 100%; height: 28px;"
+          )
+        }
+      ),
+      mean_perm_test = colDef("Expected Overlaps", format = comma_col),
+      n_overlaps = colDef("Overlapping Peaks", format = comma_col),
+      enrichment = colDef(
+        "log<sub>2</sub> Enrichment", format = colFormat(digits = 2),
+        html = TRUE,
+        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+      ),
+      prop = colDef("% Total Peaks", format = percent_col),
+      norm_zscore = colDef(
+        "Z", format = colFormat(digits = 3),
+        style = \(value) list(color = ifelse(value > 0, "black", "red"))
+      ),
+      adj.p_value = colDef(
+        glue("p<sub>{enrich_params$adj}</sub>"), html = TRUE,
+        cell = \(value) sprint_pval(value),
+        style = \(value) {
+          text_colour <- ifelse(
+            value < regioner_params$alpha,
+            "black", colours$direction[["unchanged"]]
+          )
+          list(color = text_colour)
+        }
+      ),
+      Sig = colDef(
+        show = FALSE,
+        filterMethod = JS("function(rows, columnId, filterValue) {
+          if (filterValue === true) {
+            return rows.filter(function(row) {
+              const OnlySignificant = row.values[columnId]
+              return OnlySignificant
+            })
+          }
+          return rows
+        }")
+      )
+    )[colnames(.)],
+    elementId = tbl_id,
+    defaultColDef = colDef(maxWidth = 90),
+    theme = reactableTheme(style = list(fontSize = fs))
+  )
+cp <- htmltools::em(
+  glue(
+    "
+    Results for association between each set of ranges taken in a pairwise manner,
+    with the genomic regions{ifelse(has_features, ' and the supplied external features.', '.')}
+    Expected overlaps are those obtained through random resampling of the genome
+    to match the changed regions. Enrichment is calculated taking log2 of
+    the ratio between observed and expected overlapping peaks.
+    "
+  )
+)
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('{tbl_id}', 'shared_localz_res.csv')"
+    )
+  ),
+  tags$button(
+    "Clear All Filters", onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+  ),
+  tags$label(
+    tags$input(
+      type = "checkbox", 
+      onclick = glue("Reactable.setFilter('{tbl_id}', 'Sig', event.target.checked)")
+    ),
+    "Only show significant associations"
+  ),
+  tbl,  cp
+)
+if (interactive()) {
+  htmltools::browsable(tl)
+} else {
+  tl
+}
+
+```
+
 
 # Motif Analysis
 

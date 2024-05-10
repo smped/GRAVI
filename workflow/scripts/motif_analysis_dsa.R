@@ -45,10 +45,6 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-
 # all_input <- list(
 #   here = "output/checks/here.chk",
 #   motifs = "output/annotations/motif_list.rds",
@@ -66,23 +62,27 @@ sink(log, split = TRUE)
 #       adj = "fdr", # not used here
 #       alpha = 0.05, # not used here
 #       binwidth = 10,
-#       break_ties: "all"
+#       break_ties = "all",
 #       peak_width = 400,
 #       ignore_below = 0.01,
 #       iterations = 100,
-#       min_score: "80%",
+#       min_score = "80%",
 #       model = "quasipoisson"
 #     )
 # )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
 
-config <- slot(snakemake, "config")
-threads <- slot(snakemake, "threads")
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-all_params <- slot(snakemake, "params")
-all_wildcards <- slot(snakemake, "wildcards")
+# log <- slot(snakemake, "log")[[1]]
+# message("Setting stdout to ", log, "\n")
+# sink(log, split = TRUE)
+# config <- slot(snakemake, "config")
+# threads <- slot(snakemake, "threads")
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+# all_params <- slot(snakemake, "params")
+# all_wildcards <- slot(snakemake, "wildcards")
+
 cat_list(all_input, "input:", sep = "=")
 cat_list(all_output, "output:", sep = "=")
 cat_list(all_params, "params:")

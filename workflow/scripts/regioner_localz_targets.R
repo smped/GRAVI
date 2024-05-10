@@ -41,9 +41,7 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
+
 
 ## Manual lists for testing. Will be overwritten by snakemake objects...
 # config <- yaml::read_yaml("config/config.yml")
@@ -60,8 +58,15 @@ sink(log, split = TRUE)
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+
+regioner_params <- all_params$regioner
 cat_list(all_input, "input")
 cat_list(all_output, "output")
+cat_list(regioner_params, "regioner params")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
@@ -95,10 +100,6 @@ if (length(all_input$peaks) < 2) {
   peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
   names(peaks) <- gsub("_consensus.+", "", names(peaks))
   cat_time(" done\n")
-
-  cat_time("Loading enrichment params from", all_input$params)
-  regioner_params <- read_yaml(all_input$params)$regioner
-  cat_time(" done")
 
   threads <- slot(snakemake, "threads")[[1]] - 1
   cat_time("Running multiLocalZscore with", threads, "threads...\n")

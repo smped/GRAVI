@@ -83,6 +83,7 @@ make_tbl_graph <- function(
     min_dist = max_network_dist,
     max_gs = max_network_size
 ) {
+  library(rlang)
   p_col <- match.arg(p_col, colnames(res))
   gs_col <- match.arg(gs_col, colnames(res))
   # res <- dplyr::filter(res, !!sym(p_col) < alpha)
@@ -129,7 +130,7 @@ make_tbl_graph <- function(
   node_ids <- setNames(seq_along(nodes$label), nodes$label)
   edges$from <- node_ids[edges$from]
   edges$to <- node_ids[edges$to]
-  tbl_graph(nodes = nodes, edges = edges, directed = FALSE)
+  tidygraph::tbl_graph(nodes = nodes, edges = edges, directed = FALSE)
 }
 
 

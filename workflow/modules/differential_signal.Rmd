@@ -1861,7 +1861,7 @@ if (n_decreased_enrich > min(network_params$size)) {
 
 ## Region Analysis {.tabset}
 
-```{r load-localz, eval = FALSE}
+```{r load-localz}
 mlz <- params$localz %>% 
   here::here() %>% 
   read_rds()
@@ -1913,7 +1913,7 @@ In addition to determining the strength of any overlaps with a given feature, di
 
 ### Z-Score Heatmap
 
-```{r zscore-heatmap, eval = FALSE, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
   arrange(abs(shift), Z) %>% 
   mutate(
@@ -1935,7 +1935,8 @@ shifted_z %>%
 
 ### Results Table
 
-```{r tbl-regioner, eval = FALSE}
+```{r tbl-regioner, echo=FALSE}
+tbl_id <- "localz-res-table"
 tbl <- localz_df %>% 
   dplyr::select(
     region, mean_perm_test, n_overlaps, prop, enrichment,
@@ -1963,8 +1964,8 @@ tbl <- localz_df %>%
           tags$select(
             # Set to undefined to clear the filter
             onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
+              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+              tbl_id, name
             ),
             # "All" has an empty value to clear the filter, and is the default option
             tags$option(value = "", "All"),
@@ -1992,8 +1993,8 @@ tbl <- localz_df %>%
           tags$select(
             # Set to undefined to clear the filter
             onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
+              "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+              tbl_id, name
             ),
             # "All" has an empty value to clear the filter, and is the default option
             tags$option(value = "", "All"),
@@ -2039,7 +2040,7 @@ tbl <- localz_df %>%
         }")
       )
     )[colnames(.)],
-    elementId = "localz-res-table"
+    elementId = tbl_id
   )
 cp <- htmltools::em(
   glue(
@@ -2057,17 +2058,17 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('localz-res-table', 'shared_localz_res.csv')"
+      "Reactable.downloadDataCSV('{tbl_id}', 'shared_localz_res.csv')"
     )
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('localz-res-table', [])"
+    onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   ),
   tags$label(
     tags$input(
       type = "checkbox", 
-      onclick = "Reactable.setFilter('localz-res-table', 'Sig', event.target.checked)"
+      onclick = glue("Reactable.setFilter('{tbl_id}', 'Sig', event.target.checked)")
     ),
     "Only show significant associations"
   ),

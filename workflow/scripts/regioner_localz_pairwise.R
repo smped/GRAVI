@@ -24,27 +24,26 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-# Manual lists for testing. Will be overwritten by snakemake objects...
+# ## Manual lists for testing. Will be overwritten by snakemake objects...
 # config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
 #   regions = "output/annotations/gene_regions.rds",
 #   features = "output/annotations/features.rds",
-#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
-#   params = "config/params.yml"
+#   rds = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_results.rds"
 # )
-# all_output <- list(rds = "output/peak_analysis/AR/AR_regions_localz.rds")
+# all_output <- list(
+#   rds = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_localz.rds"
+# )
 # all_params <- yaml::read_yaml("config/params.yml")
-# all_wildcards <- list(target = "AR")
+# threads <- 4
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
-
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
-all_wildcards <- slot(snakemake, "wildcards")
 threads <- slot(snakemake, "threads")[[1]] - 1
 
 ## Print all input
@@ -52,30 +51,16 @@ regioner_params <- all_params$regioner
 cat_list(all_input, "input:", "=")
 cat_list(all_output, "output:", "=")
 cat_list(regioner_params, "regioner params:", "=")
-cat_list(all_wildcards, "wildcards:", "=")
 
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
-
-## Required input files are the gene-regions and eternal-features, as well as
-## a set of peaks to be compared against these regions.
-## The enrichment params yaml can also be passed here
-
-## Required params are: adj_p_method
-## It will be assumed that 5K permutations will be performed and that window
-## sizes are +/-5kb for a 10kb region
-
-## Required output files are:
-## file.path(macs2_path, "{target}", "{target}_regions_localz.rds")
 
 cat_time("Loading packages...")
 library(regioneReloaded)
 library(extraChIPs)
 library(plyranges)
 library(readr)
-library(yaml)
-library(rlang)
 cat_time("done")
 
 source(here::here("workflow/scripts/custom_functions.R"))
@@ -101,22 +86,32 @@ genome(sq) <- ucsc$build
 seqinfo(test_regions) <- sq
 cat_time(" done")
 
-cat_time("Loading peaks from", all_input$peaks)
-peaks <- importPeaks(all_input$peaks, seqinfo = sq, type = "bed")
-peaks <- unlist(peaks)
-cat_time(" done")
+cat_time("Loading parwise results")
+peaks <- read_rds(all_input$rds) %>%
+  splitAsList(.$status) %>%
+  endoapply(granges) %>%
+  endoapply(unique) %>%
+  .[vapply(., length, integer(1)) > 0]
+genome(peaks) <- ucsc$build
 
 cat_time("Running multiLocalZscore with", threads, "threads...")
 mlz_params <- list(
-  A = peaks, Blist = test_regions, sampling = FALSE,
+  Blist = test_regions, sampling = FALSE,
   ranFUN = "resampleGenome", evFUN = "numOverlaps",
   max_pv = 1, genome = ucsc$build, mc.cores = threads
-)
-mlz_params <- c(mlz_params, regioner_params[c("ntimes", "step", "window")])
-mlz <- do.call("multiLocalZscore", mlz_params)
+) %>%
+  c(
+    regioner_params[c("ntimes", "step", "window")]
+  )
+mlz_list <- peaks %>%
+  lapply(
+    \(x) {
+      params <- c(list(A = x), mlz_params)
+      do.call("multiLocalZscore", params)
+    }
+  )
 cat_time("Done")
 
-
 cat_time("Writing to", all_output$rds)
-write_rds(mlz, all_output$rds, compress = "gz")
+write_rds(mlz_list, all_output$rds, compress = "gz")
 cat_time("done")

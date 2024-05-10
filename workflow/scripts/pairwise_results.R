@@ -40,21 +40,23 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-# ## For testing
+## For testing
 # all_wildcards <- list(
 #   tgt1 = "AR",
-#   tgt2 = "H3K27ac",
+#   tgt2 = "ER",
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )
 # full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
 # bed_groups <- list(
-#   c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
+#   c("increased", "decreased", "unchanged", "undetected"),
+#   c("increased", "decreased", "unchanged", "undetected")
 # ) |>
 #   expand.grid() |>
 #   as.matrix() |>
 #   apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
 #   paste0(".bed.gz")
+# bed_groups <- bed_groups[!grepl("undetected_undetected", bed_groups)]
 # all_input <- list(
 #   sq = "output/annotations/seqinfo.rds",
 #   blacklist = "output/annotations/blacklist.rds",
@@ -270,7 +272,8 @@ if (p < 0.05) {
   combined_results <- GRangesList(combined_results) %>%
     unlist() %>%
     sort() %>%
-    unname()
+    unname() %>%
+    mutate(centre = GRanges(paste0(seqnames, ":", centre), seqinfo = seqinfo(.)))
 
   desc <- "
   The two datasets were found to have different size loci (p = {sprintf('%.2e', p)}),
@@ -294,6 +297,10 @@ if (p < 0.05) {
     as.data.frame() %>%
     as.matrix() %>%
     rowMeans(na.rm = TRUE)
+  combined_results$centre <- GRanges(
+    paste0(seqnames(combined_results), ":", combined_results$centre),
+    seqinfo = seqinfo(combined_results)
+  )
 
   desc <- "
   The two datasets were found to have similar size loci (p = {sprintf('%.2e', p)}),
@@ -484,12 +491,12 @@ write_rds(combined_results, all_output$rds, compress = "gz")
 
 cat_time("Exporting all joint status bed files, placing the centre as the score")
 split_ranges <- combined_results %>%
-  plyranges::select(status, score = centre) %>%
   splitAsList(.$status) %>%
-  endoapply(plyranges::select, -status)
+  endoapply(granges) %>%
+  endoapply(unique)
 
 names(split_ranges) %>%
-  str_subset("Undetected", negate = TRUE) %>%
+  setdiff("Undetected - Undetected") %>%
   lapply(
     \(x) {
       tag <- str_to_lower(x) %>% str_replace_all(" - ", "_")

@@ -26,53 +26,47 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-# all_wildcards <- list(
-#   tgt1 = "AR",
-#   comp1 = "E2_E2DHT",
-#   tgt2 = "ER",
-#   comp2 = "E2_E2DHT"
-# )
-# full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
-# bed_groups <- list(
-#   c("increased", "decreased", "unchanged"), c("increased", "decreased", "unchanged")
-# ) |>
-#   expand.grid() |>
-#   as.matrix() |>
-#   apply(1, \(x) paste(x[2], x[1], sep = "_")) |>
-#   paste0(".bed.gz")
-# all_input <- list(
-#   bed = file.path(
-#     "output/pairwise_comparisons", full_comp, paste0(full_comp, "-", bed_groups)
-#   ),
-#   motifs = "output/annotations/motif_list.rds",
-#   seqinfo = "output/annotations/seqinfo.rds"
-# )
-# all_output <- list(
-#   enrich_tsv = file.path(
-#     "output/pairwise_comparisons", full_comp,
-#     paste0(full_comp, "-motif_enrichment.tsv.gz")
-#   ),
-#   position_tsv = file.path(
-#     "output/pairwise_comparisons", full_comp,
-#     paste0(full_comp, "-motif_position.tsv.gz")
-#   )
-# )
-# all_params <- list(
-#   motif_params = jsonlite::fromJSON("config/json/motif_analysis_param.json")$pairwise
-# )
-# threads <- 4
-# config <- yaml::read_yaml("config/config.yml")
-# rm(list = c("full_comp", "bed_groups"))
+all_wildcards <- list(
+  tgt1 = "AR",
+  comp1 = "E2_E2DHT",
+  tgt2 = "ER",
+  comp2 = "E2_E2DHT"
+)
+full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
+all_input <- list(
+  rds = file.path(
+    "output", "pairwise_comparisons", full_comp,
+    paste0(full_comp, "-pairwise_results.rds")
+  ),
+  motifs = "output/annotations/motif_list.rds",
+  seqinfo = "output/annotations/seqinfo.rds"
+)
+all_output <- list(
+  enrich_tsv = file.path(
+    "output/pairwise_comparisons", full_comp,
+    paste0(full_comp, "-motif_enrichment.tsv.gz")
+  ),
+  position_tsv = file.path(
+    "output/pairwise_comparisons", full_comp,
+    paste0(full_comp, "-motif_position.tsv.gz")
+  )
+)
+all_params <- list(
+  motif_params = jsonlite::fromJSON("config/json/motif_analysis_param.json")$pairwise
+)
+threads <- 4
+config <- yaml::read_yaml("config/config.yml")
+rm(list = c("full_comp", "bed_groups"))
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-all_wildcards <- slot(snakemake, "wildcards")
-config <- slot(snakemake, "config")
-threads <- slot(snakemake, "threads")
-all_params <- slot(snakemake, "params")
+# log <- slot(snakemake, "log")[[1]]
+# message("Setting stdout to ", log, "\n")
+# sink(log, split = TRUE)
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+# all_wildcards <- slot(snakemake, "wildcards")
+# config <- slot(snakemake, "config")
+# threads <- slot(snakemake, "threads")
+# all_params <- slot(snakemake, "params")
 
 motif_params <- all_params$motif_params
 full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
@@ -102,42 +96,32 @@ pkg <- paste(c("BSgenome", ucsc$sp, "UCSC", ucsc$build), collapse = ".")
 cat_time("Loading", pkg)
 library(pkg, character.only = TRUE)
 bs_genome <- get(pkg)
+sq <- read_rds(all_input$seqinfo)
+genome(sq) <- ucsc$build
 
 cat_time("Loading motifs")
 motif_df <- read_rds(all_input$motifs) %>% to_df() %>% as_tibble()
 motif_list <- to_list(motif_df)
 
-cat_time("Loading bed files")
-sq <- read_rds(all_input$seqinfo)
-genome(sq) <- ucsc$build
-all_bed <- all_input$bed %>%
-  importPeaks(type = "bed", seqinfo = sq) %>%
-  setNames(
-    str_replace_all(
-      names(.), paste0("^(", full_comp, "-)(.+)(.bed.gz)$"), "\\2"
-    )
-  )
+cat_time("Loading pairwise results")
+pairwise_results <- read_rds(all_input$rds) %>%
+  colToRanges("centre") %>%
+  resize(width = motif_params$peak_width, fix = 'center') %>%
+  splitAsList(.$status) %>%
+  endoapply(unique) %>%
+  endoapply(granges) %>%
+  .[map_int(., length) > 0]
+genome(pairwise_results) <- ucsc$build
+cat_time("Parsed", length(pairwise_results), "sets of ranges")
 
-cat_time("Centering regions and setting to", motif_params$peak_width, "bp")
 cat_time("Getting sequences...")
-seq_list <- all_bed %>%
-  .[map_int(., length) > 0] %>%
-  mclapply(
-    mutate,
-    centre = GRanges(paste0(seqnames, ":", score), seqinfo = sq),
-    mc.cores = threads
-  ) %>%
-  mclapply(colToRanges, "centre", mc.cores = threads) %>%
-  mclapply(
-    resize, fix = 'center', width = motif_params$peak_width, mc.cores = threads
-  ) %>%
-  lapply(unique) %>%
+seq_list <- pairwise_results %>%
   lapply(\(x) setNames(x, as.character(x))) %>%
   mclapply(\(x) getSeq(bs_genome, x), mc.cores = threads) %>%
   mclapply(\(x) x[letterFrequency(x, "N")[,1] == 0], mc.cores = threads) %>%
   as("DNAStringSetList")
 n_seq <- map_int(seq_list, length)
-cat_time("done")
+cat_time("Extracted", sum(n_seq), "sequences for testing")
 
 cat_time("Checking for low frequency matches")
 min_matches <- motif_params$ignore_below * sum(n_seq)
@@ -185,23 +169,21 @@ pos_res %>%
   ) %>%
   write_tsv(all_output$position_tsv)
 
-## Enrichment can be against all other sequences, or against unch-unch
-grp_to_test <- seq_list %>%
-  .[map_int(., length) > 0] %>%
-  names()
-cat_time("Testting for motif enrichment in", length(grp_to_test), "non-zero sets of sequences")
-cat_list(list(groups = grp_to_test), "groups")
-enrich_res <- grp_to_test %>%
+#' Enrichment can be against all other sequences, or against unch-unch
+#' Currently set to all other groups, making unchanged-unchanged a result
+cat_time("Testting for motif enrichment in", length(seq_list), "non-zero sets of sequences")
+cat_list(list(groups = names(seq_list)), "non-zero")
+enrich_res <- names(seq_list) %>%
   lapply(
     \(x) {
       testMotifEnrich(
-        motif_list, seq_list[[x]], unlist(seq_list[names(seq_list) != x]),
+        motif_list[!ignore], seq_list[[x]], unlist(seq_list[names(seq_list) != x]),
         model = "hypergeometric", min_score = motif_params$min_score,
         mc.cores = threads
       )
     }
   )
-names(enrich_res) <- grp_to_test
+names(enrich_res) <- names(seq_list)
 cat_time("Done")
 
 cat_time("Writing", all_output$enrich_tsv)
