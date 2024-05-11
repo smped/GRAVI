@@ -26,47 +26,47 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-all_wildcards <- list(
-  tgt1 = "AR",
-  comp1 = "E2_E2DHT",
-  tgt2 = "ER",
-  comp2 = "E2_E2DHT"
-)
-full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
-all_input <- list(
-  rds = file.path(
-    "output", "pairwise_comparisons", full_comp,
-    paste0(full_comp, "-pairwise_results.rds")
-  ),
-  motifs = "output/annotations/motif_list.rds",
-  seqinfo = "output/annotations/seqinfo.rds"
-)
-all_output <- list(
-  enrich_tsv = file.path(
-    "output/pairwise_comparisons", full_comp,
-    paste0(full_comp, "-motif_enrichment.tsv.gz")
-  ),
-  position_tsv = file.path(
-    "output/pairwise_comparisons", full_comp,
-    paste0(full_comp, "-motif_position.tsv.gz")
-  )
-)
-all_params <- list(
-  motif_params = jsonlite::fromJSON("config/json/motif_analysis_param.json")$pairwise
-)
-threads <- 4
-config <- yaml::read_yaml("config/config.yml")
-rm(list = c("full_comp", "bed_groups"))
+# all_wildcards <- list(
+#   tgt1 = "AR",
+#   comp1 = "E2_E2DHT",
+#   tgt2 = "ER",
+#   comp2 = "E2_E2DHT"
+# )
+# full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
+# all_input <- list(
+#   rds = file.path(
+#     "output", "pairwise_comparisons", full_comp,
+#     paste0(full_comp, "-pairwise_results.rds")
+#   ),
+#   motifs = "output/annotations/motif_list.rds",
+#   seqinfo = "output/annotations/seqinfo.rds"
+# )
+# all_output <- list(
+#   enrich_tsv = file.path(
+#     "output/pairwise_comparisons", full_comp,
+#     paste0(full_comp, "-motif_enrichment.tsv.gz")
+#   ),
+#   position_tsv = file.path(
+#     "output/pairwise_comparisons", full_comp,
+#     paste0(full_comp, "-motif_position.tsv.gz")
+#   )
+# )
+# all_params <- list(
+#   motif_params = jsonlite::fromJSON("config/json/motif_analysis_param.json")$pairwise
+# )
+# threads <- 4
+# config <- yaml::read_yaml("config/config.yml")
+# rm(list = c("full_comp", "bed_groups"))
 
-# log <- slot(snakemake, "log")[[1]]
-# message("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# all_wildcards <- slot(snakemake, "wildcards")
-# config <- slot(snakemake, "config")
-# threads <- slot(snakemake, "threads")
-# all_params <- slot(snakemake, "params")
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+all_wildcards <- slot(snakemake, "wildcards")
+config <- slot(snakemake, "config")
+threads <- slot(snakemake, "threads")
+all_params <- slot(snakemake, "params")
 
 motif_params <- all_params$motif_params
 full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))

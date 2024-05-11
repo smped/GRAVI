@@ -73,15 +73,15 @@ cat_time <- function(...){
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
 
-# log <- slot(snakemake, "log")[[1]]
-# message("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# config <- slot(snakemake, "config")
-# threads <- slot(snakemake, "threads")
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# all_params <- slot(snakemake, "params")
-# all_wildcards <- slot(snakemake, "wildcards")
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+config <- slot(snakemake, "config")
+threads <- slot(snakemake, "threads")
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
+all_wildcards <- slot(snakemake, "wildcards")
 
 cat_list(all_input, "input:", sep = "=")
 cat_list(all_output, "output:", sep = "=")

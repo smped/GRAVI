@@ -20,7 +20,7 @@ rule localz_regions:
     script:
         "../scripts/regioner_localz_regions.R"
 
-rule shared_localz_regions:
+rule localz_regions_shared:
     input:
         checks = ALL_CHECKS,
         features = os.path.join(annotation_path, "features.rds"),
