@@ -2086,6 +2086,9 @@ if (interactive()) {
 ## Motif Analysis
 
 ```{r setup-motif-analysis}
+rng_col <- intersect(
+  c("keyval_range", "centred_peak"), colnames(mcols(results))
+)
 fw_seq <- results %>% 
   colToRanges(rng_col) %>% 
   set_genome_info(ucsc$build) %>% 
@@ -2127,7 +2130,7 @@ This test will identify any motifs which are centrally located, or have any othe
 
 ### Enriched Motifs {.tabset}
 
-`r if (!n_enrich_res) "*No motifs were detected as enriched*")`
+`r if (!n_enrich_res) "*No motifs were detected as enriched*"`
 
 `r if (n_enrich_res > 0) "#### Enrichment Table"`
 
@@ -2257,7 +2260,7 @@ if (n_enrich_res > 1) {
 
 ### Motifs Showing Positional Bias {.tabset}
 
-`r if (!n_pos_res) "*No motifs were detected with any positional bias*")`
+`r if (!n_pos_res) "*No motifs were detected with any positional bias*"`
 
 ```{r get-top-pos, echo = n_pos_res > 0}
 if (n_pos_res) {

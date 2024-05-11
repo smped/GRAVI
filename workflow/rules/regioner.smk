@@ -90,7 +90,7 @@ rule localz_regions_dsa:
     threads: 8
     retries: 1
     resources:
-        mem_mb = 32768,
+        mem_mb = 32000,
         run_time = "30m",
     log: os.path.join(log_path, "regioner", "{target}_{ref}_{treat}_regions_localz.log")
     conda: "../envs/rmarkdown.yml"
@@ -99,12 +99,12 @@ rule localz_regions_dsa:
 
 rule localz_regions_pairwise:
     input:
+        bed = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-{pw_dir}.bed.gz"
+        ),
         checks = ALL_CHECKS,
         features = os.path.join(annotation_path, "features.rds"),
-        rds = os.path.join(
-            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
-            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
-        ),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_pairwise.R"
@@ -112,16 +112,42 @@ rule localz_regions_pairwise:
     output:
         rds = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
-            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise_localz.rds"
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-{pw_dir}_localz.rds"
         )
     params:
         regioner_params = extra_params['regioner']
-    threads: 16
+    threads: 8
     retries: 1
     resources:
-        mem_mb = 64000,
-        run_time = "2h",
-    log: os.path.join(log_path, "regioner", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_localz.log")
+        mem_mb = 32000,
+        run_time = "1h",
+    log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}_{pw_dir}_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/regioner_localz_pairwise.R"
+
+rule merge_localz_pairwise:
+    input:
+        rds = expand(
+            os.path.join(
+                pairs_path, "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}",
+                "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}-{f}_localz.rds"
+            ),
+            f = pw_dirs
+        ),
+        script = os.path.join("workflow", "scripts", "merge_localz_pairwise.R")
+    output:
+        rds = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise_localz.rds"
+        ),
+    threads: 4
+    retries: 1
+    resources:
+        mem_mb = 32000,
+        run_time = "1h",
+    log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}_merge_localz.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/merge_localz_pairwise.R"        
+    

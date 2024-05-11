@@ -159,6 +159,16 @@ if set([config['modules']['nfr']]).intersection(targets):
 if pairs:
 	motif_cats.extend(['pairwise'])
 
+## Define all pairwise directions for comparisons, excluding both undetected
+pw_dirs = []
+if pairs:
+    dirs = ['increased', 'decreased', 'unchanged', 'undetected']
+    for i in range(4):
+        for j in range(4):
+            pw_dirs.extend([dirs[i] + "_" + dirs[j]])
+    pw_dirs.remove('undetected_undetected')
+
+
 
 # Dump params to json. Might be handy later
 peak_calling_param = set_params(config['peak_calling'], targets)
@@ -393,8 +403,6 @@ include: "rules/annotations.smk"
 include: "rules/samtools.smk"
 include: "rules/nfr.smk"
 include: "rules/macs2.smk"
-include: "rules/create_rmd.smk"
-include: "rules/compile_rmd.smk"
 include: "rules/consensus_peaks.smk"
 include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
@@ -402,3 +410,5 @@ include: "rules/regioner.smk"
 include: "rules/motif_analysis.smk"
 include: "rules/differential_signal.smk"
 include: "rules/pairwise_comparisons.smk"
+include: "rules/create_rmd.smk"
+include: "rules/compile_rmd.smk"

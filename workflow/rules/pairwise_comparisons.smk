@@ -1,12 +1,3 @@
-pw_dirs = []
-if pairs:
-    dirs = ['increased', 'decreased', 'unchanged', 'undetected']
-    for i in range(4):
-        for j in range(4):
-            pw_dirs.extend([dirs[i] + "_" + dirs[j]])
-    pw_dirs.remove('undetected_undetected')
-
-
 rule prepare_pairwise_results:
     input:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),

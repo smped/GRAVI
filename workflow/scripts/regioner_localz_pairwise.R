@@ -29,22 +29,22 @@ cat_time <- function(...){
 # all_input <- list(
 #   regions = "output/annotations/gene_regions.rds",
 #   features = "output/annotations/features.rds",
-#   rds = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_results.rds"
+#   bed = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-increased_unchanged.bed.gz"
 # )
 # all_output <- list(
-#   rds = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_localz.rds"
+#   rds = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-increased_unchanged_localz.rds"
 # )
 # all_params <- yaml::read_yaml("config/params.yml")
 # threads <- 4
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-config <- slot(snakemake, "config")
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-all_params <- slot(snakemake, "params")
-threads <- slot(snakemake, "threads")[[1]] - 1
+# log <- slot(snakemake, "log")[[1]]
+# message("Setting stdout to ", log, "\n")
+# sink(log, split = TRUE)
+# config <- slot(snakemake, "config")
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+# all_params <- slot(snakemake, "params")
+# threads <- slot(snakemake, "threads")[[1]] - 1
 
 ## Print all input
 regioner_params <- all_params$regioner
@@ -66,7 +66,7 @@ cat_time("done")
 source(here::here("workflow/scripts/custom_functions.R"))
 ucsc <- get_ucsc(config$genome$build)
 
-cat_time("Loading all regions...")
+cat_time("Loading regions...")
 regions <- read_rds(all_input$regions)
 cat_time("Loading all features...")
 features <- read_rds(all_input$features) %>%
@@ -86,32 +86,36 @@ genome(sq) <- ucsc$build
 seqinfo(test_regions) <- sq
 cat_time(" done")
 
-cat_time("Loading parwise results")
-peaks <- read_rds(all_input$rds) %>%
-  splitAsList(.$status) %>%
-  endoapply(granges) %>%
-  endoapply(unique) %>%
-  .[vapply(., length, integer(1)) > 0]
-genome(peaks) <- ucsc$build
+cat_time("Importing region set")
+peaks <- all_input$bed %>% 
+  importPeaks(type = 'bed', seqinfo = sq) %>% 
+  unlist() %>% 
+  unname() %>% 
+  granges() %>% 
+  unique()
 
-cat_time("Running multiLocalZscore with", threads, "threads...")
-mlz_params <- list(
-  Blist = test_regions, sampling = FALSE,
-  ranFUN = "resampleGenome", evFUN = "numOverlaps",
-  max_pv = 1, genome = ucsc$build, mc.cores = threads
-) %>%
-  c(
-    regioner_params[c("ntimes", "step", "window")]
-  )
-mlz_list <- peaks %>%
-  lapply(
-    \(x) {
-      params <- c(list(A = x), mlz_params)
-      do.call("multiLocalZscore", params)
-    }
-  )
-cat_time("Done")
+if (length(peaks) < regioner_params$min_regions){
+
+  cat_time("Too few regions found for testing. An empty object will be output")
+  mlz <- NULL
+
+} else{
+
+  cat_time("Running multiLocalZscore with", threads, "threads...")
+  mlz_params <- list(
+    A = peaks, Blist = test_regions, sampling = FALSE,
+    ranFUN = "resampleGenome", evFUN = "numOverlaps",
+    max_pv = 1, genome = ucsc$build, mc.cores = threads
+  ) %>%
+    c(
+      regioner_params[c("ntimes", "step", "window")]
+    )
+  mlz <- do.call("multiLocalZscore", mlz_params)
+  cat_time("Done")
+
+}
+
 
 cat_time("Writing to", all_output$rds)
-write_rds(mlz_list, all_output$rds, compress = "gz")
+write_rds(mlz, all_output$rds, compress = "gz")
 cat_time("done")

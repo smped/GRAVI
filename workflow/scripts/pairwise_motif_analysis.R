@@ -171,13 +171,16 @@ pos_res %>%
 
 #' Enrichment can be against all other sequences, or against unch-unch
 #' Currently set to all other groups, making unchanged-unchanged a result
-cat_time("Testting for motif enrichment in", length(seq_list), "non-zero sets of sequences")
+cat_time("Testing for motif enrichment in", length(seq_list), "non-zero sets of sequences")
 cat_list(list(groups = names(seq_list)), "non-zero")
-enrich_res <- names(seq_list) %>%
-  lapply(
+enrich_res <-  lapply(
+    names(seq_list),
     \(x) {
+      cat_time("testing", x)
+      bg <- unlist(seq_list[names(seq_list) != x])
+      bg <- unique(bg)
       testMotifEnrich(
-        motif_list[!ignore], seq_list[[x]], unlist(seq_list[names(seq_list) != x]),
+        motif_list[!ignore], seq_list[[x]], bg,
         model = "hypergeometric", min_score = motif_params$min_score,
         mc.cores = threads
       )
