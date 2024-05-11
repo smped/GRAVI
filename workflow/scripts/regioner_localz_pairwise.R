@@ -37,14 +37,14 @@ cat_time <- function(...){
 # all_params <- yaml::read_yaml("config/params.yml")
 # threads <- 4
 
-# log <- slot(snakemake, "log")[[1]]
-# message("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# config <- slot(snakemake, "config")
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# all_params <- slot(snakemake, "params")
-# threads <- slot(snakemake, "threads")[[1]] - 1
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+config <- slot(snakemake, "config")
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+all_params <- slot(snakemake, "params")
+threads <- slot(snakemake, "threads")[[1]] - 1
 
 ## Print all input
 regioner_params <- all_params$regioner

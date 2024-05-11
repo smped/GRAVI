@@ -46,6 +46,7 @@ library(regioneReloaded)
 
 cat_time("Reading all RDS files")
 all_rds <- lapply(all_input$rds, read_rds)
+names(all_rds) <- basename(all_input$rds)
 nulls <- vapply(all_rds, is.null, logical(1))
 cat_time("Retaining", sum(!nulls), "of", length(nulls), "with results")
 all_rds <- all_rds[!nulls]
