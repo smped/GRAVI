@@ -251,12 +251,9 @@ rule create_differential_signal_rmd:
 
 rule create_pairwise_comparisons_rmd:
     input:
+        localz = rules.merge_localz_pairwise.output.rds,
         module = os.path.join(
             "workflow", "modules", "pairwise_comparison.Rmd"
-        ),
-        results = os.path.join(
-            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
-            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
         ),
         motif_enrich = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
@@ -266,17 +263,21 @@ rule create_pairwise_comparisons_rmd:
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-motif_position.tsv.gz"
         ),   
-        localz = rules.merge_localz_pairwise.output.rds
+        results = os.path.join(
+            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+            "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
+        ),
+        script = os.path.join("workflow", "scripts", "create_pairwise_rmd.R")
     output:
         rmd = os.path.join(
             rmd_path, "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.Rmd"
         )
+    conda: "../envs/rmarkdown.yml"
     localrule: True
+    log: os.path.join(log_path, "create_rmd", "{target}_{ref}_{treat}_differential_signal.log")
     threads: 1
     resources:
         mem_mb = 1024,
         runtime = "5m",
-    shell:
-        """
-        cp {input.module} {output.rmd}
-        """
+    script:
+        "../scripts/create_pairwise_rmd.R"
