@@ -251,6 +251,12 @@ rule create_differential_signal_rmd:
 
 rule create_pairwise_comparisons_rmd:
     input:
+        dsa1 = os.path.join(
+            diff_path, "{tgt1}", "{tgt1}_{comp1}-differential-signal.rds"
+        ),
+        dsa2 = os.path.join(
+            diff_path, "{tgt2}", "{tgt2}_{comp2}-differential-signal.rds"
+        ),      
         localz = rules.merge_localz_pairwise.output.rds,
         module = os.path.join(
             "workflow", "modules", "pairwise_comparison.Rmd"
@@ -274,7 +280,7 @@ rule create_pairwise_comparisons_rmd:
         )
     conda: "../envs/rmarkdown.yml"
     localrule: True
-    log: os.path.join(log_path, "create_rmd", "{target}_{ref}_{treat}_differential_signal.log")
+    log: os.path.join(log_path, "create_rmd", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise.log")
     threads: 1
     resources:
         mem_mb = 1024,
