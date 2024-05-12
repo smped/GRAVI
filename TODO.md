@@ -12,7 +12,7 @@
   - [x] differential signal
   - [ ] pairwise comparisons
 - [x] Checks for input file consistency/structure
-- [ ] Shift `cowplot` to `patchwork`
+- [x] Shift `cowplot` to `patchwork`
 - [ ] Motif Detection
   - [x] Macs2 Summary
   - [x] Shared Peaks
@@ -24,6 +24,7 @@
 
 - [x] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
 - [x] Tidy up GSEA tables & descriptions to just look nice
+- [ ] Add comparisons of RNA seq
   
 ## Peak Analysis
 
@@ -37,6 +38,7 @@
     1. Sliding Windows with SQN (quantro not essential)
     2. Sliding Windows with TMM/RLE (after quantro)
     3. Fixed width using TMM/RLE (after quantro)
+- [ ] Check selecting the Wald Test for DSA
 - [x] Update main differential signal module
 - [x] Update IHW
 - [x] Shift analysis to a separate script & only reporting in the Rmd/HTML
@@ -49,6 +51,13 @@
     + Wrangle multiple files
 - [x] Motif Analysis
 - [ ] NFR incorporation
+
+## Pairwise Analysis
+
+- [x] Add Regioner
+- [x] Motif Analysis
+- [x] Enrichment Analysis
+- [ ] RNAseq
 
 
 ## Features (Unlikely)
@@ -68,7 +77,7 @@
     - Motif analysis
     - RegioneR analysis
     - **No enrichment analysis required**
-- Unclear how to best integrate with Differential Signal
+- [ ] Integrate with Differential Signal
   - Maybe still perform DSA on main target & then look at NFRs which overlap, rather than performing DSA on NFRs
   - This way all analysis is done, but without requiring more complicated signalling
   - Can be written as a module to be inserted into DSA when present
@@ -78,7 +87,7 @@
 ## Bugs
 
 - [ ] Add `pairwise_comparisons/{t1}_{t2}/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}-de_genes.csv` to output of pairwise_comparisons when RNA-Seq data is provided
-- [ ] Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
+- [x] Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
 - [ ] Cleanup handling of detected genes, particularly in the setup of annotations
 - [ ] Place all gtf objects back into a single GRangesList...
 

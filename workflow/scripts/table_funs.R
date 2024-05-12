@@ -59,6 +59,21 @@ granges_js <- htmlwidgets::JS(
       return ret_val
     }"
 )
+drop_filter <- function(values, name, id = NULL, sort = TRUE) {
+  if (sort) values <- sort(values)
+  tags$select(
+    # Set to undefined to clear the filter
+    onchange = sprintf(
+      "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+      id, name
+    ),
+    # "All" has an empty value to clear the filter, and is the default option
+    tags$option(value = "", "All"),
+    lapply(unique(values), tags$option),
+    "aria-label" = sprintf("Filter %s", name),
+    style = "width: 100%; height: 28px;"
+  )
+}
 
 up_col <- function(x) {
   if (is.na(x) | is.nan(x)) return("#ffffff")

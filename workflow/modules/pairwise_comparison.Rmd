@@ -5,7 +5,7 @@ params <- list(
   comp1 = "E2_E2DHT",
   comp2 = "E2_E2DHT",
   full_comp = "AR_E2_E2DHT-ER_E2_E2DHT",
-  results = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_results.rds",
+  results = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise-results.rds",
   dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
   dsa2 = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
   localz = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_localz.rds",
@@ -106,6 +106,9 @@ pw_param <- here::here("config", "json", "pairwise_param.json") %>%
 region_params <- here::here("config", "params.yml") %>%
   read_yaml() %>%
   pluck("gene_regions")
+regioner_params <- here::here("config", "params.yml") %>%
+  read_yaml() %>%
+  pluck("regioner")
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   .[targets]
@@ -2222,6 +2225,11 @@ if (any_networks) {
 
 ```{r load-localz}
 mlz_list <- read_rds(params$localz)
+mlz_list <- mlz_list[!map_lgl(mlz_list, is.null)]
+names(mlz_list) <- names(mlz_list) %>% 
+  str_remove_all(params$full_comp) %>% 
+  str_replace_all("-(.+)_(.+)_localz.rds", "\\1 - \\2") %>% 
+  str_to_title() 
 localz_df <- mlz_list %>% 
   lapply(slot, "multiLocalZscores") %>% 
   lapply(pluck, "resumeTab") %>% 
@@ -2249,7 +2257,6 @@ localz_df <- mlz_list %>%
       ) 
   ) %>% 
   as_tibble()
-
 shifted_z <- mlz_list %>% 
   lapply(slot, "multiLocalZscores") %>% 
   lapply(
@@ -2299,7 +2306,8 @@ shifted_z %>%
   arrange(abs(shift), Z) %>% 
   mutate(
     region = fct_inorder(as.character(region)),
-    source = ifelse(region %in% regions, "Region", "Feature")
+    source = ifelse(region %in% regions, "Region", "Feature"),
+    comparison = str_replace_all(comparison, " - ", "\n")
   ) %>% 
   ggplot(aes(shift, fct_rev(region), fill = Z)) +
   geom_raster() +
@@ -2495,9 +2503,10 @@ motif_db <- all_paths$annotation %>%
   as_tibble()
 motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
   read_rds()
-fw_seq <- combined_results %>% 
-  subset(grepl("(In|De)creased", status)) %>% 
+fw_seq <- combined_results %>%
+  # subset(grepl("(In|De)creased", status)) %>% 
   mutate(status = fct_rev(status)) %>% 
+  colToRanges("centre") %>% 
   set_genome_info(ucsc$build) %>% 
   resize(width = motif_params$peak_width, fix = 'center') %>% 
   splitAsList(.$status) %>% 
@@ -2518,10 +2527,10 @@ motif_enrich_res <- params$motif_enrichment %>%
   read_tsv() %>%
   dplyr::rename(adj_p = fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_params$adj), .by = comparison) %>% 
-  dplyr::filter(
-    adj_p < motif_params$alpha, enrichment > 1, 
-    grepl("(in|de)creased", comparison)
-  ) %>% 
+  # dplyr::filter(
+  #   adj_p < motif_params$alpha, enrichment > 1,
+  #   grepl("(In|De)creased", comparison)
+  # ) %>%
   mutate(
     comparison = comparison %>% 
       str_replace_all("_", " - ") %>% 
@@ -2532,17 +2541,16 @@ motif_enrich_res <- params$motif_enrichment %>%
         "(.+) - (.+)", 
         paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
       )
-  ) %>% 
-  split(.$comparison)
+  )
 motif_pos_res <- params$motif_position %>% 
   here::here() %>%
   read_tsv() %>%
   dplyr::rename(adj_p = fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_params$adj), .by = comparison) %>% 
-  dplyr::filter(
-    adj_p < motif_params$alpha, enrichment > 1, 
-    grepl("(in|de)creased", comparison)
-  ) %>% 
+  # dplyr::filter(
+  #   adj_p < motif_params$alpha, enrichment > 1, 
+  #   grepl("(In|De)creased", comparison)
+  # ) %>% 
   mutate(
     comparison = comparison %>% 
       str_replace_all("_", " - ") %>% 
@@ -2553,10 +2561,9 @@ motif_pos_res <- params$motif_position %>%
         "(.+) - (.+)", 
         paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
       )
-  ) %>% 
-  split(.$comparison) 
-any_motif_enrich <- length(motif_enrich_res) > 0
-any_motif_pos <- length(motif_pos_res) > 0
+  ) 
+any_motif_enrich <- any(motif_enrich_res$adj_p < motif_params$alpha)
+any_motif_pos <-  any(motif_pos_res$adj_p < motif_params$alpha)
 ```
 
 Motif enrichment analysis was performed on each subset of sites within each group.
@@ -2571,9 +2578,75 @@ In all sections below, only significant results are returned.
 
 `r ifelse(any_motif_enrich, "### Result Tables {.tabset}", "*No groups were found to be enriched for any of the tested motifs.*")`
 
+
+```{r test-combined-tbl, echo = FALSE, eval = FALSE}
+# tbl_id <- "motif-enrich-tbl"
+# tbl <- motif_enrich_res %>% 
+#   dplyr::filter(adj_p < motif_params$alpha) %>% 
+#   mutate(
+#     across(ends_with("name"), as.factor),
+#     cluster = as.factor(cluster)
+#   ) %>% 
+#   reactable(
+#     showPageSizeOptions = nrow(.) > 10,
+#     filterable = TRUE, groupBy = "cluster", searchable = TRUE,
+#     columns = c(
+#       motif_cols[names(motif_cols) %in% colnames(.)] %>% 
+#         .[setdiff(names(.), c("altname", "name"))],
+#       list(
+#         altname = colDef(
+#           "Motif", minWidth = 180, aggregate = "unique",
+#           style = list(borderLeft = "1px solid rgba(0, 0, 0, 0.1)"),
+#           filterInput = \(values, name) drop_filter(values, name, tbl_id)
+#         ),
+#         sequences = colDef(show = FALSE),
+#         name = colDef(
+#           "Name", minWidth = 120, aggregate = "unique",
+#           style = list(borderRight = "1px solid rgba(0, 0, 0, 0.1)"),
+#           filterInput = \(values, name) drop_filter(values, name, tbl_id)
+#         ),
+#         comparison = colDef(
+#           "Comparison", minWidth = 100, aggregate = "unique",
+#           filterInput = \(values, name) drop_filter(values, name, tbl_id)
+#         )
+#       )
+#     ),
+#     defaultSorted = "adj_p", defaultSortOrder = "asc",
+#     theme = reactableTheme(style = list(fontSize = 12)),
+#     elementId = tbl_id
+#   )
+# tl <- tagList(
+#   tags$button(
+#     tagList(fontawesome::fa("download"), "Download as CSV"),
+#     onclick = glue(
+#       "Reactable.downloadDataCSV('{tbl_id}',",
+#       "'{params$full_comp}-motif_enrich_res.csv')"
+#     )
+#   ),
+#   tags$button(
+#     "Expand/Collapse All",
+#     onclick = glue("Reactable.toggleAllRowsExpanded('{tbl_id}')")
+#   ),
+#   tags$button(
+#     "Clear All Filters", onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+#   ),
+#   tbl
+# )
+# if (interactive()) {
+#   browsable(tl)
+# } else {
+#   tl
+# }
+```
+
+
+
 ```{r motif-enrich-tables}
 tagList(
   motif_enrich_res %>% 
+    dplyr::filter(adj_p < motif_params$alpha) %>%
+    droplevels() %>% 
+    split(.$comparison) %>% 
     mclapply(
       \(x) {
         nm <- unique(x$comparison)
@@ -2635,11 +2708,16 @@ tagList(
 )
 ```
 
+
+
 `r if (any_motif_enrich), "### Motif Co-Ocurrence {.tabset}"`
 
 ```{r motif-corplot, echo = any_motif_enrich}
 if (any_motif_enrich) {
   motif_corplot <- motif_enrich_res %>% 
+    dplyr::filter(adj_p < motif_params$alpha) %>%
+    droplevels() %>% 
+    split(.$comparison) %>% 
     lapply(
       \(x) {
         comp <- unique(x$comparison)
@@ -2757,6 +2835,94 @@ if (any_motif_enrich) {
 ```
 
 
+`r if (any_motif_enrich), "### Motif Enrichment Summary"`
+
+```{r motif-summary-plot, echo=any_motif_enrich, fig.cap = glue("*Summary of enrichment patterns for the {show_n} motifs considered to be enriched within at least one set of sequences. All points reprsent significant enrichment, with point size showing how commonly the motif is seen within a set of sequences, and the fill colour showing enrichment as the odds ratio, All points were clustered using the odds ratio*")}
+show_n <- 25
+if (any_motif_enrich) {
+  motif_enrich_mat <- motif_enrich_res %>% 
+    arrange(p) %>% 
+    dplyr::filter(altname %in% unique(altname)[seq_len(show_n)]) %>% 
+    dplyr::filter(any(adj_p < motif_params$alpha), .by = altname) %>% 
+    dplyr::filter(any(adj_p < motif_params$alpha), .by = comparison) %>% 
+    droplevels() %>% 
+    pivot_wider(
+      names_from = "name", values_from = "odds_ratio", id_cols = 'comparison'
+    ) %>% 
+    as.data.frame() %>% 
+    column_to_rownames("comparison") %>% 
+    as.matrix()
+  motif_dend <- dist(1 - cor(motif_enrich_mat)) %>% 
+    hclust() %>% 
+    as.dendrogram() %>% 
+    ggdendro::dendro_data()
+  motif_levels <- motif_dend$labels$label
+  motif_dend_plot <- ggplot(motif_dend$segments) +
+    geom_segment(aes(xend, y, xend = x, yend = yend)) + 
+    scale_x_continuous(
+      limits = range(motif_dend$segments$xend),
+      expand = expansion(0, 0.6)
+    ) +
+    scale_y_reverse(expand = rep_len(0, 4)) +
+    labs(x = "", y = c()) + 
+    theme_minimal() + 
+    theme(
+      panel.grid = element_blank(), 
+      axis.text = element_blank(), axis.ticks = element_blank(), 
+      plot.margin = unit(c(0, 5.5, 0, 5.5), "points")
+    )
+  comp_dend <- dist(1 - cor(t(motif_enrich_mat))) %>% 
+    hclust() %>% 
+    as.dendrogram() %>% 
+    ggdendro::dendro_data()
+  comp_levels <- comp_dend$labels$label
+  comp_dend_plot <- ggplot(comp_dend$segments) +
+    geom_segment(aes(yend, x, xend = y, yend = xend)) + 
+    scale_y_continuous(
+      limits = range(comp_dend$segments$xend), expand = expansion(0, 0.6)
+    ) +
+    scale_x_reverse(expand = expansion(c(0, 0))) +
+    labs(x = "", y = c()) + 
+    theme_minimal() + 
+    theme(
+      panel.grid = element_blank(), 
+      axis.text = element_blank(), axis.ticks = element_blank(), 
+      plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
+    )
+  size_max <- max(motif_enrich_res$matches / motif_enrich_res$sequences)
+  main <- motif_enrich_res %>% 
+    dplyr::filter(any(adj_p < motif_params$alpha), .by = altname) %>% 
+    dplyr::filter(any(adj_p < motif_params$alpha), .by = comparison) %>% 
+    droplevels() %>% 
+    arrange(p) %>% 
+    dplyr::filter(altname %in% unique(altname)[seq_len(show_n)]) %>% 
+    dplyr::filter(adj_p < motif_params$alpha) %>%
+    mutate(
+      name = factor(name, levels = motif_levels),
+      comparison = factor(comparison, levels = comp_levels)
+    ) %>% 
+    ggplot(aes(name, comparison)) +
+    geom_point(aes(size = matches / sequences, fill = log2(odds_ratio)), shape = 21) +
+    scale_size(
+      range = c(0, 10), limits = c(0, size_max), breaks = seq(0, 1, by = 0.2),
+      name = "Matches/Sequence"
+    ) +
+    scale_fill_viridis_c(option = "inferno") +
+    scale_y_discrete(labels = \(x) str_replace_all(x, " - ", "\n")) +
+    labs(x = c(), y = c()) +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+      panel.grid = element_blank()
+    )
+  comp_dend_plot + main + motif_dend_plot + 
+    plot_layout(
+      design = c(area(1, 1, 9, 1), area(1, 2, 9, 12), area(10, 2, 10, 12))
+    )
+}
+```
+  
+
+
 ## Motifs With Positional Bias {.tabset}
 
 `r ifelse(any_motif_pos, "### Result Tables {.tabset}", "*No groups were found to show positional bias for any motifs.*")`
@@ -2764,6 +2930,9 @@ if (any_motif_enrich) {
 ```{r motif-pos-tables}
 tagList(
   motif_pos_res %>% 
+    dplyr::filter(adj_p < motif_params$alpha) %>%
+    droplevels() %>% 
+    split(.$comparison) %>% 
     lapply(
       \(x) {
         nm <- unique(x$comparison)
@@ -2823,6 +2992,9 @@ tagList(
 )
 ```
 
+```{r}
+## Perhaps add a series of plots for bia here using a tagList
+```
 
 
 # HERE
