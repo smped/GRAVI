@@ -1,0 +1,1380 @@
+## Comparison With Transcriptomic Data
+
+```{r define-rna-objects}
+library(fgsea)
+library(metap)
+library(ggside)
+results_tbl <- combined_results %>% 
+  as_tibble() %>% 
+  unnest(gene_id) %>% 
+  mutate(gene_name = id2gene[gene_id])
+rna <- lapply(rna, addDiffStatus)
+has_de <- map_lgl(rna, \(x) any(x$FDR < 0.05))
+pw_gene_status <- results_tbl %>%
+  dplyr::select(status, gene_id) %>% 
+  unnest(gene_id) %>% 
+  distinct(status, gene_id)
+enrich_cols$pathway <- enrich_cols$gs_name
+enrich_cols$NES <- colDef(
+  format = colFormat(digits = 2), maxWidth = 100,
+  style = \(value) {
+    text_colour <- ifelse(
+      value > 0, 
+      direction_colours[["Increased"]], 
+      direction_colours[["Decreased"]]
+    )
+    list(color = text_colour)
+  }
+)
+enrich_cols$meta_p <- enrich_cols$p
+enrich_cols$n_cmn <- enrich_cols$observed_gene_hits
+enrich_cols$n_cmn$name <- "Nbr Common"
+enrich_cols$genes <- enrich_cols$genes_with_hits
+enrich_cols$genes$name <- "Common Genes"
+enrich_cols$cmn_ids <- enrich_cols$gene_id
+```
+
+In order to compare DSA results for `r target`, gene-to-range mappings were summarised such that if a gene was mapped to any DSA results showing increased or decreased binding, they were given this status.
+Genes with conflicting mappings were considered to be ambiguous, whilst those without any changed regions were assigned as being consistently unchanged.
+These results were applied where summarised results were able to be presented, however, when comparing actual estimates for logFC etc, all DSA ranges were retained.
+
+
+```{r summary-tables}
+summary_tables <- names(rna) %>% 
+  lapply(
+    \(i) {
+      x <- rna[[i]]
+      id <- paste0("tbl-summary-", i) %>% 
+        str_to_lower() %>% 
+        str_replace_all("_", "-")
+      tbl <- results_tbl %>%
+        full_join(x, by = "gene_id") %>% 
+        mutate(
+          status.x = fct_na_value_to_level(status.x, "Undetected - Undetected"),
+          status.y = fct_na_value_to_level(status.y, "Undetected")
+        ) %>% 
+        arrange(desc(status.x)) %>% 
+        distinct(gene_id, .keep_all = TRUE) %>% 
+        dplyr::select(gene_id, starts_with("status")) %>% 
+        summarise(
+          n = dplyr::n(), .by = starts_with("status")
+        ) %>%
+        pivot_wider(names_from = "status.y", values_from = "n", values_fill = 0) %>% 
+        dplyr::select(
+          status.x, any_of(c("Increased", "Decreased")), 
+          everything()
+        ) %>% 
+        separate(status.x, unlist(short_names)) %>% 
+        reactable(
+          showPageSizeOptions = nrow(.) > 10, filterable = TRUE,
+          columns = list2(
+            "{short_names[[1]]}" := colDef(
+              filterInput = \(values, name) drop_filter(values, name, id)
+            ),
+            "{short_names[[2]]}" := colDef(
+              filterInput = \(values, name) drop_filter(values, name, id)
+            ),
+            Increased = colDef(filterMethod = js_greater),
+            Decreased = colDef(filterMethod = js_greater),
+            Unchanged = colDef(filterMethod = js_greater),
+            Undetected = colDef(filterMethod = js_greater),
+          )[colnames(.)],
+          defaultColDef = colDef(
+            sortable = TRUE, format = comma_col,
+            footerStyle = list(fontWeight = "bold")
+          ),
+          columnGroups = list(
+            colGroup(
+              "Gene Expression", str_subset(names(.), "ed$")
+            )
+          ),
+          elementId = id
+        )
+      cp <- htmltools::em(
+        glue(
+          "Comparison between pairwise ",
+          glue_collapse(short_names, last = " and "),
+          " status with gene expression from {i}."
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = id,
+          class = "section level5",
+          htmltools::h5("Summary Table"),
+          htmltools::div(
+            class = "table", tbl, htmltools::tags$caption(cp)
+          )
+        )
+      )
+    }
+  ) %>% 
+  setNames(names(rna))
+```
+
+
+
+```{r volcano-plots, echo = any(has_de)}
+volcano_plots <- list()
+if (any(has_de)) {
+  volcano_plots <- names(which(has_de)) %>% 
+    lapply(
+      \(i) {
+        p <- rna[[i]] %>% 
+          arrange(PValue) %>% 
+          left_join(pw_gene_status, by = "gene_id") %>% 
+          mutate(
+            status.y = fct_na_value_to_level(status.y, "Undetected - Undetected"),
+            gene_name = id2gene[gene_id]
+          ) %>% 
+          separate(status.y, unlist(short_names), sep = " - ") %>% 
+          mutate(
+            "{short_names[[1]]}" := paste(short_names[[1]], !!sym(short_names[[1]])),
+            "{short_names[[2]]}" := paste(short_names[[2]], !!sym(short_names[[2]])),
+          ) %>% 
+          droplevels() %>% 
+          ggplot(aes(logFC, -log10(PValue), colour = status.x)) +
+          geom_point(alpha = 0.7) +
+          geom_label_repel(
+            aes(label = gene_name),
+            data = . %>%
+              dplyr::filter(grepl("creased", status.x)) %>%
+              distinct(
+                gene_name, status.x, !!!syms(short_names), .keep_all = TRUE
+              ) %>%
+              dplyr::slice(
+                1:2,
+                .by = all_of(c("status.x", unname(unlist(short_names))))
+              ),
+            show.legend = FALSE, alpha = 0.7, size = 3, fontface = "italic"
+          ) +
+          geom_text(
+            aes(label = label),
+            data = . %>%
+              summarise(
+                logFC = max(logFC), PValue = 1,
+                n = dplyr::n(), .by = all_of(unname(unlist(short_names)))
+              ) %>%
+              mutate(
+                logFC = max(logFC), label = paste("n =", comma(n))
+              ),
+            colour = "grey20", hjust = 1, vjust = 0, size = 3.5
+          ) +
+          facet_grid(
+            rows = vars(!!sym(short_names[[2]])), 
+            cols = vars(!!sym(short_names[[1]])),
+          ) +
+          labs(
+            x = "logFC (RNA)", y = expr(paste(-log[10], "PValue")), 
+            colour = "DE Status"
+          ) +
+          scale_colour_manual(values = direction_colours)
+        
+        ## Export the image
+        img_out <- file.path(fig_path, glue("volcano_{i}.{fig_type}"))
+        fh <- ifelse(
+          length(levels(p$data$status.y)) == 3, 2 * fh / 3, fh
+        )
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(p)
+        dev.off()
+        
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "Volcano plot for {i} showing genes separated by pairwise status. ",
+            "The number of genes in each panel is given in the bottom right corner. ",
+            "Where possible, the two most highly ranked DE genes are labelled.",
+            "Given that multiple loci may be associated with a single gene, ",
+            "genes may appear labelled in multiple panels"
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = img_out %>% 
+              basename() %>% 
+              str_remove_all(glue(".{fig_type}$")) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-"),
+            class = "section level5",
+            htmltools::h5("Volcano Plot"),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    ) %>% 
+    setNames(names(which(has_de)))
+}
+```
+  
+```{r pval-by-status}
+pval_hist <- names(rna) %>% 
+  lapply(
+    \(i) {
+      p <- rna[[i]] %>% 
+        left_join(pw_gene_status, by = "gene_id") %>% 
+        mutate(
+          status.y = fct_na_value_to_level(status.y, "Undetected - Undetected") %>% 
+            fct_relabel(
+              \(x) x %>% 
+                str_replace_all("Increased.+Increased", "Both Increased") %>% 
+                str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
+                str_replace_all(
+                  "(.+) - (.+)",
+                  paste(short_names[[1]], "\\1 -", short_names[[2]], "\\2")
+                )
+            ) %>% 
+            fct_lump(5),
+          gene_name = id2gene[gene_id]
+        ) %>% 
+        droplevels() %>% 
+        ggplot(aes(PValue, after_stat(density))) +
+        geom_histogram(
+          fill = "grey70", colour = "black", binwidth = 0.01
+        ) +
+        facet_wrap(~status.y) +
+        scale_y_continuous(expand = expansion(c(0, 0.05))) +
+        scale_x_continuous(expand = expansion(0.025))
+      y_max <- max(layer_scales(p)$y$range$range)
+      p <- p +
+        geom_text(
+          aes(y = y, label = label),
+          data = . %>% 
+            summarise(
+              n = dplyr::n(), .by = status.y
+            ) %>% 
+            mutate(
+              PValue = 0.02, 
+              y = y_max,
+              label = paste("n =", comma(n))
+            ),
+          hjust = 0, vjust = 1, size = 3.5
+        ) +
+        labs(x = "PValue (RNA)", y = "Density")
+      
+      ## Export the image
+      img_out <- file.path(fig_path, glue("pvals_{i}.{fig_type}"))
+      fh <- ifelse(
+        length(levels(p$data$status.y)) == 3, 2 * fh / 3, fh
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "P-values for {i} separated by pairwise status. ",
+          "Only the most common 5 groups are shown with all others grouped ",
+          "into the status 'Other'"
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level5",
+          htmltools::h5("P-Value Histogram"),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+    }
+  ) %>% 
+  setNames(names(rna))
+```
+
+```{r pw-deg-tables}
+pw_deg_tables <- list()
+if (any(has_de) & has_ds) {
+  pw_deg_tables <- has_de %>% 
+    which() %>% 
+    names() %>% 
+    lapply(
+      \(i) {
+        fs <- 12
+        id <- paste0("tbl-", i, "-pairwise") %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-")
+        tbl <- rna[[i]] %>% 
+          dplyr::filter(FDR < 0.05) %>% 
+          left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
+          inner_join(
+            dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
+            by = "gene_id"
+          ) %>% 
+          mutate(
+            d = distance(GRanges(range.x), GRanges(centre)),
+            across(
+              any_of("feature"), 
+              \(x) map_chr(x, \(x) paste(sort(unique(x)), collapse = "; "))
+            )
+          ) %>% 
+          dplyr::select(-range.x) %>% 
+          dplyr::rename(range = range.y) %>% 
+          dplyr::select(
+            starts_with("gene"), all_of(c("logCPM", "logFC", "FDR")),
+            starts_with("status"), range, d, any_of(c("region", "feature"))
+          ) %>% 
+          dplyr::select(-starts_with("PValue")) %>% 
+          dplyr::filter(str_detect(status.y, "(In|De)creased")) %>% 
+          separate(status.y, unlist(short_names), sep = " - ") %>% 
+          reactable(
+            showPageSizeOptions = nrow(.) > 10, groupBy = "gene_name",
+            filterable = TRUE, sortable = TRUE,
+            columns = list2(
+              gene_name = colDef(
+                name = "Gene", maxWidth = fs*11,
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)",
+                  fontSize = fs
+                )
+              ),
+              gene_id = colDef(
+                name = "ID", aggregate = "unique", cell = function(value) "",
+                show = FALSE
+              ),
+              logCPM = colDef(
+                maxWidth = fs*6, aggregate = range_js,
+                format = colFormat(digits = 2),
+                style = function(value) bar_style(
+                  width = value / max(.$logCPM), fontSize = fs
+                ),
+                filterMethod = js_greater
+              ),
+              logFC = colDef(
+                aggregate = "mean", 
+                style = JS(
+                  glue(
+                    "function(rowInfo) {
+                      var value = rowInfo.row['logFC']
+                      if (value < 0) {
+                        var color = '{{direction_colours[['Decreased']]}}'
+                      } else if (value > 0) {
+                        var color = '{{direction_colours[['Increased']]}}'
+                      } else {
+                        var color = '#000000'
+                      }
+                      return { color: color, fontSize: {{fs}} }
+                    }",
+                    .open = "{{", .close = "}}"
+                  )
+                ),
+                format = colFormat(digits = 2), maxWidth = fs*6,
+              ),
+              FDR = colDef(
+                aggregate = "min", maxWidth = fs*6,
+                format = colFormat(digits = 4),
+                cell = \(value) sprint_pval(value),
+                style = list(
+                  borderRight = "1px solid rgba(0, 0, 0, 0.1)", 
+                  fontSize = fs
+                ),
+                filterMethod = js_less
+              ),
+              status.x = colDef("Status", aggregate = "unique", show = FALSE),
+              "{short_names[[1]]}" := colDef(
+                filterInput = \(values, name) drop_filter(values, name, id),
+                aggregate = "unique"
+              ),
+              "{short_names[[2]]}" := colDef(
+                filterInput = \(values, name) drop_filter(values, name, id),
+                aggregate = "unique"
+              ),
+              range = colDef(
+                name = "Location", minWidth = 160,
+                aggregate = granges_js
+              ),
+              region = colDef(
+                name = "Genomic Region", aggregate = "unique",
+                filterInput = \(values, name) drop_filter(values, name, id)
+              ),
+              feature = colDef(name = "Feature", aggregate = "unique"),
+              d = colDef(
+                "Distance To Locus", maxWidth = fs * 8, format = comma_col,
+                aggregate = range_js, filterMethod = js_less
+              )
+            )[colnames(.)],
+            columnGroups = list(
+              colGroup("RNA", c("logFC", "logCPM", "FDR")),
+              colGroup("Pairwise Status", unname(unlist(short_names))),
+              colGroup(
+                "Signal Location", 
+                intersect(c("range", "region", "feature", "d"), colnames(.))
+              )
+              # colGroup(target, str_subset(names(.), "\\.y$"))
+            ),
+            theme = reactableTheme(style = list(fontSize = fs)),
+            elementId = id
+          )
+        cp <- htmltools::em(
+          glue(
+            "Comparison of all DE genes with any pairwise status ",
+            "considered as showing evidence of changed signal. "
+          )
+        )
+        htmltools::div(
+          id = id, class = "section level5", 
+          htmltools::h5("DEGs with Differential Signal"), 
+          tagList(
+            tags$button(
+              tagList(fontawesome::fa("download"), "Download as CSV"),
+              onclick = glue(
+                "Reactable.downloadDataCSV('{id}', '{i}_deg_{params$full_comp}_dsa.csv')"
+              )
+            ),
+            tags$button(
+              "Expand/Collapse All",
+              onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
+            ),
+            tags$button(
+              "Clear All Filters",
+              onclick = glue("Reactable.setAllFilters('{id}', [])")
+            ),
+            tbl, tags$caption(cp)
+          )
+        )
+      }
+    ) %>% 
+    setNames(names(which(has_de)))
+}
+```
+
+### Direct Comparisons
+
+
+```{r print-tables-and-figures, echo=FALSE}
+tagList(
+  names(rna) %>% 
+    lapply(
+      \(x) {
+        tagList(
+          list(
+            htmltools::div(
+              id = x, class = "section level4 tabset",
+              htmltools::h4(x, class = "tabset"),
+              summary_tables[[x]],
+              volcano_plots[[x]],
+              pval_hist[[x]],
+              pw_deg_tables[[x]]
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+# HERE
+
+### `r target` Pattern GSEA 
+
+GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r target` signal regions, and checking for enrichment amongst the RNA-Seq results.
+Two analyses wre performed:
+
+1. Ranking both `r target` signal and transcriptomic data by significance only, to test for any overall association with changed signal levels and DGE, then
+2. Ranking both `r target` signal and transcriptomic data by both *direction of change* and *significance*, to test for any overall association between the direction of change in either -omics layer
+
+The `R` package `fgsea` [@KorotkevichFgsea2019] was used for all downstream GSEA analysis.
+
+#### Overall Significance {.tabset}
+
+```{r run-gsea-sig}
+ids_by_status <- results_tbl %>%
+  mutate(status = ifelse(status == "Unchanged", "Unchanged", "Changed")) %>% 
+  unnest(any_of("feature")) %>% 
+  unite(group, any_of(c("status", "region", "feature"))) %>% 
+  split(.$group) %>% 
+  lapply(pull, "gene_id")
+rna_sig_scores <- rna %>% 
+  lapply(\(x) setNames(-log10(x$PValue), x$gene_id))
+rna_gsea_sig <- rna_sig_scores %>% 
+  lapply(
+    \(x) fgsea(
+      ids_by_status, x, minSize = min(msigdb_params$size), scoreType = "pos"
+    )
+  ) %>% 
+  lapply(as_tibble) %>% 
+  lapply(
+    separate, pathway, 
+    into = c("status", "region", "feature")[seq_len(2 + has_features)],
+    sep = "_", extra = "merge", remove = FALSE
+  ) %>%
+  lapply(arrange, pval) %>% 
+  lapply(
+    mutate,
+    pathway = paste(target, pathway),
+    padj = p.adjust(pval, enrich_params$adj),
+    status = factor(status, levels = c("Unchanged", "Changed")),
+    region = factor(region, unname(regions)),
+    leSize = map_int(leadingEdge, length),
+    leadingEdge = map_chr(
+      leadingEdge, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+    )
+  ) %>% 
+  lapply(
+    dplyr::select, 
+    pathway, any_of(c("status", "region", "feature")),
+    padj, NES, ends_with("ize"), leadingEdge
+  ) %>% 
+  lapply(dplyr::filter, leSize >= enrich_params$min_sig)
+any_gsea_sig <- map_lgl(rna_gsea_sig, \(x) any(x$padj < enrich_params$alpha))
+```
+
+
+```{r tbl-gsea-sig, echo=FALSE}
+if (any(any_gsea_sig)) {
+  tagList(
+    any_gsea_sig %>% 
+      which() %>% 
+      names() %>% 
+      lapply(
+        \(x) {
+          tbl_id <- paste0("tbl-gsea-sig", x) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-")
+          tbl <- rna_gsea_sig[[x]] %>% 
+            dplyr::select(-pathway) %>% 
+            dplyr::filter(padj < enrich_params$alpha) %>% 
+            reactable(
+              sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+              columns = list(
+                status = colDef(
+                  glue("{target} Status"), maxWidth = 100,
+                  filterMethod = JS(
+                    "function(rows, columnId, filterValue) {
+                      return rows.filter(function(row) {
+                        return row.values[columnId].indexOf(filterValue) !== -1
+                      })
+                    }"
+                  ),
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                region = colDef(
+                  "Region Type", maxWidth = 120,
+                  filterMethod = JS(
+                    "function(rows, columnId, filterValue) {
+                      return rows.filter(function(row) {
+                        return row.values[columnId].indexOf(filterValue) !== -1
+                      })
+                    }"
+                  ),
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                feature = colDef(
+                  "Feature Type", maxWidth = 100,
+                  filterMethod = JS(
+                    "function(rows, columnId, filterValue) {
+                      return rows.filter(function(row) {
+                        return row.values[columnId].indexOf(filterValue) !== -1
+                      })
+                    }"
+                  ),
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                padj = enrich_cols$adj_p,
+                NES = enrich_cols$NES,
+                size = colDef("Group Size"),
+                leSize = colDef("LE Size"),
+                leadingEdge = colDef(
+                  "Leading Edge", cell = \(value) with_tooltip(value, width = 60),
+                  minWidth = 150, maxWidth = 500
+                )
+              )[colnames(.)],
+              defaultColDef = colDef(maxWidth = 80),
+              elementId = tbl_id
+            )
+          cp <- htmltools::em(
+            glue(
+              "GSEA results for {x}, testing an association between up- or down-", 
+              "regulated genes for all {target} DSA groups incorporating all available ", 
+              "annotations and features. A Normalized Enrichment Score (NES) > 0 ", 
+              "indicates an association with differentially expressed genes. ", 
+              "The total number of genes ", 
+              "mapped to each type of DSA group is provided along with those found ",
+              "beyond the Leading Edge. Given that multiple peaks may map to a gene, ",
+              "genes may be included in more than one grouping."
+            )
+          )
+          htmltools::div(
+            id = tbl_id,
+            class = "section level5",
+            htmltools::h5(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        }
+      )
+  )
+}
+```
+
+
+#### Directional Association {.tabset}
+
+```{r run-gsea-dir}
+ids_by_status <- results_tbl %>% 
+  unnest(any_of("feature")) %>% 
+  dplyr::filter(status != "Unchanged") %>% 
+  unite(group, any_of(c("status", "region", "feature"))) %>% 
+  split(.$group) %>% 
+  lapply(pull, "gene_id")
+rna_dir_scores <- rna %>% 
+  lapply(
+    \(x) setNames(-sign(x$logFC) * log10(x$PValue), x$gene_id)
+  )
+rna_gsea_dir <- rna_dir_scores %>% 
+  lapply(\(x) fgsea(ids_by_status, x, minSize = min(msigdb_params$size))) %>% 
+  lapply(as_tibble) %>% 
+  lapply(
+    separate, pathway, 
+    into = c("status", "region", "feature")[seq_len(2 + has_features)],
+    sep = "_", extra = "merge", remove = FALSE
+  ) %>%
+  lapply(arrange, pval) %>% 
+  lapply(
+    mutate,
+    pathway = paste(target, pathway),
+    padj = p.adjust(pval, enrich_params$adj),
+    status = factor(status, levels = names(direction_colours)),
+    region = factor(region, unname(regions)),
+    leSize = map_int(leadingEdge, length),
+    leadingEdge = map_chr(
+      leadingEdge, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+    )
+  ) %>% 
+  lapply(
+    dplyr::select, 
+    pathway, any_of(c("status", "region", "feature")),
+    padj, NES, ends_with("ize"), leadingEdge
+  ) %>% 
+  lapply(dplyr::filter, leSize >= enrich_params$min_sig)
+any_gsea_dir <- map_lgl(rna_gsea_dir, \(x) any(x$padj < enrich_params$alpha))
+```
+
+```{r tbl-gsea-dir, echo=FALSE}
+if (any(any_gsea_dir)) {
+  tagList(
+    any_gsea_dir %>% 
+      which() %>% 
+      names() %>% 
+      lapply(
+        \(x) {
+          tbl_id <- paste0("tbl-gsea-dir", x) %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-")
+          tbl <- rna_gsea_dir[[x]] %>% 
+            dplyr::select(-pathway) %>% 
+            dplyr::filter(padj < enrich_params$alpha) %>% 
+            reactable(
+              sortable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+              columns = list(
+                status = colDef(
+                  glue("{target} Status"), maxWidth = 100,
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                region = colDef(
+                  "Region Type", maxWidth = 120,
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                feature = colDef(
+                  "Feature Type", maxWidth = 100,
+                  filterInput = function(values, name) {
+                    tags$select(
+                      # Set to undefined to clear the filter
+                      onchange = sprintf(
+                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
+                        tbl_id, name
+                      ),
+                      # "All" has an empty value to clear the filter, and is the default option
+                      tags$option(value = "", "All"),
+                      lapply(unique(values), tags$option),
+                      "aria-label" = sprintf("Filter %s", name),
+                      style = "width: 100%; height: 28px; font-size: 12px;"
+                    )
+                  }
+                ),
+                padj = enrich_cols$adj_p,
+                NES = enrich_cols$NES,
+                size = colDef("Group Size"),
+                leSize = colDef("LE Size"),
+                leadingEdge = colDef(
+                  "Leading Edge", cell = \(value) with_tooltip(value, width = 60),
+                  minWidth = 150, maxWidth = 500
+                )
+              )[colnames(.)],
+              defaultColDef = colDef(maxWidth = 80),
+              elementId = tbl_id
+            )
+          cp <- htmltools::em(
+            glue(
+              "GSEA results for {x}, testing an association between up- or down-", 
+              "regulated genes for all {target} DSA groups incorporating all available ", 
+              "annotations and features. A Normalized Enrichment Score (NES) > 0 ", 
+              "indicates an association with up-regulation, with a negative score ",
+              "being associated with down-regulation. The total number of genes ", 
+              "mapped to each type of DSA group is provided along with those found ",
+              "beyond the Leading Edge. Given that multiple peaks may map to a gene, ",
+              "genes may be included in more than one grouping."
+            )
+          )
+          htmltools::div(
+            id = tbl_id,
+            class = "section level5",
+            htmltools::h5(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        }
+      )
+  )
+}
+```
+
+
+### Combined Enrichment 
+
+```{r load-gsea-rds}
+gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
+gsea_sig <- file.path(all_paths$annotation, "gsea_sig.rds") %>% read_rds()
+```
+
+
+```{r changed-rna-enrichment}
+changed_rna_enrich <- gsea_sig %>% 
+  lapply(
+    \(x) {
+      x %>% 
+        inner_join(changed_enrich_df, by = c("pathway" = "gs_name")) %>% 
+        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
+        nest(p = all_of(c("pval", "p"))) %>% 
+        mutate(
+          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
+          adj_p = p.adjust(meta_p, enrich_params$adj),
+          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
+          n_cmn = map_int(cmn_ids, length)
+        ) %>% 
+        arrange(meta_p) %>% 
+        dplyr::filter(
+          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
+        ) %>% 
+        mutate(
+          genes = map_chr(
+            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+          )
+        ) %>% 
+        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
+    }
+  ) %>% 
+  .[map_int(., nrow) > 0]
+tbl_changed_rna_enrich <- names(changed_rna_enrich) %>% 
+  lapply(
+    \(x) {
+      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+      id <- paste0(id, "-changed-enrich-tbl")
+      df <- changed_rna_enrich[[x]]
+      tbl <- reactable(
+        df, 
+        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+        columns = enrich_cols[colnames(df)],
+        elementId = id
+      )
+      cp <- tags$em(
+        glue(
+          "Results when combining directional GSEA results from {x} ",
+          "with DSA enrichment results from {target}."
+        )
+      )
+      htmltools::div(
+        id = id, class = "section level5",
+        h5("Combined Enrichment: DSA Changed"),
+        tbl, tags$caption(cp)
+      )
+    }
+  ) %>% 
+  setNames(names(changed_rna_enrich))
+network_changed_rna_enrich <- changed_rna_enrich %>% 
+  map_int(nrow) %>% 
+  is_weakly_greater_than(min(network_params$size)) %>% 
+  which() %>% 
+  names() %>%  
+  sapply(
+    \(x) {
+      p <- changed_rna_enrich[[x]] %>% 
+        mutate(
+          gene_set_size = msigdb %>% 
+            dplyr::filter(gs_name %in% pathway) %>% 
+            split(.$gs_name) %>% 
+            .[pathway] %>% 
+            map_int(nrow),
+          prop = n_cmn / gene_set_size,
+          cmn_ids = setNames(cmn_ids, pathway)
+        ) %>% 
+        make_tbl_graph(
+          gs = .$cmn_ids,
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+          hit_col = "n_cmn", size_col = "gene_set_size",
+          min_dist = network_params$max_distance,
+          max_gs = max(network_params$size)
+        ) %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+      
+      ## Export the image
+      img_out <- file.path(
+        fig_path, glue("network_changed_rna_enrich_{x}.{fig_type}")
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "The relationship between gene-sets considered enriched when ",
+          "including GSEA results from {x} and changed sites from {target} ",
+          "DSA analysis."
+        )
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level5",
+        htmltools::h5("Enrichment Network: DSA Changed"),
+        htmltools::div(
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
+        )
+      )
+      
+    }, simplify = FALSE
+  )  
+```
+
+```{r increased-rna-enrichment}
+increased_rna_enrich <- gsea_dir %>% 
+  lapply(
+    \(x) {
+      x %>% 
+        inner_join(increased_enrich_df, by = c("pathway" = "gs_name")) %>% 
+        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
+        nest(p = all_of(c("pval", "p"))) %>% 
+        mutate(
+          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
+          adj_p = p.adjust(meta_p, enrich_params$adj),
+          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
+          n_cmn = map_int(cmn_ids, length)
+        ) %>% 
+        arrange(meta_p) %>% 
+        dplyr::filter(
+          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
+        ) %>% 
+        mutate(
+          genes = map_chr(
+            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+          )
+        ) %>% 
+        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
+    }
+  ) %>% 
+  .[map_int(., nrow) > 0]
+tbl_increased_rna_enrich <- names(increased_rna_enrich) %>% 
+  lapply(
+    \(x) {
+      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+      id <- paste0(id, "-increased-enrich-tbl")
+      df <- increased_rna_enrich[[x]]
+      tbl <- reactable(
+        df, 
+        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+        columns = enrich_cols[colnames(df)],
+        elementId = id
+      )
+      cp <- tags$em(
+        glue(
+          "Results when combining directional GSEA results from {x} ",
+          "with DSA enrichment results from {target}."
+        )
+      )
+      htmltools::div(
+        id = id, class = "section level5",
+        h5("Combined Enrichment: DSA increased"),
+        tbl, tags$caption(cp)
+      )
+    }
+  ) %>% 
+  setNames(names(increased_rna_enrich))
+network_increased_rna_enrich <- increased_rna_enrich %>% 
+  map_int(nrow) %>% 
+  is_weakly_greater_than(min(network_params$size)) %>% 
+  which() %>% 
+  names() %>%  
+  sapply(
+    \(x) {
+      p <- increased_rna_enrich[[x]] %>% 
+        mutate(
+          gene_set_size = msigdb %>% 
+            dplyr::filter(gs_name %in% pathway) %>% 
+            split(.$gs_name) %>% 
+            .[pathway] %>% 
+            map_int(nrow),
+          prop = n_cmn / gene_set_size,
+          cmn_ids = setNames(cmn_ids, pathway)
+        ) %>% 
+        make_tbl_graph(
+          gs = .$cmn_ids,
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+          hit_col = "n_cmn", size_col = "gene_set_size",
+          min_dist = network_params$max_distance,
+          max_gs = max(network_params$size)
+        ) %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+      
+      ## Export the image
+      img_out <- file.path(
+        fig_path, glue("network_increased_rna_enrich_{x}.{fig_type}")
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "The relationship between gene-sets considered enriched when ",
+          "including GSEA results from {x} and increased sites from {target} ",
+          "DSA analysis."
+        )
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level5",
+        htmltools::h5("Enrichment Network: DSA Increased"),
+        htmltools::div(
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
+        )
+      )
+      
+    }, simplify = FALSE
+  )  
+```
+
+```{r decreased-rna-enrichment}
+decreased_rna_enrich <- gsea_dir %>% 
+  lapply(
+    \(x) {
+      x %>% 
+        inner_join(decreased_enrich_df, by = c("pathway" = "gs_name")) %>% 
+        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
+        nest(p = all_of(c("pval", "p"))) %>% 
+        mutate(
+          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
+          adj_p = p.adjust(meta_p, enrich_params$adj),
+          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
+          n_cmn = map_int(cmn_ids, length)
+        ) %>% 
+        arrange(meta_p) %>% 
+        dplyr::filter(
+          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
+        ) %>% 
+        mutate(
+          genes = map_chr(
+            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+          )
+        ) %>% 
+        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
+    }
+  ) %>% 
+  .[map_int(., nrow) > 0]
+tbl_decreased_rna_enrich <- names(decreased_rna_enrich) %>% 
+  lapply(
+    \(x) {
+      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+      id <- paste0(id, "-decreased-enrich-tbl")
+      df <- decreased_rna_enrich[[x]]
+      tbl <- reactable(
+        df, 
+        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+        columns = enrich_cols[colnames(df)],
+        elementId = id
+      )
+      cp <- tags$em(
+        glue(
+          "Results when combining directional GSEA results from {x} ",
+          "with DSA enrichment results from {target}."
+        )
+      )
+      htmltools::div(
+        id = id, class = "section level5",
+        h5("Combined Enrichment: DSA Decreased"),
+        tbl, tags$caption(cp)
+      )
+    }
+  ) %>% 
+  setNames(names(decreased_rna_enrich))
+network_decreased_rna_enrich <- decreased_rna_enrich %>% 
+  map_int(nrow) %>% 
+  is_weakly_greater_than(min(network_params$size)) %>% 
+  which() %>% 
+  names() %>%  
+  sapply(
+    \(x) {
+      p <- decreased_rna_enrich[[x]] %>% 
+        mutate(
+          gene_set_size = msigdb %>% 
+            dplyr::filter(gs_name %in% pathway) %>% 
+            split(.$gs_name) %>% 
+            .[pathway] %>% 
+            map_int(nrow),
+          prop = n_cmn / gene_set_size,
+          cmn_ids = setNames(cmn_ids, pathway)
+        ) %>% 
+        make_tbl_graph(
+          gs = .$cmn_ids,
+          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+          hit_col = "n_cmn", size_col = "gene_set_size",
+          min_dist = network_params$max_distance,
+          max_gs = max(network_params$size)
+        ) %>% 
+        ggraph(layout = net_layout, weights = oc) +
+        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+        geom_node_point(
+          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+          shape = 21
+        ) +
+        geom_node_text(
+          aes(label = label, alpha = prop),
+          colour = "black", size = 3, 
+          data = . %>%
+            mutate(
+              label = str_replace_all(label, "_", " ") %>% 
+                str_trunc(60) %>% 
+                str_wrap(width = 18)
+            ),
+          repel = TRUE, bg.color = "white", bg.r = 0.1, 
+        ) +
+        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+        scale_size_continuous(range = c(1, 10)) +
+        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+        theme_void() 
+      
+      ## Export the image
+      img_out <- file.path(
+        fig_path, glue("network_decreased_rna_enrich_{x}.{fig_type}")
+      )
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "The relationship between gene-sets considered enriched when ",
+          "including GSEA results from {x} and decreased sites from {target} ",
+          "DSA analysis."
+        )
+      )
+      htmltools::div(
+        id = img_out %>% 
+          basename() %>% 
+          str_remove_all(glue(".{fig_type}$")) %>% 
+          str_to_lower() %>% 
+          str_replace_all("_", "-"),
+        class = "section level5",
+        htmltools::h5("Enrichment Network: DSA Decreased"),
+        htmltools::div(
+          class = "figure", style = "text-align: center",
+          htmltools::img(src = fig_link, width = "100%"),
+          htmltools::tags$caption(cp)
+        )
+      )
+      
+    }, simplify = FALSE
+  )  
+```
+
+Enrichment analysis was performed combined transcriptomic data with DSA results.
+A simple strategy we used taking Wilkinson's maximum p-value method, which returns the probability of returning two p-values below the value of the largest p-value.
+Transcriptomic enrichment was taken as the results from GSEA analysis, whilst enrichment results for `r target` were those obtained above.
+Genes within the Leading Edge for GSEA and which were also mapped to the same pathway within DSA enrichment are returned as the common genes.
+
+3 analysis were performed, with results only returned were significant combined enrichment was found for at least one pathway.
+
+1. Enriched pathways within the DSA analysis using all changed sites, and transcriptomic GSEA taking only significance (i.e. non-directional results) to rank pathways
+2. Enriched pathways within the DSA analysis using all increased sites, and transcriptomic GSEA taking directionality and significance to rank pathways
+3. Enriched pathways within the DSA analysis using all decreased sites, and transcriptomic GSEA taking directionality and significance to rank pathways
+
+For DSA enrichment, only the results obtained using the genomic background were used.
+
+
+```{r print-dsa-rna-enrichment, echo=FALSE}
+tagList(
+  c(
+    tbl_changed_rna_enrich, tbl_increased_rna_enrich, tbl_decreased_rna_enrich
+  ) %>% 
+    map_lgl(is, "shiny.tag") %>% 
+    which() %>% 
+    names() %>% 
+    unique() %>% 
+    lapply(
+      \(x) {
+        tagList(
+          list(
+            htmltools::div(
+              id = x, class = "section level4 tabset",
+              htmltools::h4(x, class = "tabset"),
+              tbl_changed_rna_enrich[[x]],
+              network_changed_rna_enrich[[x]],
+              tbl_increased_rna_enrich[[x]],
+              network_increased_rna_enrich[[x]],
+              tbl_decreased_rna_enrich[[x]],
+              network_decreased_rna_enrich[[x]]
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+
+
+
+### Highly Ranked Genes {.tabset}
+
+
+```{r rna-grl-to-plot}
+grl_to_plot <- rna %>% 
+  lapply(inner_join, results_tbl, by = 'gene_id') %>% 
+  bind_rows(.id = "dataset") %>% 
+  dplyr::filter(grepl("(In|De)creased", status.y)) %>% 
+  mutate(
+    rank = rank(PValue.x) + rank(PValue.y)
+  ) %>% 
+  arrange(rank) %>% 
+  dplyr::filter(
+    gene_id %in% unique(gene_id)[1:5]
+  ) %>% 
+  split(.$gene_id) %>% 
+  lapply(colToRanges, "range", seqinfo = seqinfo(results)) %>% 
+  GRangesList()
+y_lim <- bwfl[[target]] %>%
+  lapply(import.bw, which = unlist(range(grl_to_plot))) %>%
+  lapply(\(x) c(0, max(x$score))) %>% 
+  unlist() %>% 
+  range() %>% 
+  list() %>% 
+  setNames(target)
+```
+
+By choosing the 5 genes highly tanked for both differential expression in any of `r pander(names(rna))`, and significantly changed `r target` signal, a set of example plots are shown below.
+
+```{r plot-all-top-rna-ranges}
+.makeCaption <- function(.gr) {
+  if (is.null(.gr)) return(NULL)
+  id <- unique(.gr$gene_id)
+  gn <- id2gene[id]
+  cp <- glue(
+    "The {width(range(.gr))}bp region with all changed peaks mapped to {gn}, ", 
+    "as a highly-ranked DE gene in ",
+    glue_collapse(.gr$dataset, sep = ", ", last = " & "),
+    ", and with at least significantly changed DSA region for {target}. ",
+    "Regions associated with differential signal are annotated by colour."
+  )
+  cp
+}
+htmltools::tagList(
+  lapply(
+    seq_along(grl_to_plot),
+    \(i) {
+      ## Export the image
+      nm <- str_to_lower(names(grl_to_plot)[[i]])
+      id <- unique(grl_to_plot[[i]]$gene_id)
+      img_out <- file.path(fig_path, glue("{nm}.{fig_type}"))
+      fig_fun(filename = img_out, width = fw, height = fh)
+      plotHFGC(
+        grl_to_plot[[i]],
+        hic = hic,
+        features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
+        featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
+        genes = hfgc_genes, genecol = gene_col, 
+        genesize = rep_len(c(2, 1), length(hfgc_genes)),
+        coverage = bwfl, linecol = line_col, ylim = y_lim,
+        annotation = annot, annotcol = direction_colours,
+        cytobands = bands_df,
+        collapseTranscripts = collapseTrans, maxTrans = 15,
+        zoom = 20, max = max(1e4, 1.1 * width(range(grl_to_plot[[i]]))), 
+        col.title = "black", background.title = "white", 
+        rotation.title = 90, showAxis = FALSE, fontsize = 10,
+        highlight = rgb(0, 0, 1, 0.3)
+      )
+      dev.off()
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(.makeCaption(grl_to_plot[[i]]))
+      htmltools::div(
+        htmltools::div(
+          id = nm,
+          class = "section level4",
+          htmltools::h4(id2gene[id]),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+    }
+  )
+)
+```
+

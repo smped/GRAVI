@@ -351,13 +351,13 @@ if (length(features)) {
 ```
 
 
-# Outline
+## Outline
 
 This stage of the GRAVI workflow present combined results from two individual differential signal analyses and compares the results, by finding regions which directly overlap and considering the joint behaviour.
 In this specific analyses the differential signal response for `r targets[[1]]` when comparing `r comp_labels[[1]]`, will be integrated with the differential signal response for `r targets[[2]]` comparing `r comp_labels[[2]]`.
 Data will first be described from the perspective of peaks, regardless of treatment before moving onto the differential signal analysis (DSA) results.
 
-## Integration Of Differential Signal Results
+### Integration Of Differential Signal Results
 
 The initial steps of DSA detect regions with clear changes in signal, however the integration of datasets instead focusses on the *most correct* classification of a given range/window, where unchanged is not *simply lack of a statistically significant result*, but *a true state needing to be identified*.
 Differential signal analyses generally focus on controlling the Type I errors (i.e. false positive), which comes with a commensurate increase in Type II errors (false negatives).
@@ -391,14 +391,14 @@ Across two comparisons, this gives 15 possible classifications for each region f
 <!-- Genes will be ranked to incorporate direction of change (i.e. Directional GSEA) or significance only (i.e Non-Directional GSEA). -->
 <!-- The results from enrichment analysis across ChIP target and RNA-Seq data will also be combined to reveal pathways under the regulatory influence in either comparison, for which we also have evidence of changed gene expression. -->
 
-# General Comparison
+## General Comparison
 
 Data was loaded for the initially-identified peaks to show the general level of similarity between signal regions from either dataset.
 
 
-## Summary Figures {.tabset}
+### Summary Figures {.tabset}
 
-### Treatment Specific Peaks
+#### Treatment Specific Peaks
 
 ```{r treatment-peaks-upset, fig.height = 6, fig.cap = glue("*Peaks detected for ", glue_collapse(unique(targets), sep = " and " ), " in the treatment groups ", glue_collapse(unique(unlist(treat_levels)), sep = ", ", last = " & "), ".*")}
 filtered_peaks %>% 
@@ -415,7 +415,7 @@ filtered_peaks %>%
 ```
 
 
-# Combined Differential Signal Results 
+## Combined Differential Signal Results 
 
 A set of `r comma(length(combined_results))` loci with signal was formed by obtaining the union of windows produced during the analysis of `r glue_collapse(unlist(short_names), last = " and ")` individually.
 These common windows were formed using any overlap between analysis-specific windows.
@@ -426,9 +426,9 @@ As windows were detected in an un-stranded manner, all distance values were set 
 Taking the complete set of `r comma(length(combined_results))` combined windows, `r comma(sum(!is.na(combined_results$d)))` (`r percent(mean(!is.na(combined_results$d)), 0.1)`) were included in *both* datasets.
 The median distance between overlapping windows found in both comparisons was `r  median(combined_results$d, na.rm = TRUE)`bp.
 
-## Results Tables {.tabset}
+### Results Tables {.tabset}
 
-### Summary Table
+#### Summary Table
 
 ```{r tbl-summary, echo = FALSE}
 cp <- htmltools::tags$caption(
@@ -666,7 +666,7 @@ if (interactive()) {
 }
 ```
 
-`r if (has_features) "### Summary Table By Feature"`
+`r if (has_features) "#### Summary Table By Feature"`
 
 ```{r tbl-summary-by-feature, echo = FALSE}
 if (has_features) {
@@ -885,9 +885,9 @@ if (has_features) {
 }
 ```
 
-## Summary Figures {.tabset}
+### Summary Figures {.tabset}
 
-### Overall Status
+#### Overall Status
 
 ```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either comparison. Ranges where signal is changed in either comparisons are exploded."}
 combined_results %>% 
@@ -910,7 +910,7 @@ combined_results %>%
 ```
 
 
-### Pairwise Differential Signal
+#### Pairwise Differential Signal
 
 
 ```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ". The range with most extreme combined change in signal is shown with any genes labelled. ", ifelse(has_rna, "Only genes detected within transcriptomic data are labelled. " , ""),  "The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
@@ -1036,7 +1036,7 @@ df %>%
 ```
 
 
-### logFC By Region
+#### logFC By Region
 
 ```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ", separated by defined gene-centric regions. The window with most extreme combined change in signal for each region is shown with any genes labelled as previously. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df %>% 
@@ -1122,7 +1122,7 @@ df %>%
 
 
 
-`r if (has_features) "### logFC By Feature"`
+`r if (has_features) "#### logFC By Feature"`
 
 ```{r plot-dbwin-by-feature, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ", separated by feature. The range with most extreme combined change in signal for each separate feature is shown with any genes labelled as previously, noting that combined ranges may map to multiple features. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 if (has_features) {
@@ -1216,7 +1216,7 @@ if (has_features) {
 
 
 
-### Distribution By Region
+#### Distribution By Region
 
 ```{r status-by-region, fig.cap = glue("*Distribution of signal patterns by genomic regions as defined in earlier sections. Windows are only shown if signal was detected in both datasets. Segments where changes were detected in both comparisons are exploded.*")}
 combined_results %>% 
@@ -1239,7 +1239,7 @@ combined_results %>%
   .[[1]]
 ```
 
-`r if (has_features) "### Distribution By Feature"`
+`r if (has_features) "#### Distribution By Feature"`
 
 ```{r status-by-feature, echo = has_features, fig.cap = glue("*Distribution of signal patterns by external features as defined in earlier sections, noting again that features may be overlapping and loci may be mapped to multiple features. Features are grouped to capture 99% of mappings.*")}
 if (has_features) {
@@ -1278,9 +1278,9 @@ if (has_features) {
 ```
 
 
-# Combined Signal Visualisation
+## Combined Signal Visualisation
 
-## Profile Heatmaps {.tabset}
+### Profile Heatmaps {.tabset}
 
 A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where signal was detected as changed in at least one of the comparisons.
 If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
@@ -1527,8 +1527,8 @@ htmltools::tagList(
             str_remove_all(glue(".{fig_type}$")) %>% 
             str_to_lower() %>% 
             str_replace_all("_", "-"),
-          class = "section level3",
-          htmltools::h3(pw_name),
+          class = "section level4",
+          htmltools::h4(pw_name),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = "100%"),
@@ -1541,7 +1541,7 @@ htmltools::tagList(
 )
 ```
 
-## Most Highly Ranked Loci {.loci}
+### Most Highly Ranked Loci {.loci}
 
 ```{r prepare-plot-objects}
 cb <- config$genome$build %>% 
@@ -1754,8 +1754,8 @@ htmltools::tagList(
           str_remove_all(glue(".{fig_type}$")) %>% 
           str_to_lower() %>% 
           str_replace_all("_", "-"),
-        class = "section level3",
-        htmltools::h3(pw_name),
+        class = "section level4",
+        htmltools::h4(pw_name),
         htmltools::div(
           class = "figure", style = "text-align: center",
           htmltools::img(src = fig_link, width = 960),
@@ -1768,7 +1768,7 @@ htmltools::tagList(
 ```
 
 
-## Windows With The Strongest Signal {.tabset}
+### Windows With The Strongest Signal {.tabset}
 
 Loci showing differential signal tend to show the most extreme change where signal levels are low, whilst where signal is high the changes tend to be well statistically supported but less pronounced.
 As an initial data inspection, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown below.
@@ -1860,8 +1860,8 @@ htmltools::tagList(
           str_remove_all(glue(".{fig_type}$")) %>% 
           str_to_lower() %>% 
           str_replace_all("_", "-"),
-        class = "section level3",
-        htmltools::h3(pw_name),
+        class = "section level4",
+        htmltools::h4(pw_name),
         htmltools::div(
           class = "figure", style = "text-align: center",
           htmltools::img(src = fig_link, width = 960),
@@ -1873,7 +1873,7 @@ htmltools::tagList(
 )  
 ```
 
-## Windows With The Largest Change {.tabset}
+### Windows With The Largest Change {.tabset}
 
 As a contrast to the previous set of results, the locus within each group where the combined logFC is the furthest from zero was selected.
 These positions may expected to show more pronounced change, but an overall lower signal level.
@@ -1962,8 +1962,8 @@ htmltools::tagList(
           str_remove_all(glue(".{fig_type}$")) %>% 
           str_to_lower() %>% 
           str_replace_all("_", "-"),
-        class = "section level3",
-        htmltools::h3(pw_name),
+        class = "section level4",
+        htmltools::h4(pw_name),
         htmltools::div(
           class = "figure", style = "text-align: center",
           htmltools::img(src = fig_link, width = 960),
@@ -1975,7 +1975,7 @@ htmltools::tagList(
 )  
 ```
 
-# Enrichment Testing
+## Enrichment Testing
 
 ```{r msigdb}
 msigdb <- file.path(all_paths$annotation, "msigdb.rds") %>% read_rds()
@@ -2090,7 +2090,7 @@ enrich_networks <- tg_by_status %>%
 any_networks <- as.logical(length(tg_by_status))
 ```
 
-`r ifelse(any_enrich, "## Enrichment Result Tables {.tabset}", "No sets of ranges were found to be enriched for any gene-sets or pathways")`
+`r ifelse(any_enrich, "### Enrichment Result Tables {.tabset}", "No sets of ranges were found to be enriched for any gene-sets or pathways")`
 
 ```{r enrich-result-tables, echo = FALSE}
 if (any_enrich) {
@@ -2162,7 +2162,7 @@ if (any_enrich) {
             tbl, htmltools::tags$caption(cp)
           )
           htmltools::div(
-            id = id, class = "section level3", htmltools::h3(status), tl
+            id = id, class = "section level4", htmltools::h4(status), tl
           )
         }
       )
@@ -2170,7 +2170,7 @@ if (any_enrich) {
 }
 ```
 
-`r ifelse(any_networks, "## Enrichment Network Plots {.tabset}", "")`
+`r ifelse(any_networks, "### Enrichment Network Plots {.tabset}", "")`
 
 ```{r plot-networks, echo = FALSE}
 if (any_networks) {
@@ -2207,7 +2207,7 @@ if (any_networks) {
             )
           )
           htmltools::div(
-            id = id, class = "section level3", htmltools::h3(x),
+            id = id, class = "section level4", htmltools::h4(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = 960),
@@ -2221,7 +2221,7 @@ if (any_networks) {
 ```
 
 
-# Region Analysis {.tabset}
+## Region Analysis {.tabset}
 
 ```{r load-localz}
 mlz_list <- read_rds(params$localz)
@@ -2299,7 +2299,7 @@ Using the Central Limit Theorem, the *normalised Z-scores* returned can be expec
 
 In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
 
-## Z-Score Heatmap
+### Z-Score Heatmap
 
 ```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
@@ -2325,7 +2325,7 @@ shifted_z %>%
   )
 ```
 
-## Results Table
+### Results Table
 
 ```{r tbl-regioner, echo=FALSE}
 fs <- 12
@@ -2493,7 +2493,7 @@ if (interactive()) {
 ```
 
 
-# Motif Analysis
+## Motif Analysis
 
 ```{r setup-motif-analysis}
 motif_db <- all_paths$annotation %>% 
@@ -2574,9 +2574,9 @@ This test will identify any motifs which are centrally located, or have any othe
 
 In all sections below, only significant results are returned.
 
-## Motif Enrichment 
+### Motif Enrichment 
 
-`r ifelse(any_motif_enrich, "### Result Tables {.tabset}", "*No groups were found to be enriched for any of the tested motifs.*")`
+`r ifelse(any_motif_enrich, "#### Result Tables {.tabset}", "*No groups were found to be enriched for any of the tested motifs.*")`
 
 
 ```{r test-combined-tbl, echo = FALSE, eval = FALSE}
@@ -2701,7 +2701,7 @@ tagList(
           tbl, htmltools::tags$caption(cp)
         )
         htmltools::div(
-          id = id, class = "section level4", htmltools::h4(nm), tl
+          id = id, class = "section level5", htmltools::h5(nm), tl
         )
       }, mc.cores = threads
     ) 
@@ -2710,7 +2710,7 @@ tagList(
 
 
 
-`r if (any_motif_enrich), "### Motif Co-Ocurrence {.tabset}"`
+`r if (any_motif_enrich), "#### Motif Co-Ocurrence {.tabset}"`
 
 ```{r motif-corplot, echo = any_motif_enrich}
 if (any_motif_enrich) {
@@ -2821,7 +2821,7 @@ if (any_motif_enrich) {
             )
           )
           htmltools::div(
-            id = id, class = "section level4", htmltools::h4(x),
+            id = id, class = "section level5", htmltools::h5(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = 960),
@@ -2835,10 +2835,10 @@ if (any_motif_enrich) {
 ```
 
 
-`r if (any_motif_enrich), "### Motif Enrichment Summary"`
+`r if (any_motif_enrich), "#### Motif Enrichment Summary"`
 
-```{r motif-summary-plot, echo=any_motif_enrich, fig.cap = glue("*Summary of enrichment patterns for the {show_n} motifs considered to be enriched within at least one set of sequences. All points reprsent significant enrichment, with point size showing how commonly the motif is seen within a set of sequences, and the fill colour showing enrichment as the odds ratio, All points were clustered using the odds ratio*")}
-show_n <- 25
+```{r motif-summary-plot, echo=any_motif_enrich, fig.height = 0.5 * fh,fig.cap = glue("*Summary of enrichment patterns for the {show_n} motifs considered to be enriched within at least one set of sequences. Tile colour indicates the oddss ratio when comparing against all other groups of sequences combined, with significance indicated by an asterisk, noting that all testing was one-sided for enrichment only. Tile sizes represent the rate of motif matches occuring within each set of sequences, with small tiles commonly indicating rare motifs that may still have been considered to be enriched.*")}
+show_n <- 40
 if (any_motif_enrich) {
   motif_enrich_mat <- motif_enrich_res %>% 
     arrange(p) %>% 
@@ -2861,7 +2861,7 @@ if (any_motif_enrich) {
     geom_segment(aes(xend, y, xend = x, yend = yend)) + 
     scale_x_continuous(
       limits = range(motif_dend$segments$xend),
-      expand = expansion(0, 0.6)
+      expand = expansion(0, 0.5)
     ) +
     scale_y_reverse(expand = rep_len(0, 4)) +
     labs(x = "", y = c()) + 
@@ -2879,7 +2879,7 @@ if (any_motif_enrich) {
   comp_dend_plot <- ggplot(comp_dend$segments) +
     geom_segment(aes(yend, x, xend = y, yend = xend)) + 
     scale_y_continuous(
-      limits = range(comp_dend$segments$xend), expand = expansion(0, 0.6)
+      limits = range(comp_dend$segments$xend), expand = expansion(0, 0.5)
     ) +
     scale_x_reverse(expand = expansion(c(0, 0))) +
     labs(x = "", y = c()) + 
@@ -2896,23 +2896,34 @@ if (any_motif_enrich) {
     droplevels() %>% 
     arrange(p) %>% 
     dplyr::filter(altname %in% unique(altname)[seq_len(show_n)]) %>% 
-    dplyr::filter(adj_p < motif_params$alpha) %>%
+    dplyr::filter(any(adj_p < motif_params$alpha), .by = comparison) %>% 
     mutate(
       name = factor(name, levels = motif_levels),
-      comparison = factor(comparison, levels = comp_levels)
+      comparison = factor(comparison, levels = comp_levels),
+      rate = matches / sequences
     ) %>% 
     ggplot(aes(name, comparison)) +
-    geom_point(aes(size = matches / sequences, fill = log2(odds_ratio)), shape = 21) +
-    scale_size(
-      range = c(0, 10), limits = c(0, size_max), breaks = seq(0, 1, by = 0.2),
-      name = "Matches/Sequence"
+    geom_tile(
+      aes(fill = log2(odds_ratio), width = rate, height = rate)
     ) +
-    scale_fill_viridis_c(option = "inferno") +
-    scale_y_discrete(labels = \(x) str_replace_all(x, " - ", "\n")) +
+    geom_point(
+      data = . %>% dplyr::filter(adj_p < motif_params$alpha),
+      shape = 8, alpha = 0.7, size = 0.7
+    ) +
+    scale_fill_gradient2(
+      low = direction_colours[["Decreased"]],
+      high = direction_colours[["Increased"]], na.value = "white"
+    ) +
+    scale_x_discrete(expand = expansion(0)) +
+    scale_y_discrete(
+      labels = \(x) str_replace_all(x, " - ", "\n"),
+      expand = expansion(0)
+    ) +
     labs(x = c(), y = c()) +
     theme(
       axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-      panel.grid = element_blank()
+      panel.grid = element_blank(),
+      plot.margin = unit(c(5.5, 5.5, 0, 0), "points")
     )
   comp_dend_plot + main + motif_dend_plot + 
     plot_layout(
@@ -2923,83 +2934,159 @@ if (any_motif_enrich) {
   
 
 
-## Motifs With Positional Bias {.tabset}
+### Motifs With Positional Bias {.tabset}
 
-`r ifelse(any_motif_pos, "### Result Tables {.tabset}", "*No groups were found to show positional bias for any motifs.*")`
+`r ifelse(any_motif_pos, "#### Result Tables {.tabset}", "*No groups were found to show positional bias for any motifs.*")`
 
-```{r motif-pos-tables}
-tagList(
-  motif_pos_res %>% 
-    dplyr::filter(adj_p < motif_params$alpha) %>%
-    droplevels() %>% 
-    split(.$comparison) %>% 
-    lapply(
-      \(x) {
-        nm <- unique(x$comparison)
-        pre <- nm %>% 
-          str_replace_all(" - ", "-") %>% 
-          str_replace_all(" ", "-") %>% 
-          str_to_lower() 
-        id <- paste0(pre, "-motif-pos-table")
-        tbl <- x %>% 
-          dplyr::select(-all_of(c("comparison"))) %>% 
-          mutate(
-            PWM = lapply(altname, \(x) motif_uri[[x]])
-          ) %>% 
-          reactable(
-            showPageSizeOptions = nrow(.) > 10,
-            filterable = TRUE, groupBy = "cluster",
-            columns = motif_cols[names(motif_cols) %in% colnames(.)],
-            defaultSorted = "adj_p", defaultSortOrder = "asc",
-            theme = reactableTheme(style = list(fontSize = 12)),
-            elementId = id
-          )
-        cp <- htmltools::em(
-          glue(
-            "All {comma(nrow(x))} motifs showing positional bias within the ", 
-            "sites considered as '{nm}'. ", 
-            "Significance was determined using an adjusted p-value (method = ", 
-            "{motif_params$adj}) < {motif_params$alpha}. ",
-            " Highly similar motifs were clustered during preparation and are ", 
-            "grouped accordingly. Clicking the arrow next to the arbitrary ", 
-            "cluster id will reveal full details for all motifs within the ", 
-            "cluster that were considered significant, ", 
-            "including the sequence logo showing information content (ICM)"
-          )
-        )
-        tl <- tagList(
-          tags$button(
-            tagList(fontawesome::fa("download"), "Download as CSV"),
-            onclick = glue(
-              "Reactable.downloadDataCSV('{id}',",
-              "'{params$full_comp}-{pre}_motif_pos_res.csv')"
+```{r motif-pos-tables, echo = FALSE}
+if (any_motif_pos) {
+  tagList(
+    motif_pos_res %>% 
+      dplyr::filter(adj_p < motif_params$alpha) %>%
+      droplevels() %>% 
+      split(.$comparison) %>% 
+      lapply(
+        \(x) {
+          nm <- unique(x$comparison)
+          pre <- nm %>% 
+            str_replace_all(" - ", "-") %>% 
+            str_replace_all(" ", "-") %>% 
+            str_to_lower() 
+          id <- paste0(pre, "-motif-pos-table")
+          tbl <- x %>% 
+            dplyr::select(-all_of(c("comparison"))) %>% 
+            mutate(
+              PWM = lapply(altname, \(x) motif_uri[[x]])
+            ) %>% 
+            reactable(
+              showPageSizeOptions = nrow(.) > 10,
+              filterable = TRUE, groupBy = "cluster",
+              columns = motif_cols[names(motif_cols) %in% colnames(.)],
+              defaultSorted = "adj_p", defaultSortOrder = "asc",
+              theme = reactableTheme(style = list(fontSize = 12)),
+              elementId = id
             )
-          ),
-          tags$button(
-            "Expand/Collapse All",
-            onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
-          ),
-          tags$button(
-            "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
-          ),
-          tbl, htmltools::tags$caption(cp)
-        )
-        htmltools::div(
-          id = id, class = "section level4", htmltools::h4(nm), tl
-        )
-      }
-    ) 
-)
+          cp <- htmltools::em(
+            glue(
+              "All {comma(nrow(x))} motifs showing positional bias within the ", 
+              "sites considered as '{nm}'. ", 
+              "Significance was determined using an adjusted p-value (method = ", 
+              "{motif_params$adj}) < {motif_params$alpha}. ",
+              " Highly similar motifs were clustered during preparation and are ", 
+              "grouped accordingly. Clicking the arrow next to the arbitrary ", 
+              "cluster id will reveal full details for all motifs within the ", 
+              "cluster that were considered significant, ", 
+              "including the sequence logo showing information content (ICM)"
+            )
+          )
+          tl <- tagList(
+            tags$button(
+              tagList(fontawesome::fa("download"), "Download as CSV"),
+              onclick = glue(
+                "Reactable.downloadDataCSV('{id}',",
+                "'{params$full_comp}-{pre}_motif_pos_res.csv')"
+              )
+            ),
+            tags$button(
+              "Expand/Collapse All",
+              onclick = glue("Reactable.toggleAllRowsExpanded('{id}')")
+            ),
+            tags$button(
+              "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
+            ),
+            tbl, htmltools::tags$caption(cp)
+          )
+          htmltools::div(
+            id = id, class = "section level5", htmltools::h5(nm), tl
+          )
+        }
+      ) 
+  )
+}
 ```
 
-```{r}
-## Perhaps add a series of plots for bia here using a tagList
+`r ifelse(any_motif_pos, "#### Positional Bias Plots {.tabset}", "")`
+
+```{r plot-motif-pos, echo=FALSE}
+if (any_motif_pos) {
+  tagList(
+    motif_pos_res %>% 
+      dplyr::filter(adj_p < motif_params$alpha) %>%
+      droplevels() %>% 
+      split(.$comparison) %>% 
+      lapply(
+        \(x) {
+          ## Make the figure
+          nm <- unique(x$comparison)
+          id <- nm %>% 
+            str_to_lower() %>% 
+            str_replace_all("[ -]+", "-") %>% 
+            paste0("-motif-pos")
+          seq <- fw_seq[[nm]]
+          motifs <- x %>% 
+            arrange(desc(enrichment)) %>% 
+            distinct(cluster, .keep_all = TRUE) %>% 
+            dplyr::slice(1:8) %>% 
+            pull("altname")
+          matches <- motif_db %>% 
+            dplyr::filter(altname %in% motifs) %>% 
+            to_list() %>% 
+            getPwmMatches(
+              seq, min_score = motif_params$min_score, best_only = TRUE,
+              break_ties = motif_params$break_ties, mc.cores = threads
+            )
+          p <- matches[motifs] %>% 
+            plotMatchPos(
+            abs = motif_params$abs, binwidth = motif_params$binwidth, 
+            se = FALSE, linewidth = 1/2
+          ) +
+            scale_y_continuous(labels = percent) +
+            scale_colour_brewer(palette = "Set1") +
+            labs(
+              x = "Distance From Sequence Centre", y = "% Matches",
+              colour = "Representative Motif"
+            )
+          ## Export the file
+          img_out <- file.path(fig_path, paste0(id, ".", fig_type))
+          fig_fun(filename = img_out, width = fw, height = fh)
+          print(p)
+          dev.off()
+          
+          ## Prepare the caption
+          cp <- htmltools::em(
+            glue(
+            "
+            Taking all motifs considered to be showing positional bias within
+            the set of sequences associated with {nm} sites, the most highly 
+            ranked motif within each cluster was chosen as a representative motif.
+            The proportion of matches within each bin are shown for each 
+            representative motif, with total sequences given in the above tables.
+            "
+            )
+          )
+          
+          ## Setup the html link
+          fig_link <- str_extract(img_out, "assets.+")
+          htmltools::div(
+            id = id, class = "section level5", htmltools::h5(nm),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = 960),
+              htmltools::tags$caption(cp)
+            )
+          )
+          
+        }
+      )
+  )
+}
 ```
 
 
-# HERE
 
-# Data Export
+
+
+## Data Export
 
 ```{r turn-off, echo = FALSE}
 knitr::opts_chunk$set(eval = FALSE)
