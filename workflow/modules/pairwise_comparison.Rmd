@@ -100,6 +100,9 @@ network_params <- here::here("config", "params.yml") %>%
 motif_params <- here::here("config", "json", "motif_analysis_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck("pairwise")
+msigdb_params <- here::here("config", "params.yml") %>%
+  read_yaml() %>%
+  pluck("msigdb")
 pw_param <- here::here("config", "json", "pairwise_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck(params$full_comp)
@@ -120,6 +123,7 @@ source(here::here("workflow", "scripts", "table_funs.R"))
 ## Regions & Features
 gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
+sq <- seqinfo(gene_regions)
 regions <- map_chr(gene_regions, \(x) unique(x$region))
 features <- here::here(all_paths$annotation, "features.rds") %>%
   read_rds()
@@ -132,7 +136,13 @@ feat_names <- names(features) %>%
   lapply(levels) %>% 
   unlist()
 all_regions <- c(unname(regions), feat_names)
-sq <- seqinfo(gene_regions)
+region_sources <- tibble(
+  source = "GRAVI", region = unname(regions)
+) %>% 
+  bind_rows(
+    lapply(features, \(x) tibble(region = unique(x$feature))) %>% 
+      bind_rows(.id = 'source')
+  )
 ## Gene-level
 gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
@@ -153,15 +163,20 @@ colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>%
   lapply(unlist)
 comp_cols <- colours$target[targets]
 ## Pairwise palette
+pw_relabel <- function(x, c1 = short_names$comp1, c2 = short_names$comp2) {
+  x %>% 
+      str_replace_all("Increased.+Increased", "Both Increased") %>% 
+      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
+      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
+      str_replace_all("(.+) - (.+)", paste(c1, "\\1 -", c2, "\\2")) 
+}
 pw_cols <- colours$pairwise
 names(pw_cols) <- names(pw_cols) %>% 
   str_replace_all("^(.+)_(.+)$", "\\1 - \\2") %>% 
   str_to_title() 
 pw_cols <- c(
   pw_cols,
-  "Both Increased" = colours$pairwise[["increased_increased"]],
-  "Both Decreased" = colours$pairwise[["decreased_decreased"]],
-  "Both Unchanged" = colours$pairwise[["unchanged_unchanged"]]
+  setNames(pw_cols, pw_relabel(names(pw_cols)))
 )
 region_colours <- colours$regions %>% 
   setNames(regions[names(colours$regions)]) %>% 
@@ -169,6 +184,7 @@ region_colours <- colours$regions %>%
 feature_colours <- unlist(colours$features)
 direction_colours <- colours$direction %>% 
   setNames(str_to_title(names(.)))
+dir_levels <- names(direction_colours)
 treat_colours <- colours$treat[unique(unlist(treat_levels))]
 full_palette <- c(
   feature_colours, region_colours, direction_colours, treat_colours,
@@ -178,38 +194,6 @@ full_palette <- c(
     "None" = colours$direction[["undetected"]],
     "Other" = colours$direction[["unchanged"]])
 )
-scale_colour_pw <- function(width = 15, name = "Combined Status", ...) {
-  scale_colour_manual(
-    values = pw_cols, 
-    labels = \(x) x %>% 
-      str_replace_all("Increased.+Increased", "Both Increased") %>% 
-      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
-      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      ) %>% 
-      str_wrap(width),
-    name = name,
-    ...
-  ) 
-}
-scale_fill_pw <- function(width = 15, name = "Combined Status", ...) {
-  scale_fill_manual(
-    values = pw_cols, 
-    labels = \(x) x %>% 
-      str_replace_all("Increased.+Increased", "Both Increased") %>% 
-      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
-      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      ) %>% 
-      str_wrap(width),
-    name = name,
-    ...
-  ) 
-}
 ```
 
 ```{r figure-params}
@@ -496,15 +480,7 @@ tbl <- combined_results %>%
           if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
           paste(targets[[1]], value)
         },
-        style = function(value) {
-          colour <- case_when(
-            str_detect(value, "Increased") ~ colours$direction[["increased"]],
-            str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
-            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-          )
-          list(color = colour)
-        },
+        style = function(value) list(color = direction_colours[[value]]),
         filterInput = function(values, name) {
           tags$select(
             # Set to undefined to clear the filter
@@ -528,15 +504,7 @@ tbl <- combined_results %>%
           if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
           paste(targets[[2]], value)
         },
-        style = function(value) {
-          colour <- case_when(
-            str_detect(value, "Increased") ~ colours$direction[["increased"]],
-            str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
-            str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-            str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-          )
-          list(color = colour)
-        },
+        style = function(value) list(color = direction_colours[[value]]),
         filterInput = function(values, name) {
           tags$select(
             # Set to undefined to clear the filter
@@ -752,15 +720,7 @@ if (has_features) {
             if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
             paste(targets[[1]], value)
           },
-          style = function(value) {
-            colour <- case_when(
-              str_detect(value, "Increased") ~ colours$direction[["increased"]],
-              str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
-              str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-              str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-            )
-            list(color = colour)
-          },
+          style = function(value) list(color = direction_colours[[value]]),
           filterInput = function(values, name) {
             tags$select(
               # Set to undefined to clear the filter
@@ -784,15 +744,7 @@ if (has_features) {
             if (str_detect(value, "Decreased")) value <- paste(value, "\u21E9")
             paste(targets[[2]], value)
           },
-          style = function(value) {
-            colour <- case_when(
-              str_detect(value, "Increased") ~ colours$direction[["increased"]],
-              str_detect(value, "Decreased") ~ colours$direction[["decreased"]],
-              str_detect(value, "Unchanged") ~ colours$direction[["unchanged"]],
-              str_detect(value, "Undetected") ~ colours$direction[["undetected"]]
-            )
-            list(color = colour)
-          },
+          style = function(value) list(color = direction_colours[[value]]),
           filterInput = function(values, name) {
             tags$select(
               # Set to undefined to clear the filter
@@ -1023,7 +975,10 @@ df %>%
   scale_xsidey_discrete(
     labels = \(x) paste(short_names$comp2, x) %>% str_wrap(15)
   ) +
-  scale_colour_pw() +
+  scale_colour_manual(
+    values = pw_cols, labels = \(x) str_wrap(pw_relabel(x), 15), 
+    name = "Combined Status"
+  ) +
   scale_fill_manual(values = full_palette) +
   theme(
     ggside.panel.scale.x = 0.1 + 0.05 * length(levels(df[[glue("{short_names$comp2} status")]])),
@@ -1116,7 +1071,10 @@ df %>%
   facet_wrap(~region) +
   scale_x_continuous() +
   scale_y_continuous() +
-  scale_colour_pw() +
+  scale_colour_manual(
+    values = pw_cols, labels = \(x) str_wrap(pw_relabel(x), 15), 
+    name = "Combined Status"
+  ) +
   theme(legend.position = "bottom")
 ```
 
@@ -1209,7 +1167,10 @@ if (has_features) {
     facet_wrap(~feature) +
     scale_x_continuous() +
     scale_y_continuous() +
-    scale_colour_pw() +
+    scale_colour_manual(
+      values = pw_cols, labels = \(x) str_wrap(pw_relabel(x), 15), 
+      name = "Combined Status"
+    ) +
     theme(legend.position = "bottom")
 }
 ```
@@ -1222,17 +1183,13 @@ if (has_features) {
 combined_results %>% 
   filter(!grepl("Undetected", status)) %>%
   mutate(
-    status = status %>% 
-      str_replace_all("Increased.+Increased", "Both Increased") %>% 
-      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
-      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") 
-  ) %>% 
-  mutate(status = fct_lump_prop(status, 0.01)) %>%
+    status = pw_relabel(status) %>% fct_lump_prop(0.01)
+  ) %>%
   plotSplitDonut(
     outer = "status", inner = "region",
     inner_palette = region_colours, outer_palette = pw_cols,
     inner_glue = "{str_wrap(.data[[inner]], 12)}\nn = {comma(n, 1)}\n({percent(p,0.1)})",
-    outer_glue = "{str_replace_all(.data[[outer]], '(.+) - (.+)', paste(short_names$comp1, '\\\\1\n', short_names$comp2, '\\\\2'))}\nn = {comma(n, 1)}\n({percent(p,0.1)})",
+    outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n({percent(p,0.1)})",
     min_p = 0.03, label_alpha = 0.8,
     explode_outer = "Both (In|De)creased", explode_r = 0.15
   ) %>% 
@@ -1252,13 +1209,7 @@ if (has_features) {
       feature = str_replace_na(feature, "no_feature") %>% 
         fct_infreq() %>% 
         fct_lump_prop(0.01),
-      status  = status %>% 
-        fct_relabel(
-          \(x) x %>% 
-            str_replace_all("Increased.+Increased", "Both Increased") %>% 
-            str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
-            str_replace_all("Unchanged.+Unchanged", "Both Unchanged") 
-        )
+      status  = fct_relabel(status, \(x) pw_relabel(x))
     ) %>% 
     summarise(n = dplyr::n(), .by = c(status, feature)) %>% 
     ggplot(aes(n, fct_rev(feature), fill = fct_rev(status))) +
@@ -1272,8 +1223,8 @@ if (has_features) {
       show.legend = FALSE, fill = "white", alpha = 0.7, size = 3
     ) +
     scale_x_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
-    scale_fill_pw(width = 80) +
-    labs(y = "Feature", x = "Loci Mapped to Feature")
+    scale_fill_manual(values = pw_cols) +
+    labs(x = "Loci Mapped to Feature", y = "Feature", fill = "Combined Status")
 }
 ```
 
@@ -1681,6 +1632,7 @@ grl_most_sig <- combined_results %>%
     grepl("^[AEIOUaeiou]", reg), paste("an", reg), paste("a", reg)
   )
   reg <- ifelse(grepl("on$", reg), paste0(reg, "ic"), reg)
+  feat <- c()
   if (has_features) {
     feat <- glue_collapse(unique(unlist(gr$feature)), sep = ", ", last = " & ")
     feat <- ifelse(
@@ -1993,15 +1945,7 @@ ranges_by_status <- combined_results %>%
   endoapply(unique) %>% 
   endoapply(plyranges::select, gene_id) %>% 
   .[map_int(., length) > 0] %>% 
-  setNames(
-    names(.) %>% 
-      str_replace_all("Increased - Increased", "Both Increased") %>% 
-      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      )
-  ) 
+  setNames(pw_relabel(names(.))) 
 ```
 
 `r desc_enrichment(enrich_method)`
@@ -2028,13 +1972,14 @@ enrich_by_status <- ranges_by_status %>%
       )
       do.call(enrich_fun, args)
     }
-  ) %>% 
+  ) 
   lapply(dplyr::filter, adj_p < enrich_params$alpha) 
 any_enrich <- enrich_by_status %>% 
   map_int(\(x) sum(x$adj_p < enrich_params$alpha)) %>% 
   as.logical() %>% 
   any()
 tg_by_status <- enrich_by_status %>%
+  lapply(dplyr::filter, adj_p < enrich_params$alpha) %>% 
   .[map_int(., nrow) > min(network_params$size)] %>% 
   mclapply(
     mutate,
@@ -2096,6 +2041,7 @@ any_networks <- as.logical(length(tg_by_status))
 if (any_enrich) {
   tagList(
     enrich_by_status %>% 
+      lapply(dplyr::filter, adj_p < enrich_params$alpha) %>% 
       bind_rows(.id = "status") %>% 
       droplevels() %>% 
       split(.$status) %>% 
@@ -2247,14 +2193,7 @@ localz_df <- mlz_list %>%
       factor(all_regions),
     enrichment = log2(n_overlaps / mean_perm_test),
     prop = n_overlaps / n_by_status[comparison],
-    comparison =  comparison %>% 
-      str_replace_all("Increased.+Increased", "Both Increased") %>% 
-      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
-      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      ) 
+    comparison = pw_relabel(comparison)
   ) %>% 
   as_tibble()
 shifted_z <- mlz_list %>% 
@@ -2277,14 +2216,7 @@ shifted_z <- mlz_list %>%
     ) %>% 
       factor(all_regions),
     Z = Z / sqrt(n_by_status[comparison]),
-    comparison =  comparison %>% 
-      str_replace_all("Increased.+Increased", "Both Increased") %>% 
-      str_replace_all("Decreased.+Decreased", "Both Decreased") %>% 
-      str_replace_all("Unchanged.+Unchanged", "Both Unchanged") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      ) 
+    comparison =  pw_relabel(comparison)
   ) 
 heat_col <- c(
   rev(RColorBrewer::brewer.pal(9, "PuBuGn")),
@@ -2489,7 +2421,6 @@ if (interactive()) {
 } else {
   tl
 }
-
 ```
 
 
@@ -2513,55 +2444,19 @@ fw_seq <- combined_results %>%
   .[map_int(., length) > 0] %>% 
   mclapply(\(x) getSeq(bs_genome, x), mc.cores = threads) %>% 
   lapply(\(x) x[letterFrequency(x, "N")[,1] == 0]) %>% 
-  setNames(
-    names(.)  %>% 
-      str_replace_all("Increased - Increased", "Both Increased") %>% 
-      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      )
-  ) 
+  setNames(pw_relabel(names(.))) 
 motif_enrich_res <- params$motif_enrichment %>%
   here::here() %>%
   read_tsv() %>%
   dplyr::rename(adj_p = fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_params$adj), .by = comparison) %>% 
-  # dplyr::filter(
-  #   adj_p < motif_params$alpha, enrichment > 1,
-  #   grepl("(In|De)creased", comparison)
-  # ) %>%
-  mutate(
-    comparison = comparison %>% 
-      str_replace_all("_", " - ") %>% 
-      str_to_title() %>% 
-      str_replace_all("Increased - Increased", "Both Increased") %>% 
-      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      )
-  )
+  mutate(comparison = pw_relabel(comparison))
 motif_pos_res <- params$motif_position %>% 
   here::here() %>%
   read_tsv() %>%
   dplyr::rename(adj_p = fdr) %>% 
   mutate(adj_p = p.adjust(p, motif_params$adj), .by = comparison) %>% 
-  # dplyr::filter(
-  #   adj_p < motif_params$alpha, enrichment > 1, 
-  #   grepl("(In|De)creased", comparison)
-  # ) %>% 
-  mutate(
-    comparison = comparison %>% 
-      str_replace_all("_", " - ") %>% 
-      str_to_title() %>% 
-      str_replace_all("Increased - Increased", "Both Increased") %>% 
-      str_replace_all("Decreased - Decreased", "Both Decreased") %>% 
-      str_replace_all(
-        "(.+) - (.+)", 
-        paste(short_names$comp1, "\\1 -", short_names$comp2, "\\2")
-      )
-  ) 
+  mutate(comparison = pw_relabel(comparison)) 
 any_motif_enrich <- any(motif_enrich_res$adj_p < motif_params$alpha)
 any_motif_pos <-  any(motif_pos_res$adj_p < motif_params$alpha)
 ```
@@ -3083,6 +2978,8 @@ if (any_motif_pos) {
 ```
 
 
+```{r add-rna, eval = has_rna, child = here::here('workflow/modules/_rna_pairwise.Rmd')}
+```
 
 
 
