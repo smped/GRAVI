@@ -202,6 +202,7 @@ rule compile_differential_signal_html:
 
 rule compile_pairwise_comparison_html:
     input:
+        annotations = ANNOTATION_RDS,
         results = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"

@@ -16,7 +16,8 @@ rule filter_merged_peaks:
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
         )
     params:
-        min_prop = lambda wildcards: peak_calling_param[wildcards.target]['min_prop_reps']
+        min_prop = lambda wildcards: peak_calling_param[wildcards.target]['min_prop_reps'],
+        merge_fdr = lambda wildcards: peak_calling_param[wildcards.target]['merge_fdr'],
     conda: "../envs/rmarkdown.yml"
     threads: 1
     retries: 1

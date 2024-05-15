@@ -121,7 +121,7 @@ source(here::here("workflow", "scripts", "table_funs.R"))
 
 ```{r load-annotations}
 ## Regions & Features
-gene_regions <- file.path(all_paths$annotation, "gene_regions.rds") %>% 
+gene_regions <- here::here(all_paths$annotation, "gene_regions.rds") %>% 
   read_rds()
 sq <- seqinfo(gene_regions)
 regions <- map_chr(gene_regions, \(x) unique(x$region))
@@ -144,17 +144,17 @@ region_sources <- tibble(
       bind_rows(.id = 'source')
   )
 ## Gene-level
-gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
+gtf_gene <- here::here(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
   .[!duplicated(names(.))]
-rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
+rna <- here::here(all_paths$annotation, "rna.rds") %>% read_rds()
 detected_ids <- unique(gtf_gene$gene_id)
 if (length(rna) ) {
   detected_ids <- detected_ids %>% intersect(bind_rows(rna)$gene_id)
 }
 include_genes <- id2gene[detected_ids]
 ## HiC
-hic <- file.path(all_paths$annotation, "hic.rds") %>% read_rds()
+hic <- here::here(all_paths$annotation, "hic.rds") %>% read_rds()
 has_hic <- length(hic) > 0
 ```
 
