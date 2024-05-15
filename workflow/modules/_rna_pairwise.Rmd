@@ -17,7 +17,13 @@ has_de <- map_lgl(rna, \(x) any(x$FDR < 0.05))
 pw_gene_status <- results_tbl %>%
   dplyr::select(status, gene_id) %>% 
   unnest(gene_id) %>% 
-  distinct(status, gene_id)
+  distinct(status, gene_id) %>% 
+  mutate(
+    cat = str_count(status, "(In|De)creased") + str_count(status, "Unch") / 2
+  ) %>% 
+  arrange(gene_id, desc(cat)) %>% 
+  dplyr::filter(cat == max(cat), .by = gene_id) %>% 
+  dplyr::select(status, gene_id)
 enrich_cols$pathway <- enrich_cols$gs_name
 enrich_cols$NES <- colDef(
   format = colFormat(digits = 2), maxWidth = 100,
@@ -38,9 +44,11 @@ enrich_cols$genes$name <- "Common Genes"
 enrich_cols$cmn_ids <- enrich_cols$gene_id
 ```
 
-In order to compare DSA results for `r target`, gene-to-range mappings were summarised such that if a gene was mapped to any DSA results showing increased or decreased binding, they were given this status.
-Genes with conflicting mappings were considered to be ambiguous, whilst those without any changed regions were assigned as being consistently unchanged.
-These results were applied where summarised results were able to be presented, however, when comparing actual estimates for logFC etc, all DSA ranges were retained.
+In order to compare pairwise results across both `r pander(unname(unlist(short_names)))`, gene-to-range mappings were prepared by selecting the category showing the greatest change with either comparison.
+Pairwise status was scored based on the presence of an Increased/Decreased status (score = 1) in either comparison, with a lower score assigned to an Unchanged status (score = 0.5).
+The most higly ranked pairwise status was assigned to each gene, allowing for ties, giving `r comma(length(unique(pw_gene_status$gene_id)))` unique genes with `r comma(nrow(pw_gene_status))` mapped pairwise status levels.
+
+These results were applied where summarised results were able to be presented, however, when comparing actual estimates for logFC etc, *all ranges mapped to a gene* were retained.
 
 
 ```{r summary-tables}
@@ -64,8 +72,13 @@ summary_tables <- names(rna) %>%
           n = dplyr::n(), .by = starts_with("status")
         ) %>%
         pivot_wider(names_from = "status.y", values_from = "n", values_fill = 0) %>% 
+        mutate(
+          `% Changed` = rowSums(dplyr::select(., ends_with("creased"))) / rowSums(
+            dplyr::select(., any_of(c("Increased", "Decreased", "Unchanged")))
+          )
+        ) %>% 
         dplyr::select(
-          status.x, any_of(c("Increased", "Decreased")), 
+          status.x, `% Changed`, any_of(c("Increased", "Decreased")), 
           everything()
         ) %>% 
         separate(status.x, unlist(short_names)) %>% 
@@ -78,6 +91,7 @@ summary_tables <- names(rna) %>%
             "{short_names[[2]]}" := colDef(
               filterInput = \(values, name) drop_filter(values, name, id)
             ),
+            "% Changed" = colDef(filterMethod = js_greater, format = percent_col),
             Increased = colDef(filterMethod = js_greater),
             Decreased = colDef(filterMethod = js_greater),
             Unchanged = colDef(filterMethod = js_greater),
@@ -176,9 +190,6 @@ if (any(has_de)) {
         
         ## Export the image
         img_out <- file.path(fig_path, glue("volcano_{i}.{fig_type}"))
-        fh <- ifelse(
-          length(levels(p$data$status.y)) == 3, 2 * fh / 3, fh
-        )
         fig_fun(filename = img_out, width = fw, height = fh)
         print(p)
         dev.off()
@@ -547,11 +558,11 @@ if (any(any_gsea_sig)) {
       which() %>% 
       names() %>% 
       lapply(
-        \(x) {
-          tbl_id <- paste0("tbl-gsea-sig", x) %>% 
+        \(i) {
+          tbl_id <- paste0("tbl-gsea-sig", i) %>% 
               str_to_lower() %>% 
               str_replace_all("_", "-")
-          tbl <- rna_gsea_sig[[x]] %>% 
+          tbl <- rna_gsea_sig[[i]] %>% 
             dplyr::filter(padj < enrich_params$alpha) %>% 
             reactable(
               sortable = TRUE, filterable = TRUE, 
@@ -588,7 +599,7 @@ if (any(any_gsea_sig)) {
             )
           cp <- htmltools::em(
             glue(
-              "GSEA results for {x}, testing an association any changed genes ", 
+              "GSEA results for {i}, testing an association any changed genes ", 
               "for all pairwise groups incorporating all available ", 
               "annotations and features. Only pairwise groupings where changed ", 
               "signal was observed in at least one comparison are shown. ", 
@@ -600,13 +611,25 @@ if (any(any_gsea_sig)) {
               "genes may be included in more than one grouping."
             )
           )
+          tl <- tagList(
+            tags$button(
+              tagList(fontawesome::fa("download"), "Download as CSV"),
+              onclick = glue(
+                "Reactable.downloadDataCSV('{tbl_id}',",
+                "'{params$full_comp}-{i}-gsea-sig.csv')"
+              )
+            ),
+            tags$button(
+              "Clear All Filters", 
+              onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+            ),
+            tbl, htmltools::tags$caption(cp)
+          )
           htmltools::div(
             id = tbl_id,
             class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            htmltools::h5(i),
+            htmltools::div(class = "table", tl)
           )
         }
       )
@@ -659,11 +682,11 @@ if (any(any_gsea_dir)) {
       which() %>% 
       names() %>% 
       lapply(
-        \(x) {
-          tbl_id <- paste0("tbl-gsea-dir", x) %>% 
+        \(i) {
+          tbl_id <- paste0("tbl-gsea-dir", i) %>% 
             str_to_lower() %>% 
             str_replace_all("_", "-")
-          tbl <- rna_gsea_dir[[x]] %>% 
+          tbl <- rna_gsea_dir[[i]] %>% 
             dplyr::filter(padj < enrich_params$alpha) %>% 
             reactable(
               sortable = TRUE, filterable = TRUE, 
@@ -700,7 +723,7 @@ if (any(any_gsea_dir)) {
             )
           cp <- htmltools::em(
             glue(
-              "GSEA results for {x}, testing an association between either ", 
+              "GSEA results for {i}, testing an association between either ", 
               "up- or down-regulated genes for all pairwise groups ", 
               "incorporating all available annotations and features. ", 
               "A Normalized Enrichment Score (NES) > 0 ", 
@@ -711,13 +734,25 @@ if (any(any_gsea_dir)) {
               "genes may be included in more than one grouping."
             )
           )
+          tl <- tagList(
+            tags$button(
+              tagList(fontawesome::fa("download"), "Download as CSV"),
+              onclick = glue(
+                "Reactable.downloadDataCSV('{tbl_id}',",
+                "'{params$full_comp}-{i}-gsea-dir.csv')"
+              )
+            ),
+            tags$button(
+              "Clear All Filters", 
+              onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+            ),
+            tbl, htmltools::tags$caption(cp)
+          )
           htmltools::div(
             id = tbl_id,
             class = "section level5",
-            htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            htmltools::h5(i),
+            htmltools::div(class = "table", tl)
           )
         }
       )

@@ -1,16 +1,16 @@
 ```{r dummy-params, eval = FALSE, echo = FALSE}
 params <- list(
   tgt1 = "AR",
-  tgt2 = "ER",
+  tgt2 = "H3K27ac",
   comp1 = "E2_E2DHT",
   comp2 = "E2_E2DHT",
-  full_comp = "AR_E2_E2DHT-ER_E2_E2DHT",
-  results = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise-results.rds",
+  full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
+  results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise-results.rds",
   dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
-  dsa2 = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
-  localz = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-pairwise_localz.rds",
-  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_enrichment.tsv.gz",
-  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-ER_E2_E2DHT/AR_E2_E2DHT-ER_E2_E2DHT-motif_position.tsv.gz"
+  dsa2 = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
+  localz = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_localz.rds",
+  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
+  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
 )
 ```
 
@@ -976,7 +976,8 @@ df %>%
     labels = \(x) paste(short_names$comp2, x) %>% str_wrap(15)
   ) +
   scale_colour_manual(
-    values = pw_cols, labels = \(x) str_wrap(pw_relabel(x), 15), 
+    values = pw_cols, 
+    labels = \(x) pw_relabel(x) %>% str_replace_all(" - ", "\n"),
     name = "Combined Status"
   ) +
   scale_fill_manual(values = full_palette) +
@@ -1072,7 +1073,8 @@ df %>%
   scale_x_continuous() +
   scale_y_continuous() +
   scale_colour_manual(
-    values = pw_cols, labels = \(x) str_wrap(pw_relabel(x), 15), 
+    values = pw_cols,
+    labels = \(x) pw_relabel(x) %>% str_replace_all(" - ", "\n"),
     name = "Combined Status"
   ) +
   theme(legend.position = "bottom")
@@ -1168,7 +1170,8 @@ if (has_features) {
     scale_x_continuous() +
     scale_y_continuous() +
     scale_colour_manual(
-      values = pw_cols, labels = \(x) str_wrap(pw_relabel(x), 15), 
+      values = pw_cols, 
+      labels = \(x) pw_relabel(x) %>% str_replace_all(" - ", "\n"),
       name = "Combined Status"
     ) +
     theme(legend.position = "bottom")
@@ -1245,8 +1248,7 @@ max_ranges <- max(map_dbl(heat_params, \(x) x$max_ranges))
 sig_ranges <- combined_results %>%
   subset(grepl("(In|De)creased", status)) %>% 
   subset(!grepl("Undetected", status)) %>% 
-  mutate(centred = GRanges(paste0(seqnames, ":", centre), seqinfo = sq)) %>% 
-  colToRanges("centred") %>% 
+  colToRanges("centre") %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) >= min_ranges] %>% 
   endoapply(granges) %>% 
@@ -1973,7 +1975,6 @@ enrich_by_status <- ranges_by_status %>%
       do.call(enrich_fun, args)
     }
   ) 
-  lapply(dplyr::filter, adj_p < enrich_params$alpha) 
 any_enrich <- enrich_by_status %>% 
   map_int(\(x) sum(x$adj_p < enrich_params$alpha)) %>% 
   as.logical() %>% 
@@ -2736,6 +2737,7 @@ if (any_motif_enrich) {
 show_n <- 40
 if (any_motif_enrich) {
   motif_enrich_mat <- motif_enrich_res %>% 
+    dplyr::filter(!str_detect(comparison, "Un.+Un")) %>% 
     arrange(p) %>% 
     dplyr::filter(altname %in% unique(altname)[seq_len(show_n)]) %>% 
     dplyr::filter(any(adj_p < motif_params$alpha), .by = altname) %>% 
@@ -2786,12 +2788,10 @@ if (any_motif_enrich) {
     )
   size_max <- max(motif_enrich_res$matches / motif_enrich_res$sequences)
   main <- motif_enrich_res %>% 
-    dplyr::filter(any(adj_p < motif_params$alpha), .by = altname) %>% 
-    dplyr::filter(any(adj_p < motif_params$alpha), .by = comparison) %>% 
-    droplevels() %>% 
-    arrange(p) %>% 
-    dplyr::filter(altname %in% unique(altname)[seq_len(show_n)]) %>% 
-    dplyr::filter(any(adj_p < motif_params$alpha), .by = comparison) %>% 
+    dplyr::filter(
+      comparison %in% comp_dend$labels$label,
+      name %in% motif_dend$labels$label
+    ) %>% 
     mutate(
       name = factor(name, levels = motif_levels),
       comparison = factor(comparison, levels = comp_levels),
@@ -2809,7 +2809,7 @@ if (any_motif_enrich) {
       low = direction_colours[["Decreased"]],
       high = direction_colours[["Increased"]], na.value = "white"
     ) +
-    scale_x_discrete(expand = expansion(0)) +
+    scale_x_discrete() +
     scale_y_discrete(
       labels = \(x) str_replace_all(x, " - ", "\n"),
       expand = expansion(0)
@@ -2822,7 +2822,8 @@ if (any_motif_enrich) {
     )
   comp_dend_plot + main + motif_dend_plot + 
     plot_layout(
-      design = c(area(1, 1, 9, 1), area(1, 2, 9, 12), area(10, 2, 10, 12))
+      design = c(area(1, 1, 9, 1), area(1, 2, 9, 12), area(10, 2, 10, 12)),
+      axes = "collect"
     )
 }
 ```

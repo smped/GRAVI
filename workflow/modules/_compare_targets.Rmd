@@ -128,7 +128,7 @@ combined_results %>%
     labels = percent, expand = expansion(c(0, 0.05)), 
     breaks = seq(0, 1, by = 0.2)
   ) +
-  scale_colour_pw(width = 80) +
+  scale_colour_manual(values = pw_cols, labels = \(x) pw_relabel(x)) +
   labs(
     x = "Distance Between Window Centres (bp)",
     y = "Percentile"
