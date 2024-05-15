@@ -46,10 +46,27 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
+# all_input <- list(
+#   blacklist = "output/annotations/blacklist.rds",
+#   greylist = "output/greylist/greylists.rds",
+#   merged = "output/macs2/AR/AR_E2DHT_merged_peaks.narrowPeak",
+#   qc = "output/macs2/AR/AR_qc_samples.tsv",
+#   rep = c(
+#     "output/macs2/SRR8315177/SRR8315177_peaks.narrowPeak",
+#     "output/macs2/SRR8315178/SRR8315178_peaks.narrowPeak",
+#     "output/macs2/SRR8315179/SRR8315179_peaks.narrowPeak"
+#   ),
+#   sq = "output/annotations/seqinfo.rds"
+# )
+# all_output <- list(
+#   peaks = "output/peak_analysis/AR/AR_E2DHT_filtered_peaks.narrowPeak"
+# )
+# all_wildcards <- list(target = "AR", treat = "E2DHT")
+# all_params <- list(min_prop = 0.5, merge_fdr = 0.05)
+
 log <- slot(snakemake, "log")[[1]]
 cat("Setting stdout to ", log, "\n")
 sink(log)
-
 config <- slot(snakemake, "config")
 all_wildcards <- slot(snakemake, "wildcards")
 all_params <- slot(snakemake, "params")
@@ -88,7 +105,8 @@ if (n_rep > 0) {
     cat_time("Loading merged peaks\n")
     merged_peaks <- all_input$merged %>%
         importPeaks(seqinfo = sq, setNames = FALSE, blacklist = exclude_ranges) %>%
-        unlist()
+        unlist() %>%
+        filter(qValue > all_params$merge_fdr)
     cat_time("Loading replicate peaks\n")
     rep_peaks <- importPeaks(rep_paths, seqinfo = sq)
     keep <- countOverlaps(merged_peaks, rep_peaks) > n_rep * all_params$min_prop
