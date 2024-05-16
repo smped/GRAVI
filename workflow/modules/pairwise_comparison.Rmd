@@ -85,7 +85,8 @@ if (n_targets > 1) {
 }
 names(short_names) <- paste0("comp", 1:2)
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
-  jsonlite::fromJSON()
+  jsonlite::fromJSON() %>%
+  lapply(here::here)
 diff_sig_param <- here::here(
   "config", "json", "differential_signal_param.json"
 ) %>% 
@@ -159,7 +160,8 @@ has_hic <- length(hic) > 0
 ```
 
 ```{r colours}
-colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
+colours <- here::here(all_paths$annotation, "colours.rds") %>%
+  read_rds() %>% 
   lapply(unlist)
 comp_cols <- colours$target[targets]
 ## Pairwise palette
@@ -217,8 +219,8 @@ if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 
 ```{r load-data}
 filtered_peaks <- list(
-  file.path(all_paths$peaks, params$tgt1, "{params$tgt1}_{treat_levels$comp1}"),
-  file.path(all_paths$peaks, params$tgt2, "{params$tgt2}_{treat_levels$comp2}")
+  here::here(all_paths$peaks, params$tgt1, "{params$tgt1}_{treat_levels$comp1}"),
+  here::here(all_paths$peaks, params$tgt2, "{params$tgt2}_{treat_levels$comp2}")
 ) %>% 
   lapply(glue) %>% 
   unlist() %>% 
@@ -227,13 +229,14 @@ filtered_peaks <- list(
   here::here() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(str_remove_all(names(.), "_filtered.+"))
-combined_results <- params$results %>% read_rds()
+combined_results <- here::here(params$results) %>% read_rds()
 n_by_status <- combined_results %>% 
   splitAsList(.$status) %>% 
   endoapply(granges) %>% 
   endoapply(unique) %>% 
   map_int(length)
 dsa_results <- params[c("dsa1", "dsa2")] %>% 
+  lapply(here::here) %>%
   lapply(read_rds) %>% 
   setNames(short_names)
 ```
@@ -865,7 +868,7 @@ combined_results %>%
 #### Pairwise Differential Signal
 
 
-```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ". The range with most extreme combined change in signal is shown with any genes labelled. ", ifelse(has_rna, "Only genes detected within transcriptomic data are labelled. " , ""),  "The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ". The range with most extreme combined change in signal is shown with any genes labelled. ", ifelse(length(rna), "Only genes detected within transcriptomic data are labelled. " , ""),  "The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df <- combined_results %>% 
   as_tibble() %>% 
   select(
@@ -1494,7 +1497,7 @@ htmltools::tagList(
 )
 ```
 
-### Most Highly Ranked Loci {.loci}
+### Most Highly Ranked Loci {.tabset}
 
 ```{r prepare-plot-objects}
 cb <- config$genome$build %>% 
@@ -1673,7 +1676,7 @@ htmltools::tagList(
             "(.+) - (.+)", 
             paste0(
               comp_names$comp1, "-\\1-", 
-              comp_names$comp2, "-\\2-by-aveexpr.", fig_type
+              comp_names$comp2, "-\\2-by-sig.", fig_type
             )
           )
       )
@@ -1881,7 +1884,7 @@ htmltools::tagList(
             "(.+) - (.+)", 
             paste0(
               comp_names$comp1, "-\\1-", 
-              comp_names$comp2, "-\\2-by-aveexpr.", fig_type
+              comp_names$comp2, "-\\2-by-lfc.", fig_type
             )
           )
       )
@@ -1932,7 +1935,7 @@ htmltools::tagList(
 ## Enrichment Testing
 
 ```{r msigdb}
-msigdb <- file.path(all_paths$annotation, "msigdb.rds") %>% read_rds()
+msigdb <- here::here(all_paths$annotation, "msigdb.rds") %>% read_rds()
 gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
 enrich_method <- match.arg(enrich_params$method, c("great", "gene_id"))
 enrich_fun <- c(
@@ -2171,7 +2174,7 @@ if (any_networks) {
 ## Region Analysis {.tabset}
 
 ```{r load-localz}
-mlz_list <- read_rds(params$localz)
+mlz_list <- here::here(params$localz) %>% read_rds()
 mlz_list <- mlz_list[!map_lgl(mlz_list, is.null)]
 names(mlz_list) <- names(mlz_list) %>% 
   str_remove_all(params$full_comp) %>% 
@@ -2230,7 +2233,7 @@ The package `regioneReloaded` [@Malinverni2023-ee] was used, which uses a permut
 This effectively defines a viable H~0~ against which the observed number of overlaps can be tested, accounting for the size of each type of region or feature.
 Using the Central Limit Theorem, the *normalised Z-scores* returned can be expected to to follow an approximate $\mathcal{N}(0,1)$ distribution, and these are used to regenerate adjusted p-values, as a more conservative alternative to those returned by the package.
 
-In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
+In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the pairwise peaks within $\pm$ 5kb range around the detected peak.
 
 ### Z-Score Heatmap
 
@@ -2428,12 +2431,11 @@ if (interactive()) {
 ## Motif Analysis
 
 ```{r setup-motif-analysis}
-motif_db <- all_paths$annotation %>% 
-  file.path("motif_list.rds") %>% 
+motif_db <- here::here(all_paths$annotation, "motif_list.rds") %>% 
   read_rds() %>% 
   to_df() %>% 
   as_tibble()
-motif_uri <- file.path(all_paths$annotation, "motif_uri.rds") %>% 
+motif_uri <- here::here(all_paths$annotation, "motif_uri.rds") %>% 
   read_rds()
 fw_seq <- combined_results %>%
   # subset(grepl("(In|De)creased", status)) %>% 
@@ -2606,7 +2608,7 @@ tagList(
 
 
 
-`r if (any_motif_enrich), "#### Motif Co-Ocurrence {.tabset}"`
+`r if (any_motif_enrich) "#### Motif Co-Ocurrence {.tabset}"`
 
 ```{r motif-corplot, echo = any_motif_enrich}
 if (any_motif_enrich) {
@@ -2731,7 +2733,7 @@ if (any_motif_enrich) {
 ```
 
 
-`r if (any_motif_enrich), "#### Motif Enrichment Summary"`
+`r if (any_motif_enrich) "#### Motif Enrichment Summary"`
 
 ```{r motif-summary-plot, echo=any_motif_enrich, fig.height = 0.5 * fh,fig.cap = glue("*Summary of enrichment patterns for the {show_n} motifs considered to be enriched within at least one set of sequences. Tile colour indicates the oddss ratio when comparing against all other groups of sequences combined, with significance indicated by an asterisk, noting that all testing was one-sided for enrichment only. Tile sizes represent the rate of motif matches occuring within each set of sequences, with small tiles commonly indicating rare motifs that may still have been considered to be enriched.*")}
 show_n <- 40
@@ -2979,7 +2981,7 @@ if (any_motif_pos) {
 ```
 
 
-```{r add-rna, eval = has_rna, child = here::here('workflow/modules/_rna_pairwise.Rmd')}
+```{r add-rna, eval = length(rna) > 0, child = here::here('workflow/modules/_rna_pairwise.Rmd')}
 ```
 
 

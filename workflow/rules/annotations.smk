@@ -162,6 +162,7 @@ rule prep_rna:
         p_col = ["PValue", "PVal", "P", "p", "p_value", "p_val", "P.Value", "pvalue"],
         padj_col = ["fdr", "FDR", "adjP", "adj_p", "adj.P.Value", "padj"],
         nperm_gsea = 1e5,
+        files = config['external']['rna']
     conda: "../envs/rmarkdown.yml"
     threads: 4
     retries: 1    
