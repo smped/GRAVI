@@ -1,0 +1,440 @@
+# Transcriptomic Datasets
+
+
+
+```{r load-gsea, echo=FALSE}
+library(fgsea)
+if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
+gs_url <- setNames(msigdb$gs_url, msigdb$gs_name) %>% 
+  .[!duplicated(names(.))]
+ids_by_gs <- msigdb %>% 
+  split(.$gs_name) %>% 
+  lapply(pull, "ensembl_gene")
+gsea_dir <- read_rds(all_out$gsea_dir)
+gsea_sig <- read_rds(all_out$gsea_sig)
+dir_ranks <- rna %>% 
+  lapply(\(x) sort(setNames(-sign(x$logFC) * log10(x$PValue), x$gene_id)))
+sig_ranks <- rna %>% 
+  lapply(\(x) sort(setNames(-log10(x$PValue), x$gene_id)))
+gsea_dir <- gsea_dir %>% 
+  lapply(dplyr::filter, padj < enrich_params$alpha) %>% 
+  lapply(arrange, pval) %>% 
+  lapply(
+    mutate, 
+    leSize = map_int(leadingEdge, length),
+    leadingEdge = map_chr(
+      leadingEdge, 
+      \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+    )
+  ) %>% 
+  lapply(dplyr::filter, leSize > enrich_params$min_sig) %>% 
+  .[map_int(., nrow) > 0]
+gsea_sig <- gsea_sig %>% 
+  lapply(dplyr::filter, padj < enrich_params$alpha & NES > 0) %>% 
+  lapply(arrange, pval) %>% 
+  lapply(
+    mutate, 
+    leSize = map_int(leadingEdge, length),
+    leadingEdge = map_chr(
+      leadingEdge, 
+      \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+    )
+  ) %>% 
+  lapply(dplyr::filter, leSize > enrich_params$min_sig) %>% 
+  .[map_int(., nrow) > 0]
+```
+
+`r length(rna)` transcriptomic `r ifelse(length(rna) > 1, "datasets were", "dataset was")` provided, as is summarised in this section.
+In the section below, a differentially expressed (DE) gene is simply considered to be one with an FDR-adjusted p-value < 0.05, noting that no differentially expressed genes are formally required for data integration.
+
+In addition to checking the input file structures, Gene Set Enrichment Analysis (GSEA) [@SubramanianGsea2005] was performed using two approaches.
+The first analysis takes a ranked list with the direction of change being included, testing for any association between pathways and up- or down-regulated genes.
+The second analysis simply ranks genes by significance, performing a one-sided test for enrichment of pathways within the set of genes the most highly-ranked for statistical evidence of changed expression.
+For both analyses, the `R` package `fgsea` was used [@KorotkevichFgsea2019].
+
+## Dataset Summary
+
+```{r show-rna}
+rna %>% 
+  bind_rows(.id = "Dataset") %>% 
+  summarise(
+    Detected = dplyr::n(), 
+    `Up-Regulated` = sum(logFC > 0 & FDR < 0.05),
+    `Down-Regulated` = sum(logFC < 0 & FDR < 0.05),
+    `Total DE` = `Up-Regulated` + `Down-Regulated`,
+    .by = Dataset
+  ) %>% 
+  pander(
+    justify = "lrrrr",
+    caption = "Summary of all provided transcriptomic datasets"
+  )
+```
+
+
+`r if (length(rna) > 1) "### Dataset Comparison {.tabset}"`
+
+```{r compare-logfc, echo = length(rna) > 1}
+if (length(rna) > 1) {
+  htmltools::tagList(
+    names(rna) %>% 
+      combn(2) %>% 
+      apply(
+        MARGIN = 2,
+        \(x) {
+          nm <- paste0(x, collapse = "-") %>% str_to_lower()
+          p <- rna[x] %>%
+            lapply(addDiffStatus) %>% 
+            bind_rows(.id = "dataset") %>% 
+            dplyr::select(dataset, gene_id, logFC, status) %>% 
+            pivot_wider(names_from = 'dataset', values_from = c("logFC", "status")) %>% 
+            mutate(
+              status = fct_cross(
+                !!sym(paste0("status_", x[[1]])), !!sym(paste0("status_", x[[2]])),
+                sep = " - "
+              ),
+              gene_name = id2gene[gene_id]
+            ) %>% 
+            dplyr::filter(!is.na(status)) %>% 
+            droplevels() %>% 
+            arrange(status) %>% 
+            ggplot(
+              aes(
+                !!sym(paste0("logFC_", x[[1]])), !!sym(paste0("logFC_", x[[2]])),
+                colour = status
+              )
+            ) +
+            geom_hline(yintercept = 0, linetype = 2, colour = "grey70") +
+            geom_vline(xintercept = 0, linetype = 2, colour = "grey70") +
+            geom_point(alpha = 0.7) +
+            geom_abline(slope = 1) +
+            geom_label_repel(
+              aes(label = gene_name),
+              data = . %>% 
+                mutate(
+                  sq = (!!sym(paste0("logFC_", x[[1]])))^2 + (!!sym(paste0("logFC_", x[[2]])))^2,
+                ) %>% 
+                arrange(desc(sq)) %>% 
+                dplyr::slice(1:8),
+              show.legend = FALSE, size = 3
+            ) +
+            geom_text(
+              aes(x, y, label = label), inherit.aes = FALSE,
+              data = . %>% 
+                summarise(
+                  x = min(!!sym(paste0("logFC_", x[[1]]))),
+                  y = max(!!sym(paste0("logFC_", x[[2]]))),
+                  cor = cor(
+                    !!sym(paste0("logFC_", x[[1]])), !!sym(paste0("logFC_", x[[2]]))
+                  )
+                ) %>% 
+                mutate(
+                  label = glue("rho == {round(cor, 3)}")
+                ),
+              hjust = 0, vjust = 1, parse = TRUE
+            ) +
+            scale_colour_manual(
+              values = unlist(colours$pairwise) %>% 
+                setNames(
+                  names(.) %>% 
+                    str_replace_all("_", " - ") %>% 
+                    str_to_title()
+                )
+            ) +
+            labs(x = x[[1]], y = x[[2]], colour = "Combined Status")
+          
+          ## Save the comparison plot
+          img_out <- here::here(fig_path, "{nm}.{fig_type}") %>% glue()
+          fig_fun(filename = img_out, height = fh, width = fw)
+          print(p)
+          dev.off()
+          
+          ## Create html tags
+          fig_link <- str_extract(img_out, "assets.+")
+          cp <- htmltools::tags$em(
+            glue(
+              "Comparison of logFC estimates for", 
+              glue_collapse(x, last = " and "), 
+              ". Point colour is based on combined differential expression status. ",
+              "The points furthest from the origin are labelled, with the ", 
+              "pairwise correlation between datasets shown in the top left corner"
+            )
+          )
+          htmltools::div(
+            htmltools::div(
+              id = paste0("logfc-", nm),
+              class = "section level4",
+              htmltools::h4(paste(x, collapse = " Vs. ")),
+              htmltools::div(
+                class = "figure", style = "text-align: center",
+                htmltools::img(src = fig_link, width = "100%"),
+                htmltools::tags$caption(cp)
+              )
+            )
+          )
+          
+        }
+      )
+  )
+}
+```
+
+
+
+## Directional GSEA 
+
+### Results {.tabset}
+
+```{r table-gsea-dir, eval = length(gsea_dir) > 0, echo = FALSE}
+htmltools::tagList(
+  names(gsea_dir) %>% 
+    lapply(
+      \(x) {
+        id <- paste0('gsea-dir-', str_replace_all(str_to_lower(x), "_", "-"))
+        tbl <- gsea_dir[[x]] %>%
+          dplyr::select(pathway, padj, NES, contains("size"), leadingEdge) %>% 
+          reactable(
+            showPageSizeOptions = TRUE, filterable = TRUE,
+            columns = list(
+              pathway = colDef(
+                "Pathway", minWidth = 150,
+                cell = function(value) htmltools::tags$a(
+                  href = gs_url[[value]],
+                  target = "_blank",
+                  str_replace_all(value, "_", " ")
+                ),
+                html = TRUE
+              ),
+              padj = colDef(
+                "P<sub>adj</sub>", html = TRUE,
+                cell = \(value) sprint_pval(value), maxWidth = 80,
+                filterMethod = js_less
+              ),
+              NES = colDef(
+                format = colFormat(digits = 2), maxWidth = 100,
+                filterMethod = js_greater
+              ),
+              size = colDef("Pathway Size", maxWidth = 80, filterMethod = js_greater),
+              leSize = colDef("Leading Edge Size", maxWidth = 100, filterMethod = js_greater),
+              leadingEdge = colDef(
+                "Leading Edge", minWidth = 150,
+                cell = \(value) with_tooltip(value, width = 60)
+              )
+            ),
+            elementId = id
+          )
+        cp = htmltools::tags$em(
+          paste(
+            "Taking genes ranked by significance and incorporating direction,",
+            "the following gene sets were returned as significant using GSEA.",
+            "A normalised enrichment score (NES) greater than zero indicates",
+            "the pathway was enriched amongst the upregulated genes, whilst for",
+            "a negative NES, enrichment will be amongst the down-regulated genes."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = id,
+            class = "section level4",
+            htmltools::h4(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+### Barcode Plots {.tabset}
+
+```{r barcode-gsea-dir}
+htmltools::tagList(
+  names(gsea_dir) %>% 
+    lapply(
+      \(x) {
+        p <- gsea_dir[[x]] %>% 
+          dplyr::slice(1:9) %>% 
+          pull("pathway") %>% 
+          lapply(
+            \(i) {
+              plotEnrichment(ids_by_gs[[i]], dir_ranks[[x]]) +
+                ggtitle(str_replace_all(i, "_", " ") %>% str_wrap(20))
+            }
+          ) %>% 
+          wrap_plots(
+            ncol = case_when(
+              length(.) == 1 ~ 1,
+              length(.) %in% c(2, 4) ~ 2,
+              TRUE ~ 3
+            )
+          )
+        img_out <- here::here(fig_path, "{x}-barcode_gsea_dir.{fig_type}") %>% 
+          glue()
+        fig_fun(
+          filename = img_out, 
+          width = ifelse(length(p) > 1, fw, fw / 2),
+          height = ifelse(length(p) > 3, fh, fh / 2)
+        )
+        print(p)
+        dev.off()
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "Barcode plots for the most highly ranked, significantly enriched ",
+            "pathways in the transcriptomic dataset {x} when ",
+            "taking direction of estimated logFC into account"
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = x %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-") %>% 
+              paste("barcode-gsea-dir", sep = "-"),
+            class = "section level4",
+            htmltools::h4(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    ) 
+)
+```
+
+
+## Non-Directional GSEA 
+
+### Results {.tabset}
+
+```{r table-gsea-sig, eval = length(gsea_sig) > 0, echo = FALSE}
+htmltools::tagList(
+  names(gsea_sig) %>% 
+    lapply(
+      \(x) {
+        id <- paste0('gsea-sig-', str_replace_all(str_to_lower(x), "_", "-"))
+        tbl <- gsea_sig[[x]] %>%
+          dplyr::select(pathway, padj, NES, contains("size"), leadingEdge) %>% 
+          reactable(
+            showPageSizeOptions = TRUE, filterable = TRUE,
+            columns = list(
+              pathway = colDef(
+                "Pathway", minWidth = 150,
+                cell = function(value) htmltools::tags$a(
+                  href = gs_url[[value]],
+                  target = "_blank",
+                  str_replace_all(value, "_", " ")
+                ),
+                html = TRUE
+              ),
+              padj = colDef(
+                "P<sub>adj</sub>", html = TRUE,
+                cell = \(value) sprint_pval(value), maxWidth = 80,
+                filterMethod = js_less
+              ),
+              NES = colDef(
+                format = colFormat(digits = 2), maxWidth = 100,
+                filterMethod = js_greater
+              ),
+              size = colDef("Pathway Size", maxWidth = 80, filterMethod = js_greater),
+              leSize = colDef("Leading Edge Size", maxWidth = 100, filterMethod = js_greater),
+              leadingEdge = colDef(
+                "Leading Edge", minWidth = 150,
+                cell = \(value) with_tooltip(value, width = 60)
+              )
+            ),
+            elementId = id
+          )
+        cp = htmltools::tags$em(
+          paste(
+            "Taking genes ranked only by significance and without incorporating direction,",
+            "the following gene sets were returned as significant using GSEA.",
+            "This siply tests whether pathways are enriched within genes more",
+            "likely to be differentially expressed, with no preference for up.",
+            "or down-regulation."
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = id,
+            class = "section level4",
+            htmltools::h4(x),
+            htmltools::div(
+              class = "table", tbl, htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    )
+)
+```
+
+### Barcode Plots {.tabset}
+
+
+```{r barcode-gsea-sig}
+htmltools::tagList(
+  names(gsea_sig) %>% 
+    lapply(
+      \(x) {
+        p <- gsea_sig[[x]] %>% 
+          dplyr::slice(1:9) %>% 
+          pull("pathway") %>% 
+          lapply(
+            \(i) {
+              plotEnrichment(
+                ids_by_gs[[i]], dir_ranks[[x]]
+              ) +
+                ggtitle(str_replace_all(i, "_", " ") %>% str_wrap(20))
+            }
+          ) %>% 
+          wrap_plots(
+            ncol = case_when(
+              length(.) == 1 ~ 1,
+              length(.) %in% c(2, 4) ~ 2,
+              TRUE ~ 3
+            )
+          )
+        img_out <- here::here(fig_path, "{x}-barcode_gsea_sig.{fig_type}") %>% 
+          glue() 
+        fig_fun(
+          filename = img_out, 
+          width = ifelse(length(p) > 2, fw, fw * length(p) / 3),
+          height = ifelse(length(p) > 3, fh, fh / 3)
+        )
+        print(p)
+        dev.off()
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "Barcode plots for the most highly ranked, significantly enriched ",
+            "pathways in the transcriptomic dataset {x} when ",
+            "only taking significance of estimated logFC into account"
+          )
+        )
+        htmltools::div(
+          htmltools::div(
+            id = x %>% 
+              str_to_lower() %>% 
+              str_replace_all("_", "-") %>% 
+              paste("barcode-gsea-dir", sep = "-"),
+            class = "section level4",
+            htmltools::h4(x),
+            htmltools::div(
+              class = "figure", style = "text-align: center",
+              htmltools::img(src = fig_link, width = "100%"),
+              htmltools::tags$caption(cp)
+            )
+          )
+        )
+      }
+    ) 
+)
+```
+
