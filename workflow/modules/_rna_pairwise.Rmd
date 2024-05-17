@@ -492,13 +492,13 @@ tagList(
 )
 ```
 
-### `r target` Pattern GSEA 
+### GSEA Using Pairwise Patterns
 
-GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to various `r target` signal regions, and checking for enrichment amongst the RNA-Seq results.
-Two analyses wre performed:
+GSEA analysis [@SubramanianGsea2005] was first performed by taking the genes mapped to each set of pairwise loci, and checking for enrichment amongst the RNA-Seq results.
+Two analyses were performed:
 
-1. Ranking both `r target` signal and transcriptomic data by significance only, to test for any overall association with changed signal levels and DGE, then
-2. Ranking both `r target` signal and transcriptomic data by both *direction of change* and *significance*, to test for any overall association between the direction of change in either -omics layer
+1. Ranking transcriptomic data by significance only, to test for any overall association with changed signal levels and DGE, then
+2. Ranking transcriptomic data by both *direction of change* and *significance*, to test for any overall association between the direction of change in either -omics layer
 
 The `R` package `fgsea` [@KorotkevichFgsea2019] was used for all downstream GSEA analysis.
 
@@ -656,22 +656,24 @@ rna_gsea_dir <- rna_dir_scores %>%
     separate, status, into = unlist(short_names), sep = " - "
   ) %>% 
   lapply(arrange, pval) %>% 
-  lapply(
+  mclapply(
     mutate,
     padj = p.adjust(pval, enrich_params$adj),
     region = str_remove_all(region, ".+: "), 
     leSize = map_int(leadingEdge, length),
     leadingEdge = map_chr(
       leadingEdge, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
-    )
+    ),
+    mc.cores = threads
   ) %>% 
-  lapply(left_join, region_sources, by = "region") %>% 
-  lapply(
+  mclapply(left_join, region_sources, by = "region", mc.cores = threads) %>% 
+  mclapply(
     dplyr::select, 
     all_of(unname(unlist(short_names))), source, region,
-    padj, NES, ends_with("ize"), leadingEdge
+    padj, NES, ends_with("ize"), leadingEdge,
+    mc.cores = threads
   ) %>% 
-  lapply(dplyr::filter, leSize >= enrich_params$min_sig)
+  mclapply(dplyr::filter, leSize >= enrich_params$min_sig, mc.cores = threads)
 any_gsea_dir <- map_lgl(rna_gsea_dir, \(x) any(x$padj < enrich_params$alpha))
 ```
 
@@ -1005,7 +1007,7 @@ This set of `r length(grl_to_plot)` loci is shown below, noting that for some ge
   }
   glue(
     "This {width(range(.gr))}bp region ({as.character(.gr)}) was considered ",
-    "as {pw_relabel(.gr$status.y)} overlapping {reg} region, and with the ", 
+    "as {pw_relabel(.gr$status.y)}, overlapping {reg} region, and with the ", 
     "associated gene, {gn}, being considered as {.gr$status.x}. ",
     feat, 
     "Loci associated with differential signal in either dataset are annotated by colour."

@@ -2733,12 +2733,13 @@ if (any_motif_enrich) {
 
 `r if (any_motif_enrich), "#### Motif Enrichment Summary"`
 
-```{r motif-summary-plot, echo=any_motif_enrich, fig.height = 0.5 * fh,fig.cap = glue("*Summary of enrichment patterns for the {show_n} motifs considered to be enriched within at least one set of sequences. Tile colour indicates the oddss ratio when comparing against all other groups of sequences combined, with significance indicated by an asterisk, noting that all testing was one-sided for enrichment only. Tile sizes represent the rate of motif matches occuring within each set of sequences, with small tiles commonly indicating rare motifs that may still have been considered to be enriched.*")}
+```{r motif-summary-plot, echo=any_motif_enrich, fig.height = 0.5 * fh,fig.cap = glue("*Summary of enrichment patterns for the {show_n} motifs considered to be enriched within at least one set of sequences. Tile colour indicates the odds ratio as a measure of enrichment, when comparing against all other groups of sequences combined. Significance is indicated by an asterisk, noting that all testing was one-sided, for enrichment only. Tile sizes represent the rate of motif matches occuring within each set of sequences, with small tiles commonly indicating rare motifs that may still have been considered to be enriched.*")}
 show_n <- 40
 if (any_motif_enrich) {
   motif_enrich_mat <- motif_enrich_res %>% 
     dplyr::filter(!str_detect(comparison, "Un.+Un")) %>% 
     arrange(p) %>% 
+    dplyr::filter(all(is.finite(odds_ratio)), .by = altname) %>% 
     dplyr::filter(altname %in% unique(altname)[seq_len(show_n)]) %>% 
     dplyr::filter(any(adj_p < motif_params$alpha), .by = altname) %>% 
     dplyr::filter(any(adj_p < motif_params$alpha), .by = comparison) %>% 
@@ -2819,7 +2820,7 @@ if (any_motif_enrich) {
       axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
       panel.grid = element_blank(),
       plot.margin = unit(c(5.5, 5.5, 0, 0), "points")
-    )
+    ) 
   comp_dend_plot + main + motif_dend_plot + 
     plot_layout(
       design = c(area(1, 1, 9, 1), area(1, 2, 9, 12), area(10, 2, 10, 12)),
@@ -2983,48 +2984,6 @@ if (any_motif_pos) {
 ```
 
 
-
-## Data Export
-
-```{r turn-off, echo = FALSE}
-knitr::opts_chunk$set(eval = FALSE)
-```
-
-
-```{r all-out}
-write_rds(all_windows, all_out$results, compress = "gz")
-save.image(all_out$renv)
-```
-
-```{r export-csv}
-all_windows %>% 
-  as_tibble() %>% 
-  dplyr::select(-detected) %>% 
-  unnest(all_of("gene_id")) %>% # This ensures correct id2gene mappings
-  mutate(gene_name = id2gene[gene_id]) %>% 
-  dplyr::select(
-    starts_with("gene"), range, any_of(c("region", "feature", "hic")),
-  ) %>% 
-  write_csv(
-    gzfile(all_out$csv)
-  )
-write_csv(de_genes_both_comps, all_out$de_genes)
-goseq_group_sig %>% 
-  bind_rows() %>% 
-  write_csv(all_out$goseq)
-cmn_res %>% 
-  bind_rows() %>% 
-  mutate(
-    leadingEdge = vapply(leadingEdge, paste, character(1), collapse = "; "),
-    gs_url = gs_url[gs_name]
-  ) %>% 
-  write_csv(all_out$rna_enrichment)
-```
-
-
-During this workflow, the following files were exported:
-
-`r pander(lapply(all_out, str_extract, "output.+"))`
 
 ## References
 
