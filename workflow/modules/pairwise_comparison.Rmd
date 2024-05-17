@@ -2616,6 +2616,7 @@ if (any_motif_enrich) {
     dplyr::filter(adj_p < motif_params$alpha) %>%
     droplevels() %>% 
     split(.$comparison) %>% 
+    .[map_int(., nrow) > 1] %>% 
     lapply(
       \(x) {
         comp <- unique(x$comparison)

@@ -23,6 +23,9 @@ rule compile_annotations_html:
         checks = ALL_CHECKS,
         greylist = os.path.join(grey_path, "greylists.rds"),
         rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
+        rna_module = os.path.join(
+            "workflow", "modules", "_rna_description.Rmd"
+        ),        
         setup = rules.create_setup_chunk.output,
         site_yaml = rules.create_site_yaml.output
     output:
