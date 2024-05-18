@@ -160,7 +160,7 @@ rule compile_differential_signal_html:
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
         ),
         rna = os.path.join(
-            "workflow", "modules", "rna_differential_signal.Rmd"
+            "workflow", "modules", "_rna_differential_signal.Rmd"
         ),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output

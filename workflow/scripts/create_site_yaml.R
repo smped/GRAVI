@@ -149,7 +149,7 @@ if (length(comparisons) > 1) {
         cont2 = rmd2 %>%
           str_remove_all(paste0("^(", paste(all_targets, collapse = "|"), ")_")) %>%
           str_replace_all(paste0("^(", trt_regex, ")_(", trt_regex, ")$"), "\\2 Vs. \\1"),
-        ref = paste(rmd1, rmd2, "pairwise_comparison.html", sep = "_")
+        ref = paste0(rmd1, "-", rmd2, "_pairwise_comparison.html")
       ) %>%
       unite(text, starts_with("cont"), sep = " / ") %>%
       unite(menu, starts_with("tgt"), sep = "-") %>%
