@@ -763,7 +763,7 @@ if (any(any_gsea_dir)) {
 ```
 
 
-### Combined Enrichment 
+### Combined Enrichment {.tabset}
 
 ```{r load-gsea-rds}
 gsea_dir <- file.path(all_paths$annotation, "gsea_dir.rds") %>% read_rds()
@@ -833,8 +833,8 @@ tbl_changed_rna_enrich <- names(changed_rna_enrich) %>%
         )
       )
       htmltools::div(
-        id = id, class = "section level5",
-        h5("Combined Enrichment: DSA Changed"),
+        # id = id, class = "section level5",
+        # h5("Combined Enrichment: DSA Changed"),
         tbl, tags$caption(cp)
       )
     }

@@ -1,4 +1,4 @@
-### Shared Signal Regions
+#### Shared Signal Regions
 
 ```{r plot-common, fig.cap = glue("*Relationship between regions contained in {targets[[1]]} and {targets[[2]]}, and which of the two targets each peak is found in. Peaks are based on the union of both sets of peaks, which are themselves independent of treatment group.*"), fig.height = 8, fig.width = 8}
 library(VennDiagram)
@@ -19,10 +19,10 @@ venn_args <- combined_results %>%
 venn_args$fill <- unlist(colours$target)[targets]
 venn_args$category <- unname(unlist(short_names))
 grid::grid.newpage()
-do.call(draw.pairwise.venn, venn_args)
+invisible(do.call(draw.pairwise.venn, venn_args))
 ```
 
-### Pairwise Signal
+#### Pairwise Signal
 
 ```{r plot-pairwise-signal, fig.cap = glue("Pairwise signal levels with boxplots indicating the baseline signal based on whether signal was detected in both or only the individual dataset. The blue, smoothed line represents a GAM line of best-fit.")}
 combined_results %>% 
@@ -83,6 +83,7 @@ combined_results %>%
       ),
     orientation = "x"
   ) +
+  scale_ysidex_discrete(labels = label_wrap(12)) +
   labs(
     x = glue("logCPM ({short_names$comp1})"),
     y = glue("logCPM ({short_names$comp2})"),
@@ -97,12 +98,13 @@ combined_results %>%
   )
 ```
 
-## Distance Between Centres {.tabset}
+### Distance Between Centres {.tabset}
 
 Where both targets were detected, the centre of each region was found and the distance between centres found across targets.
 In the case of ChIP targets, this gives an approximation of binding proximity.
+However, where one comparison represent a broad mark, with the other being narrow, this may instead describe an aspect of the region widths in the broader comparison.
 
-### Distance By Pairwise Signal Status
+#### Distance By Pairwise Signal Status
 
 ```{r distances-by-status, fig.height = 6, fig.cap = "*Distances between loci where signal was detected for each target. Groups are only shown if 10 or more paired sites were found, with the CDF for all paired sites shown as the black dashed line. The x-axis is truncated at a maximum of 1kb*"}
 combined_results %>% 
@@ -136,7 +138,7 @@ combined_results %>%
 ```
 
 
-### Distance by Region
+#### Distance by Region
 
 ```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
 combined_results %>% 
@@ -163,7 +165,7 @@ combined_results %>%
   )
 ```
 
-`r if (has_features) "### Distance By Feature"`
+`r if (has_features) "#### Distance By Feature"`
 
 ```{r distance-by-feature, echo = has_features, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
 if (has_features) {

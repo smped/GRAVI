@@ -24,7 +24,7 @@
 
 - [x] Shift all motif URIs to an rds instead of docs/assets. Use a tempdir to create them
 - [x] Tidy up GSEA tables & descriptions to just look nice
-- [ ] Add comparisons of RNA seq
+- [x] Add comparisons of RNA seq
   
 ## Peak Analysis
 

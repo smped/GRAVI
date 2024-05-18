@@ -3,19 +3,19 @@
 
 
 ```{r dummy-params, eval = FALSE, echo = FALSE}
-#params <- list(
+# params <- list(
 #  tgt1 = "AR",
 #  tgt2 = "H3K27ac",
 #  comp1 = "E2_E2DHT",
 #  comp2 = "E2_E2DHT",
 #  full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
-#  results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise-results.rds",
+#  results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_results.rds",
 #  dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
 #  dsa2 = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
 #  localz = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_localz.rds",
 #  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
 #  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
-#)
+# )
 ```
 
 
@@ -42,8 +42,6 @@ library(ggraph)
 library(tidygraph)
 library(universalmotif)
 library(motifTestR)
-# library(msigdbr)
-# library(goseq)
 # library(GenomicInteractions)
 source(here::here("workflow", "scripts", "custom_functions.R"))
 source(here::here("workflow", "scripts", "enrichment_funs.R"))
@@ -344,25 +342,21 @@ if (length(features)) {
 
 ## Outline
 
-This stage of the GRAVI workflow present combined results from two individual differential signal analyses and compares the results, by finding regions which directly overlap and considering the joint behaviour.
-In this specific analyses the differential signal response for `r targets[[1]]` when comparing `r comp_labels[[1]]`, will be integrated with the differential signal response for `r targets[[2]]` comparing `r comp_labels[[2]]`.
-Data will first be described from the perspective of peaks, regardless of treatment before moving onto the differential signal analysis (DSA) results.
+This stage of the GRAVI workflow presents the combined results from two individual differential signal analyses (DSA), integrating the results by finding regions which directly overlap and considering the joint behaviour.
+In this specific analyses the DSA results for `r comp_labels[[1]]`, will be integrated with the results from `r comp_labels[[2]]`.
+
 
 ### Integration Of Differential Signal Results
 
-The initial steps of DSA detect regions with clear changes in signal, however the integration of datasets instead focusses on the *most correct* classification of a given range/window, where unchanged is not *simply lack of a statistically significant result*, but *a true state needing to be identified*.
+The initial steps of DSA detect regions with statistically supported changes in signal, however the integration of datasets instead focusses on the *most correct* classification of a given locus, where unchanged is not *simply lack of a statistically significant result*, but *a true state needing to be correctly identified*.
 Differential signal analyses generally focus on controlling the Type I errors (i.e. false positive), which comes with a commensurate increase in Type II errors (false negatives).
-When seeking to correctly classify a window across two datasets, the detection as changed can be taken as a robust finding, whilst the consideration as unchanged may be less robust.
-When comparing a window across two datasets, a detection as changed within one dataset is taken as primary evidence of 'something interesting' occurring, with the secondary consideration being the correct description of the combined signal patterns.
-For this reason, and to minimise issues with hard thresholding, once a window is considered to be of interest (i.e. significant somewhere), the p-value used in the second comparison is from the test $H_0: \mu = 0$  instead of the initial $H_0: 0 < |\mu| < \lambda$.
-Unchanged windows are then reclassified as significant if meeting the criteria:
+Consequently, when seeking to correctly classify a locus across two datasets, any detection as changed can be taken as a robust finding, whilst the consideration as unchanged may be less robust.
+When comparing results from overlapping windows across two datasets, detection as changed within one dataset can be taken as primary evidence of 'something interesting' occurring, with the secondary consideration being the correct description of the *pairwise signal patterns*.
 
-1. Significant in the alternate comparison
-2. The adjusted p-value for $H_0: \mu = 0$ (method = `r pw_param$adj_mu0`) is $<$ `r pw_param$alpha`, and
-3. The estimated logFC is beyond the range spcified by $\lamda$ in the original analysis.
-
-
-The insistence on the more stringent initial inclusion criteria still protects against false discoveries from the perspective of window identification, but this approach instead allows *improved classification* across both comparisons, taking the alternate comparison into account.
+For all loci where signal was detected in both comparisons, Wilkinson's maximum p-value was calculated [@wilkinson51] using both FDR-adjusted p-values.
+Where change was *already observed in one comparison*, these values were then used as the criteria to check logFC estimates in the second comparison. 
+If the estimated logFC was beyond the range around zero where no significance had been declared at other loci, these secondary sites were reclassified as either Increased or Decreased.
+The insistence on the more stringent initial inclusion criteria still protects against false discoveries from the perspective of window identification, but this approach instead allows *improved classification* across both comparisons, taking the complementary comparison into account.
 
 For *classification steps within each window*, each target is given the status 1) Increased, 2) Decreased, 3) Unchanged, or 4) Undetected.
 Across two comparisons, this gives 15 possible classifications for each region found with signal from at least one comparison (e.g. Increased-Increased, Increased-Decreased, Increased-Unchanged, Increased-Undetected etc.), given that any potential Undetected-Undetected windows will not be included for obvious reasons.
@@ -408,14 +402,7 @@ filtered_peaks %>%
 
 ## Combined Differential Signal Results 
 
-A set of `r comma(length(combined_results))` loci with signal was formed by obtaining the union of windows produced during the analysis of `r glue_collapse(unlist(short_names), last = " and ")` individually.
-These common windows were formed using any overlap between analysis-specific windows.
-After merging across datasets, the merged ranges were re-mapped to regions, features and genes, using the same methods as previously.
-
-The distance between each pair of windows was found by taking the centre of the original sliding window used for statistical analysis, and finding the difference. 
-As windows were detected in an un-stranded manner, all distance values were set to be positive.
-Taking the complete set of `r comma(length(combined_results))` combined windows, `r comma(sum(!is.na(combined_results$d)))` (`r percent(mean(!is.na(combined_results$d)), 0.1)`) were included in *both* datasets.
-The median distance between overlapping windows found in both comparisons was `r  median(combined_results$d, na.rm = TRUE)`bp.
+`r metadata(combined_results)$description`
 
 ### Results Tables {.tabset}
 
@@ -848,7 +835,7 @@ if (has_features) {
 
 #### Overall Status
 
-```{r plot-both-donut, fig.cap = "Summary of signal across both comparisons incorporating all sites where signal was detected in either comparison. Ranges where signal is changed in either comparisons are exploded."}
+```{r plot-both-donut, fig.cap = "*Summary of signal across both comparisons incorporating all sites where signal was detected in either comparison. Ranges where signal is changed in either comparisons are exploded.*"}
 combined_results %>% 
   subset(!grepl("Undetected", status)) %>% 
   as_tibble() %>% 
@@ -929,7 +916,7 @@ df %>%
           str_wrap(15) %>% 
           str_trunc(30) 
       ) %>% 
-      dplyr::filter(label != "") %>% 
+      dplyr::filter(label != "", !grepl("Unchanged.+Unchanged", status)) %>% 
       dplyr::slice(1:2, .by = status),
     size = 3, show.legend = FALSE, fill = rgb(1, 1, 1, 0.8),
     fontface = "italic"
@@ -1035,7 +1022,7 @@ df %>%
           str_wrap(15) %>% 
           str_trunc(30) 
       ) %>% 
-      dplyr::filter(label != "") %>% 
+      dplyr::filter(label != "", !grepl("Unchanged.+Unchanged", status)) %>% 
       dplyr::slice(1, .by = c(status, region)),
     size = 3, show.legend = FALSE, fill = rgb(1, 1, 1, 0.8),
     fontface = "italic"
@@ -1132,7 +1119,7 @@ if (has_features) {
             str_wrap(15) %>% 
             str_trunc(30) 
         ) %>% 
-        dplyr::filter(label != "") %>% 
+        dplyr::filter(label != "", !grepl("Unchanged.+Unchanged", status)) %>% 
         dplyr::slice(1, .by = c(status, feature)),
       size = 3, show.legend = FALSE, fill = rgb(1, 1, 1, 0.8),
       fontface = "italic"
@@ -1243,7 +1230,7 @@ if (has_features) {
 
 ### Profile Heatmaps {.tabset}
 
-A series of profile heatmaps were generated for any set of pairwise comparisons with more than 25 ranges, and where signal was detected as changed in at least one of the comparisons.
+A series of profile heatmaps were generated for any set of pairwise comparisons with more than `r min(map_dbl(heat_params, \(x) x$min_ranges))` ranges, and where signal was detected as changed in at least one of the comparisons.
 If comparing two targets, peaks were centred at the mid-point between the ranges of individual maximal signal.
 If only one target is detected within a range, peaks are centred at the range with maximal signal.
 Scales for fill and average signal (both logCPM) are held constant across all plots for easier comparison between groups.
@@ -1339,7 +1326,13 @@ p_list <- sig_profiles %>%
         splitAsList(.$target) %>% 
         lapply(plotProfileHeatmap, facetX = "name") %>% 
         lapply(\(p) p$data) %>% 
-        bind_rows()
+        bind_rows() %>% 
+        mutate(
+          range = range %>% 
+            GRanges() %>% 
+            resize(width = 1, fix = 'center') %>% 
+            as.character() 
+        )
     },
     mc.cores = threads
   )
@@ -1358,12 +1351,13 @@ profile_heatmaps <- p_list %>%
         mutate(score = scale(score)[,1], .by = target)
       rng_levels <- df %>% 
         dplyr::filter(abs(bp) <= min(prof_widths / 10)) %>% 
-        summarise(score = mean(score), .by = c(range, target)) %>% 
-        arrange(desc(score)) %>% 
+         mutate(rank  = rank(-score), .by = c(name, target, treat)) %>% 
+        mutate(ave_rank = mean(log(rank)), .by = range) %>% 
+        arrange(ave_rank) %>% 
         pull(range) %>% 
-        fct_rev() %>% 
-        levels()
-      levels(df$range) <- rng_levels
+        rev() %>% 
+        unique()
+      df$range <- factor(df$range, levels = rng_levels)
       sidey_lim <- df %>% 
         summarise(mn = mean(score), .by = c(position, name)) %>%
         pull("mn") %>% 
@@ -1586,38 +1580,33 @@ hfgc_genes <- read_rds(
 gene_col <- "grey"
 collapseTrans <- "auto"
 if (length(rna)) {
-  hfgc_genes <- hfgc_genes %>% 
-    mutate(
-      Detected = ifelse(
-        gene %in% bind_rows(rna)$gene_id, "Detected", "Undetected"
-      )
-    ) %>% 
-    split(.$Detected)
-  gene_col <- c(
-    Detected = colours$direction[["unchanged"]],
-    Undetected = colours$direction[["undetected"]]
-  )
-  collapseTrans <- list(Detected = "auto", Undetected = "meta")
+  gene_status <- rna %>% 
+    bind_rows(.id = "dataset") %>% 
+    arrange(FDR) %>% 
+    distinct(gene_id, .keep_all = TRUE) %>% 
+    addDiffStatus() %>% 
+    droplevels() %>%
+    distinct(gene_id, .keep_all = TRUE) %>% 
+    mutate(status = setNames(status, gene_id)) %>% 
+    pull("status")
+  hfgc_genes$status <- gene_status[hfgc_genes$gene] %>% 
+    fct_na_value_to_level("Undetected")
+  hfgc_genes <- splitAsList(hfgc_genes, hfgc_genes$status)
+  gene_col <- direction_colours[names(hfgc_genes)]
+  collapseTrans <- list(
+    Increased = "auto", Decreased = "auto",
+    Unchanged = "meta", Undetected = "meta"
+  )[names(hfgc_genes)]
 }
 ```
 
 
-An initial set of ranges is shown below, based on the respective p-values from the original comparison.
+An initial set of ranges is shown below, based on the respective p-values from the original comparison where only one target was detected, or using the merged p-values from Wilkinson's method where both targets were detected.
 
 ```{r grl_most_sig}
-grl_most_sig <- combined_results %>% 
+grl_most_sig <- combined_results %>%
   subset(str_detect(status, "(In|De)creased")) %>% 
-  mutate(
-    ranking_p = case_when(
-      is.na(!!sym(paste0(comp_names$comp1, "_FDR"))) ~ !!sym(paste0(comp_names$comp2, "_FDR")),
-      is.na(!!sym(paste0(comp_names$comp2, "_FDR"))) ~ !!sym(paste0(comp_names$comp1, "_FDR")),
-      TRUE ~ 10 ^ (
-        0.5 * log10(!!sym(paste0(comp_names$comp1, "_FDR"))) +
-          0.5 * log10(!!sym(paste0(comp_names$comp2, "_FDR")))
-      )
-    )
-  ) %>% 
-  arrange(ranking_p) %>% 
+  arrange(merged_fdr) %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) > 0] %>% 
   endoapply(\(x) x[1])
@@ -1720,8 +1709,8 @@ htmltools::tagList(
         htmltools::div(
           class = "figure", style = "text-align: center",
           htmltools::img(src = fig_link, width = 960),
-          cp
-        )
+        ),
+        htmltools::div(class = "figure-caption", cp)
       )
     }
   )
@@ -1731,10 +1720,9 @@ htmltools::tagList(
 
 ### Windows With The Strongest Signal {.tabset}
 
-Loci showing differential signal tend to show the most extreme change where signal levels are low, whilst where signal is high the changes tend to be well statistically supported but less pronounced.
-As an initial data inspection, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown below.
+Loci found with differential signal tend to show the most extreme change where signal levels are low, whilst where signal is high the changes tend to be well statistically supported but less pronounced.
+For the following set of plots, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown.
 It is anticipated that change will appear less visually striking, whilst the actual signal should appear relatively strong.
-
 For all plots in this subsection, significant change was detected in at least of comparison.
 
 
@@ -1826,8 +1814,8 @@ htmltools::tagList(
         htmltools::div(
           class = "figure", style = "text-align: center",
           htmltools::img(src = fig_link, width = 960),
-          cp
-        )
+        ),
+        htmltools::div(class = "figure-caption", cp)
       )
     }
   )
@@ -1928,8 +1916,8 @@ htmltools::tagList(
         htmltools::div(
           class = "figure", style = "text-align: center",
           htmltools::img(src = fig_link, width = 960),
-          cp
-        )
+        ),
+        htmltools::div(class = "figure-caption", cp)
       )
     }
   )
@@ -1967,8 +1955,8 @@ Only groups where change was detected in at least one comparison were tested, an
 
 `r pander(as.list(names(ranges_by_status)))`
 
-All p-values will be adjusted using the `r adj_method` correction during testing, and gene-sets will be removed from the results after adjustment if fewer than `r enrich_params$min_sig` genes were mapped to them.
-For groups where no results were returned, no result tables or figures will be show
+All p-values will be adjusted using the `r adj_method` correction during testing, and gene-sets removed from the results (after adjustment) if fewer than `r enrich_params$min_sig` genes were mapped to them.
+For groups where no results were returned, no result tables or figures will be shown.
 
 ```{r enrich-tests}
 enrich_by_status <- ranges_by_status %>% 
@@ -2241,7 +2229,7 @@ In addition to determining the strength of any overlaps with a given feature, di
 
 ### Z-Score Heatmap
 
-```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
+```{r zscore-heatmap, fig.width = 1.1 * fw, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
 shifted_z %>% 
   arrange(abs(shift), Z) %>% 
   mutate(
@@ -2728,7 +2716,7 @@ if (any_motif_enrich) {
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = 960),
-              cp
+              htmltools::div(class = "figure-caption", tags$caption(cp))
             )
           )
         }
@@ -2976,7 +2964,7 @@ if (any_motif_pos) {
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = 960),
-              htmltools::tags$caption(cp)
+              htmltools::div(class = "figure-caption", tags$caption(cp))
             )
           )
           

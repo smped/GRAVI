@@ -40,10 +40,10 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-## For testing
+# ## For testing
 # all_wildcards <- list(
 #   tgt1 = "AR",
-#   tgt2 = "ER",
+#   tgt2 = "H3K27ac",
 #   comp1 = "E2_E2DHT",
 #   comp2 = "E2_E2DHT"
 # )
@@ -85,8 +85,8 @@ cat_time <- function(...){
 # )
 # all_params <- list(
 #   pairwise_params = list(
-#     adj = "fdr",
-#     alpha = 0.05
+#     alpha = 0.05,
+#     width_ratio = 2
 #   )
 # )
 # pw_params <- all_params$pairwise_params
@@ -123,6 +123,7 @@ library(scales)
 library(rlang)
 library(plyranges)
 library(parallel)
+library(metap)
 
 cat_time("Setting comparison names")
 both_comps <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>
@@ -178,6 +179,7 @@ t <- do.call(
     setNames(c("x", "y"))
 )
 p <- t$p.value
+width_ratio <- abs(diff(t$estimate))
 
 
 #' The key issue which needs to be resolved is setting the centre of any
@@ -203,9 +205,10 @@ p <- t$p.value
 #' ranges expected, but with different centres specified, along with different
 #' results/values for the narrower target. If widths are about the same,
 #' just overlap with a simple approach averaging the centres
-if (p < 0.05) {
+#' Adding a threshold means where the test kciks in can be controlled easily
+if (p < 0.05 & width_ratio > log10(pw_params$width_ratio)) {
 
-  cat_time("Datasets have significantly different widths (p < 0.05)")
+  cat_time("Datasets have significantly different widths (p < 0.05) & width_ratio >", pw_params$width_ratio)
   min_ds <- dsa_results %>%
     lapply(width) %>%
     map_dbl(median) %>%
@@ -316,79 +319,96 @@ gl <- read_rds(all_input$greylist)[unique(samples$input)] %>% unlist()
 exclude_ranges <- c(bl, gl)
 combined_results <- combined_results[!overlapsAny(combined_results, exclude_ranges)]
 
+## Setup some key-value columns
 cat_time("Updating mcols")
 ## Updated the status to undetected where appropriate
 mc <- mcols(combined_results)
-mc[str_ends(names(mc), "status")] <- mc[str_ends(names(mc), "status")] %>%
-  mclapply(fct_na_value_to_level, "Undetected", mc.cores = 2)
 ## Distance between gr centres
+cat_time("Adding distances")
 mc$d <- mc[str_ends(names(mc), "_centre")] %>%
   as.matrix() %>%
   rowDiffs() %>%
   abs() %>%
   as.numeric()
-
-## Reclassify the status
-lambda <- dsa_results %>%
-  lapply(metadata) %>%
-  lapply(pluck, "fc") %>%
-  lapply(log2) %>%
-  lapply(abs)
+## Find where either comparison was significant
+cat_time("Calling new groupings")
 either_sig <- mc[str_ends(names(mc), "status")] %>%
   mclapply(str_detect, "(In|De)creased", mc.cores = threads) %>%
   as.data.frame() %>%
   as.matrix() %>%
   rowAnys()
-cat_time("Updating status for", both_comps$comp1)
-stat1_col <- paste0(both_comps$comp1, "_status")
-p1_col <- paste0(both_comps$comp1, "_PValue")
-lfc1_col <- paste0(both_comps$comp1, "_logFC")
-mc[[stat1_col]] <- case_when(
+## Find the minimum accepted logFC in each dataset
+lambda <- dsa_results %>%
+  lapply(filter, grepl("(In|De)creased", status)) %>%
+  lapply(\(x) min(abs(x$logFC)))
+## Find the direction using these cutoffs & no significance threshold
+mc <- mc %>%
+  as_tibble() %>%
+  mutate(
+    merged_fdr = mapply(
+      \(x, y){
+        p <- c(x, y)
+        p <- p[!is.na(p)]
+        if (length(p) == 1) return(p)
+        metap::maximump(p)$p
+      },
+      x = .[[paste0(both_comps$comp1, "_FDR")]],
+      y = .[[paste0(both_comps$comp2, "_FDR")]]
+    )
+  ) %>%
+  addDiffStatus(
+    fc_col = paste0(both_comps$comp1, "_logFC"),
+    sig_col = paste0(both_comps$comp1, "_FDR"),
+    alpha = pw_params$alpha,
+    cutoff = lambda[[1]],
+    new_col = paste0(both_comps$comp1, "_status")
+  ) %>%
+  addDiffStatus(
+    fc_col = paste0(both_comps$comp2, "_logFC"),
+    sig_col = paste0(both_comps$comp2, "_FDR"),
+    alpha = pw_params$alpha,
+    cutoff = lambda[[2]],
+    new_col = paste0(both_comps$comp2, "_status")
+  ) %>%
+  mutate(
+    "{both_comps$comp1}_status" := case_when(
+      ## Leave those already called
+      grepl("(In|De)creased", !!sym(paste0(both_comps$comp1, "_status"))) ~
+        !!sym(paste0(both_comps$comp1, "_status")),
+      ## Make the never_sig are never_sig
+      merged_fdr > pw_params$alpha ~ !!sym(paste0(both_comps$comp1, "_status")),
+      ## This will leave those unchanged with a significant merged_fdr
+      either_sig & !!sym(paste0(both_comps$comp1, "_logFC")) >= lambda[[1]] ~ "Increased",
+      either_sig & !!sym(paste0(both_comps$comp1, "_logFC")) <= -lambda[[1]] ~ "Decreased",
+      ## The remainder should be unchanged
+      TRUE ~ !!sym(paste0(both_comps$comp1, "_status")),
+    ) %>%
+      factor(levels = c("Unchanged", "Decreased", "Increased", "Undetected")),
 
-  ## No change if significant nowhere
-  !either_sig ~ mc[[stat1_col]],
+    "{both_comps$comp2}_status" := case_when(
+      ## Leave those already called
+      grepl("(In|De)creased", !!sym(paste0(both_comps$comp2, "_status"))) ~
+        !!sym(paste0(both_comps$comp2, "_status")),
+      ## Make the never_sig are never_sig
+      merged_fdr > pw_params$alpha ~ !!sym(paste0(both_comps$comp2, "_status")),
+      ## This will leave those unchanged with a significant merged_fdr
+      either_sig & !!sym(paste0(both_comps$comp2, "_logFC")) >= lambda[[2]] ~ "Increased",
+      either_sig & !!sym(paste0(both_comps$comp2, "_logFC")) <= -lambda[[2]] ~ "Decreased",
+      ## The remainder should be unchanged
+      TRUE ~ !!sym(paste0(both_comps$comp2, "_status")),
+    ) %>%
+      factor(levels = c("Unchanged", "Decreased", "Increased", "Undetected")),
 
-  ## No change if the adjusted p (mu0) is > alpha
-  p.adjust(mc[[p1_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat1_col]],
-
-  ## The remaining sites will be significant somewhere & have a significant mu0
-  ## p-value. Make significant if |lfc| > |lambda|
-  mc[[lfc1_col]] > lambda[[both_comps$comp1]] ~ "Increased",
-  mc[[lfc1_col]] < -lambda[[both_comps$comp1]] ~ "Decreased",
-
-  ## Anything else is as it was
-  TRUE ~ mc[[stat1_col]]
-
-) %>%
-  factor(levels = lv)
-
-cat_time("Updating status for", both_comps$comp2)
-stat2_col <- paste0(both_comps$comp2, "_status")
-p2_col <- paste0(both_comps$comp2, "_PValue")
-lfc2_col <- paste0(both_comps$comp2, "_logFC")
-mc[[stat2_col]] <- case_when(
-
-  ## No change if significant nowhere
-  !either_sig ~ mc[[stat2_col]],
-
-  ## No change if the adjusted p (mu0) is > alpha
-  p.adjust(mc[[p2_col]], pw_params$adj) >= pw_params$alpha ~ mc[[stat2_col]],
-
-  ## The remaining sites will be significant somewhere & have a significant mu0
-  ## p-value. Make significant if |lfc| > |lambda|
-  mc[[lfc2_col]] > lambda[[both_comps$comp2]] ~ "Increased",
-  mc[[lfc2_col]] < -lambda[[both_comps$comp2]] ~ "Decreased",
-
-  ## Anything else is as it was
-  TRUE ~ mc[[stat2_col]]
-
-) %>%
-  factor(levels = lv)
-
-mc$status <- fct_cross(
-  mc[[stat1_col]], mc[[stat2_col]], sep = " - ", keep_empty = TRUE
-)
+    status = fct_cross(
+      !!sym(paste0(both_comps$comp1, "_status")),
+      !!sym(paste0(both_comps$comp2, "_status")), sep = " - "
+    )
+  ) %>%
+  as("DataFrame")
+mc$centre <- GRanges(mc$centre)
 mcols(combined_results) <- mc[!str_detect(names(mc), "_centre")]
+
+x <- "chr13:50431201-50434320"
 
 cat_time("Re-mapping to regions")
 regions <- read_rds(all_input$regions)
@@ -471,11 +491,12 @@ desc <- desc %>%
   c(
     "
     After mapping between datasets, some joint loci had their status
-    reclassified by checking for significance in the alternate dataset.
-    If considered significant the alternate dataset, some sites formerly
-    considered unchanged were shifted to increased/decreased if the adjusted
-    p-value ({pw_params$adj}) was then < {pw_params$alpha}, taking p-values from
-    the point-based H~0~.
+    reclassified.
+    For loci considered as significant in only one dataset, Wilkinson's maximum
+    p-value was calculated, using both adjusted p-values.
+    If a value < {pw_params$alpha} was returned, and if absolute logFC
+    estimates were beyond the minimum values already considered as significant,
+    these loci were reclassified as either Increased or Decreased, as appropriate.
     "
   ) %>%
   paste(collapse = "") %>%
