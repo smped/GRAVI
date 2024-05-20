@@ -91,12 +91,17 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 fig_path <- here::here("docs", "assets", "annotations")
 ```
 
+## External Files Provided
 
-# Genome Annotations
+The files provided as external data for this workflow are:
+
+`r pander(config$external %>% .[map_int(., length) > 0])`
+
+## Genome Annotations
 
 Before analysing any datasets, annotations for the genome and transcriptome were checked and key objects were defined for consistent use throughout the workflow.
 
-## Genome Description
+### Genome Description
 
 ```{r sq}
 sq <- read_rds(all_out$seqinfo)
@@ -106,10 +111,10 @@ As the foundation for all annotation objects, the description of the underlying 
 For this workflow, both the mitochondrial genome and any scaffolds are excluded, giving only the autosomes and the X/Y chromosomes.
 This `Seqinfo` object is added to all subsequent objects requiring information about the underlying genome, such as a `GenomicRanges` object.
 
-## Blacklisted Regions {.tabset}
+### Blacklisted Regions {.tabset}
 
 Blacklisted regions were supplied in `r pander(unname(unlist(config$external$blacklist)))`.
-In addition, grey-listed regions were derived from all the input sample(s), `r pander(unique(samples$input))`
+In addition, grey-listed regions were derived from all the input `r ifelse(length(unique(samples$input)) == 1, "sample", "samples")`, `r pander(unique(samples$input))`
 
 ```{r blacklist}
 bl <- unlist(config$external$blacklist) %>% 
@@ -119,14 +124,14 @@ gl <- read_rds(all_out$greylist)
 exclude_ranges <- c(bl, gl)
 ```
 
-### Similarity Between Black & Grey Lists
+#### Similarity Between Black & Grey Lists
 
 ```{r plot-excluded-ranges, fig.width=7, fig.height=7, fig.cap = "Number of regions identified as blacklisted"}
 plotOverlaps(exclude_ranges, set_col = seq_along(exclude_ranges))
 ```
 
 
-### Breakdown By Chromosome
+#### Breakdown By Chromosome
 
 ```{r plot-blacklist, fig.height = 7, fig.cap = "*Breakdown of blacklisted, greylisted and whitelisted, regions by chromosome. If multiple input samples were provided, greylisted regions will be variable across samples.*"}
 exclude_ranges %>% 
@@ -174,9 +179,9 @@ exclude_ranges %>%
 ```
 
 
-# Gene and Transcript Annotations
+## Gene and Transcript Annotations
 
-## Basic Annotations
+### Basic Annotations
 
 ```{r load-gtf}
 gtf_gene <- read_rds(all_out$gtf_gene)
@@ -192,10 +197,10 @@ id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id) %>%
 - Visualisation using the Bioconductor package `Gviz` requires a specific `GRanges` structure for gene and transcript models to be displayed.
 This object was created at this point so transcript models could be simply visualised throughout the workflow.
 
-In total this annotation build contained `r comma(length(gtf_gene))` genes, `r comma(length(gtf_transcript))` transcripts and `r comma(length(gtf_exon))` exons, after restricting the dataset to the autosomes and sex chromosomes.
+In total the annotations provided in `r basename(basename(config$external$gtf))` contained `r comma(length(gtf_gene))` genes, `r comma(length(gtf_transcript))` transcripts and `r comma(length(gtf_exon))` exons, after restricting the dataset to the autosomes and sex chromosomes, discarding scaffolds, haplotypes and mitochondrial genes.
 
 
-## Gene-Centric Regions {.tabset}
+### Gene-Centric Regions {.tabset}
 
 
 ```{r define-region-colours}
@@ -216,8 +221,10 @@ region_cols <- unlist(colours$regions)[names(regions)] %>%
 ```
 
 
-Using the provided GTF, **unique** gene and transcript-centric features were also defined using `defineRegions()`, and will be treated as annotated regions throughout the workflow.
-The regions are:
+Using the GTF `r basename(basename(config$external$gtf))`, **unique** and **non-overlapping** gene and transcript-centric features were defined using `defineRegions()`, and will be treated as annotated regions throughout the workflow.
+The definition of these regions can be easily modified using `params.yml` to suit user-preferred definitions, with clear descriptions of the method given in the help page available at `?extraChIPs::defineRegions`
+
+The defined regions are:
 
 1. Promoters (-`r region_params$promoters$upstream`/+`r region_params$promoters$downstream`bp)
 2. Upstream Promoters (> `r region_params$promoters$upstream`bp; < `r region_params$upstream`bp)
@@ -298,7 +305,7 @@ div(class = "table",
 )
 ```
 
-### Summary
+#### Summary
 
 ```{r pie-gene-regions, fig.height=8, fig.width=8, fig.cap = "*Summary of gene-centric regions using `defineRegions()` and the supplied GTF. Percentages represent the amount of the genome allocated to each region with total widths shown in Mb. Blacklisted regions were not considered for this step of the annotation.*"}
 gene_regions %>% 
@@ -317,7 +324,7 @@ gene_regions %>%
   theme(legend.position = "none")
 ```
 
-### Example
+#### Example
 
 ```{r example-id}
 id <- sort(gtf_gene$gene_id)[[1]]
@@ -419,7 +426,7 @@ df %>%
   theme(panel.grid = element_blank())
 ```
 
-## Mapping Detected Signal to Genes
+### Mapping Detected Signal to Genes
 
 ```{r get-map-by-feature-args, echo=FALSE}
 map_by_feature_args <- formals(mapByFeature)
@@ -429,7 +436,7 @@ map_by_feature_args <- map_by_feature_args[map_lgl(map_by_feature_args, is, "ato
 
 
 Any peaks or other regions containing signal will be automatically mapped to genes using the data provided in the GTF, and additional annotations.
-This becomes especially relevant if choosing to run enrichment analysis using the gene ids assigned to these regions (i.e. classic hypergeometric tests), as opposed to using GREAT [@McLean2010-gw] based on conventional associations between peaks and genes.
+This becomes especially relevant if providing HiC interactions and choosing to run enrichment analysis using the gene ids assigned to these regions (i.e. classic hypergeometric tests), as opposed to using GREAT [@McLean2010-gw] based on conventional associations between peaks and genes.
 
 Genes are assigned to genomic ranges with signal using `mapByFeature()` from the Bioconductor package `extraChIPs` in a hierarchical strategy using the parameters
 
@@ -437,18 +444,18 @@ Genes are assigned to genomic ranges with signal using `mapByFeature()` from the
 
 These are interpreted as
 
-1. Ranges within `r map_by_feature_args$gr2prom/1e3`kb of a promoter are assigned to all genes within `r map_by_feature_args$prom2gene/1e3`kb of that promoter, where 0kb simply indicates direct overlap
-2. Ranges within `r map_by_feature_args$gr2enh/1e3`kb of an enhancer are mapped to all genes within `r map_by_feature_args$enh2gene/1e3`kb of the enhancer
-3. Ranges within `r map_by_feature_args$gr2gi/1e3`kb of a long-range interaction are mapped to all genes within `r map_by_feature_args$gi2gene/1e3`kb of either end of the interaction
-4. Ranges with no genes assigned in any of the above steps are then assigned to all genes within `r  map_by_feature_args$gr2gene/1e3`kb
+1. Ranges within `r map_by_feature_args$gr2prom/1e3`kb of a promoter are assigned to *all genes* within `r map_by_feature_args$prom2gene/1e3`kb of that promoter, where 0kb simply indicates direct overlap
+2. Ranges within `r map_by_feature_args$gr2enh/1e3`kb of an enhancer are mapped to *all genes* within `r map_by_feature_args$enh2gene/1e3`kb of the enhancer
+3. Ranges within `r map_by_feature_args$gr2gi/1e3`kb of a long-range interaction are mapped to *all genes* within `r map_by_feature_args$gi2gene/1e3`kb of either end of the interaction
+4. Ranges with no genes assigned in any of the above steps are then assigned to the *nearest gene* within `r  map_by_feature_args$gr2gene/1e3`kb
 
-In these steps Promoters are taken as all promoters defined as part of the GRAVI workflow, as well as any able to be identified within the external files provided, using basic pattern patching.
+In these steps, promoters are taken as all promoters defined above as part of the standard GRAVI workflow, as well as any able to be identified within the external files provided, using basic regex pattern matching.
 Similarly, enhancers will be identified if possible from these same files.
 Long-range Interactions will only be incorporated if provided.
 
 All values are able to modified using `params.yml`
 
-# Enrichment Analysis
+## Enrichment Analysis
 
 The same approach to enrichment analysis is defined to be used in all steps of the analysis, and can be performed using gene ids mapped to regions (`method = "gene_id"`) and one-sided hypergeometric tests, or by using the conventional approach of GREAT [@McLean2010-gw] as implemented in the package rGREAT [@Gu2023-rp] (`method = "great"`).
 The current approach, set via `params.yml`, is to use `r unname(c(great = "GREAT", gene_id = "gene IDs")[enrich_params$method])`.
@@ -457,7 +464,7 @@ After testing and adjusting p-values (method = "`r enrich_params$adj`"), only ge
 For results tables, a significance value of $\alpha$ = `r enrich_params$alpha` will be applied to the adjused p-values.
 
 The [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/) database version `r packageVersion("msigdbr")` was used [@Liberzon2011-fr] as the primary source for gene sets.
-Gene-sets and pathways were include for enrichment testing if $\geq$ `r min(msigdb_params$size)` genes and $\leq$ `r max(msigdb_params$size)` genes were assigned to it.
+Gene-sets and pathways were include for enrichment testing if $\geq$ `r min(msigdb_params$size)` genes and $\leq$ `r max(msigdb_params$size)` genes were assigned to them.
 This left the following breakdown of gene-sets and pathways tested for enrichment during all steps.
 
 ```{r tbl-msigdb}
@@ -498,7 +505,7 @@ msigdb %>%
   )
 ```
 
-# Transcription Factor Motifs 
+## Transcription Factor Motifs 
 
 ```{r tf-db}
 tf_db <- read_rds(all_out$motif_list) %>% 
@@ -510,13 +517,14 @@ if (!is.null(config$external$motifdb))
   motif_params$data_source <- basename(config$external$motifdb)
 ```
 
-Transcription factor binding motifs (TFBMs) were prepared from `r pander(motif_params$data_source)` with `r nrow(tf_db)` motifs prepared for downstream analysis.
-Whilst *all motifs will be retained for testing*, highly similar motifs were clustered to enable easier reporting and interpretation.
+Transcription factor binding motifs (TFBMs) were prepared from `r ifelse(is.null(config$external$motifdb), collapseGenes(motif_params$data_source), basename(config$external$motifdb))` with `r nrow(tf_db)` motifs prepared for downstream analysis.
+Whilst *all motifs will be retained for testing*, highly similar motifs were clustered to enable clearer reporting and interpretation.
 Pairwise correlations between motifs were found during preparation and those where $\rho \geq$ `r motif_params$cluster_above` were clustered, giving a final set of `r max(as.integer(tf_db$cluster))` clusters.
 `r sum(table(tf_db$cluster) == 1)` TFBMs remained un-clustered.
-The largest groups of clustered motifs contains:
 
-`r tf_db %>% dplyr::filter(cluster %in% top3) %>% droplevels() %>% split(.$cluster) %>% lapply(pull, "name") %>% unname() %>% pander()`
+The largest motif clusters were:
+
+`r tf_db %>% dplyr::filter(cluster %in% top3) %>% droplevels() %>% split(.$cluster) %>% lapply(pull, "name") %>% pander()`
 
 ```{r plot-tf-clusters, fig.height=6, fig.cap = glue("*Breakdown of the {max(as.integer(tf_db$cluster))} clusters formed amongst the {nrow(tf_db)} selected TFBMs*")}
 table(tf_db$cluster) %>% 
@@ -530,11 +538,11 @@ table(tf_db$cluster) %>%
   scale_y_continuous(expand = expansion(c(0, 0.05)))
 ```
 
-## TFBM Cluster Visualisation {.tabset}
+### TFBM Cluster Visualisation {.tabset}
 
 As a check on the clustering strategy described above, the Information Content Matrices (ICM) for the largest three clusters are shown below.
 
-### Cluster 1
+#### Cluster 1
 
 ```{r tf-cl1, fig.cap = glue("*Information Content logos for all TFBMs within the largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
 tf_db %>% 
@@ -543,7 +551,7 @@ tf_db %>%
   view_motifs(names.pos = "right")
 ```
 
-### Cluster 2
+#### Cluster 2
 
 ```{r tf-cl2, fig.cap = glue("*Information Content logos for all TFBMs within the second largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
 tf_db %>% 
@@ -552,7 +560,7 @@ tf_db %>%
   view_motifs(names.pos = "right")
 ```
 
-### Cluster 3
+#### Cluster 3
 
 ```{r tf-cl3, fig.cap = glue("*Information Content logos for all TFBMs within the third largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
 tf_db %>% 
@@ -562,7 +570,7 @@ tf_db %>%
 ```
 
 
-# External Features
+## External Features
 
 ```{r external-features}
 external_features <- here::here(all_paths$annotation, "features.rds") %>% 
@@ -586,7 +594,7 @@ colours$features <- feat_col[feat_levels]
 ```
 
 
-`r ifelse(!has_features, "No external features were supplied.", "External features were compared to the gene-centric annotations.")`
+`r ifelse(!has_features, "No external features were supplied.", glue("The external features provided as ", glue_collapse(names(external_features), sep = ", ", last = " & "), " were compared to the gene-centric annotations described above."))`
 
 ```{r plot-feature-by-region, echo = has_features, fig.cap = glue("*The relationship between ranges provided as external features in ", glue_collapse(basename(unlist(config$external$features)), sep = ", ", last = " & "), " and the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions and are shown in Mb.*")}
 if (has_features) {
@@ -690,7 +698,7 @@ div(class = "table",
 ```
 
 
-# HiC Data {.tabset}
+## HiC Data {.tabset}
 
 ```{r has-hic, echo = FALSE}
 hic <- read_rds(all_out$hic)
@@ -784,7 +792,7 @@ hic %>%
 ```
 
 
-# Colour Schemes {.tabset}
+## Colour Schemes {.tabset}
 
 ```{r set_colours}
 ## qc_colours need to have `Pass` and `Fail`
@@ -849,7 +857,6 @@ if (length(missing_pw_cols)) {
   colours$pairwise[missing_pw_cols] <- as.list(default_pw)[missing_pw_cols]
 }
 
-
 heat_cols <- targets %>% 
   as.character() %>% 
   lapply(\(x) all_heat_params[[x]]$gradient) %>% 
@@ -873,25 +880,26 @@ colours$target <- target_cols
 Colours were checked where provided and any missing colours were automatically assigned.
 These colour schemes are shown below and will be propagated through all steps of the workflow.
 To change any colours, simply add them to `config/rmarkdown.yml`.
+However it should be noted that many of the default schemes have been checked for [colour-blind friendliness](https://davidmathlogic.com/colorblind).
 
 ```{r set-dev-to-png, echo=FALSE}
 knitr::opts_chunk$set(dev = "png")
 ```
 
 
-## QC
+### QC
 
 ```{r plot-qc, fig.height=3, fig.width=2 + length(colours$qc)}
 .plotScheme(colours$qc , xlab = "QC Category") 
 ```
 
-## Treatment Groups
+### Treatment Groups
 
 ```{r plot-treat, fig.height=3, fig.width=2 + length(colours$treat)}
 .plotScheme(colours$treat, xlab = "Treatment")
 ```
 
-## Regions
+### Regions
 
 ```{r plot-regions, fig.height=3, fig.width=2 + length(colours$regions)}
 .plotScheme(colours$regions, xlab = "Regions")
@@ -929,13 +937,13 @@ if (length(feat_col) <= 8) {
 ```
 
 
-## Direction
+### Direction
 
 ```{r plot-dir, fig.height=3, fig.width=2 + length(colours$direction)}
 .plotScheme(colours$direction, xlab = "Direction")
 ```
 
-## Pairwise
+### Pairwise
 
 ```{r plot-pairwise}
 colours$pairwise %>% 
@@ -957,7 +965,7 @@ colours$pairwise %>%
 ```
 
 
-## Heatmap Gradient
+### Heatmap Gradient
 
 ```{r plot-gradient, fig.height=5, fig.width=8}
 heat_cols %>% 
@@ -977,7 +985,7 @@ heat_cols %>%
 ```
 
 
-# Data Export
+## Data Export
 
 ```{r export}
 write_rds(colours, all_out$colours, compress = "gz")

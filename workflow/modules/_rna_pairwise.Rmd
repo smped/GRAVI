@@ -833,8 +833,7 @@ tbl_changed_rna_enrich <- names(changed_rna_enrich) %>%
         )
       )
       htmltools::div(
-        # id = id, class = "section level5",
-        # h5("Combined Enrichment: DSA Changed"),
+        id = id, class = "section level4", h4(x),
         tbl, tags$caption(cp)
       )
     }
@@ -947,12 +946,7 @@ tagList(
       \(x) {
         tagList(
           list(
-            htmltools::div(
-              id = x, class = "section level4 tabset",
-              htmltools::h4(x, class = "tabset"),
-              tbl_changed_rna_enrich[[x]]#,
-              # network_changed_rna_enrich[[x]]
-            )
+            htmltools::div(tbl_changed_rna_enrich[[x]])
           )
         )
       }
@@ -984,6 +978,8 @@ grl_to_plot <- rna %>%
 
 The most highly ranked gene for differential expression was chosen within each pairwise grouping, and in the case of a gene being allocated to multiple groups, the next-most significant was chosen.
 This set of `r length(grl_to_plot)` loci is shown below, noting that for some genes, the peaks may be beyond the coding region of the gene.
+
+`r if (length(rna) > 1) "When assigning genes to Increased, Decreased or Unchanged for the purposes of visualisation, the status associated with the lowest p-value was chosen across datasets. If transcriptomic datasets are strongly discordant, these classifications may be less informative than expected"`
 
 ```{r plot-all-top-rna-ranges}
 .makeCaption <- function(.gr) {

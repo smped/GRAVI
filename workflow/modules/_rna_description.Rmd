@@ -1,4 +1,4 @@
-# Transcriptomic Datasets
+## Transcriptomic Datasets
 
 
 
@@ -52,7 +52,7 @@ The first analysis takes a ranked list with the direction of change being includ
 The second analysis simply ranks genes by significance, performing a one-sided test for enrichment of pathways within the set of genes the most highly-ranked for statistical evidence of changed expression.
 For both analyses, the `R` package `fgsea` was used [@KorotkevichFgsea2019].
 
-## Dataset Summary
+### Dataset Summary
 
 ```{r show-rna}
 rna %>% 
@@ -180,9 +180,9 @@ if (length(rna) > 1) {
 
 
 
-## Directional GSEA 
+### Directional GSEA 
 
-### Results {.tabset}
+#### Results {.tabset}
 
 ```{r table-gsea-dir, eval = length(gsea_dir) > 0, echo = FALSE}
 htmltools::tagList(
@@ -234,8 +234,8 @@ htmltools::tagList(
         htmltools::div(
           htmltools::div(
             id = id,
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "table", tbl, htmltools::tags$caption(cp)
             )
@@ -246,7 +246,7 @@ htmltools::tagList(
 )
 ```
 
-### Barcode Plots {.tabset}
+#### Barcode Plots {.tabset}
 
 ```{r barcode-gsea-dir}
 htmltools::tagList(
@@ -293,8 +293,8 @@ htmltools::tagList(
               str_to_lower() %>% 
               str_replace_all("_", "-") %>% 
               paste("barcode-gsea-dir", sep = "-"),
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),
@@ -308,9 +308,9 @@ htmltools::tagList(
 ```
 
 
-## Non-Directional GSEA 
+### Non-Directional GSEA 
 
-### Results {.tabset}
+#### Results {.tabset}
 
 ```{r table-gsea-sig, eval = length(gsea_sig) > 0, echo = FALSE}
 htmltools::tagList(
@@ -362,8 +362,8 @@ htmltools::tagList(
         htmltools::div(
           htmltools::div(
             id = id,
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "table", tbl, htmltools::tags$caption(cp)
             )
@@ -374,7 +374,7 @@ htmltools::tagList(
 )
 ```
 
-### Barcode Plots {.tabset}
+#### Barcode Plots {.tabset}
 
 
 ```{r barcode-gsea-sig}
@@ -424,8 +424,8 @@ htmltools::tagList(
               str_to_lower() %>% 
               str_replace_all("_", "-") %>% 
               paste("barcode-gsea-dir", sep = "-"),
-            class = "section level4",
-            htmltools::h4(x),
+            class = "section level5",
+            htmltools::h5(x),
             htmltools::div(
               class = "figure", style = "text-align: center",
               htmltools::img(src = fig_link, width = "100%"),

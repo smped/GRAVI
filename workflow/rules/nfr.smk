@@ -155,6 +155,8 @@ rule nfr_localz_regions:
         rds = os.path.join(
             nfr_path, "{target}", "{target}_nfr_regions_localz.rds"
         )
+    params:
+        regioner_params = extra_params['regioner']        
     threads: 8
     retries: 1
     resources:
@@ -196,6 +198,8 @@ rule nfr_localz_targets:
         rds = os.path.join(
             nfr_path, "{target}", "{target}_nfr_targets_localz.rds"
         )
+    params:
+        regioner_params = extra_params['regioner']        
     threads: 16
     retries: 1
     resources:

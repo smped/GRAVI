@@ -122,7 +122,8 @@ has_rna <- length(rna) > 0
 
 Nucleosome Free Regions (NFRs) were identified for `r target` using the set of filtered peaks obtained for each treatment (`r pander(treat_levels)`).
 Peaks within `r nfr_params$merge_peaks_within`bp of each other were merged into a single peak, with this distance approximating the distance occupied by 2 nucleosomes, and approximating broader peaks that may have been otherwise called by `macs2` [@Zhang18798982].
-NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group with the following settings.
+NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group with the settings described below.
+Importantly, this approach can identify multiple NFRs within a braoder peak, unlike [`homer`](http://homer.ucsd.edu/homer/ngs/peaks.html) which at the time of GRAVI development, is only able to identify a single NFR within a peak.
 
 - Any merged peaks <`r nfr_params$min_peak_width`bp were excluded as being too narrow to identify NFRs
 - Any NFRs beyond `r max(nfr_params$nfr_width)/1e3`kb were discarded as not being viable NFRs

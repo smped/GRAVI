@@ -24,22 +24,21 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-# Manual lists for testing. Will be overwritten by snakemake objects...
+## Manual lists for testing. Will be overwritten by snakemake objects...
 # config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
 #   regions = "output/annotations/gene_regions.rds",
 #   features = "output/annotations/features.rds",
-#   peaks = "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#   peaks = "output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
 #   params = "config/params.yml"
 # )
-# all_output <- list(rds = "output/peak_analysis/AR/AR_regions_localz.rds")
+# all_output <- list(rds = "output/nfr/H3K27ac/H3K27ac_nfr_regions_localz.rds")
 # all_params <- yaml::read_yaml("config/params.yml")
-# all_wildcards <- list(target = "AR")
+# all_wildcards <- list(target = "H3K27ac")
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
-
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
