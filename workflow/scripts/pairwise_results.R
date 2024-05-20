@@ -401,14 +401,14 @@ mc <- mc %>%
 
     status = fct_cross(
       !!sym(paste0(both_comps$comp1, "_status")),
-      !!sym(paste0(both_comps$comp2, "_status")), sep = " - "
+      !!sym(paste0(both_comps$comp2, "_status")),
+      sep = " - ", keep_empty = TRUE
     )
+
   ) %>%
   as("DataFrame")
 mc$centre <- GRanges(mc$centre)
 mcols(combined_results) <- mc[!str_detect(names(mc), "_centre")]
-
-x <- "chr13:50431201-50434320"
 
 cat_time("Re-mapping to regions")
 regions <- read_rds(all_input$regions)
