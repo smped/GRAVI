@@ -59,7 +59,7 @@ rule compile_signal_summary_html:
             os.path.join("docs", "{target}_signal_summary_files", "figure-html")
         ),
         great = os.path.join(
-            "output", "results", "{target}", "{target}_great_results.tsv.gz"
+            "output", "results", "{target}", "{target}_enrichment.tsv"
         ),
         localz = os.path.join(
             "output", "results", "{target}", "{target}_localz.tsv"
@@ -114,8 +114,8 @@ rule compile_signal_comparison_html:
         html = os.path.join("docs", "signal_comparison.html"),
         tsv = expand(
             os.path.join("output", "results", "shared", "{f}"),
-            f = ['shared_enrichment_results_genomic_bg.tsv.gz',
-            'shared_enrichment_results_targets_bg.tsv.gz',
+            f = ['shared_enrichment_genomic_bg.tsv',
+            'shared_enrichment_targets_bg.tsv',
             'shared_regions_localz.tsv', 'pairwise_localz.tsv']
         )
     conda: "../envs/rmarkdown.yml"

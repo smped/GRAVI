@@ -152,10 +152,10 @@ if (fig_type %in% c("bmp", "jpeg", "png", "tiff")) {
 
 ## Outline
 
-After performing individual analyses on the provided targets, this analysis performs a comparison of the regions with detected signal across all targets.
+After performing individual analyses on the provided targets, this analysis performs a comparison of the regions with *detected signal across all targets*.
 Comparisons were performed in a treatment-agnostic manner, using the sets of consensus peaks defined across all conditions, making this approach an analysis of the larger universe of regulation and pathways present within the cell type of interest,
 
-In addition, as set of *shared peaks* was defined as the genomic regions with detected signal in *m = max(n - 1, 2)* targets, where *n* represents the total number of targets
+In addition, the set of *shared peaks* was defined as the genomic regions with detected signal in *m = max(n - 1, 2)* targets, where *n* represents the total number of targets.
 
 ## Peak Comparisons {.tabset}
 
@@ -173,7 +173,7 @@ shared_peaks <- file.path(all_paths$peaks, "shared", "shared_peaks.rds") %>%
 
 Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of common regions found.
 Given that `r n_targets` were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across all targets, but where signal was detected in at least `r n_targets - 1` targets.
-This ensures any individual targets with broader peaks do not lead to unrealistically broad common regions.
+This ensures any individual targets with broader peaks do not lead to unrealistically broad shared regions.
 
 ```{r tbl-peak-summary}
 consensus_peaks %>% 
@@ -651,7 +651,7 @@ if (has_rna) {
 
 `r if (has_rna) "### Detected Genes by Signal Region {.tabset}"`
 
-```{r tbl-rna-by-region, echo = has_rna}
+```{r tbl-rna-by-region, echo = FALSE}
 if (has_rna) {
   tagList(
     names(rna) %>% 
@@ -718,7 +718,8 @@ if (has_rna) {
               source = str_extract(feature, ".+: ") %>% 
                 str_remove_all(": ") %>% 
                 str_replace_na(""),
-              feature = str_remove_all(feature, ".+: ")
+              feature = str_remove_all(feature, ".+: "),
+              sig = adj_p < 0.05
             ) %>% 
             dplyr::select(source, feature, region, everything()) %>% 
             dplyr::select(where(\(x) !all(x == ""))) %>% 
@@ -751,20 +752,7 @@ if (has_rna) {
                     )
                     list(backgroundColor = bg)
                   },
-                  filterInput = function(values, name) {
-                    tags$select(
-                      # Set to undefined to clear the filter
-                      onchange = sprintf(
-                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                        tbl_id, name
-                      ),
-                      # "All" has an empty value to clear the filter, and is the default option
-                      tags$option(value = "", "All"),
-                      lapply(unique(values), tags$option),
-                      "aria-label" = sprintf("Filter %s", name),
-                      style = "width: 100%; height: 28px; font-size: 12px;"
-                    )
-                  }
+                  filterInput = \(values, name) drop_filter(values, name, tbl_id)
                 ),
                 feature = colDef(
                   "Feature",
@@ -775,20 +763,7 @@ if (has_rna) {
                     )
                     list(backgroundColor = bg)
                   },
-                  filterInput = function(values, name) {
-                    tags$select(
-                      # Set to undefined to clear the filter
-                      onchange = sprintf(
-                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                        tbl_id, name
-                      ),
-                      # "All" has an empty value to clear the filter, and is the default option
-                      tags$option(value = "", "All"),
-                      lapply(unique(values), tags$option),
-                      "aria-label" = sprintf("Filter %s", name),
-                      style = "width: 100%; height: 28px; font-size: 12px;"
-                    )
-                  }
+                  filterInput = \(values, name) drop_filter(values, name, tbl_id)
                 ),
                 total = colDef(
                   glue("Mapped to Shared Peak"), format = comma_col,
@@ -838,9 +813,31 @@ if (has_rna) {
             id = paste(i, "-detected-by-region"),
             class = "section level4",
             htmltools::h4(i),
-            htmltools::div(
-              class = "table", tbl,
-              htmltools::p(class = "caption", cp)
+            tagList(
+              tags$button(
+                tagList(fontawesome::fa("download"), "Download as CSV"),
+                onclick = glue(
+                  "Reactable.downloadDataCSV('{tbl_id}', 'shared_{tbl_id}.csv')"
+                )
+              ),
+              tags$button(
+                "Expand/Collapse All",
+                onclick = glue("Reactable.toggleAllRowsExpanded('{tbl_id}')")
+              ),
+              tags$button(
+                "Clear All Filters",
+                onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+              ),
+              tags$label(
+                tags$input(
+                  type = "checkbox", 
+                  onclick = glue(
+                    "Reactable.setFilter('{tbl_id}', 'sig', event.target.checked)"
+                  )
+                ),
+                "Only show significant associations"
+              ),
+              tbl, htmltools::p(class = "caption", cp)
             )
           )
         }
@@ -868,8 +865,7 @@ gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
 
 For this specific analysis, the background ranges were set to be the whole genome.
 `r if (enrich_method == "gene_id") "Widths of the genomic regions spanned by a gene were taken as a bias offset term with testing [@YoungGoseq2010]."`
-
-As a separate step, the background was also taken as the union of all ranges.
+As an additional analysis, the background was also taken as the union of all ranges, which is likely to lead to a smaller, more-refined set of results.
 
 
 ### Genomic Background {.tabset}
@@ -903,7 +899,7 @@ tg_enrich_genomic <- enrich_genomic_df %>%
 
 `r if (n_enrich_genomic > 0) "#### Enrichment Results Table"`
 
-```{r tbl-res-genomic, eval = n_enrich_genomic > 0, echo = n_enrich_genomic > 0}
+```{r tbl-res-genomic, eval = n_enrich_genomic > 0, echo = FALSE}
 tbl <- enrich_genomic_df %>% 
   dplyr::filter(adj_p < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
@@ -2048,10 +2044,10 @@ motif_list %>%
 ```{r all-out}
 all_out <- list(
   enrich_genomic_bg = here::here(
-    "output", "results", "shared", "shared_enrichment_results_genomic_bg.tsv.gz"
+    "output", "results", "shared", "shared_enrichment_genomic_bg.tsv"
   ),
   enrich_targets_bg = here::here(
-    "output", "results", "shared", "shared_enrichment_results_targets_bg.tsv.gz"
+    "output", "results", "shared", "shared_enrichment_targets_bg.tsv"
   ),
   localz_shared_regions = here::here(
     "output", "results", "shared", "shared_regions_localz.tsv"

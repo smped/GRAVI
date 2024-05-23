@@ -223,9 +223,11 @@ macs2_logs <- all_paths$macs2 %>%
 The strategy for identification of genomic regions with detectable `r target` signal (i.e. peaks), was to run `macs2 callpeak` [@Zhang18798982] on each individual sample, as well as on all samples within each treatment group (`r pander(treat_levels)`).
 The settings for `macs2 callpeak` were:
 
-`r pander(peak_calling_params)`
+`r pander(peak_calling_params[c("gsize", "fdr", "keep_duplicates", "macs2_extra", "peak_type")])`
 
-with the additional specification of identifying *narrow peaks*.
+Additional QC and peak merging settings included:
+
+`r pander(peak_calling_params[c("merge_fdr", "merge_within", "min_prop_reps", "outlier_threshold", "allow_zero")])`
 
 Bedgraph files were produced for each sample to return values scaled using the `--SPMR` flag, as signal per million reads, which is analogous to the common Counts Per Million (CPM) value.
 Where required, these were converted to BigWig files in order to save storage space & speed up analysis.
@@ -241,8 +243,10 @@ Any samples with no detected peaks would also be `r ifelse(peak_calling_params$a
 
 A set of *treatment-specific* filtered peaks was defined for each treatment group, based on the peaks identified when running `macs2 callpeak` on all samples within a treatment group.
 Any peak which was not found in >`r percent(peak_calling_params$min_prop_reps)` of *individual samples* within that treatment group was then discarded.
+Peaks within `r peak_calling_params$merge_within`bp of each other were merged into a single peak.
+Peaks detected within merged samples were only retained with an FDR < `r peak_calling_params$merge_fdr`
 
-Peaks which overlapped any blacklisted or greylisted regions were also discarded.
+Peaks which overlapped any blacklisted or greylisted regions were discarded.
 
 #### Consensus Peaks
 
@@ -344,7 +348,7 @@ macs2_logs %>%
 
 ### Peaks Detected
 
-```{r plot-macs2-peaks-individual, fig.height = 0.75 * fh, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {peak_calling_params$fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
+```{r plot-macs2-peaks-individual, fig.height = 0.75 * fh, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {peak_calling_params$merge_fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
 suppressWarnings(
   macs2_logs %>%
     ggplot(aes(label, total_peaks, fill = qc)) +
@@ -857,8 +861,8 @@ treat_levels %>%
 After filtering peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
 These ranges represent the *union* of all overlapping ranges defined and retained within any treatment.
 
-Resulting values for the `score`, `signalValue`, `pValue` and `qValue` were calculated as the *median* across all treatments.
-*Peak summits* were taken as the median position of all summits which comprise the union peak.
+Resulting values for the `score` were calculated as the *maximum* across all treatments.
+*Peak summits* were taken as the weighted mean position of all summits which comprise the union peak, using the score as weights.
 
 #### `r ifelse(length(treat_levels) < 3, "Venn Diagram", "Upset Plot")`
 
@@ -1191,7 +1195,7 @@ for (i in treat_levels) {
 }
 ```
 
-As a counter to the highly ranked peaks, coverage for a small set of low ranked peaks are shown below.
+As a counter to the highly ranked peaks, coverage for a small set of *low ranking peaks* are shown below as representative of the low confidence calls.
 These are the most low-ranked consensus peak (by `score`) and the most low-ranked peak for each of `r pander(treat_levels)` which was unique to that set of filtered peaks, without being identified in any other treatment group.
 These effectively represent the low-probability peaks calls, and it may be assumed that the majority of peaks lie somewhere between the highly-ranked and low-ranked peaks.
 
@@ -1320,8 +1324,10 @@ if (has_rna) {
       caption = glue(
         "
         *Relationship of RNA data to genes with peaks mapped to them.
-        Fisher's Exact Test was performed to determine any association, as reported 
-        by the p-value. Any significant association implies that {target} is likely
+        Fisher's Exact Test was performed to determine any association bewteen 
+        a gene being detected in the transcriptomic data, and a {target} peak 
+        being mapped to that gene. Taking the reported p-value, any significant 
+        association implies that {target} is likely
         to be playing a regulatory role within that dataset. A total of 
         {comma(length(gtf_gene))} genes are contained in the provided GTF.*
         "
@@ -1332,7 +1338,7 @@ if (has_rna) {
 
 `r if (has_rna) "### Detected Genes by Signal Region {.tabset}"`
 
-```{r tbl-rna-by-region, echo = has_rna}
+```{r tbl-rna-by-region, echo = FALSE}
 if (has_rna) {
   tagList(
     names(rna) %>% 
@@ -1399,7 +1405,8 @@ if (has_rna) {
               source = str_extract(feature, ".+: ") %>% 
                 str_remove_all(": ") %>% 
                 str_replace_na(""),
-              feature = str_remove_all(feature, ".+: ")
+              feature = str_remove_all(feature, ".+: "),
+              sig = adj_p < 0.05
             ) %>% 
             dplyr::select(source, feature, region, everything()) %>% 
             dplyr::select(where(\(x) !all(x == ""))) %>% 
@@ -1408,20 +1415,7 @@ if (has_rna) {
               columns = list(
                 source = colDef(
                   "Source",
-                  filterInput = function(values, name) {
-                    tags$select(
-                      # Set to undefined to clear the filter
-                      onchange = sprintf(
-                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                        tbl_id, name
-                      ),
-                      # "All" has an empty value to clear the filter, and is the default option
-                      tags$option(value = "", "All"),
-                      lapply(unique(values), tags$option),
-                      "aria-label" = sprintf("Filter %s", name),
-                      style = "width: 100%; height: 28px; font-size: 12px;"
-                    )
-                  }
+                  filterInput = \(values, name) drop_filter(values, name, tbl_id)
                 ),
                 region = colDef(
                   "Region",
@@ -1432,20 +1426,7 @@ if (has_rna) {
                     )
                     list(backgroundColor = bg)
                   },
-                  filterInput = function(values, name) {
-                    tags$select(
-                      # Set to undefined to clear the filter
-                      onchange = sprintf(
-                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                        tbl_id, name
-                      ),
-                      # "All" has an empty value to clear the filter, and is the default option
-                      tags$option(value = "", "All"),
-                      lapply(unique(values), tags$option),
-                      "aria-label" = sprintf("Filter %s", name),
-                      style = "width: 100%; height: 28px; font-size: 12px;"
-                    )
-                  }
+                  filterInput = \(values, name) drop_filter(values, name, tbl_id)
                 ),
                 feature = colDef(
                   "Feature",
@@ -1456,20 +1437,7 @@ if (has_rna) {
                     )
                     list(backgroundColor = bg)
                   },
-                  filterInput = function(values, name) {
-                    tags$select(
-                      # Set to undefined to clear the filter
-                      onchange = sprintf(
-                        "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                        tbl_id, name
-                      ),
-                      # "All" has an empty value to clear the filter, and is the default option
-                      tags$option(value = "", "All"),
-                      lapply(unique(values), tags$option),
-                      "aria-label" = sprintf("Filter %s", name),
-                      style = "width: 100%; height: 28px; font-size: 12px;"
-                    )
-                  }
+                  filterInput = \(values, name) drop_filter(values, name, tbl_id)
                 ),
                 total = colDef(
                   glue("Mapped to {target} Peak"), format = comma_col,
@@ -1489,7 +1457,8 @@ if (has_rna) {
                   "P<sub>adj</adj>", html = TRUE, 
                   cell = \(value) sprint_pval(value),
                   filterMethod = js_less
-                )
+                ),
+                sig = colDef(show = FALSE)
               )[colnames(.)],
               columnGroups = list(
                 colGroup("Gene Expression", str_subset(names(.), "detected"))
@@ -1519,9 +1488,31 @@ if (has_rna) {
             id = paste(i, "-detected-by-region"),
             class = "section level4",
             htmltools::h4(i),
-            htmltools::div(
-              class = "table", tbl,
-              htmltools::p(class = "caption", cp)
+            tagList(
+              tags$button(
+                tagList(fontawesome::fa("download"), "Download as CSV"),
+                onclick = glue(
+                  "Reactable.downloadDataCSV('{tbl_id}', '{target}_{tbl_id}.csv')"
+                )
+              ),
+              tags$button(
+                "Expand/Collapse All",
+                onclick = glue("Reactable.toggleAllRowsExpanded('{tbl_id}')")
+              ),
+              tags$button(
+                "Clear All Filters",
+                onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+              ),
+              tags$label(
+                tags$input(
+                  type = "checkbox", 
+                  onclick = glue(
+                    "Reactable.setFilter('{tbl_id}', 'sig', event.target.checked)"
+                  )
+                ),
+                "Only show significant associations"
+              ),
+              tbl, htmltools::p(class = "caption", cp)
             )
           )
         }
@@ -1584,7 +1575,8 @@ sing this strategy `r n_enrich` pathways were considered to be enriched within t
 
 `r if (n_enrich > 0) "#### Results Table"`
 
-```{r tbl-enrich-res, eval = n_enrich > 0, echo = n_enrich > 0}
+```{r tbl-enrich-res, eval = n_enrich > 0, echo = FALSE}
+tbl_id <- "enrich-res-table"
 tbl <- enrich_df %>% 
   dplyr::filter(adj_p < enrich_params$alpha) %>% 
   dplyr::slice(seq_len(100)) %>%
@@ -1605,7 +1597,7 @@ tbl <- enrich_df %>%
         )
       )
     },
-    elementId = "enrich-res-table"
+    elementId = tbl_id
   )
 cp <- htmltools::em(
   glue(
@@ -1624,19 +1616,18 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('enrich-res-table', '{target}_enrich_res.csv')"
+      "Reactable.downloadDataCSV('{tbl_id}', '{target}_enrich_res.csv')"
     )
   ),
   tags$button(
     "Expand/Collapse All",
-    onclick = "Reactable.toggleAllRowsExpanded('enrich-res-table')"
+    onclick = glue("Reactable.toggleAllRowsExpanded('{tbl_id}')")
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('enrich-res-table', [])"
+    onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   ),
-  tbl,
-  cp
+  tbl, htmltools::tags$caption(cp)
 )
 if (interactive()) {
   htmltools::browsable(tl)
@@ -2334,8 +2325,8 @@ if (n_pos > 0) {
 
 ```{r export, results='hide', echo=FALSE}
 all_out <- list(
-  great = here::here(
-    "output", "results", target, glue("{target}_great_results.tsv.gz")
+  enrichment = here::here(
+    "output", "results", target, glue("{target}_enrichment.tsv")
   ),
   localz = here::here(
     "output", "results", target, glue("{target}_localz.tsv")
@@ -2350,7 +2341,7 @@ for (p in out_paths) {
 }
 enrich_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
-  write_tsv(all_out$great)
+  write_tsv(all_out$enrichment)
 write_tsv(localz_df, all_out$localz)
 save.image(all_out$renv)
 ```
