@@ -1,0 +1,125 @@
+```{r n-covar, echo=FALSE}
+n_covar <- length(levels(results$ihw_covariate))
+```
+
+
+### Independent Hypothesis Weighting {.tabset}
+
+IHW was applied based on the relationship of `r region_type` to `r metadata(results)$ihw))`
+
+#### IHW Impact Table
+
+```{r tbl-ihw}
+ihw %>%
+  as.data.frame() %>% 
+  mutate(
+    fdr = p.adjust(pvalue, "fdr"),
+    ihw_status = case_when(
+      fdr < fdr_alpha & adj_pvalue > fdr_alpha ~ "Lost",
+      fdr < fdr_alpha & adj_pvalue < fdr_alpha ~ "Retained",
+      fdr > fdr_alpha & adj_pvalue < fdr_alpha ~ "Gained",
+      fdr > fdr_alpha & adj_pvalue > fdr_alpha ~ "Never Significant"
+    ) %>% 
+      factor(
+        levels = c("Never Significant", "Retained", "Gained", "Lost")
+      )
+  ) %>% 
+  as_tibble() %>% 
+  summarise(n = dplyr::n(), .by = all_of(c("covariate", "ihw_status"))) %>% 
+  complete(ihw_status = ihw_status, covariate = covariate, fill = list(n = 0)) %>% 
+  pivot_wider(
+    names_from = ihw_status, values_from = n, values_fill = 0
+  ) %>% 
+  mutate(`Nett Change` = Gained - Lost) %>% 
+  bind_rows(
+    summarise_if(., is.numeric, sum)
+  ) %>% 
+  mutate(
+    covariate = covariate %>% 
+      as.character() %>% 
+      str_replace_na("Total"),
+    Significant = Retained + Gained,
+    Total = `Never Significant` + Significant + Lost
+  ) %>% 
+  dplyr::select(
+    Covariate = covariate, Total, ends_with("Significant"), Retained, everything()
+  ) %>% 
+  pander(
+    justify = "lrrrrrrr",
+    caption = paste(
+      "*Summary of changes introduced by IHW for windows considered as",
+      paste0("showing differential ", target, " signal."),
+      "This corresponds to a nett change of", 
+      dplyr::slice(., nrow(.)) %>% 
+        mutate(
+          p = percent(`Nett Change` / (Significant - `Nett Change`), 0.1)
+        ) %>% 
+        .[["p"]],
+      "from the initial list.*"
+    ),
+    emphasize.strong.rows = nrow(.)
+  )
+```
+
+#### Distribution of P-values
+
+```{r ihw-pvals, fig.height = ifelse(n_covar == 3, 0.6 * fh, fh), fig.cap = glue("*Histograms of p-values separated by which IHW grouping {region_type} belong to.*")}
+results %>% 
+  select(PValue, ihw_covariate) %>% 
+  mcols() %>% 
+  as_tibble() %>% 
+  mutate(
+    bin = cut_width(PValue, 0.01)
+  ) %>% 
+  ggplot(aes(PValue)) +
+  geom_histogram(aes(fill = ihw_covariate), colour = "black", bins = 100) +
+  geom_text(
+    aes(x, y, label = lab),
+    data = . %>%
+      mutate(
+        y = dplyr::n(), .by = c(ihw_covariate, bin)
+      ) %>% 
+      summarise(
+        n = dplyr::n(), y = max(y), x = max(PValue),
+        .by = ihw_covariate
+      ) %>%
+      mutate(
+        lab = glue("N = {comma(n, 1)}"),
+        y = 0.9 * max(y)
+      ),
+    hjust = 1
+  ) +
+  facet_wrap(~ihw_covariate) +
+  scale_fill_manual(values = full_palette) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  labs(x = "P Value", y = "Count", fill = diff_sig_params$ihw)
+```
+
+#### IHW Weights
+
+```{r ihw-weights, fig.height = ifelse(n_covar == 3, 0.6 * fh, fh), fig.cap = "*Weights applied to each group of p-values to obtain FDR-adjusted, weighted p-values*"}
+plot(ihw) +
+  geom_hline(yintercept = 1, linetype = 2) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_fill_brewer(palette = "Set2")
+```
+
+#### IHW Group Sizes
+
+```{r ihw-group-sizes, fig.cap = "*Group sizes for each covariate. Groups were progressively collapsed until all groups contained > 1000 p-values*"}
+results %>% 
+  as_tibble() %>% 
+  ggplot(aes(ihw_covariate, fill = ihw_covariate)) +
+  geom_bar() +
+  geom_hline(yintercept = 1e3, colour = "blue") +
+  geom_text(
+    aes(y = n + 0.025*max(n), label = comma(n, 1)),
+    data = . %>% summarise(n = dplyr::n(), .by = ihw_covariate) 
+  ) +
+  scale_x_discrete(labels = label_wrap(25)) +
+  scale_y_continuous(expand = expansion(c(0, 0.05)), labels = comma) +
+  scale_fill_manual(values = full_palette) +
+  labs(x = str_to_title(diff_sig_params$ihw), y = "Total") +
+  theme(legend.position = "none")
+```
+

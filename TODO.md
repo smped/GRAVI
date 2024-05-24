@@ -10,7 +10,7 @@
 - [ ] Check for compatibility with extraChIPs >= v1.7.1
   - [x] macs2
   - [x] differential signal
-  - [ ] pairwise comparisons
+  - [x] pairwise comparisons
 - [x] Checks for input file consistency/structure
 - [x] Shift `cowplot` to `patchwork`
 - [ ] Motif Detection
@@ -19,6 +19,7 @@
   - [x] Differential Signal
   - [ ] Pairwise
 - [ ] Update index for more complete description of parameters 
+- [ ] Move scripts for markdown to a new folder (e.g `./scripts`)
   
 ## Annotation Setup
 
@@ -57,7 +58,7 @@
 - [x] Add Regioner
 - [x] Motif Analysis
 - [x] Enrichment Analysis
-- [ ] RNAseq
+- [x] RNAseq
 
 
 ## Features (Unlikely)

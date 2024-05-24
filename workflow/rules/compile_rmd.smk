@@ -156,11 +156,12 @@ rule compile_nfr_html:
 
 rule compile_differential_signal_html:
     input:
+        modules = expand(
+            os.path.join("workflow", "modules", "_{f}_differential_signal.Rmd"),
+            f = ['rna', 'ihw']
+        ),
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
-        ),
-        rna = os.path.join(
-            "workflow", "modules", "_rna_differential_signal.Rmd"
         ),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output

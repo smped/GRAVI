@@ -480,7 +480,7 @@ metadata(results)$description <- glue(
         ),
         ""
     ),
-    ifelse(norm == "none", "No normalisation was applied. ", "{norm}-normalisation was applied "),
+    ifelse(norm == "none", "No normalisation was applied. ", "{str_to_upper(norm)}-normalisation was applied "),
     case_when(
         norm == "sq" ~ "[@HicksSQN2017]. ",
         norm == "RLE" ~ "[@Anders2010-sd]. ",
@@ -493,7 +493,7 @@ metadata(results)$description <- glue(
     case_when(
         method == "qlf" ~ "Quasi-Likelihood fits [@LunSmythGLMQL2017] on counts ",
         method == "lt" ~ "Limma-Trend [@LawVoom2014] on normalised logCPM values ",
-        method == "wald" ~ "the negative binomial Wald Test on counts [@Love2014Wald]"
+        method == "wald" ~ "the negative binomial Wald Test on counts [@Love2014Wald] "
     ),
     ifelse(
         diff_sig_params$fc > 0,
