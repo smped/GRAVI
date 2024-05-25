@@ -330,13 +330,7 @@ if (any(has_de)) {
             dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
             by = "gene_id"
           ) %>% 
-          mutate(
-            d = distance(GRanges(range.x), GRanges(centre)),
-            across(
-              any_of("feature"), 
-              \(x) map_chr(x, \(x) paste(sort(unique(x)), collapse = "; "))
-            )
-          ) %>% 
+          mutate(d = distance(GRanges(range.x), GRanges(centre))) %>% 
           dplyr::select(-range.x) %>% 
           dplyr::rename(range = range.y) %>% 
           dplyr::select(
@@ -416,7 +410,10 @@ if (any(has_de)) {
                 name = "Genomic Region", aggregate = "unique",
                 filterInput = \(values, name) drop_filter(values, name, id)
               ),
-              feature = colDef(name = "Feature", aggregate = "unique"),
+              feature = colDef(
+                name = "Feature", aggregate = "unique",
+                filterInput = \(values, name) drop_filter(unlist(values), name, id)
+              ),
               d = colDef(
                 "Distance To Locus", maxWidth = fs * 8, format = comma_col,
                 aggregate = range_js, filterMethod = js_less

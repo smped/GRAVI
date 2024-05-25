@@ -3,19 +3,19 @@
 
 
 ```{r dummy-params, eval = FALSE, echo = FALSE}
-# params <- list(
-#  tgt1 = "AR",
-#  tgt2 = "H3K27ac",
-#  comp1 = "E2_E2DHT",
-#  comp2 = "E2_E2DHT",
-#  full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
-#  results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_results.rds",
-#  dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
-#  dsa2 = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
-#  localz = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_localz.rds",
-#  motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
-#  motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
-# )
+params <- list(
+ tgt1 = "AR",
+ tgt2 = "H3K27ac",
+ comp1 = "E2_E2DHT",
+ comp2 = "E2_E2DHT",
+ full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
+ results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_results.rds",
+ dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
+ dsa2 = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
+ localz = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_localz.rds",
+ motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
+ motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
+)
 ```
 
 
@@ -150,12 +150,8 @@ region_sources <- tibble(
 gtf_gene <- here::here(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
   .[!duplicated(names(.))]
+prot_genes <- subset(gtf_gene, gene_type == "protein_coding")$gene_name
 rna <- here::here(all_paths$annotation, "rna.rds") %>% read_rds()
-detected_ids <- unique(gtf_gene$gene_id)
-if (length(rna) ) {
-  detected_ids <- detected_ids %>% intersect(bind_rows(rna)$gene_id)
-}
-include_genes <- id2gene[detected_ids]
 ## HiC
 hic <- here::here(all_paths$annotation, "hic.rds") %>% read_rds()
 has_hic <- length(hic) > 0
@@ -859,7 +855,7 @@ combined_results %>%
 #### Pairwise Differential Signal
 
 
-```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ". The range with most extreme combined change in signal is shown with any genes labelled. ", ifelse(length(rna), "Only genes detected within transcriptomic data are labelled. " , ""),  "The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ". The range with most extreme combined change in signal is shown with any protein-coding genes labelled. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df <- combined_results %>% 
   as_tibble() %>% 
   select(
@@ -911,7 +907,7 @@ df %>%
       mutate(
         label = map_chr(
           gene_name, 
-          \(x) paste(intersect(x, include_genes), collapse = "; ")
+          \(x) paste(intersect(x, prot_genes), collapse = "; ")
         ) %>% 
           str_wrap(15) %>% 
           str_trunc(30) 
@@ -988,7 +984,7 @@ df %>%
 
 #### logFC By Region
 
-```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ", separated by defined gene-centric regions. The window with most extreme combined change in signal for each region is shown with any genes labelled as previously. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin-by-region, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ", separated by defined gene-centric regions. The window with most extreme combined change in signal for each region is shown with any protein-coding genes labelled as previously. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 df %>% 
   arrange(status) %>% 
   ggplot(
@@ -1017,7 +1013,7 @@ df %>%
       mutate(
         label = map_chr(
           gene_name, 
-          \(x) paste(intersect(x, include_genes), collapse = "; ")
+          \(x) paste(intersect(x, prot_genes), collapse = "; ")
         ) %>% 
           str_wrap(15) %>% 
           str_trunc(30) 
@@ -1078,7 +1074,7 @@ df %>%
 
 `r if (has_features) "#### logFC By Feature"`
 
-```{r plot-dbwin-by-feature, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ", separated by feature. The range with most extreme combined change in signal for each separate feature is shown with any genes labelled as previously, noting that combined ranges may map to multiple features. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
+```{r plot-dbwin-by-feature, echo = has_features, fig.cap = glue("*Comparative changes in both ", glue_collapse(comp_labels, sep = " and "), ", separated by feature. The range with most extreme combined change in signal for each separate feature is shown with any protein-coding genes labelled as previously, noting that combined ranges may map to multiple features. The range around zero used for range-based hypothesis testing is indicated with grey dashed lines.*")}
 if (has_features) {
   df %>% 
     unnest(feature, keep_empty = TRUE) %>% 
@@ -1114,7 +1110,7 @@ if (has_features) {
         mutate(
           label = map_chr(
             gene_name, 
-            \(x) paste(intersect(x, include_genes), collapse = "; ")
+            \(x) paste(intersect(x, prot_genes), collapse = "; ")
           ) %>% 
             str_wrap(15) %>% 
             str_trunc(30) 
@@ -2227,32 +2223,6 @@ Using the Central Limit Theorem, the *normalised Z-scores* returned can be expec
 
 In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the pairwise peaks within $\pm$ 5kb range around the detected peak.
 
-### Z-Score Heatmap
-
-```{r zscore-heatmap, fig.width = 1.1 * fw, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
-shifted_z %>% 
-  arrange(abs(shift), Z) %>% 
-  mutate(
-    region = fct_inorder(as.character(region)),
-    source = ifelse(region %in% regions, "Region", "Feature"),
-    comparison = str_replace_all(comparison, " - ", "\n")
-  ) %>% 
-  ggplot(aes(shift, fct_rev(region), fill = Z)) +
-  geom_raster() +
-  facet_grid(
-    cols = vars(comparison), rows = vars(source), 
-    scales = "free", space = "free"
-  ) +
-  scale_x_continuous(
-    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
-  ) +
-  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
-  scale_fill_gradientn(
-    colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
-  )
-```
-
 ### Results Table
 
 ```{r tbl-regioner, echo=FALSE}
@@ -2412,11 +2382,35 @@ tl <- tagList(
   ),
   tbl,  cp
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
+```
+
+
+
+### Z-Score Heatmap
+
+```{r zscore-heatmap, fig.width = 1.1 * fw, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
+  arrange(abs(shift), Z) %>% 
+  mutate(
+    region = fct_inorder(as.character(region)),
+    source = ifelse(region %in% regions, "Region", "Feature"),
+    comparison = str_replace_all(comparison, " - ", "\n")
+  ) %>% 
+  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  geom_raster() +
+  facet_grid(
+    cols = vars(comparison), rows = vars(source), 
+    scales = "free", space = "free"
+  ) +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
+  )
 ```
 
 
@@ -2826,7 +2820,7 @@ if (any_motif_enrich) {
   
 
 
-### Motifs With Positional Bias {.tabset}
+### Motifs With Positional Bias 
 
 `r ifelse(any_motif_pos, "#### Result Tables {.tabset}", "*No groups were found to show positional bias for any motifs.*")`
 

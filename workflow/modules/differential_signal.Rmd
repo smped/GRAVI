@@ -127,7 +127,7 @@ source(here::here("workflow", "scripts", "table_funs.R"))
 gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
 id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
   .[!duplicated(names(.))]
-genes_to_show <- subset(gtf_gene, gene_type == "protein_coding")$gene_name
+prot_genes <- subset(gtf_gene, gene_type == "protein_coding")$gene_name
 
 colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
   lapply(unlist)
@@ -599,8 +599,8 @@ df <- results %>%
   dplyr::rename(Range = range, `Width (bp)` = w) %>% 
   rename_with(\(x) str_replace_all(x, "feature", "Feature")) %>% 
   mutate(
-    other_genes = lapply(Genes, setdiff, genes_to_show), 
-    Genes = lapply(Genes, intersect, genes_to_show)
+    other_genes = lapply(Genes, setdiff, prot_genes), 
+    Genes = lapply(Genes, intersect, prot_genes)
   )
 tbl <- df %>% 
   reactable(
@@ -724,7 +724,7 @@ results %>%
       dplyr::slice(1:2, .by = status) %>% 
       mutate(
         detected = gene_name %>%
-          lapply(intersect, genes_to_show) %>% 
+          lapply(intersect, prot_genes) %>% 
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
@@ -803,7 +803,7 @@ if (has_features) {
         dplyr::slice(1:2, .by = status) %>% 
         mutate(
           detected = gene_name %>%
-            lapply(intersect, genes_to_show) %>% 
+            lapply(intersect, prot_genes) %>% 
             lapply(paste, collapse = ", ") %>%
             unlist() %>%
             str_replace("^NA$", "") %>%
@@ -866,7 +866,7 @@ results %>%
       dplyr::slice(1:2, .by = status) %>% 
       mutate(
         detected = gene_name %>%
-          lapply(intersect, genes_to_show) %>%           
+          lapply(intersect, prot_genes) %>%           
           lapply(paste, collapse = ", ") %>%
           unlist() %>%
           str_replace("^NA$", "") %>%
@@ -2311,12 +2311,13 @@ if (n_pos_res > 0) {
       abs = motif_params$abs, type = "heatmap", cluster = n_pos_res > 2,
       use_totals = TRUE,
       binwidth = motif_params$binwidth 
-    ) + labs(x = "Bin", fill = "Total\n Matches")
+    ) + 
+    labs(x = "Bin", fill = "Total\n Matches")
 }
 ```
 
 
-```{r add-nfr, eval = length(nfr) > 0,  child = here::here('workflow/modules/_nfr_differential_signal.Rmd')}
+```{r add-nfr, eval = length(nfr) > 0 & has_ds,  child = here::here('workflow/modules/_nfr_differential_signal.Rmd')}
 ```
 
 
