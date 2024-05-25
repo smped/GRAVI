@@ -37,7 +37,7 @@ theme_set(
 )
 panderOptions("big.mark", ",")
 panderOptions("table.split.table", Inf)
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("scripts", "custom_functions.R"))
 config <- here::here("config", "config.yml") %>% read_yaml()
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
   jsonlite::fromJSON() %>% 
@@ -71,14 +71,14 @@ samples <- file.path(all_paths$macs2, "{targets}", "{targets}_qc_samples.tsv") %
   dplyr::select(-all_of("qc")) 
 targets <- unique(samples$target)
 n_targets <- length(targets)
-source(here::here("workflow/scripts/table_funs.R"))
-source(here::here("workflow/scripts/enrichment_funs.R"))
+source(here::here("scripts", "table_funs.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 ```
 
 ```{r annotations}
 sq <- file.path(all_paths$annotation, "seqinfo.rds") %>% 
   read_rds()
-gtf_gene <- read_rds(file.path(all_paths$annotation, "gtf_gene.rds"))
+gtf <- read_rds(file.path(all_paths$annotation, "gtf.rds"))
 tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## Gene Regions
 gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
@@ -608,7 +608,7 @@ if (has_rna) {
     rna,
     \(x) {
       tibble(
-        gene_id = gtf_gene$gene_id,
+        gene_id = gtf$gene$gene_id,
         detected = gene_id %in% x$gene_id,
         has_peak = gene_id %in% unlist(shared_peaks$gene_id)
       ) %>% 
@@ -642,7 +642,7 @@ if (has_rna) {
         Fisher's Exact Test was performed to determine any association, as reported 
         by the p-value. Any significant association implies that shared sites are likely
         to be playing a regulatory role within that dataset. A total of 
-        {comma(length(gtf_gene))} genes are contained in the provided GTF.*
+        {comma(length(gtf$gene))} genes are contained in the provided GTF.*
         "
       )
     )
@@ -660,7 +660,7 @@ if (has_rna) {
           x <- rna[[i]]
           no_peak <- tibble(
             region = "No Detected Peak",
-            total = gtf_gene$gene_id %>% 
+            total = gtf$gene$gene_id %>% 
               setdiff(unlist(shared_peaks$gene_id)) %>% 
               unique() %>% 
               length(),
@@ -872,7 +872,7 @@ As an additional analysis, the background was also taken as the union of all ran
 
 ```{r enrich-genome-bg}
 enrich_arg_list <- list(
-  test_ranges = shared_peaks, db = msigdb, gtf = gtf_gene, bg = NULL, 
+  test_ranges = shared_peaks, db = msigdb, gtf = gtf$gene, bg = NULL, 
   genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 
   adj_method = enrich_params$adj, params = region_params$promoters, 
   method = "Wallenius"
@@ -1011,7 +1011,7 @@ bg <- consensus_peaks %>%
   colToRanges("range") %>% 
   reduceMC()
 enrich_arg_list <- list(
-  test_ranges = shared_peaks, db = msigdb, gtf = gtf_gene, bg = bg, 
+  test_ranges = shared_peaks, db = msigdb, gtf = gtf$gene, bg = bg, 
   genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 
   adj_method = enrich_params$adj, params = region_params$promoters, 
   method = "Hypergeometric"

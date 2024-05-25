@@ -16,9 +16,9 @@ rule count_windows:
             os.path.join(bam_path, "{sample}.bam.bai"),
             sample = set(df['input'][(df['target'] == wildcards.target)])
         ),
-        blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        blacklist = rules.prep_blacklist.output.blacklist, 
         chk = ALL_CHECKS,
-        greylist = os.path.join(grey_path, "greylists.rds"),
+        greylist = rules.combine_greylists.output.rds,
         macs2_logs = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}",
@@ -33,7 +33,7 @@ rule count_windows:
             peak_path, "{target}", "{target}_consensus_peaks.rds"
         ),
         script = os.path.join("workflow", "scripts", "make_counts.R"),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        seqinfo = rules.create_genome_annotations.output.seqinfo, 
     output:
         rds = os.path.join(diff_path, "{target}", "{target}_counts.rds")
     conda: "../envs/rmarkdown.yml"
@@ -55,9 +55,9 @@ rule count_windows:
 rule differential_signal_analysis:
     input:
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        hic = os.path.join(annotation_path, "hic.rds"),
-        features = os.path.join(annotation_path, "features.rds"),
+        gtf = rules.create_genome_annotations.output.gtf,
+        hic = rules.prep_hic.output.hic, 
+        features = rules.prep_features.output.rds, 
         peaks = expand(
             os.path.join(
                 peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
@@ -66,7 +66,7 @@ rule differential_signal_analysis:
         ),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         script = os.path.join("workflow", "scripts", "differential_signal.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        sq = rules.create_genome_annotations.output.seqinfo, 
         yaml = os.path.join("config", "params.yml"),
     output:
         changed = os.path.join(

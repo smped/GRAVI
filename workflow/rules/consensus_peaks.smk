@@ -1,7 +1,7 @@
 rule filter_merged_peaks:
     input:
-        blacklist = os.path.join(annotation_path, "blacklist.rds"),
-        greylist = os.path.join(grey_path, "greylists.rds"),
+        blacklist = rules.prep_blacklist.output.blacklist, 
+        greylist = rules.combine_greylists.output.rds,
         merged = os.path.join(
             macs2_path, "{target}", "{target}_{treat}_merged_peaks.narrowPeak"
         ),
@@ -10,7 +10,7 @@ rule filter_merged_peaks:
             os.path.join(macs2_path, "{f}", "{f}_peaks.narrowPeak"),
             f = set(df[(df.treat == wildcards.treat) & (df.target == wildcards.target)]['sample'])
         ),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        sq = rules.create_genome_annotations.output.seqinfo, 
     output:
         peaks = os.path.join(
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
@@ -30,11 +30,11 @@ rule filter_merged_peaks:
 
 rule make_consensus_peaks:
     input:
-        blacklist = os.path.join(annotation_path, "blacklist.rds"),
-        features = os.path.join(annotation_path, "features.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        greylist = os.path.join(grey_path, "greylists.rds"),
-        hic = os.path.join(annotation_path, "hic.rds"),
+        blacklist = rules.prep_blacklist.output.blacklist, 
+        features = rules.prep_features.output.rds, 
+        gtf = rules.create_genome_annotations.output.gtf,
+        greylist = rules.combine_greylists.output.rds,
+        hic = rules.prep_hic.output.hic, 
         peaks = lambda wildcards: expand(
             os.path.join(
                 peak_path, "{{target}}",
@@ -43,9 +43,9 @@ rule make_consensus_peaks:
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        sq = rules.create_genome_annotations.output.seqinfo, 
         yaml = os.path.join("config", "params.yml"),
     output:
         bed = os.path.join(
@@ -72,10 +72,10 @@ rule make_consensus_peaks:
 
 rule make_shared_consensus_peaks:
     input:
-        features = os.path.join(annotation_path, "features.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        hic = os.path.join(annotation_path, "hic.rds"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        features = rules.prep_features.output.rds, 
+        gtf = rules.create_genome_annotations.output.gtf,
+        hic = rules.prep_hic.output.hic, 
+        regions = rules.create_genome_annotations.output.regions, 
         peaks = expand(
             os.path.join(
                 peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
@@ -83,7 +83,7 @@ rule make_shared_consensus_peaks:
             target = targets
         ),
         script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        sq = rules.create_genome_annotations.output.seqinfo, 
         yaml = os.path.join("config", "params.yml"),
     output:
         bed = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),

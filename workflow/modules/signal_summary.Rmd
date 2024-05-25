@@ -48,7 +48,7 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 register(MulticoreParam(workers = threads))
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("scripts", "custom_functions.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -75,8 +75,8 @@ peak_calling_params <- here::here("config", "json", "peak_calling_param.json") %
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
-source(here::here("workflow/scripts/table_funs.R"))
-source(here::here("workflow/scripts/enrichment_funs.R"))
+source(here::here("scripts", "table_funs.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 ```
 
 ```{r read-samples}
@@ -124,7 +124,7 @@ full_palette <- colours %>%
 ## Seqinfo
 sq <- read_rds(file.path(all_paths$annotation, "seqinfo.rds"))
 ## Gene Annotations
-gtf_gene <- read_rds(file.path(all_paths$annotation, "gtf_gene.rds"))
+gtf <- read_rds(file.path(all_paths$annotation, "gtf.rds"))
 tss <- read_rds(file.path(all_paths$annotation, "tss.rds"))
 ## Gene Regions
 gene_regions <- read_rds(file.path(all_paths$annotation, "gene_regions.rds"))
@@ -631,15 +631,7 @@ htmltools::tagList(
         x <- ranges_by_rep_treat[[i]]
         fig_out <- file.path(fig_path, glue("{i}_replicates.{fig_type}"))
         if (length(x) == 1) {
-          fig_fun(
-            fig_out, 
-            width = knitr::opts_chunk$get("fig.width"),
-            height = ifelse(
-              length(x) < 3,
-              knitr::opts_chunk$get("fig.height") * 0.8,
-              knitr::opts_chunk$get("fig.height") * 0.8
-            )
-          )
+          fig_fun(fig_out, width = fw, height = fh)
           grid.newpage()
           draw.single.venn(length(x[[1]]), category = names(x))
           dev.off()
@@ -650,12 +642,12 @@ htmltools::tagList(
           a1 <- length(x[[1]]) - a12 
           a2 <- length(x[[2]]) - a12
           args <- glue(
-            here::here("workflow", "scripts", "plot_venn.py "),
+            here::here("scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' ", 
             "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[3]]}' ",
-            "-ht {knitr::opts_chunk$get('fig.height')} ", 
-            "-w {knitr::opts_chunk$get('fig.width')} ", 
+            "-ht {fh} ", 
+            "-w {fw} ", 
             "-o '{fig_out}'"
           )
           system2(which_py, args)
@@ -669,24 +661,20 @@ htmltools::tagList(
           a2 <- length(x[[2]]) - (a12 + a23 + a123)
           a3 <- length(x[[3]]) - (a13 + a23 + a123)
           args <- glue(
-            here::here("workflow", "scripts", "plot_venn.py "),
+            here::here("scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
             "-a13 {a13} -a23 {a23} -a123 {a123} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' -s3 '{names(x)[[3]]}' ", 
             "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[2]]}' -c3 '{rep_col[[3]]}' ",
-            "-ht {knitr::opts_chunk$get('fig.height')} ", 
-            "-w {knitr::opts_chunk$get('fig.width')} ", 
+            "-ht {fh} ", 
+            "-w {fw} ", 
             "-o '{fig_out}'"
           )
           system2(which_py, args)
         }
         ## An UpSet plot for > 3 replicates
         if (length(x) > 3) {
-          fig_fun(
-            fig_out, 
-            width = knitr::opts_chunk$get("fig.width"),
-            height = knitr::opts_chunk$get("fig.height")
-          )
+          fig_fun(fig_out, width = fw, height = fh)
           grid.newpage()
           ## Prep the data for ComplexUpset
           df <- individual_peaks[dplyr::filter(samples, treat == i)$sample] %>% 
@@ -1125,7 +1113,7 @@ htmltools::tagList(
       dev.off()
       
       ## Define the caption
-      gr <- join_nearest(grl_to_plot[[i]], gtf_gene, distance = TRUE)
+      gr <- join_nearest(grl_to_plot[[i]], gtf$gene, distance = TRUE)
       d <- gr$distance
       gn <- gr$gene_name
       peak_desc <- ifelse(
@@ -1233,7 +1221,7 @@ htmltools::tagList(
       dev.off()
       
       ## Define the caption
-      gr <- join_nearest(grl_to_plot[[i]], gtf_gene, distance = TRUE)
+      gr <- join_nearest(grl_to_plot[[i]], gtf$gene, distance = TRUE)
       d <- gr$distance
       gn <- gr$gene_name
       peak_desc <- ifelse(
@@ -1293,7 +1281,7 @@ if (has_rna) {
     rna,
     \(x) {
       tibble(
-        gene_id = gtf_gene$gene_id,
+        gene_id = gtf$gene$gene_id,
         detected = gene_id %in% x$gene_id,
         has_peak = gene_id %in% unlist(consensus_peaks$gene_id)
       ) %>% 
@@ -1329,7 +1317,7 @@ if (has_rna) {
         being mapped to that gene. Taking the reported p-value, any significant 
         association implies that {target} is likely
         to be playing a regulatory role within that dataset. A total of 
-        {comma(length(gtf_gene))} genes are contained in the provided GTF.*
+        {comma(length(gtf$gene))} genes are contained in the provided GTF.*
         "
       )
     )
@@ -1347,7 +1335,7 @@ if (has_rna) {
           x <- rna[[i]]
           no_peak <- tibble(
             region = "No Detected Peak",
-            total = gtf_gene$gene_id %>% 
+            total = gtf$gene$gene_id %>% 
               setdiff(unlist(consensus_peaks$gene_id)) %>% 
               unique() %>% 
               length(),
@@ -1545,7 +1533,7 @@ For this specific analysis, the background ranges were set to be the whole genom
 
 ```{r run-enrichment}
 enrich_arg_list <- list(
-  test_ranges = consensus_peaks, db = msigdb, gtf = gtf_gene, bg = NULL, 
+  test_ranges = consensus_peaks, db = msigdb, gtf = gtf$gene, bg = NULL, 
   genome = ucsc$build, min_sig = enrich_params$min_sig, threads = threads, 
   adj_method = enrich_params$adj, params = region_params$promoters, 
   method = "Wallenius"

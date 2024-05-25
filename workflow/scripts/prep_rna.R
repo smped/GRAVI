@@ -62,7 +62,7 @@ rna <- list()
 rna_files <- config$external$rna
 if (!is.null(rna_files)) {
   cat_time("Importing gtf")
-  gtf <- read_rds(all_input$gtf_gene)
+  gtf <- read_rds(all_input$gtf)$gene
 
   cat_time("Importing", length(rna_files), "RNA datasets")
   if (any(grepl("(xls|xslx|zip|gz)$", rna_files))) {

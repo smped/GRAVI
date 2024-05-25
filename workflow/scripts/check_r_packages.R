@@ -39,7 +39,8 @@ reqd_mod <- system2("egrep", cmd, stdout = TRUE)
 
 ## All required packages from scripts
 cmd <- paste0("'library\\(.+\\)' ", file.path(wd, "workflow/scripts/*R"))
-reqd_scripts <- system2("egrep", cmd, stdout = TRUE)
+cmd2 <- paste0("'library\\(.+\\)' ", file.path(wd, "scripts/*R"))
+reqd_scripts <- system2("egrep", c(cmd, cmd2), stdout = TRUE)
 
 ## Both sets of packages
 all_reqd <- sort(
@@ -50,7 +51,7 @@ all_reqd <- sort(
 all_reqd <- all_reqd[!grepl("character.only", all_reqd)]
 
 ## Check the BSgenome.<sp>.UCSC.<build> package, required for regioneR
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/get_ucsc.R"))
 ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- paste(c("BSgenome", ucsc$sp, "UCSC", ucsc$build), collapse = ".")
 all_reqd <- c(all_reqd, bs_pkg)

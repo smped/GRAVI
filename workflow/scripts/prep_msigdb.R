@@ -59,7 +59,7 @@ library(msigdbr)
 params <- read_yaml(all_input$yaml)
 
 cat_time("Reading gene-level gtf")
-gtf_gene <- read_rds(all_input$gtf_gene)
+gtf <- read_rds(all_input$gtf)
 
 #### MSigDB ####
 cat_time("Preparaing MSigDB using msigdbr...")
@@ -67,7 +67,7 @@ msigdb_params <- params$msigdb
 msigdb <- msigdbr(msigdb_params$species) %>%
   dplyr::filter(
     gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
-    ensembl_gene %in% gtf_gene$gene_id
+    ensembl_gene %in% gtf$gene$gene_id
   ) %>%
   dplyr::filter(
     dplyr::n() >= min(msigdb_params$size),

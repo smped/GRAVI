@@ -24,7 +24,7 @@ library(universalmotif)
 library(motifTestR)
 library(rlang)
 library(GenomicInteractions)
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("scripts", "custom_functions.R"))
 theme_set(theme_bw())
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
@@ -67,8 +67,8 @@ motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
-source(here::here("workflow/scripts/table_funs.R"))
-source(here::here("workflow/scripts/enrichment_funs.R"))
+source(here::here("scripts", "table_funs.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 ```
 
 ```{r figure-params}

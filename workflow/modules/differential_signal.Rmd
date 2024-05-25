@@ -52,8 +52,8 @@ theme_set(
 threads <- parallel::detectCores() - 1
 if (interactive()) threads <- 4
 register(MulticoreParam(workers = threads))
-source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "enrichment_funs.R"))
+source(here::here("scripts", "custom_functions.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -119,15 +119,15 @@ regioner_params <- here::here("config", "params.yml") %>%
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck(target)
-source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("scripts", "table_funs.R"))
 ```
 
 
 ```{r load-annotations}
-gtf_gene <- file.path(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
-id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
+gtf <- file.path(all_paths$annotation, "gtf.rds") %>% read_rds()
+id2gene <- structure(gtf$gene$gene_name, names = gtf$gene$gene_id) %>% 
   .[!duplicated(names(.))]
-prot_genes <- subset(gtf_gene, gene_type == "protein_coding")$gene_name
+prot_genes <- subset(gtf$gene, gene_type == "protein_coding")$gene_name
 
 colours <- read_rds(file.path(all_paths$annotation, "colours.rds")) %>% 
   lapply(unlist)
@@ -1343,7 +1343,7 @@ All p-values will be adjusted using the `r adj_method` correction during testing
 if (n_sig > 0) {
   enrich_args <- list(
     test_ranges = filter(results, !!sym(fdr_column) < enrich_params$alpha),
-    db = msigdb, gtf = gtf_gene, bg = results, genome = ucsc$build,
+    db = msigdb, gtf = gtf$gene, bg = results, genome = ucsc$build,
     threads = threads, adj_method = adj_method, min_sig = enrich_params$min_sig,
     params = region_params$promoters
   )
@@ -1483,7 +1483,7 @@ if (n_changed_enrich > min(network_params$size)) {
 if (n_increased > 0 & n_increased != n_sig) {
   enrich_args <- list(
     test_ranges = filter(results, status == "Increased"),
-    db = msigdb, gtf = gtf_gene, bg = results, genome = ucsc$build,
+    db = msigdb, gtf = gtf$gene, bg = results, genome = ucsc$build,
     threads = threads, adj_method = adj_method, min_sig = enrich_params$min_sig,
     params = region_params$promoters
   )
@@ -1632,7 +1632,7 @@ if (n_increased_enrich > min(network_params$size)) {
 if (n_increased > 0 & n_increased != n_sig) {
   enrich_args <- list(
     test_ranges = filter(results, status == "Decreased"),
-    db = msigdb, gtf = gtf_gene, bg = results, genome = ucsc$build,
+    db = msigdb, gtf = gtf$gene, bg = results, genome = ucsc$build,
     threads = threads, adj_method = adj_method, min_sig = enrich_params$min_sig,
     params = region_params$promoters
   )
@@ -2350,7 +2350,7 @@ results %>%
     gene_name = id2gene[gene_id],
     distance_to_gene = distance(
       GRanges(range),
-      setNames(gtf_gene, gtf_gene$gene_id)[gene_id]
+      setNames(gtf$gene, gtf$gene$gene_id)[gene_id]
     )
   ) %>% 
   write_csv(all_out$csv)

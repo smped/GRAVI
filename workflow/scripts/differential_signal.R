@@ -49,7 +49,7 @@ cat_time <- function(...){
 # target <- "H3K27ac"
 # all_input <- list(
 #   counts = "output/differential_signal/{target}/{target}_counts.rds",
-#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   gtf = "output/annotations/gtf.rds",
 #   hic = "output/annotations/hic.rds",
 #   features = "output/annotations/features.rds",
 #   regions = "output/annotations/gene_regions.rds",
@@ -137,7 +137,7 @@ ihw_method <- match.arg(
 fdr_alpha <- diff_sig_params$alpha
 
 cat_time("Loading annotations")
-gtf_gene <- read_rds(all_input$gtf_gene)
+gtf <- read_rds(all_input$gtf)
 sq <- read_rds(all_input$sq)
 regions <- read_rds(all_input$regions)
 features <- read_rds(all_input$features)
@@ -355,7 +355,7 @@ if (win_type == "sliding") {
   map_by_feature_args$enh <- feat_enh
   map_by_feature_args$gi <- hic
   map_by_feature_args$gr <- results
-  map_by_feature_args$genes <- gtf_gene
+  map_by_feature_args$genes <- gtf$gene
 
   results <- do.call("mapByFeature", map_by_feature_args)
 

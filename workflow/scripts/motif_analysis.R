@@ -117,7 +117,7 @@ library(plyranges)
 motif_params <- all_params$motif_params
 
 ## Contains the function for finding UCSC build info
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/get_ucsc.R"))
 ucsc <- get_ucsc(config$genome$build)
 pkg <- paste(c("BSgenome", ucsc$sp, "UCSC", ucsc$build), collapse = ".")
 cat_time("Loading", pkg)
@@ -140,7 +140,7 @@ cat_time("Resizing and recentering peaks")
 peaks <- peaks |>
   mutate(centre = paste0(seqnames, ":", centre)) |>
   colToRanges("centre", seqinfo = sq) |>
-  resize(width = motif_params$peak_width, fix = "center") 
+  resize(width = motif_params$peak_width, fix = "center")
 ## Recentering may have moved some of these
 cat_time("Remapping peaks to regions")
 peaks$region <- bestOverlap(peaks, gene_regions)
@@ -174,7 +174,7 @@ cat_time(
 
 cat_time("Started getting best matches")
 matches <- getPwmMatches(
-  motif_list[!ignore], test_seq, best_only = TRUE, 
+  motif_list[!ignore], test_seq, best_only = TRUE,
   min_score = motif_params$min_score, break_ties = motif_params$break_ties,
   mc.cores = threads
 )

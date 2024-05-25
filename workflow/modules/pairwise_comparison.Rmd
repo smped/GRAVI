@@ -43,8 +43,8 @@ library(tidygraph)
 library(universalmotif)
 library(motifTestR)
 # library(GenomicInteractions)
-source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "enrichment_funs.R"))
+source(here::here("scripts", "custom_functions.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 threads <- detectCores() - 1
 if (interactive()) threads <- 4
 config <- read_yaml(here::here("config", "config.yml"))
@@ -118,7 +118,7 @@ regioner_params <- here::here("config", "params.yml") %>%
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   .[targets]
-source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("scripts", "table_funs.R"))
 ```
 
 
@@ -147,10 +147,10 @@ region_sources <- tibble(
       bind_rows(.id = 'source')
   )
 ## Gene-level
-gtf_gene <- here::here(all_paths$annotation, "gtf_gene.rds") %>% read_rds()
-id2gene <- structure(gtf_gene$gene_name, names = gtf_gene$gene_id) %>% 
+gtf <- here::here(all_paths$annotation, "gtf.rds") %>% read_rds()
+id2gene <- structure(gtf$gene$gene_name, names = gtf$gene$gene_id) %>% 
   .[!duplicated(names(.))]
-prot_genes <- subset(gtf_gene, gene_type == "protein_coding")$gene_name
+prot_genes <- subset(gtf$gene, gene_type == "protein_coding")$gene_name
 rna <- here::here(all_paths$annotation, "rna.rds") %>% read_rds()
 ## HiC
 hic <- here::here(all_paths$annotation, "hic.rds") %>% read_rds()
@@ -1959,7 +1959,7 @@ enrich_by_status <- ranges_by_status %>%
   lapply(
     \(x) {
       args <- list(
-        test_ranges = x, db = msigdb, gtf = gtf_gene, bg = combined_results, 
+        test_ranges = x, db = msigdb, gtf = gtf$gene, bg = combined_results, 
         genome = ucsc$build, threads = threads, adj_method = adj_method, 
         min_sig = enrich_params$min_sig, params = region_params$promoters
       )

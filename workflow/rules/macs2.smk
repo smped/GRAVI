@@ -58,9 +58,9 @@ rule peak_qc:
             os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
-        blacklist = os.path.join(annotation_path, "blacklist.rds"),
+        blacklist = rules.prep_blacklist.output.blacklist, 
         checks = ALL_CHECKS,
-        greylist = os.path.join(grey_path, "greylists.rds"),
+        greylist = rules.combine_greylists.output.rds,
         input_bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
             sample = set(df[df.target == wildcards.target]['input']),
@@ -73,8 +73,8 @@ rule peak_qc:
             os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
-        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        seqinfo = rules.create_genome_annotations.output.seqinfo, 
+        gene_regions = rules.create_genome_annotations.output.regions, 
     output:
         cors = os.path.join(
             macs2_path, "{target}", "{target}_cross_correlations.tsv"

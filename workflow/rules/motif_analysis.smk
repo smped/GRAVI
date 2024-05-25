@@ -2,7 +2,7 @@ rule motif_analysis_peaks:
     input:
         exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
         gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
-        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        motifs = rules.prep_motifs.output.motifs,
         packages = os.path.join(check_path, "r-packages.chk"),
         peaks = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.rds"
@@ -31,8 +31,8 @@ rule motif_analysis_peaks:
 rule motif_analysis_shared:
     input:
         exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
-        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
-        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        gene_regions = rules.create_genome_annotations.output.regions, 
+        motifs = rules.prep_motifs.output.motifs,
         packages = os.path.join(check_path, "r-packages.chk"),
         peaks = os.path.join(
             peak_path, "shared", "shared_peaks.rds"
@@ -60,7 +60,7 @@ rule motif_analysis_shared:
 
 rule motif_analysis_dsa:
     input:
-        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        motifs = rules.prep_motifs.output.motifs,
         packages = os.path.join(check_path, "r-packages.chk"),
         results = os.path.join(
             diff_path, "{target}", 
@@ -95,11 +95,11 @@ rule motif_analysis_pairwise:
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
         ),
-        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        motifs = rules.prep_motifs.output.motifs,
         script = os.path.join(
             "workflow", "scripts", "pairwise_motif_analysis.R"
         ),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        seqinfo = rules.create_genome_annotations.output.seqinfo, 
     output:
         enrich_tsv = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
