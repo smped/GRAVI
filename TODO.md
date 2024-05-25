@@ -1,10 +1,10 @@
 ## General
 
-- [ ] Update all Rmd for RELEASE 3.18
+- [x] Update all Rmd for RELEASE 3.18
     - [x] annotations
     - [x] macs2
     - [x] differential signal
-    - [ ] pairwise comparisons
+    - [x] pairwise comparisons
 - [x] Update r environment for RELEASE 3.18
 - [x] Change terminology from differential binding to differential signal
 - [ ] Check for compatibility with extraChIPs >= v1.7.1
@@ -13,13 +13,13 @@
   - [x] pairwise comparisons
 - [x] Checks for input file consistency/structure
 - [x] Shift `cowplot` to `patchwork`
-- [ ] Motif Detection
+- [x] Motif Detection
   - [x] Macs2 Summary
   - [x] Shared Peaks
   - [x] Differential Signal
-  - [ ] Pairwise
+  - [x] Pairwise
 - [ ] Update index for more complete description of parameters 
-- [ ] Move scripts for markdown to a new folder (e.g `./scripts`)
+- [x] Move scripts for markdown to a new folder (e.g `./scripts`)
   
 ## Annotation Setup
 
@@ -39,7 +39,7 @@
     1. Sliding Windows with SQN (quantro not essential)
     2. Sliding Windows with TMM/RLE (after quantro)
     3. Fixed width using TMM/RLE (after quantro)
-- [ ] Check selecting the Wald Test for DSA
+- [x] Check selecting the Wald Test for DSA
 - [x] Update main differential signal module
 - [x] Update IHW
 - [x] Shift analysis to a separate script & only reporting in the Rmd/HTML
@@ -51,7 +51,7 @@
 - [x] Update RNA-Seq module
     + Wrangle multiple files
 - [x] Motif Analysis
-- [ ] NFR incorporation
+- [x] NFR incorporation
 
 ## Pairwise Analysis
 
@@ -78,7 +78,7 @@
     - Motif analysis
     - RegioneR analysis
     - **No enrichment analysis required**
-- [ ] Integrate with Differential Signal
+- [x] Integrate with Differential Signal
   - Maybe still perform DSA on main target & then look at NFRs which overlap, rather than performing DSA on NFRs
   - This way all analysis is done, but without requiring more complicated signalling
   - Can be written as a module to be inserted into DSA when present
@@ -89,8 +89,8 @@
 
 - [ ] Add `pairwise_comparisons/{t1}_{t2}/{t1}_{ref1}_{treat1}_{t2}_{ref2}_{treat2}-de_genes.csv` to output of pairwise_comparisons when RNA-Seq data is provided
 - [x] Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
-- [ ] Cleanup handling of detected genes, particularly in the setup of annotations
-- [ ] Place all gtf objects back into a single GRangesList...
+- [x] Cleanup handling of detected genes, particularly in the setup of annotations
+- [x] Place all gtf objects back into a single GRangesList...
 
 ## Additional Notes
 

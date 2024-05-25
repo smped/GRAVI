@@ -1364,286 +1364,292 @@ network_changed_rna_enrich <- changed_rna_enrich %>%
   )  
 ```
 
-```{r increased-rna-enrichment}
-increased_rna_enrich <- gsea_dir %>% 
-  lapply(
-    \(x) {
-      x %>% 
-        inner_join(increased_enrich_df, by = c("pathway" = "gs_name")) %>% 
-        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
-        nest(p = all_of(c("pval", "p"))) %>% 
-        mutate(
-          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
-          adj_p = p.adjust(meta_p, enrich_params$adj),
-          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
-          n_cmn = map_int(cmn_ids, length)
-        ) %>% 
-        arrange(meta_p) %>% 
-        dplyr::filter(
-          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
-        ) %>% 
-        mutate(
-          genes = map_chr(
-            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+```{r increased-rna-enrichment, echo = "increased_enrich_df" %in% ls()}
+tbl_increased_rna_enrich <- list()
+if ("increased_enrich_df" %in% ls()) {
+  increased_rna_enrich <- gsea_dir %>% 
+    lapply(
+      \(x) {
+        x %>% 
+          inner_join(increased_enrich_df, by = c("pathway" = "gs_name")) %>% 
+          dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
+          nest(p = all_of(c("pval", "p"))) %>% 
+          mutate(
+            meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
+            adj_p = p.adjust(meta_p, enrich_params$adj),
+            cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
+            n_cmn = map_int(cmn_ids, length)
+          ) %>% 
+          arrange(meta_p) %>% 
+          dplyr::filter(
+            adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
+          ) %>% 
+          mutate(
+            genes = map_chr(
+              cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+            )
+          ) %>% 
+          dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
+      }
+    ) %>% 
+    .[map_int(., nrow) > 0]
+  tbl_increased_rna_enrich <- names(increased_rna_enrich) %>% 
+    lapply(
+      \(x) {
+        id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+        id <- paste0(id, "-increased-enrich-tbl")
+        df <- increased_rna_enrich[[x]]
+        tbl <- reactable(
+          df, 
+          searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+          columns = enrich_cols[colnames(df)],
+          elementId = id
+        )
+        cp <- tags$em(
+          glue(
+            "Results when combining directional GSEA results from {x} ",
+            "with DSA enrichment results from {target}."
           )
-        ) %>% 
-        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
-    }
-  ) %>% 
-  .[map_int(., nrow) > 0]
-tbl_increased_rna_enrich <- names(increased_rna_enrich) %>% 
-  lapply(
-    \(x) {
-      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
-      id <- paste0(id, "-increased-enrich-tbl")
-      df <- increased_rna_enrich[[x]]
-      tbl <- reactable(
-        df, 
-        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
-        columns = enrich_cols[colnames(df)],
-        elementId = id
-      )
-      cp <- tags$em(
-        glue(
-          "Results when combining directional GSEA results from {x} ",
-          "with DSA enrichment results from {target}."
         )
-      )
-      htmltools::div(
-        id = id, class = "section level5",
-        h5("Combined Enrichment: DSA increased"),
-        tbl, tags$caption(cp)
-      )
-    }
-  ) %>% 
-  setNames(names(increased_rna_enrich))
-network_increased_rna_enrich <- increased_rna_enrich %>% 
-  map_int(nrow) %>% 
-  is_weakly_greater_than(min(network_params$size)) %>% 
-  which() %>% 
-  names() %>%  
-  sapply(
-    \(x) {
-      p <- increased_rna_enrich[[x]] %>% 
-        mutate(
-          gene_set_size = msigdb %>% 
-            dplyr::filter(gs_name %in% pathway) %>% 
-            split(.$gs_name) %>% 
-            .[pathway] %>% 
-            map_int(nrow),
-          prop = n_cmn / gene_set_size,
-          cmn_ids = setNames(cmn_ids, pathway)
-        ) %>% 
-        make_tbl_graph(
-          gs = .$cmn_ids,
-          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-          hit_col = "n_cmn", size_col = "gene_set_size",
-          min_dist = network_params$max_distance,
-          max_gs = max(network_params$size)
-        ) %>% 
-        ggraph(layout = net_layout, weights = oc) +
-        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-        geom_node_point(
-          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
-          shape = 21
-        ) +
-        geom_node_text(
-          aes(label = label, alpha = prop),
-          colour = "black", size = 3, 
-          data = . %>%
-            mutate(
-              label = str_replace_all(label, "_", " ") %>% 
-                str_trunc(60) %>% 
-                str_wrap(width = 18)
-            ),
-          repel = TRUE, bg.color = "white", bg.r = 0.1, 
-        ) +
-        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-        scale_size_continuous(range = c(1, 10)) +
-        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-        theme_void() 
-      
-      ## Export the image
-      img_out <- file.path(
-        fig_path, glue("network_increased_rna_enrich_{x}.{fig_type}")
-      )
-      fig_fun(filename = img_out, width = fw, height = fh)
-      print(p)
-      dev.off()
-      
-      ## Create html tags
-      fig_link <- str_extract(img_out, "assets.+")
-      cp <- htmltools::tags$em(
-        glue(
-          "The relationship between gene-sets considered enriched when ",
-          "including GSEA results from {x} and increased sites from {target} ",
-          "DSA analysis."
-        )
-      )
-      htmltools::div(
-        id = img_out %>% 
-          basename() %>% 
-          str_remove_all(glue(".{fig_type}$")) %>% 
-          str_to_lower() %>% 
-          str_replace_all("_", "-"),
-        class = "section level5",
-        htmltools::h5("Enrichment Network: DSA Increased"),
         htmltools::div(
-          class = "figure", style = "text-align: center",
-          htmltools::img(src = fig_link, width = "100%"),
-          htmltools::tags$caption(cp)
+          id = id, class = "section level5",
+          h5("Combined Enrichment: DSA increased"),
+          tbl, tags$caption(cp)
         )
-      )
-      
-    }, simplify = FALSE
-  )  
+      }
+    ) %>% 
+    setNames(names(increased_rna_enrich))
+  network_increased_rna_enrich <- increased_rna_enrich %>% 
+    map_int(nrow) %>% 
+    is_weakly_greater_than(min(network_params$size)) %>% 
+    which() %>% 
+    names() %>%  
+    sapply(
+      \(x) {
+        p <- increased_rna_enrich[[x]] %>% 
+          mutate(
+            gene_set_size = msigdb %>% 
+              dplyr::filter(gs_name %in% pathway) %>% 
+              split(.$gs_name) %>% 
+              .[pathway] %>% 
+              map_int(nrow),
+            prop = n_cmn / gene_set_size,
+            cmn_ids = setNames(cmn_ids, pathway)
+          ) %>% 
+          make_tbl_graph(
+            gs = .$cmn_ids,
+            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+            hit_col = "n_cmn", size_col = "gene_set_size",
+            min_dist = network_params$max_distance,
+            max_gs = max(network_params$size)
+          ) %>% 
+          ggraph(layout = net_layout, weights = oc) +
+          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+          geom_node_point(
+            aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+            shape = 21
+          ) +
+          geom_node_text(
+            aes(label = label, alpha = prop),
+            colour = "black", size = 3, 
+            data = . %>%
+              mutate(
+                label = str_replace_all(label, "_", " ") %>% 
+                  str_trunc(60) %>% 
+                  str_wrap(width = 18)
+              ),
+            repel = TRUE, bg.color = "white", bg.r = 0.1, 
+          ) +
+          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+          scale_size_continuous(range = c(1, 10)) +
+          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+          theme_void() 
+        
+        ## Export the image
+        img_out <- file.path(
+          fig_path, glue("network_increased_rna_enrich_{x}.{fig_type}")
+        )
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(p)
+        dev.off()
+        
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "The relationship between gene-sets considered enriched when ",
+            "including GSEA results from {x} and increased sites from {target} ",
+            "DSA analysis."
+          )
+        )
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level5",
+          htmltools::h5("Enrichment Network: DSA Increased"),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+        
+      }, simplify = FALSE
+    )  
+}
 ```
 
-```{r decreased-rna-enrichment}
-decreased_rna_enrich <- gsea_dir %>% 
-  lapply(
-    \(x) {
-      x %>% 
-        inner_join(decreased_enrich_df, by = c("pathway" = "gs_name")) %>% 
-        dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
-        nest(p = all_of(c("pval", "p"))) %>% 
-        mutate(
-          meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
-          adj_p = p.adjust(meta_p, enrich_params$adj),
-          cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
-          n_cmn = map_int(cmn_ids, length)
-        ) %>% 
-        arrange(meta_p) %>% 
-        dplyr::filter(
-          adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
-        ) %>% 
-        mutate(
-          genes = map_chr(
-            cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+```{r decreased-rna-enrichment, echo = "decreased_enrich_df" %in% ls()}
+tbl_decreased_rna_enrich <- list()
+if ("decreased_enrich_df" %in% ls()) {
+  decreased_rna_enrich <- gsea_dir %>% 
+    lapply(
+      \(x) {
+        x %>% 
+          inner_join(decreased_enrich_df, by = c("pathway" = "gs_name")) %>% 
+          dplyr::select(pathway, NES, pval, p, leadingEdge, gene_id) %>% 
+          nest(p = all_of(c("pval", "p"))) %>% 
+          mutate(
+            meta_p = map_dbl(p, \(x) metap::maximump(unlist(x))$p),
+            adj_p = p.adjust(meta_p, enrich_params$adj),
+            cmn_ids = mapply(intersect, x = leadingEdge, y = gene_id),
+            n_cmn = map_int(cmn_ids, length)
+          ) %>% 
+          arrange(meta_p) %>% 
+          dplyr::filter(
+            adj_p < enrich_params$alpha, n_cmn >= enrich_params$min_sig
+          ) %>% 
+          mutate(
+            genes = map_chr(
+              cmn_ids, \(x) paste(sort(unique(id2gene[x])), collapse = "; ")
+            )
+          ) %>% 
+          dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
+      }
+    ) %>% 
+    .[map_int(., nrow) > 0]
+  tbl_decreased_rna_enrich <- names(decreased_rna_enrich) %>% 
+    lapply(
+      \(x) {
+        id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
+        id <- paste0(id, "-decreased-enrich-tbl")
+        df <- decreased_rna_enrich[[x]]
+        tbl <- reactable(
+          df, 
+          searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
+          columns = enrich_cols[colnames(df)],
+          elementId = id
+        )
+        cp <- tags$em(
+          glue(
+            "Results when combining directional GSEA results from {x} ",
+            "with DSA enrichment results from {target}."
           )
-        ) %>% 
-        dplyr::select(pathway, NES, meta_p, adj_p, n_cmn, genes, cmn_ids)
-    }
-  ) %>% 
-  .[map_int(., nrow) > 0]
-tbl_decreased_rna_enrich <- names(decreased_rna_enrich) %>% 
-  lapply(
-    \(x) {
-      id <- x %>% str_to_lower() %>% str_replace_all("_", "-")
-      id <- paste0(id, "-decreased-enrich-tbl")
-      df <- decreased_rna_enrich[[x]]
-      tbl <- reactable(
-        df, 
-        searchable = TRUE, filterable = TRUE, showPageSizeOptions = TRUE,
-        columns = enrich_cols[colnames(df)],
-        elementId = id
-      )
-      cp <- tags$em(
-        glue(
-          "Results when combining directional GSEA results from {x} ",
-          "with DSA enrichment results from {target}."
         )
-      )
-      htmltools::div(
-        id = id, class = "section level5",
-        h5("Combined Enrichment: DSA Decreased"),
-        tbl, tags$caption(cp)
-      )
-    }
-  ) %>% 
-  setNames(names(decreased_rna_enrich))
-network_decreased_rna_enrich <- decreased_rna_enrich %>% 
-  map_int(nrow) %>% 
-  is_weakly_greater_than(min(network_params$size)) %>% 
-  which() %>% 
-  names() %>%  
-  sapply(
-    \(x) {
-      p <- decreased_rna_enrich[[x]] %>% 
-        mutate(
-          gene_set_size = msigdb %>% 
-            dplyr::filter(gs_name %in% pathway) %>% 
-            split(.$gs_name) %>% 
-            .[pathway] %>% 
-            map_int(nrow),
-          prop = n_cmn / gene_set_size,
-          cmn_ids = setNames(cmn_ids, pathway)
-        ) %>% 
-        make_tbl_graph(
-          gs = .$cmn_ids,
-          alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
-          hit_col = "n_cmn", size_col = "gene_set_size",
-          min_dist = network_params$max_distance,
-          max_gs = max(network_params$size)
-        ) %>% 
-        ggraph(layout = net_layout, weights = oc) +
-        geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
-        geom_node_point(
-          aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
-          shape = 21
-        ) +
-        geom_node_text(
-          aes(label = label, alpha = prop),
-          colour = "black", size = 3, 
-          data = . %>%
-            mutate(
-              label = str_replace_all(label, "_", " ") %>% 
-                str_trunc(60) %>% 
-                str_wrap(width = 18)
-            ),
-          repel = TRUE, bg.color = "white", bg.r = 0.1, 
-        ) +
-        scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
-        scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
-        scale_fill_viridis_c(option = "inferno", begin = 0.2) +
-        scale_alpha(range = c(0.5, 1), trans = "sqrt") +
-        scale_size_continuous(range = c(1, 10)) +
-        scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
-        scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
-        guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
-        labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
-        theme_void() 
-      
-      ## Export the image
-      img_out <- file.path(
-        fig_path, glue("network_decreased_rna_enrich_{x}.{fig_type}")
-      )
-      fig_fun(filename = img_out, width = fw, height = fh)
-      print(p)
-      dev.off()
-      
-      ## Create html tags
-      fig_link <- str_extract(img_out, "assets.+")
-      cp <- htmltools::tags$em(
-        glue(
-          "The relationship between gene-sets considered enriched when ",
-          "including GSEA results from {x} and decreased sites from {target} ",
-          "DSA analysis."
-        )
-      )
-      htmltools::div(
-        id = img_out %>% 
-          basename() %>% 
-          str_remove_all(glue(".{fig_type}$")) %>% 
-          str_to_lower() %>% 
-          str_replace_all("_", "-"),
-        class = "section level5",
-        htmltools::h5("Enrichment Network: DSA Decreased"),
         htmltools::div(
-          class = "figure", style = "text-align: center",
-          htmltools::img(src = fig_link, width = "100%"),
-          htmltools::tags$caption(cp)
+          id = id, class = "section level5",
+          h5("Combined Enrichment: DSA Decreased"),
+          tbl, tags$caption(cp)
         )
-      )
-      
-    }, simplify = FALSE
-  )  
+      }
+    ) %>% 
+    setNames(names(decreased_rna_enrich))
+  network_decreased_rna_enrich <- decreased_rna_enrich %>% 
+    map_int(nrow) %>% 
+    is_weakly_greater_than(min(network_params$size)) %>% 
+    which() %>% 
+    names() %>%  
+    sapply(
+      \(x) {
+        p <- decreased_rna_enrich[[x]] %>% 
+          mutate(
+            gene_set_size = msigdb %>% 
+              dplyr::filter(gs_name %in% pathway) %>% 
+              split(.$gs_name) %>% 
+              .[pathway] %>% 
+              map_int(nrow),
+            prop = n_cmn / gene_set_size,
+            cmn_ids = setNames(cmn_ids, pathway)
+          ) %>% 
+          make_tbl_graph(
+            gs = .$cmn_ids,
+            alpha = enrich_params$alpha, p_col = "adj_p", gs_col = "pathway",
+            hit_col = "n_cmn", size_col = "gene_set_size",
+            min_dist = network_params$max_distance,
+            max_gs = max(network_params$size)
+          ) %>% 
+          ggraph(layout = net_layout, weights = oc) +
+          geom_edge_link(aes(width = oc^2, alpha = oc^2)) +
+          geom_node_point(
+            aes(fill = -log10(meta_p), size = n_cmn, stroke = 1.5 * prop),
+            shape = 21
+          ) +
+          geom_node_text(
+            aes(label = label, alpha = prop),
+            colour = "black", size = 3, 
+            data = . %>%
+              mutate(
+                label = str_replace_all(label, "_", " ") %>% 
+                  str_trunc(60) %>% 
+                  str_wrap(width = 18)
+              ),
+            repel = TRUE, bg.color = "white", bg.r = 0.1, 
+          ) +
+          scale_x_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_y_continuous(expand = expansion(c(0.1, 0.1))) +
+          scale_fill_viridis_c(option = "inferno", begin = 0.2) +
+          scale_alpha(range = c(0.5, 1), trans = "sqrt") +
+          scale_size_continuous(range = c(1, 10)) +
+          scale_edge_width(range = c(1, 6), limits = c(0, 1)) +
+          scale_edge_alpha(range = c(0.1, 0.4), limits = c(0, 1))  +
+          guides(edge_alpha = "none", edge_width = "none", alpha = "none") +
+          labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
+          theme_void() 
+        
+        ## Export the image
+        img_out <- file.path(
+          fig_path, glue("network_decreased_rna_enrich_{x}.{fig_type}")
+        )
+        fig_fun(filename = img_out, width = fw, height = fh)
+        print(p)
+        dev.off()
+        
+        ## Create html tags
+        fig_link <- str_extract(img_out, "assets.+")
+        cp <- htmltools::tags$em(
+          glue(
+            "The relationship between gene-sets considered enriched when ",
+            "including GSEA results from {x} and decreased sites from {target} ",
+            "DSA analysis."
+          )
+        )
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level5",
+          htmltools::h5("Enrichment Network: DSA Decreased"),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+        
+      }, simplify = FALSE
+    )  
+}
 ```
 
 Enrichment analysis was performed combined transcriptomic data with DSA results.
@@ -1651,7 +1657,7 @@ A simple strategy was used taking Wilkinson's maximum p-value method, which retu
 Transcriptomic enrichment was taken as the results from GSEA analysis, whilst enrichment results for `r target` were those obtained above.
 Genes within the Leading Edge for GSEA and which were also mapped to the same pathway within DSA enrichment are returned as the common genes.
 
-3 analysis were performed, with results only returned were significant combined enrichment was found for at least one pathway.
+3 analysis were performed, based on existing enrichment results, with results only returned were significant *combined* enrichment was found for at least one pathway.
 
 1. Enriched pathways within the DSA analysis using all changed sites, and transcriptomic GSEA taking only significance (i.e. non-directional results) to rank pathways
 2. Enriched pathways within the DSA analysis using all increased sites, and transcriptomic GSEA taking directionality and significance to rank pathways
