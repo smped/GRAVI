@@ -1,0 +1,369 @@
+## NFR Motif Analysis
+
+```{r nfr_motif-analysis}
+nfr_motif_params <- here::here("config", "json", "motif_analysis_param.json") %>% 
+  jsonlite::fromJSON() %>% 
+  pluck("nfr")
+nfr_by_status <- nfr %>% 
+  mutate(
+    status = bestOverlap(., results, var = "status") %>% 
+      factor(levels = names(direction_colours)) %>% 
+      fct_collapse(Changed = c("Increased", "Decreased")) %>% 
+      droplevels()
+  ) %>% 
+  unique() %>% 
+  subset(!is.na(status))
+nfr_seq <- nfr_by_status %>% 
+  set_genome_info(ucsc$build) %>% 
+  resize(width = nfr_motif_params$peak_width, fix = 'center') %>% 
+  splitAsList(.$status) %>% 
+  mclapply(\(x) getSeq(bs_genome, x), mc.cores = 2) %>% 
+  lapply(\(x) x[letterFrequency(x, "N")[,1] == 0]) %>% 
+  as("DNAStringSetList")
+nfr_motif_counts <- countPwmMatches(
+  to_list(motif_db), unlist(nfr_seq), mc.cores = threads
+)
+nfr_motif_keep <- nfr_motif_counts > (
+  nfr_motif_params$ignore_below * length(unlist(nfr_seq))
+)
+nfr_motif_enrich <- testMotifEnrich(
+  pwm = to_list(motif_db)[nfr_motif_keep], stringset = nfr_seq$Changed,
+  bg = nfr_seq$Unchanged, model = "hypergeometric", mc.cores = threads
+) %>% 
+  as_tibble(rownames = "altname") %>% 
+  dplyr::rename(adj_p = fdr) %>% 
+  mutate(adj_p = p.adjust(p, nfr_motif_params$adj)) %>% 
+  left_join(
+    dplyr::select(motif_db, name, altname, cluster), by = "altname"
+  ) %>% 
+  dplyr::select(cluster, ends_with("name"), everything())
+nfr_motif_pos <- testMotifPos(
+  to_list(motif_db)[nfr_motif_keep], stringset = nfr_seq$Changed, 
+  binwidth = nfr_motif_params$binwidth, abs = nfr_motif_params$abs, 
+  min_score =  nfr_motif_params$min_score, 
+  break_ties = nfr_motif_params$break_ties, mc.cores = threads
+) %>% 
+  as_tibble(rownames = "altname") %>% 
+  dplyr::select(-consensus_motif) %>% 
+  dplyr::rename(adj_p = fdr) %>% 
+  mutate(adj_p = p.adjust(p, nfr_motif_params$adj)) %>% 
+  left_join(
+    dplyr::select(motif_db, name, altname, cluster), by = "altname"
+  ) %>% 
+  left_join(
+    dplyr::select(motif_db, name, altname, cluster), by = "altname"
+  ) %>% 
+  dplyr::select(cluster, ends_with("name"), everything())
+n_enrich_nfr <- sum(nfr_motif_enrich$adj_p < nfr_motif_params$alpha)
+n_pos_nfr <- sum(nfr_motif_pos$adj_p < nfr_motif_params$alpha)
+```
+
+Given that NFRs has been identified within the set of `r target` loci, sequences for  the `r comma(sum(nfr_by_status$status == "Changed"))` which overlapped changed loci were compared to the sequences of the `r comma(sum(nfr_by_status$status == "Unchanged"))` which were associated wth *unchanged* loci.
+
+The same approach as for the wider `r str_to_lower(region_type)` was used, with peak width set to `r nfr_motif_params$peak_width`bp.
+
+
+### Enriched Motifs {.tabset}
+
+`r if (!n_enrich_nfr) "*No motifs were detected as enriched*"`
+
+`r if (n_enrich_nfr > 0) "#### Enrichment Table"`
+
+```{r tbl-nfr-enrich, eval = n_enrich_nfr > 0, echo = n_enrich_nfr > 0}
+tbl_id <- "nfr_motif-enrich-table"
+tbl <- nfr_motif_enrich %>%
+  arrange(p) %>% 
+  dplyr::filter(adj_p < nfr_motif_params$alpha, enrichment > 1) %>% 
+  mutate(cluster = fct_inorder(as.character(cluster))) %>% 
+  dplyr::select(
+    cluster, ends_with("name"), p, adj_p, matches, expected, enrichment
+  ) %>% 
+  mutate(
+    PWM = lapply(altname, \(x) motif_uri[[x]])
+  ) %>% 
+  reactable(
+    groupBy = "cluster",
+    showPageSizeOptions = TRUE, filterable = TRUE,
+    theme = reactableTheme(style = list(fontSize = 12)),
+    defaultSorted = "adj_p", defaultSortOrder = "asc",
+    columns = motif_cols[colnames(.)],
+    elementId = tbl_id
+  )
+cp <- htmltools::em(
+  glue(
+    "All {n_enrich_nfr} motifs considered as enriched within the 
+    {comma(length(nfr_seq$Changed))} NFRs associated with changed 
+    {target} sites, relative to the {comma(length(nfr_seq$Unchanged))} 
+    NFRs associated with unchanged {target} loci.
+    Testing was performed using a one-sided hypergeometric test and an adjusted 
+    p-value ({nfr_motif_params$adj}) < {nfr_motif_params$alpha} as the criteria for 
+    significance. Motifs are grouped by the clusters formed during setup, 
+    with all motifs shown being considered as significant.
+    Cluster aggregated values are those from the most abundant motif within the 
+    cluster. Individual motifs can be made visible by clicking the arrow next 
+    to the arbitrary cluster identifier. All columns are searchable and filterable."
+  )
+)
+tl <- tagList(
+  tags$button(
+    tagList(fontawesome::fa("download"), "Download as CSV"),
+    onclick = glue(
+      "Reactable.downloadDataCSV('{tbl_id}', '{comp}_nfr_motif_enrich.csv')"
+    )
+  ),
+  tags$button(
+    "Expand/Collapse All",
+    onclick = glue("Reactable.toggleAllRowsExpanded('{tbl_id}')")
+  ),
+  tags$button(
+    "Clear All Filters",
+    onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+  ),
+  tbl,htmltools::tags$caption(cp)
+)
+htmltools::browsable(tl)
+```
+
+
+`r if (n_enrich_nfr > 1) "#### Motif Co-Occurrence"`
+
+```{r enrich-corrplot, echo = n_enrich_nfr > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment, within the NFRs associated with changed {target} loci, were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
+if (n_enrich_res > 1) {
+  top_enrich <- nfr_motif_enrich %>%
+    arrange(p) %>% 
+    dplyr::filter(enrichment > 1, adj_p < nfr_motif_params$alpha) %>% 
+    dplyr::slice(1:20) %>% 
+    pull("altname")
+  cor_mat <- motif_db %>% 
+    dplyr::filter(altname %in% top_enrich) %>% 
+    to_list() %>% 
+    getPwmMatches(nfr_seq$Changed, mc.cores = threads) %>% 
+    lapply(\(x) tibble(seq = unique(x$seq))) %>% 
+    bind_rows(.id = "altname") %>%
+    distinct(altname, seq) %>% 
+    left_join(
+      dplyr::select(nfr_motif_enrich, altname, name), by = "altname"
+    ) %>% 
+    mutate(detected = TRUE) %>% 
+    dplyr::select(seq, name, detected) %>% 
+    pivot_wider(
+      names_from = "name", values_from = "detected", values_fill = FALSE
+    ) %>% 
+    dplyr::select(-seq) %>% 
+    dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
+    cor(method = "spearman")
+  hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
+  dend <- ggdendro::dendro_data(as.dendrogram(hc))
+  levels <- dend$labels$label
+  ym <- max(dend$segments$xend)
+  dend_aes <- aes(yend, xend, xend = y, yend = x)
+  dend_plot <- ggplot(dend$segments) +
+    geom_segment(dend_aes) + 
+    scale_x_reverse(expand = expansion(0)) + 
+    scale_y_reverse(limits = c(ym, 0) + 0.5, expand = expansion(0)) +
+    labs(x = "", y = c()) + 
+    theme_minimal() + 
+    theme(
+      panel.grid = element_blank(), 
+      axis.text = element_blank(), axis.ticks = element_blank(), 
+      plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
+    )
+  p <- cor_mat %>% 
+    as_tibble(rownames = "m1") %>% 
+    pivot_longer(cols = all_of(.$m1), names_to = "m2", values_to = "cor") %>% 
+    mutate(across(starts_with("m"), \(x) factor(x, levels = levels))) %>% 
+    dplyr::filter(m1 != m2) %>% 
+    ggplot(aes(m1, fct_rev(m2))) +
+    geom_point(aes(size = abs(cor), colour = cor, alpha = abs(cor))) +
+    geom_text(
+      aes(label = round(cor*100, 0), alpha = abs(cor)), show.legend = FALSE
+    ) +
+    scale_size(range = c(0, 10), guide = "none") +
+    scale_alpha(range = c(0, 1), guide = "none") +
+    scale_colour_gradient2(
+      low = direction_colours[["Decreased"]], 
+      high = direction_colours[["Increased"]],
+      limits = c(-1, 1), labels = percent_format(suffix = "")
+    ) +
+    scale_x_discrete(position = "top") +
+    labs(x = NULL, y = NULL, colour = expr(paste(rho))) +
+    theme(
+      panel.grid = element_blank(), 
+      axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5)
+    )
+  dend_plot + p + plot_layout(widths = c(0.1, 0.9), axes = "collect")
+}
+```
+
+
+### Motifs Showing Positional Bias {.tabset}
+
+`r if (!n_pos_nfr) "*No motifs were detected with any positional bias*"`
+
+```{r get-top-nfr-pos, echo = n_pos_nfr > 0}
+if (n_pos_nfr) {
+  top_pos <- nfr_motif_pos %>% 
+    dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
+    dplyr::slice(1:9) %>% 
+    dplyr::select(altname, name, cluster)
+  clust_names <- nfr_motif_pos %>% 
+    dplyr::filter(
+      adj_p < nfr_motif_params$alpha,
+      cluster %in% top_pos$cluster
+    ) %>% 
+    arrange(desc(matches_in_region)) %>% 
+    summarise(
+      altname = altname[[1]], .by = cluster,
+      name = paste(name, collapse = "/")
+    ) %>% 
+    mutate(name = setNames(name, altname)) %>% 
+    pull(name)
+}
+```
+
+
+`r if (n_pos_nfr > 0) "#### Results Table"`
+
+```{r tbl-nfr-pos, echo = n_pos_nfr > 0}
+if (n_pos_nfr) {
+  tbl_id <- "nfr-motif-pos-table"
+  tbl <- nfr_motif_pos %>%
+    dplyr::filter(adj_p < nfr_motif_params$alpha) %>%
+    mutate(cluster = fct_inorder(as.character(cluster))) %>% 
+    dplyr::select(
+      cluster, contains("name"), ends_with("p"), start, end, centre, width,
+      contains("total"), matches_in_region, starts_with("e"), 
+    ) %>% 
+    mutate(
+      PWM = lapply(altname, \(x) motif_uri[[x]])
+    ) %>% 
+    reactable(
+      groupBy = "cluster", showPageSizeOptions = TRUE, filterable = TRUE,
+      columns = motif_cols[colnames(.)],
+      columnGroups = list(
+        colGroup(
+          name = "Matches", 
+          columns = c(
+            "total_matches", "prop_total", "matches_in_region", "expected",
+            "enrichment"
+          )
+        ),
+        colGroup(
+          name = "Positional Bias", 
+          columns = c("start", "end", "centre", "width")
+        )
+      ),
+      defaultSorted = "adj_p", defaultSortOrder = "asc",
+      theme = reactableTheme(style = list(fontSize = 12)),
+      elementId = tbl_id
+    )
+  cp <- htmltools::em(
+    glue(
+      "
+    All {n_pos_nfr} TFBMs found to show positional bias within the NFRs 
+    associated with changed {target} loci. An adjusted p-value 
+    ({nfr_motif_params$adj}) below {nfr_motif_params$alpha} was used as the criteria 
+    for significance. Highly similar motifs were clustered during preparation 
+    and are grouped accordingly.
+    Clicking the arrow next to the arbitrary cluster id will reveal full details
+    for all motifs within the cluster which were found to be significant, 
+    including the sequence logo showing information content (ICM).
+    "
+    )
+  )
+  tl <- tagList(
+    tags$button(
+      tagList(fontawesome::fa("download"), "Download as CSV"),
+      onclick = glue(
+        "Reactable.downloadDataCSV('{tbl_id}', '{comp}_position_res.csv')"
+      )
+    ),
+    tags$button(
+      "Expand/Collapse All",
+      onclick = glue("Reactable.toggleAllRowsExpanded('{tbl_id}')")
+    ),
+    tags$button(
+      "Clear All Filters",
+      onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
+    ),
+    tbl,
+    cp
+  )
+  htmltools::browsable(tl)
+}
+```
+
+`r if (n_pos_nfr > 0) "#### Total Matches"`
+
+```{r plot-total-nfr-pos-matches, echo = n_pos_nfr > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
+if (n_pos_nfr > 1) {
+  lb <- glue("{names(clust_names)}\n({clust_names})") %>% 
+    setNames(names(clust_names))
+  top_matches <- motif_db %>% 
+    dplyr::filter(altname %in% top_pos$altname) %>% 
+    mutate(fct = factor(altname, levels = top_pos$altname)) %>% 
+    arrange(fct) %>% 
+    to_list() %>% 
+    getPwmMatches(
+      nfr_seq$Changed, abs = nfr_motif_params$abs, best_only = TRUE, 
+      mc.cores = threads
+    )
+  top_matches %>% 
+    plotMatchPos(
+      geom = "point", abs = nfr_motif_params$abs, use_totals = TRUE,
+      binwidth = 1
+    ) +
+    geom_smooth(se = FALSE, colour = "black", linewidth = 1/2, method = 'loess') +
+    facet_wrap(~name, labeller = as_labeller(lb)) +
+    theme(legend.position = "none") +
+    labs(x = "Distance From NFR Centre", y = "Total Matches")
+}
+```
+
+`r if (n_pos_nfr > 0) "#### Proportional Match Distributions"`
+
+```{r plot-smoothed-nfr-pos, echo = n_pos_nfr > 0, fig.height = 0.75 * fh, fig.cap = glue("*Best matches for the representative motif within each cluster, shown as (A) proportions and (B) as a cumulative distribution*")}
+if (n_pos_nfr > 0) {
+  A <- top_matches %>% 
+    plotMatchPos(
+      se = FALSE, abs = nfr_motif_params$abs, linewidth = 1/2,
+      binwidth = nfr_motif_params$binwidth / 2
+    ) +
+    labs(
+      x = "Distance From Centre", y = "Proportion", colour = "Motifs In Cluster"
+    ) +
+    theme(legend.position = "none")
+  B <- top_matches %>% 
+    plotMatchPos(
+      type = "cdf", geom = "line", abs = nfr_motif_params$abs,
+      linewidth = 1 / 2, binwidth = 1
+    ) +
+    labs(
+      x = "Distance From NFR Centre", y = "Proportion", 
+      colour = "Representative Motif"
+    )
+  A + B + plot_layout(guides = "collect", axis_titles = "collect") 
+}
+```
+
+`r if (n_pos_nfr > 0) "#### Match Heatmap"`
+
+```{r heatmap-nfr-pos, echo = n_pos_nfr > 0, fig.cap = glue("*The top-ranked motifs by positional bias showing the total number of matches within each bin. Motifs are clustered by similarity of totals within this figure when more than two are being displayed. A maximum of 25 motifs are shown in this figure.*")}
+if (n_pos_nfr > 0) {
+  top_pos <- nfr_motif_pos %>% 
+    dplyr::slice(1:25) %>% 
+    pull(altname)
+  motif_db %>% 
+    dplyr::filter(altname %in% top_pos) %>% 
+    to_list() %>% 
+    getPwmMatches(
+      nfr_seq$Changed, abs = nfr_motif_params$abs, best_only = TRUE, mc.cores = threads
+    ) %>% 
+    plotMatchPos(
+      abs = nfr_motif_params$abs, type = "heatmap", cluster = n_pos_nfr > 2,
+      use_totals = TRUE,
+      binwidth = nfr_motif_params$binwidth 
+    ) + 
+    labs(x = "Bin", fill = "Total\nMatches")
+}
+```

@@ -5,14 +5,14 @@
 
 ```{r dummy-params, eval = FALSE, echo = FALSE}
 params <- list(
-  target = "ER",
+  target = "H3K27ac",
   treat_levels = c("E2", "E2DHT"),
-  results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
-  counts = "output/differential_signal/ER/ER_counts.rds",
-  ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
-  localz = "output/differential_signal/ER/ER_E2_E2DHT-regions_localz.rds",
-  motif_enrichment = "output/differential_signal/ER/ER_E2_E2DHT_motif_enrichment.tsv.gz",
-  motif_position = "output/differential_signal/ER/ER_E2_E2DHT_motif_position.tsv.gz"
+  results = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
+  counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
+  ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds",
+  localz = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-regions_localz.rds",
+  motif_enrichment = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT_motif_enrichment.tsv.gz",
+  motif_position = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT_motif_position.tsv.gz"
 )
 ```
 
@@ -185,6 +185,15 @@ if (!dir.exists(fig_path)) dir.create(fig_path, recursive = TRUE)
 
 rna <- file.path(all_paths$annotation, "rna.rds") %>% read_rds()
 has_rna <- length(rna) > 0
+
+nfr <- GRanges(seqinfo = seqinfo(results))
+nfr_rds <- here::here("output", "nfr", target, glue("{target}_consensus_nfr.rds"))
+if (file.exists(nfr_rds)) {
+  nfr <- nfr_rds %>%
+    read_rds() %>% 
+    granges()
+}
+nfr$nfr <- as.character(nfr)
 ```
 
 
@@ -572,8 +581,8 @@ cp <- htmltools::em(
       ),
       glue("")
     ),
-    "Only protein coding genes are shown, however all mapped genes will be ",
-    "returned in the downloaded csv"
+    "Only protein coding genes are listed in this table, however all mapped ", 
+    "genes will be returned if choosing to download the csv"
   )
 )
 fs <- 12
@@ -939,14 +948,6 @@ bwfl <- file.path(
   BigWigFileList() %>% 
   setNames(treat_levels) 
 # Shift peaks if NFRs have been called
-nfr <- GRanges(seqinfo = seqinfo(results))
-nfr_rds <- here::here("output", "nfr", target, glue("{target}_consensus_nfr.rds"))
-if (file.exists(nfr_rds)) {
-  nfr <- nfr_rds %>%
-    read_rds() %>% 
-    granges()
-}
-nfr$nfr <- as.character(nfr)
 sig_ranges <- results %>% 
   filter(!!sym(fdr_column) < fdr_alpha) %>%
   # This will duplicate some ranges with multiple NFR
@@ -1171,18 +1172,23 @@ hfgc_genes <- read_rds(
 gene_col <- "grey"
 collapseTrans <- "auto"
 if (has_rna) {
-  hfgc_genes <- hfgc_genes %>% 
-    mutate(
-      Detected = ifelse(
-        gene %in% bind_rows(rna)$gene_id, "Detected", "Undetected"
-      )
-    ) %>% 
-    split(.$Detected)
-  gene_col <- c(
-    Detected = colours$direction[["unchanged"]],
-    Undetected = colours$direction[["undetected"]]
-  )
-  collapseTrans <- list(Detected = "auto", Undetected = "meta")
+  gene_status <- rna %>% 
+    bind_rows(.id = "dataset") %>% 
+    arrange(FDR) %>% 
+    distinct(gene_id, .keep_all = TRUE) %>% 
+    addDiffStatus() %>% 
+    droplevels() %>%
+    distinct(gene_id, .keep_all = TRUE) %>% 
+    mutate(status = setNames(status, gene_id)) %>% 
+    pull("status")
+  hfgc_genes$status <- gene_status[hfgc_genes$gene] %>% 
+    fct_na_value_to_level("Undetected")
+  hfgc_genes <- splitAsList(hfgc_genes, hfgc_genes$status)
+  gene_col <- direction_colours[names(hfgc_genes)]
+  collapseTrans <- list(
+    Increased = "auto", Decreased = "auto",
+    Unchanged = "meta", Undetected = "meta"
+  )[names(hfgc_genes)]
 }
 ```
 
@@ -1300,7 +1306,7 @@ htmltools::tagList(
 )
 ```
 
-```{r add-ihw, eval = metadata(results)$ihw != "none", child = here::here('workflow/modules/_ihw_differential_signal.Rmd')}
+```{r add-ihw, eval = diff_sig_params$ihw != "none", child = here::here('workflow/modules/_ihw_differential_signal.Rmd')}
 ```
 
 
@@ -2307,6 +2313,10 @@ if (n_pos_res > 0) {
       binwidth = motif_params$binwidth 
     ) + labs(x = "Bin", fill = "Total\n Matches")
 }
+```
+
+
+```{r add-nfr, eval = length(nfr) > 0,  child = here::here('workflow/modules/_nfr_differential_signal.Rmd')}
 ```
 
 

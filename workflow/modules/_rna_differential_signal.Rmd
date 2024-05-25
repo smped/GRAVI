@@ -685,20 +685,14 @@ if (any(has_de) & has_ds) {
         id <- paste0("tbl-", i, "-dsa") %>% 
           str_to_lower() %>% 
           str_replace_all("_", "-")
-        tbl <- rna[[i]] %>% 
+        tbl <- rna[[i]] %>%
           dplyr::filter(FDR < 0.05) %>% 
           left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
           inner_join(
             dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
             by = "gene_id"
           ) %>% 
-          mutate(
-            d = distance(GRanges(range.x), GRanges(range.y)),
-            across(
-              any_of("feature"), 
-              \(x) map_chr(x, \(x) paste(sort(unique(x)), collapse = "; "))
-            )
-          ) %>% 
+          mutate(d = distance(GRanges(range.x), GRanges(range.y))) %>% 
           dplyr::select(-range.x) %>% 
           dplyr::rename(range = range.y) %>% 
           dplyr::select(
@@ -708,7 +702,7 @@ if (any(has_de) & has_ds) {
           dplyr::select(-starts_with("PValue")) %>% 
           reactable(
             showPageSizeOptions = nrow(.) > 10, groupBy = "gene_name",
-            filterable = TRUE, sortable = TRUE,
+            filterable = TRUE, sortable = TRUE, searchable = TRUE,
             columns = list(
               gene_name = colDef(
                 name = "Gene", maxWidth = fs*11,
@@ -767,22 +761,12 @@ if (any(has_de) & has_ds) {
               ),
               region = colDef(
                 name = "Genomic Region", aggregate = "unique",
-                filterInput = function(values, name) {
-                  tags$select(
-                    # Set to undefined to clear the filter
-                    onchange = sprintf(
-                      "Reactable.setFilter('%s', '%s', event.target.value || undefined)",
-                      id, name
-                    ),
-                    # "All" has an empty value to clear the filter, and is the default option
-                    tags$option(value = "", "All"),
-                    lapply(unique(values), tags$option),
-                    "aria-label" = sprintf("Filter %s", name),
-                    style = "width: 100%; height: 28px; font-size: 12px;"
-                  )
-                }
+                filterInput = \(values, name) drop_filter(values, name, id)
               ),
-              feature = colDef(name = "Feature", aggregate = "unique"),
+              feature = colDef(
+                name = "Feature", aggregate = "unique",
+                filterInput = \(values, name) drop_filter(unlist(values), name, id)
+              ),
               logCPM.y = colDef(
                 name = "logCPM", maxWidth = fs*6,
                 aggregate = range_js,
