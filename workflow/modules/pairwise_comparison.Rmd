@@ -43,8 +43,8 @@ library(tidygraph)
 library(universalmotif)
 library(motifTestR)
 # library(GenomicInteractions)
-source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "enrichment_funs.R"))
+source(here::here("scripts", "custom_functions.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 threads <- detectCores() - 1
 if (interactive()) threads <- 4
 config <- read_yaml(here::here("config", "config.yml"))
@@ -118,7 +118,7 @@ regioner_params <- here::here("config", "params.yml") %>%
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   .[targets]
-source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("scripts", "table_funs.R"))
 ```
 
 

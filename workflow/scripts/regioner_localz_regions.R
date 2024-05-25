@@ -77,7 +77,7 @@ library(yaml)
 library(rlang)
 cat_time("done")
 
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/get_ucsc.R"))
 ucsc <- get_ucsc(config$genome$build)
 
 cat_time("Loading all regions...")

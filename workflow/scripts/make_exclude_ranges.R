@@ -71,7 +71,7 @@ library(GenomicRanges)
 library(readr)
 
 cat_time("Getting UCSC build information")
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/get_ucsc.R"))
 ucsc <- get_ucsc(config$genome$build)
 cat_time("done")
 sq <- read_rds(all_input$seqinfo)

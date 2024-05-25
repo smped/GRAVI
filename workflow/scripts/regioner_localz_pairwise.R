@@ -63,7 +63,7 @@ library(plyranges)
 library(readr)
 cat_time("done")
 
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/get_ucsc.R"))
 ucsc <- get_ucsc(config$genome$build)
 
 cat_time("Loading regions...")
@@ -87,11 +87,11 @@ seqinfo(test_regions) <- sq
 cat_time(" done")
 
 cat_time("Importing region set")
-peaks <- all_input$bed %>% 
-  importPeaks(type = 'bed', seqinfo = sq) %>% 
-  unlist() %>% 
-  unname() %>% 
-  granges() %>% 
+peaks <- all_input$bed %>%
+  importPeaks(type = 'bed', seqinfo = sq) %>%
+  unlist() %>%
+  unname() %>%
+  granges() %>%
   unique()
 
 if (length(peaks) < regioner_params$min_regions){

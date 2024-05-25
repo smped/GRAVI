@@ -87,7 +87,7 @@ if (length(all_input$peaks) < 2) {
 } else {
 
   cat_time("Determining the UCSC compatible reference.. ")
-  source(here::here("workflow/scripts/custom_functions.R"))
+  source(here::here("workflow/scripts/get_ucsc.R"))
   ucsc <- get_ucsc(config$genome$build)
   cat_time("done\n")
 

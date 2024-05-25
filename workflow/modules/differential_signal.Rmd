@@ -52,8 +52,8 @@ theme_set(
 threads <- parallel::detectCores() - 1
 if (interactive()) threads <- 4
 register(MulticoreParam(workers = threads))
-source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "enrichment_funs.R"))
+source(here::here("scripts", "custom_functions.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -119,7 +119,7 @@ regioner_params <- here::here("config", "params.yml") %>%
 heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() %>% 
   pluck(target)
-source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("scripts", "table_funs.R"))
 ```
 
 

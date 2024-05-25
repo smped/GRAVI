@@ -45,8 +45,8 @@ region_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("gene_regions")
 all_heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() 
-source(here::here("workflow", "scripts", "custom_functions.R"))
-source(here::here("workflow", "scripts", "table_funs.R"))
+source(here::here("scripts", "custom_functions.R"))
+source(here::here("scripts", "table_funs.R"))
 ```
 
 ```{r colours}

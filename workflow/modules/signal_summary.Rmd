@@ -48,7 +48,7 @@ theme_set(
     theme(plot.title = element_text(hjust = 0.5))
 )
 register(MulticoreParam(workers = threads))
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("scripts", "custom_functions.R"))
 config <- read_yaml(here::here("config", "config.yml"))
 all_paths <- here::here("config", "json", "all_paths.json") %>% 
     jsonlite::fromJSON() %>% 
@@ -75,8 +75,8 @@ peak_calling_params <- here::here("config", "json", "peak_calling_param.json") %
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
-source(here::here("workflow/scripts/table_funs.R"))
-source(here::here("workflow/scripts/enrichment_funs.R"))
+source(here::here("scripts", "table_funs.R"))
+source(here::here("scripts", "enrichment_funs.R"))
 ```
 
 ```{r read-samples}
@@ -631,15 +631,7 @@ htmltools::tagList(
         x <- ranges_by_rep_treat[[i]]
         fig_out <- file.path(fig_path, glue("{i}_replicates.{fig_type}"))
         if (length(x) == 1) {
-          fig_fun(
-            fig_out, 
-            width = knitr::opts_chunk$get("fig.width"),
-            height = ifelse(
-              length(x) < 3,
-              knitr::opts_chunk$get("fig.height") * 0.8,
-              knitr::opts_chunk$get("fig.height") * 0.8
-            )
-          )
+          fig_fun(fig_out, width = fw, height = fh)
           grid.newpage()
           draw.single.venn(length(x[[1]]), category = names(x))
           dev.off()
@@ -650,12 +642,12 @@ htmltools::tagList(
           a1 <- length(x[[1]]) - a12 
           a2 <- length(x[[2]]) - a12
           args <- glue(
-            here::here("workflow", "scripts", "plot_venn.py "),
+            here::here("scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' ", 
             "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[3]]}' ",
-            "-ht {knitr::opts_chunk$get('fig.height')} ", 
-            "-w {knitr::opts_chunk$get('fig.width')} ", 
+            "-ht {fh} ", 
+            "-w {fw} ", 
             "-o '{fig_out}'"
           )
           system2(which_py, args)
@@ -669,24 +661,20 @@ htmltools::tagList(
           a2 <- length(x[[2]]) - (a12 + a23 + a123)
           a3 <- length(x[[3]]) - (a13 + a23 + a123)
           args <- glue(
-            here::here("workflow", "scripts", "plot_venn.py "),
+            here::here("scripts", "plot_venn.py "),
             "-a1 {a1} -a2 {a2} -a12 {a12} -a3 {a3} ",
             "-a13 {a13} -a23 {a23} -a123 {a123} ",
             "-s1 '{names(x)[[1]]}' -s2 '{names(x)[[2]]}' -s3 '{names(x)[[3]]}' ", 
             "-c1 '{rep_col[[1]]}' -c2 '{rep_col[[2]]}' -c3 '{rep_col[[3]]}' ",
-            "-ht {knitr::opts_chunk$get('fig.height')} ", 
-            "-w {knitr::opts_chunk$get('fig.width')} ", 
+            "-ht {fh} ", 
+            "-w {fw} ", 
             "-o '{fig_out}'"
           )
           system2(which_py, args)
         }
         ## An UpSet plot for > 3 replicates
         if (length(x) > 3) {
-          fig_fun(
-            fig_out, 
-            width = knitr::opts_chunk$get("fig.width"),
-            height = knitr::opts_chunk$get("fig.height")
-          )
+          fig_fun(fig_out, width = fw, height = fh)
           grid.newpage()
           ## Prep the data for ComplexUpset
           df <- individual_peaks[dplyr::filter(samples, treat == i)$sample] %>% 

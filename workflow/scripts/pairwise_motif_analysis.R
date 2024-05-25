@@ -90,7 +90,7 @@ library(scales)
 library(parallel)
 
 ## Contains the function for finding UCSC build info
-source(here::here("workflow/scripts/custom_functions.R"))
+source(here::here("workflow/scripts/get_ucsc.R"))
 ucsc <- get_ucsc(config$genome$build)
 pkg <- paste(c("BSgenome", ucsc$sp, "UCSC", ucsc$build), collapse = ".")
 cat_time("Loading", pkg)
