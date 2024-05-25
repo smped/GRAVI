@@ -72,25 +72,23 @@ rule create_index_rmd:
 rule create_annotations_rmd:
     input:
         chrom_sizes = chrom_sizes,
-        features = os.path.join(annotation_path, "features.rds"),
-        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
-        greylist = os.path.join(grey_path, "greylists.rds"),
+        features = rules.prep_features.output.rds, 
+        gene_regions = rules.create_genome_annotations.output.regions, 
+        greylist = rules.combine_greylists.output.rds,
         gsea_dir = os.path.join(annotation_path, "gsea_dir.rds"),
         gsea_sig = os.path.join(annotation_path, "gsea_sig.rds"),
-        gtf_exon = os.path.join(annotation_path, "gtf_exon.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        gtf_transcript = os.path.join(annotation_path, "gtf_transcript.rds"),
-        hic = os.path.join(annotation_path, "hic.rds"),
+        gtf = rules.create_genome_annotations.output.gtf,
+        hic = rules.prep_hic.output.hic, 
         module = os.path.join(
             "workflow", "modules", "annotation_description.Rmd"
         ),
-        motifs = os.path.join(annotation_path, "motif_list.rds"),
-        motif_uri = os.path.join(annotation_path, "motif_uri.rds"),        
+        motifs = rules.prep_motifs.output.motifs,
+        motif_uri = rules.prep_motifs.output.motif_uri,       
         rna = os.path.join(annotation_path, "rna.rds"),    
         script = os.path.join(
             "workflow", "scripts", "create_annotations_rmd.R"
         ),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        seqinfo = rules.create_genome_annotations.output.seqinfo, 
         trans_models = os.path.join(annotation_path, "trans_models.rds"),
         tss = os.path.join(annotation_path, "tss.rds"),
     output:

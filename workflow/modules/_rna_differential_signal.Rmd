@@ -687,7 +687,7 @@ if (any(has_de) & has_ds) {
           str_replace_all("_", "-")
         tbl <- rna[[i]] %>%
           dplyr::filter(FDR < 0.05) %>% 
-          left_join(as_tibble(gtf_gene)[c("range", "gene_id")]) %>% 
+          left_join(as_tibble(gtf$gene)[c("range", "gene_id")]) %>% 
           inner_join(
             dplyr::filter(results_tbl, grepl("(In|De)creased", status)),
             by = "gene_id"

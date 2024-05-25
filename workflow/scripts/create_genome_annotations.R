@@ -119,9 +119,7 @@ seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
 
 cat_time("Exporting gene, transcript and exon-level objects\n")
-write_rds(all_gtf$gene, all_output$gtf_gene, compress = "gz")
-write_rds(all_gtf$transcript, all_output$gtf_transcript, compress = "gz")
-write_rds(all_gtf$exon, all_output$gtf_exon, compress = "gz")
+write_rds(all_gtf, all_output$gtf, compress = "gz")
 cat_time("All gtf_*.rds objects written successfully...\n")
 
 #### Transcript Models (Gviz) ####

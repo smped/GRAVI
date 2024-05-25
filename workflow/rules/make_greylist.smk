@@ -5,7 +5,7 @@ rule make_greylist:
         here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "make_greylist.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds")
+        sq = rules.create_genome_annotations.output.seqinfo, 
     output:
         bed = os.path.join(grey_path, "{ip_sample}_greylist.bed.gz")
     conda: "../envs/rmarkdown.yml"
@@ -24,7 +24,7 @@ rule combine_greylists:
             f = set(df['input'])
         ),
         script = os.path.join("workflow", "scripts", "combine_greylists.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds")
+        sq = rules.create_genome_annotations.output.seqinfo, 
     output:
         rds = os.path.join(grey_path, "greylists.rds")
     conda: "../envs/rmarkdown.yml"

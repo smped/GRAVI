@@ -70,11 +70,11 @@ rule strip_bed:
 
 rule make_consensus_nfr:
     input:
-        blacklist = os.path.join(annotation_path, "blacklist.rds"),
-        features = os.path.join(annotation_path, "features.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        greylist = os.path.join(grey_path, "greylists.rds"),
-        hic = os.path.join(annotation_path, "hic.rds"),
+        blacklist = rules.prep_blacklist.output.blacklist, 
+        features = rules.prep_features.output.rds, 
+        gtf = rules.create_genome_annotations.output.gtf,
+        greylist = rules.combine_greylists.output.rds,
+        hic = rules.prep_hic.output.hic, 
         peaks = lambda wildcards: expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
@@ -82,9 +82,9 @@ rule make_consensus_nfr:
             treat = set(df[df.target == wildcards.target]['treat'])
         ),
         qc = os.path.join(macs2_path, "{target}", "{target}_qc_samples.tsv"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
-        sq = os.path.join(annotation_path, "seqinfo.rds"),
+        sq = rules.create_genome_annotations.output.seqinfo, 
         yaml = os.path.join("config", "params.yml"),
     output:
         bed = os.path.join(
@@ -112,8 +112,8 @@ rule make_consensus_nfr:
 rule nfr_motif_analysis:
     input:
         exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
-        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
-        motifs = os.path.join(annotation_path, "motif_list.rds"),
+        gene_regions = rules.create_genome_annotations.output.regions, 
+        motifs = rules.prep_motifs.output.motifs,
         packages = os.path.join(check_path, "r-packages.chk"),
         peaks = os.path.join(
             nfr_path, "{target}", "{target}_consensus_nfr.rds"
@@ -142,12 +142,12 @@ rule nfr_motif_analysis:
 rule nfr_localz_regions:
     input:
         checks = ALL_CHECKS,
-        features = os.path.join(annotation_path, "features.rds"),
+        features = rules.prep_features.output.rds, 
         peaks = os.path.join(
             nfr_path, "{target}", "{target}_consensus_nfr.bed.gz"
         ),
         params = os.path.join("config", "params.yml"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_regions.R"
         ),
@@ -193,7 +193,7 @@ rule nfr_localz_targets:
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_targets.R"
         ),
-        sq = os.path.join(annotation_path, "seqinfo.rds")
+        sq = rules.create_genome_annotations.output.seqinfo, 
     output:
         rds = os.path.join(
             nfr_path, "{target}", "{target}_nfr_targets_localz.rds"

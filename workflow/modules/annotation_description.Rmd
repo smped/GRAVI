@@ -184,20 +184,18 @@ exclude_ranges %>%
 ### Basic Annotations
 
 ```{r load-gtf}
-gtf_gene <- read_rds(all_out$gtf_gene)
-gtf_transcript <- read_rds(all_out$gtf_transcript)
-gtf_exon <- read_rds(all_out$gtf_exon)
-id2gene <- setNames(gtf_gene$gene_name, gtf_gene$gene_id) %>% 
+gtf <- read_rds(all_out$gtf)
+id2gene <- setNames(gtf$gene$gene_name, gtf$gene$gene_id) %>% 
   .[!duplicated(names(.))]
 ```
 
 - The complete set of genes, transcripts and exons was loaded from the supplied `gtf`, excluding mitochondrial features.
 - The previously generated `Seqinfo` was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects
-- Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(gtf_gene)))`) retained.
+- Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(gtf$gene)))`) retained.
 - Visualisation using the Bioconductor package `Gviz` requires a specific `GRanges` structure for gene and transcript models to be displayed.
 This object was created at this point so transcript models could be simply visualised throughout the workflow.
 
-In total the annotations provided in `r basename(basename(config$external$gtf))` contained `r comma(length(gtf_gene))` genes, `r comma(length(gtf_transcript))` transcripts and `r comma(length(gtf_exon))` exons, after restricting the dataset to the autosomes and sex chromosomes, discarding scaffolds, haplotypes and mitochondrial genes.
+In total the annotations provided in `r basename(basename(config$external$gtf))` contained `r comma(length(gtf$gene))` genes, `r comma(length(gtf$transcript))` transcripts and `r comma(length(gtf$exon))` exons, after restricting the dataset to the autosomes and sex chromosomes, discarding scaffolds, haplotypes and mitochondrial genes.
 
 
 ### Gene-Centric Regions {.tabset}
@@ -327,12 +325,12 @@ gene_regions %>%
 #### Example
 
 ```{r example-id}
-id <- sort(gtf_gene$gene_id)[[1]]
+id <- sort(gtf$gene$gene_id)[[1]]
 ```
 
 
-```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf_gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
-gr <- subset(gtf_gene, gene_id == id) %>% 
+```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf$gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
+gr <- subset(gtf$gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
 ft <- gene_regions %>% 
@@ -345,10 +343,10 @@ ft <- gene_regions %>%
   subset(region != "TSS") %>% 
   sort()
 df <- list(
-  gtf_transcript %>% 
+  gtf$transcript %>% 
     subsetByOverlaps(gr) %>% 
     as_tibble(rangeAsChar = FALSE),
-  gtf_exon %>% 
+  gtf$exon %>% 
     subsetByOverlaps(gr) %>% 
     as_tibble(rangeAsChar = FALSE) 
 ) %>% 
@@ -385,10 +383,10 @@ df %>%
       y = as.integer(transcript_name),
       yend = as.integer(transcript_name)
     ),
-    data = gtf_transcript %>% 
+    data = gtf$transcript %>% 
       subsetByOverlaps(gr) %>% 
       select(transcript_name) %>% 
-      setdiffMC(gtf_exon) %>%
+      setdiffMC(gtf$exon) %>%
       as.data.frame() %>% 
       mutate(transcript_name = vctrs::vec_proxy(transcript_name)) %>% 
       unnest(transcript_name) %>% 

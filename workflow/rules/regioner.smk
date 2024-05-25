@@ -1,11 +1,11 @@
 rule localz_regions:
     input:
         checks = ALL_CHECKS,
-        features = os.path.join(annotation_path, "features.rds"),
+        features = rules.prep_features.output.rds, 
         peaks = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
         ),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
     output:
         rds = os.path.join(peak_path, "{target}", "{target}_regions_localz.rds")
     params:
@@ -23,9 +23,9 @@ rule localz_regions:
 rule localz_regions_shared:
     input:
         checks = ALL_CHECKS,
-        features = os.path.join(annotation_path, "features.rds"),
+        features = rules.prep_features.output.rds, 
         peaks = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_regions.R"
         ),
@@ -55,7 +55,7 @@ rule localz_targets:
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_targets.R"
         ),
-        sq = os.path.join(annotation_path, "seqinfo.rds")
+        sq = rules.create_genome_annotations.output.seqinfo, 
     output:
         rds = os.path.join(peak_path, "shared", "shared_targets_localz.rds")
     params:
@@ -73,11 +73,11 @@ rule localz_targets:
 rule localz_regions_dsa:
     input:
         checks = ALL_CHECKS,
-        features = os.path.join(annotation_path, "features.rds"),
+        features = rules.prep_features.output.rds, 
         peaks = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-changed.bed.gz"
         ),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_regions.R"
         ),
@@ -104,8 +104,8 @@ rule localz_regions_pairwise:
             "{tgt1}_{comp1}-{tgt2}_{comp2}-{pw_dir}.bed.gz"
         ),
         checks = ALL_CHECKS,
-        features = os.path.join(annotation_path, "features.rds"),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        features = rules.prep_features.output.rds, 
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_pairwise.R"
         ),

@@ -6,9 +6,7 @@ rule create_genome_annotations:
         script = os.path.join("workflow", "scripts", "create_genome_annotations.R"),
         yaml = os.path.join("config", "params.yml"),
     output:
-        gtf_exon = os.path.join(annotation_path, "gtf_exon.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        gtf_transcript = os.path.join(annotation_path, "gtf_transcript.rds"),
+        gtf = os.path.join(annotation_path, "gtf.rds"),
         regions = os.path.join(annotation_path, "gene_regions.rds"),
         seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
         trans_models = os.path.join(annotation_path, "trans_models.rds"),
@@ -34,7 +32,7 @@ rule make_exclude_ranges:
         script = os.path.join(
             "workflow", "scripts", "make_exclude_ranges.R"
         ),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds")
+        seqinfo = rules.create_genome_annotations.output.seqinfo
     output:
         rds = os.path.join(annotation_path, "exclude_ranges.rds")
     threads: 1
@@ -50,10 +48,10 @@ rule make_exclude_ranges:
 
 rule prep_features:
     input:
-        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        gene_regions = rules.create_genome_annotations.output.regions, 
         here = os.path.join(check_path, "here.chk"),
         packages = os.path.join(check_path, "r-packages.chk"),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),    
+        seqinfo = rules.create_genome_annotations.output.seqinfo,   
         script = os.path.join("workflow", "scripts", "prep_features.R"),
     output:
         rds = os.path.join(annotation_path, "features.rds"),
@@ -71,7 +69,7 @@ rule prep_blacklist:
     input:
         here = os.path.join(check_path, "here.chk"),
         packages = os.path.join(check_path, "r-packages.chk"),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        seqinfo = rules.create_genome_annotations.output.seqinfo,
         script = os.path.join("workflow", "scripts", "prep_blacklist.R"),
     output:
         blacklist = os.path.join(annotation_path, "blacklist.rds"),
@@ -90,7 +88,7 @@ rule prep_hic:
     input:
         here = os.path.join(check_path, "here.chk"),
         packages = os.path.join(check_path, "r-packages.chk"),
-        seqinfo = os.path.join(annotation_path, "seqinfo.rds"),
+        seqinfo = rules.create_genome_annotations.output.seqinfo, 
         script = os.path.join("workflow", "scripts", "prep_hic.R"),
         yaml = os.path.join("config", "params.yml"),
     output:
@@ -129,7 +127,7 @@ rule prep_msigdb:
         here = os.path.join(check_path, "here.chk"),
         packages = os.path.join(check_path, "r-packages.chk"),
         script = os.path.join("workflow", "scripts", "prep_msigdb.R"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
+        gtf = rules.create_genome_annotations.output.gtf,
         yaml = os.path.join("config", "params.yml"),
     output:
         msigdb = os.path.join(annotation_path, "msigdb.rds"),
@@ -146,8 +144,8 @@ rule prep_msigdb:
 rule prep_rna:
     input:
         here = os.path.join(check_path, "here.chk"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        msigdb = os.path.join(annotation_path, "msigdb.rds"),
+        gtf = rules.create_genome_annotations.output.gtf,
+        msigdb = rules.prep_msigdb.output.msigdb,
         packages = os.path.join(check_path, "r-packages.chk"),
         script = os.path.join("workflow", "scripts", "prep_rna.R"),
         yaml = os.path.join("config", "params.yml"),

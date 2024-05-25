@@ -62,7 +62,7 @@ cat_time <- function(...){
 #   blacklist = "output/annotations/blacklist.rds",
 #   features = "output/annotations/features.rds",
 #   greylist = "output/greylist/greylists.rds",
-#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   gtf = "output/annotations/gtf.rds",
 #   hic = "output/annotations/hic.rds",
 #   regions = "output/annotations/gene_regions.rds",
 #   results1 = file.path(
@@ -453,7 +453,7 @@ if (length(features)) {
 
 ## Map to genes, feature & regions
 cat_time("Loading all annotations")
-gtf_gene <- read_rds(all_input$gtf_gene)
+gtf <- read_rds(all_input$gtf)
 hic <- read_rds(all_input$hic)
 mapping_params <- all_input$yaml %>%
   read_yaml() %>%
@@ -481,7 +481,7 @@ mapping_params <- c(
   mapping_params,
   list(
     gr = combined_results,
-    genes = gtf_gene, prom = prom, enh = feat_enh, gi = hic
+    genes = gtf$gene, prom = prom, enh = feat_enh, gi = hic
   )
 )
 combined_results <- do.call("mapByFeature", mapping_params)

@@ -1,11 +1,11 @@
 rule prepare_pairwise_results:
     input:
-        blacklist = os.path.join(annotation_path, "blacklist.rds"),
-        features = os.path.join(annotation_path, "features.rds"),
-        greylist =  os.path.join(grey_path, "greylists.rds"),
-        gtf_gene = os.path.join(annotation_path, "gtf_gene.rds"),
-        hic = os.path.join(annotation_path, "hic.rds"),
-        regions = os.path.join(annotation_path,"gene_regions.rds"),
+        blacklist = rules.prep_blacklist.output.blacklist, 
+        features = rules.prep_features.output.rds, 
+        greylist =  rules.combine_greylists.output.rds,
+        gtf = rules.create_genome_annotations.output.gtf,
+        hic = rules.prep_hic.output.hic, 
+        regions = rules.create_genome_annotations.output.regions, 
         results1 = os.path.join(
             diff_path, "{tgt1}", "{tgt1}_{comp1}-differential-signal.rds"
         ),

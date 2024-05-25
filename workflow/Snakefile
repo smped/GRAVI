@@ -267,8 +267,7 @@ ANNOTATION_RDS = expand(
 		'blacklist', 'colours', 
 		'features', 'gene_regions', 
 		'gsea_dir', 'gsea_sig',
-		'gtf_exon', 'gtf_gene', 'gtf_transcript', 
-		'hic',
+		'gtf', 'hic',
 		'motif_list', 'motif_uri', 'msigdb',
 		'rna', 'seqinfo', 'trans_models','tss', 
 	]
@@ -400,11 +399,11 @@ rule all:
 include: "rules/downloads.smk"
 include: "rules/initial_checks.smk"
 include: "rules/annotations.smk"
+include: "rules/make_greylist.smk"
 include: "rules/samtools.smk"
 include: "rules/nfr.smk"
 include: "rules/macs2.smk"
 include: "rules/consensus_peaks.smk"
-include: "rules/make_greylist.smk"
 include: "rules/bigwig.smk"
 include: "rules/regioner.smk"
 include: "rules/motif_analysis.smk"

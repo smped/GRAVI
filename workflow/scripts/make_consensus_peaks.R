@@ -46,7 +46,7 @@ cat_time <- function(...){
 #     blacklist = "output/annotations/blacklist.rds",
 #     features = "output/annotations/features.rds",
 #     greylist = "output/greylist/greylists.rds",
-#     gtf_gene = "output/annotations/gtf_gene.rds",
+#     gtf = "output/annotations/gtf.rds",
 #     hic = "output/annotations/hic.rds",
 #     qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
 #     regions = "output/annotations/gene_regions.rds",
@@ -152,7 +152,7 @@ cat_time("Done\n")
 
 ## Map to genes, feature & regions
 cat_time("Loading all annotations")
-gtf_gene <- read_rds(all_input$gtf_gene)
+gtf <- read_rds(all_input$gtf)
 gene_regions <- read_rds(all_input$regions)
 region_levels <- map_chr(gene_regions, \(x) x$region[1]) %>%
   setNames(names(gene_regions))
@@ -221,7 +221,7 @@ cat_time("Mapping peaks to genes")
 mapping_params <- c(
   mapping_params,
   list(
-    gr = cons_peaks, genes = gtf_gene, prom = prom, enh = feat_enh, gi = hic
+    gr = cons_peaks, genes = gtf$gene, prom = prom, enh = feat_enh, gi = hic
   )
 )
 cons_peaks <- do.call("mapByFeature", mapping_params)

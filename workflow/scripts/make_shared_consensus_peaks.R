@@ -40,7 +40,7 @@ sink(log, split = TRUE)
 ## For testing
 # all_input <- list(
 #   features = "output/annotations/features.rds",
-#   gtf_gene = "output/annotations/gtf_gene.rds",
+#   gtf = "output/annotations/gtf.rds",
 #   hic = "output/annotations/hic.rds",
 #   regions = "output/annotations/gene_regions.rds",
 #   peaks = c(
@@ -91,7 +91,7 @@ cat_time("Done\n")
 
 ## Map to genes, feature & regions
 cat_time("Loading all annotations")
-gtf_gene <- read_rds(all_input$gtf_gene)
+gtf <- read_rds(all_input$gtf)
 gene_regions <- read_rds(all_input$regions)
 region_levels <- map_chr(gene_regions, \(x) x$region[1]) %>%
   setNames(names(gene_regions))
@@ -150,7 +150,7 @@ cat_time("Mapping peaks to genes")
 mapping_params <- c(
   mapping_params,
   list(
-    gr = shared_peaks, genes = gtf_gene, prom = prom, enh = feat_enh, gi = hic
+    gr = shared_peaks, genes = gtf$gene, prom = prom, enh = feat_enh, gi = hic
   )
 )
 shared_peaks <- do.call("mapByFeature", mapping_params)
