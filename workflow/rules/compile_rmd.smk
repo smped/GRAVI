@@ -158,7 +158,7 @@ rule compile_differential_signal_html:
     input:
         modules = expand(
             os.path.join("workflow", "modules", "_{f}_differential_signal.Rmd"),
-            f = ['rna', 'ihw']
+            f = ['rna', 'ihw', 'nfr']
         ),
         rmd = os.path.join(
             rmd_path, "{target}_{ref}_{treat}_differential_signal.Rmd"
