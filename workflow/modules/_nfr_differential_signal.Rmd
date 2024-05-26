@@ -127,7 +127,7 @@ htmltools::browsable(tl)
 
 `r if (n_enrich_nfr > 1) "#### Motif Co-Occurrence"`
 
-```{r enrich-corrplot, echo = n_enrich_nfr > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment, within the NFRs associated with changed {target} loci, were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
+```{r nfr-enrich-corrplot, echo = n_enrich_nfr > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment, within the NFRs associated with changed {target} loci, were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
 if (n_enrich_res > 1) {
   top_enrich <- nfr_motif_enrich %>%
     arrange(p) %>% 
