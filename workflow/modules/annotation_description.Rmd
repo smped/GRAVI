@@ -904,7 +904,7 @@ knitr::opts_chunk$set(dev = "png")
 ```
 
 
-`r ifelse(has_features, "## Features", "")`
+`r ifelse(has_features, "### Features", "")`
 
 ```{r plot-feat, eval = has_features, echo = has_features, fig.height = ifelse(length(feat_col) > 8, fh, 3), fig.width= ifelse(length(feat_col) > 8, fw, 2 + length(feat_col))}
 if (length(feat_col) <= 8) {

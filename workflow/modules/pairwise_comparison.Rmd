@@ -2555,7 +2555,8 @@ tagList(
           )
         cp <- htmltools::em(
           glue(
-            "Motif enrichment results when comparing all sites considered as ", 
+            "Motif enrichment results when comparing all 
+            {comma(length(fw_seq[[nm]]))} sites considered as ", 
             "'{nm}' to the sites from all other groups, using a one-sided ", 
             "hypergeometric test to determine enrichment. ", 
             "A total of {comma(n_seq)} sequences were tested within this group. ",
@@ -2855,7 +2856,7 @@ if (any_motif_pos) {
           cp <- htmltools::em(
             glue(
               "All {comma(nrow(x))} motifs showing positional bias within the ", 
-              "sites considered as '{nm}'. ", 
+              "{comma(length(fw_seq[[nm]]))} sites considered as '{nm}'. ", 
               "Significance was determined using an adjusted p-value (method = ", 
               "{motif_params$adj}) < {motif_params$alpha}. ",
               " Highly similar motifs were clustered during preparation and are ", 
