@@ -1,5 +1,6 @@
 rule filter_merged_peaks:
     input:
+        arg_checks = rules.check_args.output,
         blacklist = rules.prep_blacklist.output.blacklist, 
         greylist = rules.combine_greylists.output.rds,
         merged = os.path.join(
@@ -30,6 +31,7 @@ rule filter_merged_peaks:
 
 rule make_consensus_peaks:
     input:
+        arg_checks = rules.check_args.output,
         blacklist = rules.prep_blacklist.output.blacklist, 
         features = rules.prep_features.output.rds, 
         gtf = rules.create_genome_annotations.output.gtf,
@@ -72,6 +74,7 @@ rule make_consensus_peaks:
 
 rule make_shared_consensus_peaks:
     input:
+        arg_checks = rules.check_args.output,
         features = rules.prep_features.output.rds, 
         gtf = rules.create_genome_annotations.output.gtf,
         hic = rules.prep_hic.output.hic, 

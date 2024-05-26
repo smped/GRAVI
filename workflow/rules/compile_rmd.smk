@@ -1,6 +1,7 @@
 rule compile_index_html:
     input:
         html = HTML_OUT,
+        packages = rules.check_r_packages.output,
         rmd = os.path.join(rmd_path, "index.Rmd"),
         setup = rules.create_setup_chunk.output,
         site_yaml = rules.create_site_yaml.output,
@@ -20,8 +21,6 @@ rule compile_index_html:
 
 rule compile_annotations_html:
     input:
-        checks = ALL_CHECKS,
-        greylist = rules.combine_greylists.output.rds,
         rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
         rna_module = os.path.join(
             "workflow", "modules", "_rna_description.Rmd"
@@ -82,6 +81,7 @@ rule compile_signal_summary_html:
 rule compile_signal_comparison_html:
     input:
         annotations = ANNOTATION_RDS,
+        arg_checks = rules.check_args.output,
         bigwig = MERGED_BW,
         motif_enrich = os.path.join(
             peak_path, "shared", "shared_motif_enrichment.tsv.gz"
@@ -90,6 +90,7 @@ rule compile_signal_comparison_html:
             peak_path, "shared", "shared_motif_position.tsv.gz"
         ),
         nfr = NFR_RDS,
+        packages = rules.check_r_packages.output,
         rmd = os.path.join("workflow", "modules", "signal_comparison.Rmd"),
         shared_files = expand(
             os.path.join(peak_path, "shared", "shared_{f}"),

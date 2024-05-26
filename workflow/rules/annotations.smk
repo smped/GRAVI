@@ -1,8 +1,7 @@
 rule create_genome_annotations:
     input:
         bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "create_genome_annotations.R"),
         yaml = os.path.join("config", "params.yml"),
     output:
@@ -27,8 +26,7 @@ rule create_genome_annotations:
 ## blacklisted. Very useful for motif analysis
 rule make_exclude_ranges:
     input:
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         script = os.path.join(
             "workflow", "scripts", "make_exclude_ranges.R"
         ),
@@ -49,8 +47,7 @@ rule make_exclude_ranges:
 rule prep_features:
     input:
         gene_regions = rules.create_genome_annotations.output.regions, 
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         seqinfo = rules.create_genome_annotations.output.seqinfo,   
         script = os.path.join("workflow", "scripts", "prep_features.R"),
     output:
@@ -67,8 +64,7 @@ rule prep_features:
 
 rule prep_blacklist:
     input:
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         seqinfo = rules.create_genome_annotations.output.seqinfo,
         script = os.path.join("workflow", "scripts", "prep_blacklist.R"),
     output:
@@ -86,8 +82,7 @@ rule prep_blacklist:
 
 rule prep_hic:
     input:
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         seqinfo = rules.create_genome_annotations.output.seqinfo, 
         script = os.path.join("workflow", "scripts", "prep_hic.R"),
         yaml = os.path.join("config", "params.yml"),
@@ -105,8 +100,7 @@ rule prep_hic:
 
 rule prep_motifs:
     input:
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "prep_motifs.R"),
         yaml = os.path.join("config", "params.yml"),
     output:
@@ -124,8 +118,7 @@ rule prep_motifs:
 
 rule prep_msigdb:
     input:
-        here = os.path.join(check_path, "here.chk"),
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "prep_msigdb.R"),
         gtf = rules.create_genome_annotations.output.gtf,
         yaml = os.path.join("config", "params.yml"),
@@ -143,10 +136,9 @@ rule prep_msigdb:
 
 rule prep_rna:
     input:
-        here = os.path.join(check_path, "here.chk"),
         gtf = rules.create_genome_annotations.output.gtf,
         msigdb = rules.prep_msigdb.output.msigdb,
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "prep_rna.R"),
         yaml = os.path.join("config", "params.yml"),
     output:

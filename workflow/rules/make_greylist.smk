@@ -2,7 +2,6 @@ rule make_greylist:
     input: 
         bam = os.path.join(bam_path, "{ip_sample}.bam"),
         bai = os.path.join(bam_path, "{ip_sample}.bam.bai"),
-        here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "make_greylist.R"),
         sq = rules.create_genome_annotations.output.seqinfo, 
@@ -23,6 +22,7 @@ rule combine_greylists:
             os.path.join(grey_path, "{f}_greylist.bed.gz"),
             f = set(df['input'])
         ),
+        packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "combine_greylists.R"),
         sq = rules.create_genome_annotations.output.seqinfo, 
     output:

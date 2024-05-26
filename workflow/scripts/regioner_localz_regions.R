@@ -73,7 +73,6 @@ library(regioneReloaded)
 library(extraChIPs)
 library(plyranges)
 library(readr)
-library(yaml)
 library(rlang)
 cat_time("done")
 

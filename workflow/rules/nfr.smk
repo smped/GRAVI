@@ -1,5 +1,6 @@
 rule merge_nearby_peaks:
     input:
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(
             peak_path, "{target}", "{target}_{treat}_filtered_peaks.narrowPeak"
         ),
@@ -75,6 +76,7 @@ rule make_consensus_nfr:
         gtf = rules.create_genome_annotations.output.gtf,
         greylist = rules.combine_greylists.output.rds,
         hic = rules.prep_hic.output.hic, 
+        packages = rules.check_r_packages.output,
         peaks = lambda wildcards: expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_{treat}.nfr.bed.gz"
@@ -111,10 +113,11 @@ rule make_consensus_nfr:
 
 rule nfr_motif_analysis:
     input:
-        exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
+        arg_checks = rules.check_args.output,
+        exclude_ranges = rules.make_exclude_ranges.output.rds,
         gene_regions = rules.create_genome_annotations.output.regions, 
         motifs = rules.prep_motifs.output.motifs,
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(
             nfr_path, "{target}", "{target}_consensus_nfr.rds"
         ),
@@ -141,12 +144,12 @@ rule nfr_motif_analysis:
 
 rule nfr_localz_regions:
     input:
-        checks = ALL_CHECKS,
+        arg_checks = rules.check_args.output,
         features = rules.prep_features.output.rds, 
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(
             nfr_path, "{target}", "{target}_consensus_nfr.bed.gz"
         ),
-        params = os.path.join("config", "params.yml"),
         regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_regions.R"
@@ -187,8 +190,8 @@ def get_nfr_peaks_for_local_z(wildcards):
 
 rule nfr_localz_targets:
     input:
-        checks = ALL_CHECKS,
-        params = os.path.join("config", "params.yml"),
+        arg_checks = rules.check_args.output,
+        packages = rules.check_r_packages.output,
         peaks = get_nfr_peaks_for_local_z,
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_targets.R"

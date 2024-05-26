@@ -1,5 +1,6 @@
 rule count_windows:
     input:
+        arg_checks = rules.check_args.output,
         bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
             sample = df['sample'][(df['target'] == wildcards.target)]
@@ -17,7 +18,6 @@ rule count_windows:
             sample = set(df['input'][(df['target'] == wildcards.target)])
         ),
         blacklist = rules.prep_blacklist.output.blacklist, 
-        chk = ALL_CHECKS,
         greylist = rules.combine_greylists.output.rds,
         macs2_logs = lambda wildcards: expand(
             os.path.join(
@@ -26,6 +26,7 @@ rule count_windows:
             ),
             treat_levels = set(df['treat'][df['target'] == wildcards.target])
         ),
+        packages = rules.check_r_packages.output,   
         peak_qc = os.path.join(
             macs2_path, "{target}", "{target}_qc_samples.tsv"
         ),
@@ -54,17 +55,19 @@ rule count_windows:
 
 rule differential_signal_analysis:
     input:
+        arg_checks = rules.check_args.output,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         gtf = rules.create_genome_annotations.output.gtf,
         hic = rules.prep_hic.output.hic, 
         features = rules.prep_features.output.rds, 
+        packages = rules.check_r_packages.output,   
         peaks = expand(
             os.path.join(
                 peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
                 ),
                 target = targets
         ),
-        regions = os.path.join(annotation_path, "gene_regions.rds"),
+        regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join("workflow", "scripts", "differential_signal.R"),
         sq = rules.create_genome_annotations.output.seqinfo, 
         yaml = os.path.join("config", "params.yml"),

@@ -1,9 +1,10 @@
 rule motif_analysis_peaks:
     input:
-        exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
-        gene_regions = os.path.join(annotation_path, "gene_regions.rds"),
+        arg_checks = rules.check_args.output,
+        exclude_ranges = rules.make_exclude_ranges.output.rds,
+        gene_regions = rules.create_genome_annotations.output.regions, 
         motifs = rules.prep_motifs.output.motifs,
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.rds"
         ),
@@ -30,13 +31,12 @@ rule motif_analysis_peaks:
 
 rule motif_analysis_shared:
     input:
-        exclude_ranges = os.path.join(annotation_path, "exclude_ranges.rds"),
+        arg_checks = rules.check_args.output,
+        exclude_ranges = rules.make_exclude_ranges.output.rds,
         gene_regions = rules.create_genome_annotations.output.regions, 
         motifs = rules.prep_motifs.output.motifs,
-        packages = os.path.join(check_path, "r-packages.chk"),
-        peaks = os.path.join(
-            peak_path, "shared", "shared_peaks.rds"
-        ),
+        packages = rules.check_r_packages.output,
+        peaks = os.path.join(peak_path, "shared", "shared_peaks.rds"),
         script = os.path.join("workflow", "scripts", "motif_analysis.R"),
     output:
         enrich = os.path.join(
@@ -60,8 +60,9 @@ rule motif_analysis_shared:
 
 rule motif_analysis_dsa:
     input:
+        arg_checks = rules.check_args.output,
         motifs = rules.prep_motifs.output.motifs,
-        packages = os.path.join(check_path, "r-packages.chk"),
+        packages = rules.check_r_packages.output,
         results = os.path.join(
             diff_path, "{target}", 
             "{target}_{ref}_{treat}-differential-signal.rds"
@@ -91,11 +92,13 @@ rule motif_analysis_dsa:
 
 rule motif_analysis_pairwise:
     input:
+        arg_checks = rules.check_args.output,
         rds = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"
         ),
         motifs = rules.prep_motifs.output.motifs,
+        packages = rules.check_r_packages.output,
         script = os.path.join(
             "workflow", "scripts", "pairwise_motif_analysis.R"
         ),

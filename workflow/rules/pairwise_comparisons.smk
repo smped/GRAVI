@@ -1,5 +1,7 @@
 rule prepare_pairwise_results:
     input:
+        arg_checks = rules.check_args.output,
+        packages = rules.check_r_packages.output,    
         blacklist = rules.prep_blacklist.output.blacklist, 
         features = rules.prep_features.output.rds, 
         greylist =  rules.combine_greylists.output.rds,

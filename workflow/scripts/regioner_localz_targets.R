@@ -13,8 +13,6 @@
 #'
 #' 1. "output/macs2/shared/all_consensus_localz.rds")
 #'
-#' The enrichment params yaml can also be passed here
-#'
 #' It will be assumed that 5K permutations will be performed and that window
 #' sizes are +/-5kb for a 10kb region
 #'

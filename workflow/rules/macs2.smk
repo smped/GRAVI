@@ -59,7 +59,6 @@ rule peak_qc:
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
         blacklist = rules.prep_blacklist.output.blacklist, 
-        checks = ALL_CHECKS,
         greylist = rules.combine_greylists.output.rds,
         input_bam = lambda wildcards: expand(
             os.path.join(bam_path, "{sample}.bam"),
@@ -69,6 +68,7 @@ rule peak_qc:
             os.path.join(macs2_path, "{sample}", "{sample}_callpeak.log"),
             sample = set(df[df.target == wildcards.target]['sample']),
         ),
+        packages = rules.check_r_packages.output,   
         peaks = lambda wildcards: expand(
             os.path.join(macs2_path, "{sample}", "{sample}_peaks.narrowPeak"),
             sample = set(df[df.target == wildcards.target]['sample']),

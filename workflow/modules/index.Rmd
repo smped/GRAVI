@@ -1,5 +1,7 @@
 ---
-title: "Outline Of Analysis"
+title: "Outline Of Analysis Using GRAVI"
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+bibliography: references.bib
 editor_options:
   chunk_output_type: console
 ---
@@ -14,55 +16,55 @@ library(pander)
 library(yaml)
 library(scales)
 library(glue)
-source(
-  here::here("workflow/scripts/plot_dag_functions.R")
-)
+source(here::here("scripts", "plot_dag_functions.R"))
+panderOptions("table.split.table", Inf)
+panderOptions("big.mark", ",")
+panderOptions("missing", "")
 ```
 
 ```{r config}
-config <- here::here("config/config.yml") %>%
-  read_yaml()
+config <- here::here("config/config.yml") %>% read_yaml()
+params <- here::here("config/params.yml") %>% read_yaml()
 samples <- config$samples$file %>%
   here::here() %>%
   read_tsv()
-rep_col <- setdiff(
-  colnames(samples),
-  c("sample", "target", "treat", "input")
-)
-```
-
-```{r methods, echo=FALSE}
-db_method = list(
-  "ls-ql" = "using library-size normalisation followed by fitting of quasi-likelihood models",
-  "sq-lt" = "using smooth-quantile normalisation followed by limma-trend"
-)[[config$comparisons$method]]
-fc <- config$comparisons$fc
 ```
 
 
 ## Description
 
-This is a standardised workflow for beginning the comparison between two or ChIP targets, using BAM files as the starting point.
-Treatment groups and targets are specified using `config/config.yml`.
+GRAVI is a snakemake workflow for performing a standardised comparison between two or more ChIP targets, using BAM files as the starting point.
+Treatment groups and targets are specified using `config/config.yml`, with all rules and data processing steps determined from the samples provided in `r config$samples$file`.
+
+Additional parameters for analytics steps are specified in `config/params.yml`, with standardised colours specified in `config/colours.yml` and the overall `rmarkdown` appearance able to be set using `config/rmarkdown.yml`.
+
 
 ## Workflow
 
-```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Summary of processing workflow. The primary data pipeline producing key outputs is shown in red, preparatory checks are shown in green whilst steps involved in the collation of final output are in blue.*"}
+```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Modified snakemake DAG showing the entire data processing workflow. Whilst considerable overlap is common between sub-workflows, all preparatory steps are shown in green, peak-calling steps are shown in red, comparisons bvetween peaks are shown in light-brown, differential signal analysis is shown in orange, NFRs are shown in blue with any pairwise comparisons shown in purple.*"}
 here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
   add_input_node(node = "Alignments\n(Bam Files)", col = "red", ignore = "check") %>%
-  change_node_colour("(index|macs2|bedgraph|filter|sort|peaks)", "red") %>%
-  change_node_colour("(create|compile|grey|qc|ranges|run|local)", "blue") %>%
-  change_node_colour("check", "forestgreen") %>%
+  change_node_colour(
+    "(check|prep|greylist|exclude|genome|chrom|create|annot)", "darkgreen"
+  ) %>%
+  change_node_colour("(bam|qc|macs2|signal|peaks|localz|bedgraph)", "red") %>% 
+  change_node_colour("(shared|comparison|targets)", "indianred4") %>% 
+  change_node_colour("(nfr|strip|nearby)", "navyblue") %>% 
+  change_node_colour("(count|differential|dsa)", "darkorange") %>% 
+  change_node_colour("(pairwise)", "purple3") %>% 
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
-  str_replace_all("fontsize=[0-9]+", "fontsize=36") %>%
+  str_replace_all("fontsize=[0-9]+", "fontsize=48") %>% 
+  str_replace_all("penwidth=[0-9]+\\]", "penwidth=8]") %>%
   # str_replace_all("(.+graph.+)(\\];)", "\\1, rankdir = LR\\2") %>%
   grViz()
 ```
 
-## Targets
+## GRAVI Section Outline
+
+### Targets
 
 ```{r tbl-targets}
 samples %>% 
@@ -71,90 +73,211 @@ samples %>%
   rename_all(str_to_title) %>% 
   pander(
     justify = "llr",
-    caption = "Summary of supplied ChIP targets and treatment groups"
+    caption = "Summary of supplied targets and treatment groups"
   )
 ```
 
-## Differential Signal
-
-The specified comparisons are given below, where 'Vs.' can be interpreted as a '-' sign.
-This effectively makes the first listed group as the treatment and the second listed as the reference or control.
-Differential signal analysis will be performed for every ChIP target where both treatment groups are present.
-`r ifelse(config$comparisons$paired, glue("Samples will be nested __within {rep_col}__ as a potential source of correlation."), "")`
-
-`r pander(lapply(config$comparisons$contrasts, function(x) paste(rev(x), collapse = " Vs. ")))`
-
-Differential signal will be performed using `r db_method`.
-`r if (fc > 1) glue("Changes in signal below {percent(fc - 1)} will be considered as 'not of interest' when performing this analysis.")`
+### Peak/Signal Detection
 
 
-## Pairwise Comparisons
-
-All combinations of the comparisons defined above will will be used to perform pairwise comparisons across ChIP targets and contrasts.
-
-## Settings
-
-### Genome
-
-- The genome was specified as (`r config$genome$build`)
-- Annotations were provided in `r config$external$gtf`
-- Blacklisted sites were provided as `r config$external$blacklist`
-
-
-```{r extdata, echo = FALSE}
-ext_data <- config$external[map_int(config$external, length) > 0] %>% 
-  lapply(unlist) %>% 
-  lapply(basename)
-txt <- ifelse(
-  length(ext_data) > 0, 
-  "### External Data
-  
-  The external data provided was:
-  ", 
-  "No external data was included"
-)
+```{r peak-params}
+peak_params <- here::here("config", "json", "peak_calling_param.json") %>% 
+  jsonlite::fromJSON()
+peak_param_df <- peak_params %>% 
+  lapply(as.data.frame) %>% 
+  bind_rows(.id = "target")
 ```
 
-`r txt`
+All initial signal detection was performed using `macs callpeak` [@Zhang18798982] with parameters tailored to each target.
+Parameters were able to be defined for the basic steps of 
 
-`r if (length(ext_data) > 0) pander(ext_data)`
+1. Peak calling
+2. Sample-level QC
+3. Consensus peak formation
 
-### Peak Detection
+#### Peak Calling
 
-Default Macs2 callpeak settings were:
-
-`r pander(config$macs2$default)`
-
-```{r custom-macs2-peaks, echo=FALSE}
-custom_macs2 <- intersect(samples$target, names(config$macs2))
-txt <- ""
-if (length(custom_macs2)) txt <- "Non-default peak-calling settings were specified as:"
+```{r show-macs2-params}
+peak_param_df %>% 
+  dplyr::select(target, gsize, fdr, keep_duplicates, macs2_extra, peak_type) %>% 
+  pander(
+    justify = "llrlll",
+    caption = "Parameters passed to `macs2 callpeak` for each target. Parameters were identical when calling peaks across merged or individual samples."
+  )
 ```
 
-`r txt`
+#### Sample-Level QC
 
-`r if (length(custom_macs2)) pander(config$macs2[custom_macs2])`
-
-Default settings for peak QC were
-
-`r pander(config$peak_qc$default)`
-
-Additional QC settings were incorporated for peak filtering.
-
-- For a sample to pass initial QC, the number of identified peaks needs to be &lt; `r config$peak_qc$default$outlier_threshold`-fold (or &gt; 1/`r config$peak_qc$default$outlier_threshold`-fold ) the median number of peaks identified in each specific treatment group.
-`r if (config$peak_qc$default$allow_zero) "- Samples with zero peaks were permitted given the possibility of cytoplasmic sequestering of ChIP targets under some conditions"`
-- For a peak to be included in the set of treatment-specific "Treatment Peaks", it needs to overlap an identified peak in at least `r percent(config$peak_qc$default$min_prop_reps)` of samples passing the above QC steps.
-
-```{r custom-macs2-qc, echo=FALSE}
-custom_peak_qc <- intersect(samples$target, names(config$peak_qc))
-txt <- ""
-if (length(custom_peak_qc)) txt <- "Additional QC settings were specified as:"
+```{r qc-param}
+peak_param_df %>% 
+  dplyr::select(target, allow_zero, outlier_threshold) %>% 
+  pander(
+    justify = "llr",
+    caption = "QC parameters set for each target. Setting `allow_zero` as `TRUE` allows for the possibility of a sample returning no peaks without being discarded, as may be observed during a transcription factor shifting from cytoplasmic to nuclear. If a given sample contains an excessive number of peaks when compared to the remaining samples within the same treatment group, (`outlier_threshold`), this sample will be marked as an outlier and removed from all subsquent steps. This allows for identification of possible sample mislabelling."
+  )
 ```
 
-`r txt`
+#### Consensus Peaks
 
-`r if (length(custom_peak_qc)) pander(config$peak_qc[custom_macs2])`
+```{r peak-merging-param}
+peak_param_df %>% 
+  dplyr::select(target, starts_with("min"), starts_with("merge")) %>% 
+  pander(
+    caption = "Parameters used when merging peaks within treatment groups, then forming consensus peaks. Despite the fdr passed to `macs2 callpeak` only peaks detected in the merged sample below the `merge_fdr` given here will be retained as representative of peaks within a treatment group. 
+    After passing this threshold, each peak detected in merged sampeles will be required to overlap a peak in > `min_prop_reps` individual samples and must be wider than the values passed to `min_width`.
+    Any merged peaks within `merge_within`bp of each other will also be merged into a single peak."
+  )
+```
 
+
+### Differential Signal
+
+If more than one treatment group is found for any of the supplied targets, and the two conditions are specified in `config.yml`, differential signal analysis (DSA) will be performed.
+Analysis can be performed using fixed-width or sliding windows, but will be performed identically for all comparisons within a given target.
+
+```{r dsa-param}
+dsa_param <- here::here("config", "json", "differential_signal_param.json") %>% 
+  jsonlite::fromJSON()
+dsa_param %>% 
+  lapply(\(x) x[map_int(x, length) > 0]) %>% 
+  lapply(as_tibble) %>% 
+  bind_rows() %>% 
+  mutate(
+    baseline = contrasts[,1],
+    treat = contrasts[,2]
+  ) %>% 
+  dplyr::select(
+    target, baseline, treat, alpha, fc, ihw,
+    method, norm, window_type, window_size, window_step, min_win, filter_q
+  ) %>% 
+  pander(
+    justify = "lllrrllllrrrr",
+    caption = "
+    Summary of all comparisons performed during the analysis.
+    Parameters specific to sliding windows (`window_step`, `filter_q`, `min_win`)
+    will be ignored if using fixed-width windows.
+    All targets are checked for suitability of the chosen normalisation method, 
+    and this is set to 'none' if signal distributions are found to vary across 
+    treatment groups. All DSA is performed using `fitAssayDiff()` from the 
+    Bioconductor package `extraChIPs`
+    "
+  )
+```
+
+### Pairwise Comparisons
+
+
+```{r tbl-pw-param}
+pw_param <- here::here("config", "json", "pairwise_param.json") %>% 
+  jsonlite::fromJSON()
+pw_param %>% 
+  lapply(as_tibble) %>% 
+  bind_rows(.id = 'comparison') %>% 
+  separate(comparison, c("comp1", "comp2"), sep = "-") %>% 
+  mutate(
+    across(
+      starts_with("comp"), 
+      list(
+        target = \(x) str_extract(
+          x, glue("^{paste(unique(samples$target), collapse = '|')}")
+        ),
+        treat = \(x) str_remove_all(
+          x, glue("^({paste(unique(samples$target), collapse = '|')})_")
+        )
+      )
+    )
+  ) %>% 
+  dplyr::select(
+    target1 = comp1_target, comparison1 = comp1_treat, 
+    target2 = comp2_target, comparison2 = comp2_treat,
+    alpha, width_ratio
+  ) %>% 
+  mutate(
+    across(
+      starts_with("comparison"), 
+      \(x) str_replace_all(x, "(.+)_(.+)", "\\2 Vs. \\1")
+    )
+  ) %>% 
+  pander(
+    justify = "llllrr",
+    caption = "
+    All pairwise comparisons performed between individual DSA results.
+    Values for alpha are used when reclassifying overlapping ranges using 
+    Wilkinson's maximump method [@wilkinson51].
+    The `width_ratio` is used to determine whether one particular comparison
+    contains noticeably braoder peaks than the other, with the pairwise 
+    peak-mapping strategy switching from the union of directly overlappng loci 
+    to the broader dataset being scaffolded onto the narrower dataset
+    "
+  )
+```
+
+### NFRs
+
+Where specified nucleosome free regions (NFRs) will be identified, with the expectation that only targets returning broader loci, such as H3K27ac will be passed to this option.
+These are detected using the *Histrader* algorithm [@Yan2020-nz] which is able to identify multiple NFRs within a broad region.
+Where identified, these are used primarily for motif enrichment testing to identify which transcription factors may be implicated with these regions.
+
+NFRs are first identified within each treatment group, then merged to form consensus NFRs using a similar strategy to the formation of consensus peaks for standard ChIP targets.
+
+Parameters used for this step are:
+
+`r pander(params$nfr)`
+
+
+## Key Analyses Within Targets and Comparisons
+
+Within each section, similar analyses are performed whilst being carefully tailored for each specific section.
+
+### Enrichment Analysis
+
+Using the pathways and databases specified in `params.yml`, the same key parameters are used for enrichment testing in every section.
+
+`r pander(params$enrichment)`
+
+Background genesets are drawn from the whole genome for every section, however where comparisons are being performed, analysis are performed comparing genes mapped to loci showing changed signal against other loci with detected signal.
+Details regarding the exact databases used for enrichment testing are given in the [description of annotations](annotation_description.html).
+
+### Region Analysis
+
+The package `regioneReloaded` [@Malinverni2023-ee] forms the core of these analysis which checks for any association with gene-centric regions, defined as part of this workflow, and any other features provided from external sources.
+Any clear association between individual datasets is also investigated.
+Results are returned using formal statistical tests and using heatmaps for visualisation.
+Key parameters are
+
+`r pander(params$regioner)`
+
+
+### Motif Analysis
+
+Using a similar strategy to enrichment testing, motifs are tested for enrichment against a genomic background, except where a subset of loci are changed, with others being unchanged.
+When using a genomic background, motif enrichment uses the `r config$motif_analysis$default$model` model provided in the Biocondctor package `motifTestR`, whilst when comparing between changed and unchanged sites, the *hypergeometric* model is always used.
+
+In addition to enrichment testing, motifs are also tested for positional bias.
+This analysis requires no control or background set of sequences and simply tests for an even distribution of matches across the sequences, or for any specific positional bias, which may the centre of the tested sequences or any other location within the sequences.
+
+```{r tbl-motifs}
+here::here("config", "json", "motif_analysis_param.json") %>% 
+  jsonlite::fromJSON() %>%
+  lapply(as_tibble) %>% 
+  bind_rows(.id = "analysis") %>% 
+  pander(
+    justify = "lllrrlrrlrr",
+    caption = "
+    Parameters used for motif enrichment analysis, with `peak_width` being a 
+    parameter of particular importance, and able to be set for each target. 
+    Notably, whilst any model may be listed here for pairwise comparisons, this 
+    section is hard-coded to use the hypergeometric model for comparisons 
+    between loci defined in a pairwise manner, as it is for loci detected under 
+    DSA. Otherwise motif analysis for loci identified during DSA use the same
+    setting as for that specific target.
+    "
+  )
+```
+
+
+
+## References
 
 <button type="button" class="btn btn-default btn-sessioninfo" data-toggle="collapse" data-target="#sessioninfo" style="display: block;">
 <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span> Session information

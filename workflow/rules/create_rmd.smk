@@ -17,7 +17,7 @@ def get_bw_type(wildcards):
 
 rule create_site_yaml:
     input:
-        here = rules.check_here_file.output,
+        arg_checks = rules.check_args.output,
         packages = rules.check_r_packages.output,
         samples = config['samples']['file'],
         script = os.path.join("workflow", "scripts", "create_site_yaml.R"),
@@ -36,7 +36,6 @@ rule create_site_yaml:
 
 rule create_setup_chunk:
     input:
-        here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "create_setup_chunk.R"),
         yml = "config/rmarkdown.yml",
@@ -54,7 +53,6 @@ rule create_setup_chunk:
 
 rule create_index_rmd:
     input:
-        here = rules.check_here_file.output,
         packages = rules.check_r_packages.output,
         rmd = os.path.join("workflow", "modules", "index.Rmd"),
     output:
@@ -71,6 +69,7 @@ rule create_index_rmd:
 
 rule create_annotations_rmd:
     input:
+        arg_checks = rules.check_args.output,
         chrom_sizes = chrom_sizes,
         features = rules.prep_features.output.rds, 
         gene_regions = rules.create_genome_annotations.output.regions, 
@@ -83,7 +82,8 @@ rule create_annotations_rmd:
             "workflow", "modules", "annotation_description.Rmd"
         ),
         motifs = rules.prep_motifs.output.motifs,
-        motif_uri = rules.prep_motifs.output.motif_uri,       
+        motif_uri = rules.prep_motifs.output.motif_uri,    
+        packages = rules.check_r_packages.output,   
         rna = os.path.join(annotation_path, "rna.rds"),    
         script = os.path.join(
             "workflow", "scripts", "create_annotations_rmd.R"
@@ -107,7 +107,7 @@ rule create_annotations_rmd:
 
 rule create_signal_summary_rmd:
     input:
-        annotations = ANNOTATION_RDS,
+        arg_checks = rules.check_args.output,
         bw = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}",
@@ -118,7 +118,6 @@ rule create_signal_summary_rmd:
         cors = os.path.join(
             macs2_path, "{target}", "{target}_cross_correlations.tsv"
         ),
-        here = rules.check_here_file.output,
         module = "workflow/modules/signal_summary.Rmd",
         packages = rules.check_r_packages.output,
         peak_files = expand(
@@ -146,7 +145,7 @@ rule create_signal_summary_rmd:
 
 rule create_nfr_rmd:
     input:
-        annotations = ANNOTATION_RDS,
+        arg_checks = rules.check_args.output,
         bigwig = lambda wildcards: expand(
             os.path.join(
                 macs2_path, "{{target}}", 
@@ -158,7 +157,6 @@ rule create_nfr_rmd:
             os.path.join(peak_path, "{t}", "{t}_consensus_peaks.rds"),
             t = targets
         ),
-        here = rules.check_here_file.output,
         files = expand(
             os.path.join(
                 nfr_path, "{{target}}", "{{target}}_consensus_nfr.{suffix}"
@@ -207,8 +205,8 @@ rule create_nfr_rmd:
 rule create_differential_signal_rmd:
     input:
         annotations = ANNOTATION_RDS,
+        arg_checks = rules.check_args.output,
         bigwig = get_bw_type,
-        chk = ALL_CHECKS,
         counts = os.path.join(diff_path, "{target}", "{target}_counts.rds"),
         ihw = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-ihw.rds"
@@ -226,6 +224,7 @@ rule create_differential_signal_rmd:
             "{target}_{ref}_{treat}_motif_position.tsv.gz"
         ),
         nfr = NFR_RDS,
+        packages = rules.check_r_packages.output,
         r = os.path.join("workflow", "scripts", "create_differential_rmd.R"),
         results = os.path.join(
             diff_path, "{target}", 
@@ -248,6 +247,7 @@ rule create_differential_signal_rmd:
 
 rule create_pairwise_comparisons_rmd:
     input:
+        arg_checks = rules.check_args.output,
         dsa1 = os.path.join(
             diff_path, "{tgt1}", "{tgt1}_{comp1}-differential-signal.rds"
         ),
@@ -266,6 +266,7 @@ rule create_pairwise_comparisons_rmd:
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-motif_position.tsv.gz"
         ),   
+        packages = rules.check_r_packages.output,
         results = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise-results.rds"

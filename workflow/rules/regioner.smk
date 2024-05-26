@@ -1,7 +1,8 @@
 rule localz_regions:
     input:
-        checks = ALL_CHECKS,
+        arg_checks = rules.check_args.output,
         features = rules.prep_features.output.rds, 
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
         ),
@@ -22,8 +23,9 @@ rule localz_regions:
 
 rule localz_regions_shared:
     input:
-        checks = ALL_CHECKS,
+        arg_checks = rules.check_args.output,
         features = rules.prep_features.output.rds, 
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
         regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
@@ -45,7 +47,8 @@ rule localz_regions_shared:
 
 rule localz_targets:
     input:
-        checks = ALL_CHECKS,
+        arg_checks = rules.check_args.output,
+        packages = rules.check_r_packages.output,
         peaks = expand(
             os.path.join(
                 peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
@@ -72,8 +75,9 @@ rule localz_targets:
 
 rule localz_regions_dsa:
     input:
-        checks = ALL_CHECKS,
+        arg_checks = rules.check_args.output,
         features = rules.prep_features.output.rds, 
+        packages = rules.check_r_packages.output,
         peaks = os.path.join(
             diff_path, "{target}", "{target}_{ref}_{treat}-changed.bed.gz"
         ),
@@ -99,12 +103,13 @@ rule localz_regions_dsa:
 
 rule localz_regions_pairwise:
     input:
+        arg_checks = rules.check_args.output,
         bed = os.path.join(
             pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
             "{tgt1}_{comp1}-{tgt2}_{comp2}-{pw_dir}.bed.gz"
         ),
-        checks = ALL_CHECKS,
         features = rules.prep_features.output.rds, 
+        packages = rules.check_r_packages.output,
         regions = rules.create_genome_annotations.output.regions, 
         script = os.path.join(
             "workflow", "scripts", "regioner_localz_pairwise.R"
@@ -128,6 +133,7 @@ rule localz_regions_pairwise:
 
 rule merge_localz_pairwise:
     input:
+        packages = rules.check_r_packages.output,
         rds = expand(
             os.path.join(
                 pairs_path, "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}",
