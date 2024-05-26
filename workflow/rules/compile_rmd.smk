@@ -49,6 +49,7 @@ rule compile_annotations_html:
 
 rule compile_signal_summary_html:
     input:
+        annotations = ANNOTATION_RDS,
         rmd = os.path.join(rmd_path, "{target}_signal_summary.Rmd"),
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
@@ -199,7 +200,7 @@ rule compile_differential_signal_html:
     threads: lambda wildcards, attempt: 6 * attempt
     resources:
         mem_mb = lambda wildcards, attempt: 48000 * attempt,
-        runtime = lambda wildcards, attempt: 60 * attempt,
+        runtime = lambda wildcards, attempt: 30 * attempt,
         disk_mb = lambda wildcards, attempt: 5000 * attempt,
     log: os.path.join(log_path, "compile_rmd", "{target}_{ref}_{treat}_differential_signal.log")
     shell:

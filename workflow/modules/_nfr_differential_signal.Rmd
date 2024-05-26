@@ -50,9 +50,6 @@ nfr_motif_pos <- testMotifPos(
   left_join(
     dplyr::select(motif_db, name, altname, cluster), by = "altname"
   ) %>% 
-  left_join(
-    dplyr::select(motif_db, name, altname, cluster), by = "altname"
-  ) %>% 
   dplyr::select(cluster, ends_with("name"), everything())
 n_enrich_nfr <- sum(nfr_motif_enrich$adj_p < nfr_motif_params$alpha)
 n_pos_nfr <- sum(nfr_motif_pos$adj_p < nfr_motif_params$alpha)

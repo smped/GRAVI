@@ -1,21 +1,3 @@
-rule check_r_packages:
-    input: 
-        here = rules.check_here_file.output,
-        script = os.path.join("workflow", "scripts", "check_r_packages.R"),
-        yml = os.path.join("workflow", "envs", "rmarkdown.yml"),
-    output: os.path.join(check_path, "r-packages.chk")
-    threads: 1
-    resources:
-        runtime = "30m",
-        mem_mb = 2048,
-    params:
-        min_extrachips = "1.8.2"
-    log: os.path.join(log_path, "initial_checks", "check_r_packages.log")
-    conda: "../envs/rmarkdown.yml"
-    localrule: True
-    script:
-        "../scripts/check_r_packages.R"
-        
 rule check_here_file:
     output: os.path.join(check_path, "here.chk")
     threads: 1
@@ -42,6 +24,24 @@ rule check_here_file:
         fi
         """    
 
+rule check_r_packages:
+    input: 
+        here = rules.check_here_file.output,
+        script = os.path.join("workflow", "scripts", "check_r_packages.R"),
+        yml = os.path.join("workflow", "envs", "rmarkdown.yml"),
+    output: os.path.join(check_path, "r-packages.chk")
+    threads: 1
+    resources:
+        runtime = "30m",
+        mem_mb = 2048,
+    params:
+        min_extrachips = "1.8.2"
+    log: os.path.join(log_path, "initial_checks", "check_r_packages.log")
+    conda: "../envs/rmarkdown.yml"
+    localrule: True
+    script:
+        "../scripts/check_r_packages.R"
+        
 rule check_args:
     input:
         checks = rules.check_r_packages.output,
