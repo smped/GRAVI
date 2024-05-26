@@ -1364,9 +1364,9 @@ network_changed_rna_enrich <- changed_rna_enrich %>%
   )  
 ```
 
-```{r increased-rna-enrichment, echo = "increased_enrich_df" %in% ls()}
+```{r increased-rna-enrichment, echo = nrow(increased_enrich_df) > 0}
 tbl_increased_rna_enrich <- network_increased_rna_enrich <- list()
-if ("increased_enrich_df" %in% ls()) {
+if (nrow(increased_enrich_df) > 0) {
   increased_rna_enrich <- gsea_dir %>% 
     lapply(
       \(x) {
@@ -1508,9 +1508,9 @@ if ("increased_enrich_df" %in% ls()) {
 }
 ```
 
-```{r decreased-rna-enrichment, echo = "decreased_enrich_df" %in% ls()}
+```{r decreased-rna-enrichment, echo = nrow(decreased_enrich_df) > 0}
 tbl_decreased_rna_enrich <- network_decreased_rna_enrich <- list()
-if ("decreased_enrich_df" %in% ls()) {
+if (nrow(decreased_enrich_df) > 0) {
   decreased_rna_enrich <- gsea_dir %>% 
     lapply(
       \(x) {

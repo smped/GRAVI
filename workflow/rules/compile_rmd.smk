@@ -196,10 +196,11 @@ rule compile_differential_signal_html:
         ),
     conda: "../envs/rmarkdown.yml"
     retries: 1
-    threads: lambda wildcards, attempt: 4 * attempt
+    threads: lambda wildcards, attempt: 6 * attempt
     resources:
-        mem_mb = lambda wildcards, attempt: 32000 * attempt,
-        runtime = "1h"
+        mem_mb = lambda wildcards, attempt: 48000 * attempt,
+        runtime = lambda wildcards, attempt: 60 * attempt,
+        disk_mb = lambda wildcards, attempt: 5000 * attempt,
     log: os.path.join(log_path, "compile_rmd", "{target}_{ref}_{treat}_differential_signal.log")
     shell:
         """
