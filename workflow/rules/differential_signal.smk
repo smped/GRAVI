@@ -99,3 +99,36 @@ rule differential_signal_analysis:
         mem_mb = 64000,
     script:
         "../scripts/differential_signal.R"
+
+rule motif_analysis_dsa:
+    input:
+        arg_checks = rules.check_args.output,
+        motifs = rules.prep_motifs.output.motifs,
+        packages = rules.check_r_packages.output,
+        results = os.path.join(
+            diff_path, "{target}", 
+            "{target}_{ref}_{treat}-differential-signal.rds"
+        ),
+        script = os.path.join("workflow", "scripts", "motif_analysis_dsa.R"),
+    output:
+        enrich = os.path.join(
+            diff_path, "{target}", 
+            "{target}_{ref}_{treat}_motif_enrichment.tsv.gz"
+        ),
+        pos = os.path.join(
+            diff_path, "{target}", 
+            "{target}_{ref}_{treat}_motif_position.tsv.gz"
+        ),
+    params:
+        motif_params = lambda wildcards: motif_param[wildcards.target],
+    threads: lambda wildcards, attempt: attempt * 4
+    retries: 2
+    resources:
+        disk_mb = 10000,
+        mem_mb = lambda wildcards, attempt: attempt * 32000,
+        runtime = lambda wildcards, attempt: attempt * 30,
+    log: os.path.join(log_path, "motif_analysis_dsa", "{target}_{ref}_{treat}.log")
+    conda: "../envs/rmarkdown.yml"
+    script:
+        "../scripts/motif_analysis_dsa.R"
+

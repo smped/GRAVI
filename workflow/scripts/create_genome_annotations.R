@@ -87,7 +87,7 @@ cat_time("Seqinfo exported...\n")
 
 #### GTF ####
 ## Perhaps set to this to also take a named list of bed files?
-gtf <- here::here(config$external$gtf)[[1]]
+gtf <- here::here(all_input$gtf)
 stopifnot(file.exists(gtf))
 reqd_cols <- c(
   "type", "gene_id", "gene_type", "gene_name",

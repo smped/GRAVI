@@ -70,6 +70,7 @@ rule create_index_rmd:
 rule create_annotations_rmd:
     input:
         arg_checks = rules.check_args.output,
+        blacklist = blacklist,
         chrom_sizes = chrom_sizes,
         features = rules.prep_features.output.rds, 
         gene_regions = rules.create_genome_annotations.output.regions, 

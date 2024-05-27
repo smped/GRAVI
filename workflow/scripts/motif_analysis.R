@@ -51,9 +51,7 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
+
 
 # all_input <- list(
 #   here = "output/checks/here.chk",
@@ -62,13 +60,12 @@ sink(log, split = TRUE)
 #   motifs = "output/annotations/motif_list.rds",
 #   packages = "output/checks/r-packages.chk",
 #   params = "config/params.yml",
-#   peaks = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.rds"
+#   peaks = "output/peak_analysis/ER/ER_consensus_peaks.rds"
 # )
-
 # all_output <- list(
-#   enrich = "output/peak_analysis/H3K27ac/H3K27ac_motif_enrichment.tsv.gz",
-#   pos = "output/peak_analysis/H3K27ac/H3K27ac_motif_position.tsv.gz",
-#   matches = "output/peak_analysis/H3K27ac/H3K27ac_matches.rds"
+#   enrich = "output/peak_analysis/ER/ER_motif_enrichment.tsv.gz",
+#   pos = "output/peak_analysis/ER/ER_motif_position.tsv.gz",
+#   matches = "output/peak_analysis/ER/ER_matches.rds"
 # )
 # all_params = list(
 #   motif_params = list(
@@ -76,17 +73,20 @@ sink(log, split = TRUE)
 #       adj = "fdr", # not used here
 #       alpha = 0.05, # not used here
 #       binwidth = 10,
-#       break_ties: "all"
+#       break_ties = "all",
 #       peak_width = 400,
 #       ignore_below = 0.01,
 #       iterations = 100,
-#       min_score: "80%",
+#       min_score = "80%",
 #       model = "quasipoisson"
 #     )
 # )
 # config <- list(genome = list(build = "GRCh37"))
 # threads <- 4
 
+log <- slot(snakemake, "log")[[1]]
+message("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
 config <- slot(snakemake, "config")
 threads <- slot(snakemake, "threads")
 all_input <- slot(snakemake, "input")

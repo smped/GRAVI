@@ -72,31 +72,3 @@ rule make_consensus_peaks:
     script:
         "../scripts/make_consensus_peaks.R"
 
-rule make_shared_consensus_peaks:
-    input:
-        arg_checks = rules.check_args.output,
-        features = rules.prep_features.output.rds, 
-        gtf = rules.create_genome_annotations.output.gtf,
-        hic = rules.prep_hic.output.hic, 
-        regions = rules.create_genome_annotations.output.regions, 
-        peaks = expand(
-            os.path.join(
-                peak_path, "{target}", "{target}_consensus_peaks.bed.gz"
-            ),
-            target = targets
-        ),
-        script = os.path.join("workflow", "scripts", "make_consensus_peaks.R"),
-        sq = rules.create_genome_annotations.output.seqinfo, 
-        yaml = os.path.join("config", "params.yml"),
-    output:
-        bed = os.path.join(peak_path, "shared", "shared_peaks.bed.gz"),
-        rds =  os.path.join(peak_path, "shared", "shared_peaks.rds"),    
-    conda: "../envs/rmarkdown.yml"
-    threads: 1
-    retries: 1
-    log: os.path.join(log_path, "make_consensus_peaks", "shared.log")
-    resources:
-        mem_mb = 4096,
-        runtime = "10m"
-    script:
-        "../scripts/make_shared_consensus_peaks.R"

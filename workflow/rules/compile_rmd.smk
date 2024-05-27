@@ -21,6 +21,7 @@ rule compile_index_html:
 
 rule compile_annotations_html:
     input:
+        blacklist = blacklist,
         rmd = os.path.join(rmd_path, "annotation_description.Rmd"),
         rna_module = os.path.join(
             "workflow", "modules", "_rna_description.Rmd"

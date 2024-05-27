@@ -108,17 +108,21 @@ rm_targets = [] # Holds targets with no valid contrasts
 for i in diff_sig_param.keys():
 	poss_levels = set(df['treat'][df['target'] == i])
 	valid_contrasts = []
-	J = len(diff_sig_param[i]['contrasts'])
-	for j in range(J):
-		supplied = diff_sig_param[i]['contrasts'][j].copy()
-		valid = poss_levels.intersection(supplied)
-		if len(valid) == 2:
-			valid_contrasts.extend([supplied])
-	if len(valid_contrasts):
-		diff_sig_param[i]['contrasts'] = valid_contrasts
-		diff_sig_param[i]['target'] = i
+	if diff_sig_param[i]['contrasts']:
+		J = len(diff_sig_param[i]['contrasts'])
+		for j in range(J):
+			supplied = diff_sig_param[i]['contrasts'][j].copy()
+			valid = poss_levels.intersection(supplied)
+			if len(valid) == 2:
+				valid_contrasts.extend([supplied])
+		if len(valid_contrasts):
+			diff_sig_param[i]['contrasts'] = valid_contrasts
+			diff_sig_param[i]['target'] = i
+		else:
+			rm_targets.extend([i])
 	else:
 		rm_targets.extend([i])
+		
 
 if len(rm_targets): # Remove those without valid contrasts
 	for i in rm_targets:
@@ -324,19 +328,21 @@ if (config['modules']['nfr']):
 
 
 ## Try bringing in diffsignal again
-COUNTS = expand(
-	os.path.join(diff_path, "{target}", "{target}_counts.rds"), 
-	target = targets
-)
-ALL_OUTPUTS.extend(COUNTS)
+if len(diff_sig_param):
+	COUNTS = expand(
+		os.path.join(diff_path, "{target}", "{target}_counts.rds"), 
+		target = targets
+	)
+	ALL_OUTPUTS.extend(COUNTS)
+
+
+# Differential Signal
+# all_contrasts = []
 RMD = expand(
 	os.path.join(rmd_path, "{cont}_differential_signal.Rmd"),
 	cont = all_contrasts
 )
 ALL_OUTPUTS.extend(RMD)
-
-# Differential Signal
-# all_contrasts = []
 HTML_OUT.extend(
 	expand(
 		os.path.join("docs", "{cont}_differential_signal.html"),
@@ -401,13 +407,25 @@ include: "rules/initial_checks.smk"
 include: "rules/annotations.smk"
 include: "rules/make_greylist.smk"
 include: "rules/samtools.smk"
-include: "rules/nfr.smk"
+
+if config['modules']['nfr']:
+	include: "rules/nfr.smk"
+
 include: "rules/macs2.smk"
 include: "rules/consensus_peaks.smk"
+
+if len(targets) > 1:
+	include: "shared_peaks.smk"
+
 include: "rules/bigwig.smk"
 include: "rules/regioner.smk"
 include: "rules/motif_analysis.smk"
-include: "rules/differential_signal.smk"
-include: "rules/pairwise_comparisons.smk"
+
+if len(diff_sig_param):
+	include: "rules/differential_signal.smk"
+
+if len(pairs):	
+	include: "rules/pairwise_comparisons.smk"
+
 include: "rules/create_rmd.smk"
 include: "rules/compile_rmd.smk"

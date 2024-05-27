@@ -29,12 +29,13 @@ cat_time <- function(...){
 # all_input <- list(
 #   regions = "output/annotations/gene_regions.rds",
 #   features = "output/annotations/features.rds",
-#   peaks = "output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
+#   peaks = "output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
 #   params = "config/params.yml"
 # )
 # all_output <- list(rds = "output/nfr/H3K27ac/H3K27ac_nfr_regions_localz.rds")
 # all_params <- yaml::read_yaml("config/params.yml")
 # all_wildcards <- list(target = "H3K27ac")
+# threads <- 1
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -82,12 +83,15 @@ ucsc <- get_ucsc(config$genome$build)
 cat_time("Loading all regions...")
 regions <- read_rds(all_input$regions)
 cat_time("Loading all features...")
-features <- read_rds(all_input$features) %>%
+features <- read_rds(all_input$features) 
+if (length(features)) {
+features <- features %>%
   endoapply(select, feature) %>%
   unlist() %>%
   names_to_column("source") %>%
   mutate(feature = paste(source, feature, sep = ": ")) %>%
   splitAsList(.$feature)
+}
 
 cat_time("Forming test_regions...")
 test_regions <- c(regions, features)

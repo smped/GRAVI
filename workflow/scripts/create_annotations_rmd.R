@@ -68,6 +68,7 @@ ln <- glue(
 	bibliography: references.bib
 	link-citations: true
 	params:
+	  blacklist: \"{{all_input$blacklist}}\"
 	  chrom_sizes: \"{{all_input$chrom_sizes}}\"
 	  colours: \"{{all_params$colours}}\"
 	  features: \"{{all_input$features}}\"

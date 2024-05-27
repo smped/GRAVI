@@ -15,7 +15,7 @@ def get_gtf_url(x):
         subdir = '/GRCh37_mapping'
         extra = 'lift37'
     url = list(urllib.parse.urlparse("https://ftp.ebi.ac.uk"))
-    url[2] = "pub/databases/gencode/Gencode_" + sp + "/release_" + gc_vers + subdir + '/' + gtf
+    url[2] = "pub/databases/gencode/Gencode_" + sp + "/release_" + gc_vers + subdir + '/' + os.path.basename(gtf)
     return(urllib.parse.urlunparse(url))
 
 
@@ -36,13 +36,15 @@ rule download_gtf:
 rule download_blacklist:
     output: blacklist
     params:
-        url = "https://github.com/Boyle-Lab/Blacklist/blob/master/lists/" + os.path.basename(blacklist)
+        url = "https://github.com/Boyle-Lab/Blacklist/raw/master/lists/" + os.path.basename(blacklist)
     threads: 1
     localrule: True
     log: os.path.join(log_path, "downloads", "blacklist.log")
     shell:
         """
-        curl --fail-early \
-            --output {output} \
-            {params.url} 2> {log}
+        wget \
+          --output-file {log} \
+          --output-document {output} \
+          {params.url} 2> {log}
         """
+

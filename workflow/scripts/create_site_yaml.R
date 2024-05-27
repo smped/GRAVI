@@ -25,21 +25,20 @@ cat_time <- function(...){
 }
 
 ## For testing
-# config <- yaml::read_yaml("config/config.yml")
-# all_input <- list(
-#   samples =config$samples$file,
-#   script = here::here("workflow", "scripts", "create_site_yaml.R"),
-#   yml = "config/rmarkdown.yml"
-# )
-# all_output <- list(yml = "analysis/_site.yml")
+config <- yaml::read_yaml("config/config.yml")
+all_input <- list(
+  samples =config$samples$file,
+  script = here::here("workflow", "scripts", "create_site_yaml.R"),
+  yml = "config/rmarkdown.yml"
+)
+all_output <- list(yml = "analysis/_site.yml")
 
-log <- slot(snakemake, "log")[[1]]
-cat_time("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-config <- slot(snakemake, "config")
+# log <- slot(snakemake, "log")[[1]]
+# cat_time("Setting stdout to ", log, "\n")
+# sink(log, split = TRUE)
+# all_input <- slot(snakemake, "input")
+# all_output <- slot(snakemake, "output")
+# config <- slot(snakemake, "config")
 
 cat_list(all_input, "input")
 cat_list(all_output, "output")
@@ -67,12 +66,12 @@ treat_by_target <- samples %>%
 cat_time("Loading diff_sig_param")
 diff_sig_param <- jsonlite::fromJSON(
   here::here("config/json/differential_signal_param.json")
-)[all_targets]
+)
 
-cat_time("Defining comparisons...\n")
 ## Sort out the TF comparisons
 comparisons <- diff_signal_yaml <- NULL
 if (length(diff_sig_param)) {
+  cat_time("Defining comparisons...\n")
   comparisons <- diff_sig_param %>%
     lapply(pluck, "contrasts") %>%
     lapply(

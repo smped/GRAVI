@@ -113,11 +113,11 @@ This `Seqinfo` object is added to all subsequent objects requiring information a
 
 ### Blacklisted Regions {.tabset}
 
-Blacklisted regions were supplied in `r pander(unname(unlist(config$external$blacklist)))`.
+Blacklisted regions were supplied in `r pander(unname(unlist(all_out$blacklist)))`.
 In addition, grey-listed regions were derived from all the input `r ifelse(length(unique(samples$input)) == 1, "sample", "samples")`, `r pander(unique(samples$input))`
 
 ```{r blacklist}
-bl <- unlist(config$external$blacklist) %>% 
+bl <- unlist(all_out$blacklist) %>% 
   here::here() %>% 
   importPeaks(type = "bed", seqinfo = sq) 
 gl <- read_rds(all_out$greylist)
@@ -141,7 +141,7 @@ exclude_ranges %>%
   mutate(
     source = map_lgl(
       source, 
-      \(x) any(basename(config$external$blacklist) %in% as.character(x))
+      \(x) any(basename(all_out$blacklist) %in% as.character(x))
     ),
     source = ifelse(source, "blacklisted", "greylisted")
   ) %>% 
@@ -195,7 +195,7 @@ id2gene <- setNames(gtf$gene$gene_name, gtf$gene$gene_id) %>%
 - Visualisation using the Bioconductor package `Gviz` requires a specific `GRanges` structure for gene and transcript models to be displayed.
 This object was created at this point so transcript models could be simply visualised throughout the workflow.
 
-In total the annotations provided in `r basename(basename(config$external$gtf))` contained `r comma(length(gtf$gene))` genes, `r comma(length(gtf$transcript))` transcripts and `r comma(length(gtf$exon))` exons, after restricting the dataset to the autosomes and sex chromosomes, discarding scaffolds, haplotypes and mitochondrial genes.
+In total the annotations provided contained `r comma(length(gtf$gene))` genes, `r comma(length(gtf$transcript))` transcripts and `r comma(length(gtf$exon))` exons, after restricting the dataset to the autosomes and sex chromosomes, discarding scaffolds, haplotypes and mitochondrial genes.
 
 
 ### Gene-Centric Regions {.tabset}
@@ -219,7 +219,7 @@ region_cols <- unlist(colours$regions)[names(regions)] %>%
 ```
 
 
-Using the GTF `r basename(basename(config$external$gtf))`, **unique** and **non-overlapping** gene and transcript-centric features were defined using `defineRegions()`, and will be treated as annotated regions throughout the workflow.
+Using the provided GTF **unique** and **non-overlapping** gene and transcript-centric features were defined using `defineRegions()`, and will be treated as annotated regions throughout the workflow.
 The definition of these regions can be easily modified using `params.yml` to suit user-preferred definitions, with clear descriptions of the method given in the help page available at `?extraChIPs::defineRegions`
 
 The defined regions are:
@@ -574,6 +574,7 @@ tf_db %>%
 external_features <- here::here(all_paths$annotation, "features.rds") %>% 
   read_rds()
 has_features <- length(external_features) > 0
+feat_col <- NULL
 ```
 
 ```{r feat-col, eval = has_features, echo = has_features}
@@ -594,7 +595,7 @@ colours$features <- feat_col[feat_levels]
 
 `r ifelse(!has_features, "No external features were supplied.", glue("The external features provided as ", glue_collapse(names(external_features), sep = ", ", last = " & "), " were compared to the gene-centric annotations described above."))`
 
-```{r plot-feature-by-region, echo = has_features, fig.cap = glue("*The relationship between ranges provided as external features in ", glue_collapse(basename(unlist(config$external$features)), sep = ", ", last = " & "), " and the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions and are shown in Mb.*")}
+```{r plot-feature-by-region, echo = has_features, fig.cap = glue("*The relationship between ranges provided as external features in ", glue_collapse(names(external_features), sep = ", ", last = " & "), " and the gene-centric regions defined above. Values were estimated using the proportion of bases within each feature that overlap each of the regions and are shown in Mb.*")}
 if (has_features) {
   external_features %>% 
     lapply(as_tibble) %>% 

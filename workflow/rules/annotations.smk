@@ -1,6 +1,7 @@
 rule create_genome_annotations:
     input:
         bam = expand(os.path.join(bam_path, "{bam}.bam"), bam = samples),
+        gtf = gtf,
         packages = rules.check_r_packages.output,
         script = os.path.join("workflow", "scripts", "create_genome_annotations.R"),
         yaml = os.path.join("config", "params.yml"),
@@ -64,6 +65,7 @@ rule prep_features:
 
 rule prep_blacklist:
     input:
+        blacklist = blacklist,
         packages = rules.check_r_packages.output,
         seqinfo = rules.create_genome_annotations.output.seqinfo,
         script = os.path.join("workflow", "scripts", "prep_blacklist.R"),

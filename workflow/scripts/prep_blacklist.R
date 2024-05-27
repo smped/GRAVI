@@ -51,7 +51,7 @@ sq <- read_rds(all_input$seqinfo)
 
 #### Check the blacklist for compatibility with sq
 cat_time("Checking seqinfo compatability...")
-blacklist <- config$externa$blacklist %>% importPeaks(type = "bed")
+blacklist <- all_input$blacklist %>% importPeaks(type = "bed")
 sq_has_chr <- any(grepl("chr", seqlevels(sq)))
 bl_has_chr <- any(grepl("chr", seqlevels(blacklist)))
 if (sq_has_chr != bl_has_chr)
