@@ -836,33 +836,10 @@ The following analysis includes the NFRs as well as each target's set of peaks, 
 This provides an excellent frame of reference for comparison between targets, and the nature of the NFRs in this context.
 
 
-#### Combined Heatmap
-
-```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting peaks for all targets and the NFRs, within a $\\pm$ {slot(localz_regions[[1]], 'parameters')$window / 1e3}kb window around the existing peaks.*")}
-shifted_z %>% 
-  arrange(abs(shift), desc(Z)) %>% 
-  mutate(
-    region = fct_inorder(region),
-    source = ifelse(region %in% regions, "Region", "Feature")
-  ) %>% 
-  ggplot(aes(shift, region, fill = Z)) +
-  geom_raster() +
-  facet_grid(
-    cols = vars(target), rows = vars(source), scales = "free", space = "free"
-  ) +
-  scale_x_continuous(
-    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
-  ) +
-  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
-  scale_fill_gradientn(
-    colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
-  )
-```
-
 #### Results Table
 
 ```{r tbl-localz-regions}
+tbl_id <- "localz-res-table"
 tbl <- localz_df %>%
   arrange(p_value) %>% 
   dplyr::select(-sd_perm_test, -p_value) %>% 
@@ -884,37 +861,11 @@ tbl <- localz_df %>%
     columns = list(
       target = colDef(
         "Target",
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px; font-size: 12px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       source = colDef(
         "Source",      
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px; font-size: 12px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       region = colDef(
         "Region", minWidth = 120,
@@ -922,20 +873,7 @@ tbl <- localz_df %>%
           bg <- c(region_colours, unlist(colours$features))[[value]]
           list(backgroundColor = bg)
         },
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px; font-size: 12px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       target_peaks = colDef(
         "N Peaks", format = comma_col, maxWidth = 80, filterMethod = js_greater
@@ -990,7 +928,7 @@ tbl <- localz_df %>%
       colGroup("Overlaps", columns = c("mean_perm_test", "n_overlaps", "prop"))
     ),
     theme = reactableTheme(style = list(fontSize = 12)),
-    elementId = "localz-res-table"
+    elementId = tbl_id
   )
 cp <- htmltools::em(
   glue(
@@ -1007,29 +945,53 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('localz-res-table', 'shared_localz_res.csv')"
+      "Reactable.downloadDataCSV('{tbl_id}', 'shared_localz_res.csv')"
     )
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('localz-res-table', [])"
+    onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   ),
   tags$label(
     tags$input(
       type = "checkbox", 
-      onclick = "Reactable.setFilter('localz-res-table', 'Sig', event.target.checked)"
+      onclick = glue(
+        "Reactable.setFilter('{tbl_id}', 'Sig', event.target.checked)"
+      )
     ),
     "Only show significant associations"
   ),
-  tbl,
-  cp
+  tbl, htmltools::tags$caption(cp)
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
+
+
+#### Combined Heatmap
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting peaks for all targets and the NFRs, within a $\\pm$ {slot(localz_regions[[1]], 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
+  arrange(abs(shift), desc(Z)) %>% 
+  mutate(
+    region = fct_inorder(region),
+    source = ifelse(region %in% regions, "Region", "Feature")
+  ) %>% 
+  ggplot(aes(shift, region, fill = Z)) +
+  geom_raster() +
+  facet_grid(
+    cols = vars(target), rows = vars(source), scales = "free", space = "free"
+  ) +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
+  )
+```
+
+
 
 ### Comparison Between Targets {.tabset}
 
@@ -1084,58 +1046,10 @@ pairwise_df <- mlz_list %>%
 The NFRs were compared to the set of peaks derived from each target to check for any relationship between their locations on the genome.
 Shifted Z-Scores indicate proximity and fine-grained relative binding patterns, with additional Z-scores derived from any enrichment of direct overlaps above the expected values used to determine the statistical significance of these overlaps compared to random expectations.
 
-#### Shifted Z-Scores
-
-```{r plot-shiftedz, fig.cap = glue("*Distributions of shifted Z-scores for each target relative to NFRs. Narrow peaks indicate close proximity of overlaps, whilst dips around zero indicate very close by not overlapping signal, as may be observed with histone marks and associated transcription factors.*")}
-dist_df %>% 
-  arrange(desc(Z)) %>%
-  mutate(
-    Query = fct_inorder(Query),
-    Target = fct_inorder(Target)
-  ) %>%
-  ggplot(aes(shift, Z, colour = Target)) +
-  geom_line() +
-  facet_wrap(~Query) +
-  scale_x_continuous(
-    labels = \(x) x * 1e-3, name = "Shift (kb)"
-  ) +
-  scale_y_continuous(expand = expansion(c(0, 0.05))) +
-  scale_colour_manual(values = colours$target)
-```
-
-
-#### Overlap Heatmap
-
-```{r plot-overlap-heatmap, fig.cap = glue("*Heatmap showing the strength of overlaps between each target and the alternative targets, here represented as the Query and Target respectively. Fill colours are derived from Z-scores and indicate the significance of overlaps, with asterisks indicating a formal result passing statistical significance as detailed in the reults table. The proportion of peaks from each query and alternative targets is also shown within each tile.*")}
-pairwise_df %>% 
-  ggplot(aes(Target, fct_rev(Query), fill = norm_zscore)) +
-  geom_raster() +
-  geom_label(
-    aes(label = prop),
-    data = . %>% 
-      mutate(
-        prop = percent(prop, 0.1),
-        prop = case_when(
-          adj.p_value < enrich_params$alpha ~ paste0(prop, "*"),
-          TRUE ~ prop
-        )
-      ),
-    fill = "white", alpha = 0.6
-  ) +
-  scale_x_discrete(expand = expansion(0, 0)) +
-  scale_y_discrete(expand = expansion(0, 0)) +
-  scale_fill_gradientn(
-    colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(pairwise_df$norm_zscore)),
-  ) +
-  labs(y = "Query", fill = "Z") +
-  theme(panel.grid = element_blank())
-```
-
-
 #### Results Table
 
 ```{r pairwise-tbl}
+tbl_id <- 'pairwise-res-table'
 tbl <- pairwise_df %>%
   dplyr::select(
     Query, Target, n_regionA, n_regionB, prop, n_overlaps, mean_perm_test, 
@@ -1147,36 +1061,10 @@ tbl <- pairwise_df %>%
     showPageSizeOptions = TRUE, filterable = TRUE,
     columns = list(
       Query = colDef(
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('pairwise-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px; font-size: 12px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       Target = colDef(
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('pairwise-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px; font-size: 12px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       n_regionA = colDef("Query", format = comma_col),
       n_regionB = colDef(
@@ -1234,7 +1122,7 @@ tbl <- pairwise_df %>%
       )
     ),
     theme = reactableTheme(style = list(fontSize = 12)),
-    elementId = 'pairwise-res-table'
+    elementId = tbl_id
   )
 cp <- htmltools::em(
   glue(
@@ -1248,23 +1136,73 @@ cp <- htmltools::em(
 )
 tl <- tagList(
   tags$button(
-    "Clear All Filters",
-    onclick = "Reactable.setAllFilters('pairwise-res-table', []);"
+    "Clear All Filters", 
+    onclick = glue("Reactable.setAllFilters('{tbl_id}', []);")
   ),
   tags$label(
     tags$input(
       type = "checkbox", 
-      onclick = "Reactable.setFilter('pairwise-res-table', 'Sig', event.target.checked)"
+      onclick = glue(
+        "Reactable.setFilter('{tbl_id}', 'Sig', event.target.checked)"
+      )
     ),
     "Only show significant associations"
-  ), tbl, cp
+  ), 
+  tbl, htmltools::tags$caption(cp)
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
+
+#### Shifted Z-Scores
+
+```{r plot-shiftedz, fig.cap = glue("*Distributions of shifted Z-scores for each target relative to NFRs. Narrow peaks indicate close proximity of overlaps, whilst dips around zero indicate very close by not overlapping signal, as may be observed with histone marks and associated transcription factors.*")}
+dist_df %>% 
+  arrange(desc(Z)) %>%
+  mutate(
+    Query = fct_inorder(Query),
+    Target = fct_inorder(Target)
+  ) %>%
+  ggplot(aes(shift, Z, colour = Target)) +
+  geom_line() +
+  facet_wrap(~Query) +
+  scale_x_continuous(
+    labels = \(x) x * 1e-3, name = "Shift (kb)"
+  ) +
+  scale_y_continuous(expand = expansion(c(0, 0.05))) +
+  scale_colour_manual(values = colours$target)
+```
+
+
+#### Overlap Heatmap
+
+```{r plot-overlap-heatmap, fig.cap = glue("*Heatmap showing the strength of overlaps between each target and the alternative targets, here represented as the Query and Target respectively. Fill colours are derived from Z-scores and indicate the significance of overlaps, with asterisks indicating a formal result passing statistical significance as detailed in the reults table. The proportion of peaks from each query and alternative targets is also shown within each tile.*")}
+pairwise_df %>% 
+  ggplot(aes(Target, fct_rev(Query), fill = norm_zscore)) +
+  geom_raster() +
+  geom_label(
+    aes(label = prop),
+    data = . %>% 
+      mutate(
+        prop = percent(prop, 0.1),
+        prop = case_when(
+          adj.p_value < enrich_params$alpha ~ paste0(prop, "*"),
+          TRUE ~ prop
+        )
+      ),
+    fill = "white", alpha = 0.6
+  ) +
+  scale_x_discrete(expand = expansion(0, 0)) +
+  scale_y_discrete(expand = expansion(0, 0)) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(pairwise_df$norm_zscore)),
+  ) +
+  labs(y = "Query", fill = "Z") +
+  theme(panel.grid = element_blank())
+```
+
+
+
 
 ## Example NFRs {.tabset}
 

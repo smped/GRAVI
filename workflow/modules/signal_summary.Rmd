@@ -1379,27 +1379,29 @@ if (has_rna) {
               prop = detected / total,
               .by = any_of(c("feature", "region"))
             ) %>% 
-            mutate(p = map_dbl(
-              seq_len(nrow(.)), 
-              \(i) fisher.test(
-                bind_rows(.[i,], no_peak)[c("detected", "undetected")],
-                alternative = "greater"
-              )$p.value
-            ),
-            adj_p = p.adjust(p, "fdr")
+            mutate(
+              p = map_dbl(
+                seq_len(nrow(.)), 
+                \(i) fisher.test(
+                  bind_rows(.[i,], no_peak)[c("detected", "undetected")],
+                  alternative = "greater"
+                )$p.value
+              ),
+              adj_p = p.adjust(p, "fdr")
             ) %>% 
             arrange(p) %>% 
             mutate(
               source = str_extract(feature, ".+: ") %>% 
                 str_remove_all(": ") %>% 
                 str_replace_na(""),
-              feature = str_remove_all(feature, ".+: "),
-              sig = adj_p < 0.05
+              feature = str_remove_all(feature, ".+: ")
             ) %>% 
             dplyr::select(source, feature, region, everything()) %>% 
             dplyr::select(where(\(x) !all(x == ""))) %>% 
+            dplyr::filter(adj_p < 0.05) %>% 
             reactable(
-              showPageSizeOptions = TRUE,
+              showPageSizeOptions = TRUE, sortable = TRUE,
+              filterable = TRUE, searchable = TRUE,
               columns = list(
                 source = colDef(
                   "Source",
@@ -1445,14 +1447,10 @@ if (has_rna) {
                   "P<sub>adj</adj>", html = TRUE, 
                   cell = \(value) sprint_pval(value),
                   filterMethod = js_less
-                ),
-                sig = colDef(show = FALSE)
+                )
               )[colnames(.)],
               columnGroups = list(
-                colGroup("Gene Expression", str_subset(names(.), "detected"))
-              ),
-              defaultColDef = colDef(
-                sortable = TRUE, filterable = TRUE, searchable = TRUE
+                colGroup("Gene Expression", str_subset(names(.), "(detected|prop)$"))
               ),
               elementId = tbl_id
             )
@@ -1469,6 +1467,7 @@ if (has_rna) {
               {target} signal within that region. An 
               additional {comma(no_peak$detected)} genes were detected in this
               dataset without any evidence of associated {target} signal.
+              Only significant associations are shown.
             "
             )
           )
@@ -1490,15 +1489,6 @@ if (has_rna) {
               tags$button(
                 "Clear All Filters",
                 onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
-              ),
-              tags$label(
-                tags$input(
-                  type = "checkbox", 
-                  onclick = glue(
-                    "Reactable.setFilter('{tbl_id}', 'sig', event.target.checked)"
-                  )
-                ),
-                "Only show significant associations"
               ),
               tbl, htmltools::p(class = "caption", cp)
             )
@@ -1714,31 +1704,10 @@ Using the Central Limit Theorem, the *normalised Z-scores* returned can be expec
 
 In addition to determining the strength of any overlaps with a given feature, distributions of shifted Z-scores can provide a measure of how these values are impacted by shifting the `r target` peaks within $\pm$ 5kb range around the detected peak.
 
-### Z-Score Heatmap
-
-```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
-shifted_z %>% 
-  arrange(abs(shift), Z) %>% 
-  mutate(
-    region = fct_inorder(as.character(region)),
-    source = ifelse(region %in% regions, "Region", "Feature")
-  ) %>% 
-  ggplot(aes(shift, fct_rev(region), fill = Z)) +
-  geom_raster() +
-  facet_grid(rows = vars(source), scales = "free", space = "free") +
-  scale_x_continuous(
-    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
-  ) +
-  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
-  scale_fill_gradientn(
-    colours = heat_col,
-    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
-  )
-```
-
 ### Results Table
 
 ```{r tbl-regioner}
+tbl_id <- "localz-res-table"
 tbl <- localz_df %>% 
   dplyr::select(
     region, mean_perm_test, n_overlaps, prop, enrichment,
@@ -1762,20 +1731,7 @@ tbl <- localz_df %>%
     columns = list(
       source = colDef(
         "Source", minWidth = 150,
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, nae, tbl_id)
       ),
       region = colDef(
         "Region", minWidth = 150,
@@ -1786,20 +1742,7 @@ tbl <- localz_df %>%
           )
           list(backgroundColor = bg)
         },
-        filterInput = function(values, name) {
-          tags$select(
-            # Set to undefined to clear the filter
-            onchange = sprintf(
-              "Reactable.setFilter('localz-res-table', '%s', event.target.value || undefined)",
-              name
-            ),
-            # "All" has an empty value to clear the filter, and is the default option
-            tags$option(value = "", "All"),
-            lapply(unique(values), tags$option),
-            "aria-label" = sprintf("Filter %s", name),
-            style = "width: 100%; height: 28px;"
-          )
-        }
+        filterInput = \(values, name) drop_filter(values, nae, tbl_id)
       ),
       mean_perm_test = colDef("Expected Overlaps", format = comma_col),
       n_overlaps = colDef("Overlapping Peaks", format = comma_col),
@@ -1837,7 +1780,7 @@ tbl <- localz_df %>%
         }")
       )
     )[colnames(.)],
-    elementId = "localz-res-table"
+    elementId = tbl_id
   )
 cp <- htmltools::em(
   glue(
@@ -1855,28 +1798,46 @@ tl <- tagList(
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
-      "Reactable.downloadDataCSV('localz-res-table', 'shared_localz_res.csv')"
+      "Reactable.downloadDataCSV('{tbl_id}', 'shared_localz_res.csv')"
     )
   ),
   tags$button(
     "Clear All Filters",
-    onclick = "Reactable.setAllFilters('localz-res-table', [])"
+    onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   ),
   tags$label(
     tags$input(
       type = "checkbox", 
-      onclick = "Reactable.setFilter('localz-res-table', 'Sig', event.target.checked)"
+      onclick = glue("Reactable.setFilter('{tbl_id}', 'Sig', event.target.checked)")
     ),
     "Only show significant associations"
   ),
-  tbl,
-  cp
+  tbl, htmltools::tags$caption(cp)
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
+```
+
+
+### Z-Score Heatmap
+
+```{r zscore-heatmap, fig.cap = glue("*Normalised Z-scores showing the effect of shifting the subset of changed {target} peaks within a $\\pm$ {slot(mlz, 'parameters')$window / 1e3}kb window around the existing peaks.*")}
+shifted_z %>% 
+  arrange(abs(shift), Z) %>% 
+  mutate(
+    region = fct_inorder(as.character(region)),
+    source = ifelse(region %in% regions, "Region", "Feature")
+  ) %>% 
+  ggplot(aes(shift, fct_rev(region), fill = Z)) +
+  geom_raster() +
+  facet_grid(rows = vars(source), scales = "free", space = "free") +
+  scale_x_continuous(
+    expand = rep_len(0, 4), labels = \(x) x / 1e3, name = "Shift (kb)"
+  ) +
+  scale_y_discrete(expand = rep_len(0, 4), name = NULL) +
+  scale_fill_gradientn(
+    colours = heat_col,
+    limits = c(-1.05, 1.05) * max(abs(shifted_z$Z))
+  )
 ```
 
 
