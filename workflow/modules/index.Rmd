@@ -28,6 +28,10 @@ params <- here::here("config/params.yml") %>% read_yaml()
 samples <- config$samples$file %>%
   here::here() %>%
   read_tsv()
+dsa_param <- here::here("config", "json", "differential_signal_param.json") %>% 
+  jsonlite::fromJSON()
+pw_param <- here::here("config", "json", "pairwise_param.json") %>% 
+  jsonlite::fromJSON()
 ```
 
 
@@ -129,15 +133,14 @@ peak_param_df %>%
   )
 ```
 
-
 ### Differential Signal
 
 If more than one treatment group is found for any of the supplied targets, and the two conditions are specified in `config.yml`, differential signal analysis (DSA) will be performed.
 Analysis can be performed using fixed-width or sliding windows, but will be performed identically for all comparisons within a given target.
 
-```{r dsa-param}
-dsa_param <- here::here("config", "json", "differential_signal_param.json") %>% 
-  jsonlite::fromJSON()
+`r if(!length(dsa_param)) "No DSA was performed"`
+
+```{r dsa-param, echo = length(dsa_param) > 0, eval = length(dsa_param) > 0}
 dsa_param %>% 
   lapply(\(x) x[map_int(x, length) > 0]) %>% 
   lapply(as_tibble) %>% 
@@ -166,10 +169,10 @@ dsa_param %>%
 
 ### Pairwise Comparisons
 
+`r if (!length(pw_param)) "No pairwise comparisons were performed"`
 
-```{r tbl-pw-param}
-pw_param <- here::here("config", "json", "pairwise_param.json") %>% 
-  jsonlite::fromJSON()
+
+```{r tbl-pw-param, echo = length(pw_param) > 0, eval = length(pw_param) > 0}
 pw_param %>% 
   lapply(as_tibble) %>% 
   bind_rows(.id = 'comparison') %>% 
@@ -218,11 +221,13 @@ Where specified nucleosome free regions (NFRs) will be identified, with the expe
 These are detected using the *Histrader* algorithm [@Yan2020-nz] which is able to identify multiple NFRs within a broad region.
 Where identified, these are used primarily for motif enrichment testing to identify which transcription factors may be implicated with these regions.
 
-NFRs are first identified within each treatment group, then merged to form consensus NFRs using a similar strategy to the formation of consensus peaks for standard ChIP targets.
+When running GRAVI, NFRs are first identified within each treatment group, then merged to form consensus NFRs using a similar strategy to the formation of consensus peaks for standard ChIP targets.
 
-Parameters used for this step are:
+`r if(is.null(config$modules$nfr)) "No NFRs were identified in this analysis"`
 
-`r pander(params$nfr)`
+`r if (!is.null(config$modules$nfr)) "Parameters used for this step are:"`
+
+`r if (!is.null(config$modules$nfr)) pander(params$nfr)`
 
 
 ## Key Analyses Within Targets and Comparisons

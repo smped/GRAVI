@@ -499,7 +499,8 @@ sets <- list(all = paste(samples$label, collapse = "; ")) %>%
       split(.$treat) %>% 
       lapply(function(x) paste(x$label, collapse = "; "))
   ) %>% 
-  unlist()
+  unlist() %>%
+  .[!duplicated(.)]
 valid_sets <- makeConsensus(individual_peaks) %>% 
   as_tibble() %>% 
   pivot_longer(
@@ -513,7 +514,7 @@ valid_sets <- makeConsensus(individual_peaks) %>%
   distinct(samples) %>% 
   dplyr::filter(samples %in% sets) %>% 
   pull(samples) %>% 
-  setNames(vapply(., function(x){names(which(sets == x))}, character(1))) %>% 
+  setNames(map_chr(., \(x) names(which(sets == x)))) %>% 
   lapply(function(x) str_split(x, "; ")[[1]])
 ## Use upset_query objects to fill key intersections and sets
 ql <- samples$label %>% 
@@ -545,7 +546,7 @@ individual_peaks %>%
   setNames(sample2label[names(.)]) %>% 
   .[lb] %>% 
   plotOverlaps(
-    var = "qValue", f = "median",
+    var = "qValue", f = "median", type = "upset",
     .sort_sets = FALSE, queries = ql,
     base_annotations = list(
       `Peaks in Intersection` = intersection_size(
@@ -1731,7 +1732,7 @@ tbl <- localz_df %>%
     columns = list(
       source = colDef(
         "Source", minWidth = 150,
-        filterInput = \(values, name) drop_filter(values, nae, tbl_id)
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       region = colDef(
         "Region", minWidth = 150,
@@ -1742,7 +1743,7 @@ tbl <- localz_df %>%
           )
           list(backgroundColor = bg)
         },
-        filterInput = \(values, name) drop_filter(values, nae, tbl_id)
+        filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
       mean_perm_test = colDef("Expected Overlaps", format = comma_col),
       n_overlaps = colDef("Overlapping Peaks", format = comma_col),
@@ -1972,11 +1973,7 @@ tl <- tagList(
   tbl,
   cp
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
@@ -1998,9 +1995,9 @@ if (n_enrich > 1) {
       dplyr::select(motif_enrich_res, altname, name), by = "altname"
     ) %>% 
     mutate(detected = TRUE) %>% 
-    dplyr::select(seq, name, detected) %>% 
+    dplyr::select(seq, altname, detected) %>% 
     pivot_wider(
-      names_from = "name", values_from = "detected", values_fill = FALSE
+      names_from = "altname", values_from = "detected", values_fill = FALSE
     ) %>% 
     dplyr::select(-seq) %>% 
     dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
@@ -2066,7 +2063,7 @@ clust_names <- motif_pos_res %>%
   arrange(desc(matches_in_region)) %>% 
   summarise(
     altname = altname[[1]], .by = cluster,
-    name = paste(name, collapse = "/")
+    name = paste(unique(name), collapse = "/")
   ) %>% 
   mutate(name = setNames(name, altname)) %>% 
   pull(name)
@@ -2265,7 +2262,8 @@ if (n_pos > 0) {
       use_totals = TRUE,
       # binwidth = floor(motif_params$binwidth / 2)
       binwidth = motif_params$binwidth 
-    ) + labs(x = "Bin", fill = "Total\n Matches")
+    ) + 
+    labs(x = "Bin", fill = "Total\n Matches")
 }
 ```
 

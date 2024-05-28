@@ -70,7 +70,7 @@ rule compile_signal_summary_html:
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
-    retries: 1
+    retries: 0
     resources:
         mem_mb = 16384,
         runtime = "30m",

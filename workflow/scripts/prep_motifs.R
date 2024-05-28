@@ -26,7 +26,6 @@ cat_time <- function(...){
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
-
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
@@ -46,8 +45,7 @@ library(yaml)
 library(MotifDb)
 library(universalmotif)
 params <- read_yaml(all_input$yaml)
-samples <- here::here(config$samples$file) %>%
-  read_tsv()
+
 
 #### Motifs ####
 ## If provided in external, ignore all settings in params.yml & use that
@@ -69,6 +67,12 @@ if (!is.null(config$external$motifdb)) {
     db <- read_jaspar(f) |> to_df()
     cat_time("Imported", nrow(db), "motifs in JASPAR format")
   }
+
+  ## Check that the `altname` column has values
+  na_alts <- is.na(db$altname)
+  db$altname[na_alts] <- db$name[na_alts]
+  ## As a test, also try extracting the first word from the name column
+  db$name[na_alts] <- str_extract(db$name, "^[A-Z0-9]+")
 
   if (is.null(db))
     cat_time("Unable to determine motif format. Using settings from params")
