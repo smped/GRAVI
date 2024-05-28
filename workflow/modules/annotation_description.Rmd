@@ -45,6 +45,10 @@ region_params <- read_yaml(here::here("config", "params.yml")) %>%
   pluck("gene_regions")
 all_heat_params <- here::here("config", "json", "profile_heatmap_param.json") %>% 
   jsonlite::fromJSON() 
+dsa_params <- here::here("config", "json", "differential_signal_param.json") %>% 
+  jsonlite::fromJSON() 
+pw_params <- here::here("config", "json", "pairwise_param.json") %>% 
+  jsonlite::fromJSON() 
 source(here::here("scripts", "custom_functions.R"))
 source(here::here("scripts", "table_funs.R"))
 ```
@@ -892,12 +896,6 @@ knitr::opts_chunk$set(dev = "png")
 .plotScheme(colours$qc , xlab = "QC Category") 
 ```
 
-### Treatment Groups
-
-```{r plot-treat, fig.height=3, fig.width=2 + length(colours$treat)}
-.plotScheme(colours$treat, xlab = "Treatment")
-```
-
 ### Regions
 
 ```{r plot-regions, fig.height=3, fig.width=2 + length(colours$regions)}
@@ -935,16 +933,21 @@ if (length(feat_col) <= 8) {
 }
 ```
 
+### Treatment Groups
 
-### Direction
+```{r plot-treat, fig.height=3, fig.width=2 + length(colours$treat)}
+.plotScheme(colours$treat, xlab = "Treatment")
+```
 
-```{r plot-dir, fig.height=3, fig.width=2 + length(colours$direction)}
+`r if (length(dsa_params)) "### Direction"`
+
+```{r plot-dir, fig.height=3, fig.width = 2 + length(colours$direction), eval = length(dsa_params) > 0, echo = length(dsa_params) > 0}
 .plotScheme(colours$direction, xlab = "Direction")
 ```
 
-### Pairwise
+`r if (length(pw_params)) "### Pairwise"`
 
-```{r plot-pairwise}
+```{r plot-pairwise, eval = length(pw_params) > 0, echo = length(pw_params) > 0}
 colours$pairwise %>% 
   as_tibble() %>% 
   pivot_longer(everything(), values_to = "colour") %>% 
@@ -964,9 +967,9 @@ colours$pairwise %>%
 ```
 
 
-### Heatmap Gradient
+`r if (length(dsa_params)) "### Heatmap Gradient"`
 
-```{r plot-gradient, fig.height=5, fig.width=8}
+```{r plot-gradient, fig.height=5, fig.width=8, eval = length(dsa_params) > 0, echo = length(dsa_params) > 0}
 heat_cols %>% 
   lapply(\(x) colorRampPalette(x)(11)) %>% 
   as_tibble() %>% 
