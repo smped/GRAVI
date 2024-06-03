@@ -29,14 +29,14 @@ cat_time <- function(...){
 # all_wildcards <- list(
 #   tgt1 = "AR",
 #   comp1 = "E2_E2DHT",
-#   tgt2 = "ER",
+#   tgt2 = "GATA3",
 #   comp2 = "E2_E2DHT"
 # )
 # full_comp <- with(all_wildcards, paste0(tgt1, "_", comp1, "-", tgt2, "_", comp2))
 # all_input <- list(
 #   rds = file.path(
 #     "output", "pairwise_comparisons", full_comp,
-#     paste0(full_comp, "-pairwise_results.rds")
+#     paste0(full_comp, "-pairwise-results.rds")
 #   ),
 #   motifs = "output/annotations/motif_list.rds",
 #   seqinfo = "output/annotations/seqinfo.rds"
@@ -145,15 +145,19 @@ matches <- seq_list %>%
         mc.cores = threads
       )
     }
+  ) %>% 
+  lapply(
+    \(x) x[vapply(x, nrow, integer(1)) > 0]
   )
 cat_time("done")
 gc()
+
 
 cat_time("Testing for Positional Bias")
 pos_res <- matches %>%
   lapply(
     testMotifPos, binwidth = motif_params$binwidth, abs = motif_params$abs,
-    min_score = motif_params$min_score,  mc.cores = threads
+    min_score = motif_params$min_score, mc.cores = threads
   )
 cat_time("done\n")
 gc()

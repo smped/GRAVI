@@ -25,20 +25,20 @@ cat_time <- function(...){
 }
 
 ## For testing
-config <- yaml::read_yaml("config/config.yml")
-all_input <- list(
-  samples =config$samples$file,
-  script = here::here("workflow", "scripts", "create_site_yaml.R"),
-  yml = "config/rmarkdown.yml"
-)
-all_output <- list(yml = "analysis/_site.yml")
+# config <- yaml::read_yaml("config/config.yml")
+# all_input <- list(
+#   samples =config$samples$file,
+#   script = here::here("workflow", "scripts", "create_site_yaml.R"),
+#   yml = "config/rmarkdown.yml"
+# )
+# all_output <- list(yml = "analysis/_site.yml")
 
-# log <- slot(snakemake, "log")[[1]]
-# cat_time("Setting stdout to ", log, "\n")
-# sink(log, split = TRUE)
-# all_input <- slot(snakemake, "input")
-# all_output <- slot(snakemake, "output")
-# config <- slot(snakemake, "config")
+log <- slot(snakemake, "log")[[1]]
+cat_time("Setting stdout to ", log, "\n")
+sink(log, split = TRUE)
+all_input <- slot(snakemake, "input")
+all_output <- slot(snakemake, "output")
+config <- slot(snakemake, "config")
 
 cat_list(all_input, "input")
 cat_list(all_output, "output")
@@ -75,7 +75,7 @@ if (length(diff_sig_param)) {
   comparisons <- diff_sig_param %>%
     lapply(pluck, "contrasts") %>%
     lapply(
-      matrix, byrow = TRUE, ncol = 2, dimnames = list(c(), c("ref", "treat"))
+      matrix, byrow = FALSE, ncol = 2, dimnames = list(c(), c("ref", "treat"))
     ) %>%
     lapply(as_tibble) %>%
     bind_rows(.id = "target") %>%
@@ -157,7 +157,7 @@ if (length(comparisons) > 1) {
       lapply(
         \(x) {
           list(
-            text = x$menu,
+            text = unique(x$menu),
             menu = lapply(
               seq_len(nrow(x)),
               \(i) {

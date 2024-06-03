@@ -742,55 +742,20 @@ hic$regions <- anchors(hic) %>%
 
 `r ifelse(has_hic, glue("HiC data with {comma(length(hic), 1)} interaction pairs was provided and loaded."), "No HiC Data was supplied as an input.")`
 
-`r ifelse(has_hic, "## Genomic Distribution of Interaction Pairs", "")`
+`r if (has_hic) "## Genomic Distribution of Interaction Pairs"`
 
-```{r plot-pie-hic, eval = has_hic, echo = has_hic, fig.cap = "*Distribution of interaction pairs using pre-defined genomic regions. Region pairs with an interaction frequency < 1% were grouped into the 'Other' category*"}
+```{r plot-pie-hic, eval = has_hic, echo = has_hic, fig.cap = "*Distribution of interaction pairs using pre-defined genomic regions. Region pairs with an interaction frequency < 5% were grouped into the 'Other' category*"}
 hic %>% 
   as_tibble() %>% 
   mutate(
-    regions = fct_lump_prop(regions, prop = 0.01)
+    regions = fct_lump_prop(regions, prop = 0.05)
   ) %>%
-  plotPie(fill = "regions", min_p = 0.02, category_width = 20, label_size = 4) +
+  plotPie(
+    fill = "regions", min_p = 0.075, category_width = 20, label_size = 3.5,
+    cat_glue = "{.data[[fill]]}\n{comma(n, 1)} ({percent(p, 0.1)})",
+    cat_adj = 0.1, cat_alpha = 0.7, total_size = 4
+  ) +
   labs(fill = "Interacting\n Regions") +
-  scale_fill_viridis_d(direction = -1)
-```
-
-`r ifelse(has_hic & has_features, "## Feature Distribution of Interaction Pairs", "")`
-
-```{r plot-pie-features, eval = has_features & has_hic, echo = has_features & has_hic, fig.cap = glue("*Distribution of HiC interaction pairs using the features provided above. Feature pairs with an interaction frequency < 1% were grouped into the 'Other' category*")}
-feat_combs <- expand.grid(names(feat_col), names(feat_col)) %>% 
-  as.matrix() %>% 
-  apply(
-    MARGIN = 1, 
-    function(x) {
-      x <- sort(factor(x, levels = names(feat_col)))
-      paste(as.character(x), collapse = " - ")
-    }
-  ) %>% 
-  unique()
-hic$features <- vapply(
-  anchors(hic),
-  function(x) bestOverlap(
-    x, external_features, var = "feature", missing = "no_feature"
-  ),
-  character(length(hic))
-)  %>% 
-  apply(
-    MARGIN = 1, 
-    function(x) {
-      x <- sort(factor(x, levels = names(feat_col)))
-      paste(as.character(x), collapse = " - ")
-    }
-  ) %>% 
-  factor(levels = feat_combs) %>%
-  fct_relabel(str_sep_to_title, pattern = "_")
-hic %>% 
-  as_tibble() %>% 
-  mutate(
-    features = fct_lump_prop(features, prop = 0.01)
-  ) %>% 
-  plotPie(fill = "features", min_p = 0.02, category_width = 15, label_size = 4) +
-  labs(fill = "Interacting\n Features") +
   scale_fill_viridis_d(direction = -1)
 ```
 
@@ -903,7 +868,7 @@ knitr::opts_chunk$set(dev = "png")
 ```
 
 
-`r ifelse(has_features, "### Features", "")`
+`r if(has_features) "### Features"`
 
 ```{r plot-feat, eval = has_features, echo = has_features, fig.height = ifelse(length(feat_col) > 8, fh, 3), fig.width= ifelse(length(feat_col) > 8, fw, 2 + length(feat_col))}
 if (length(feat_col) <= 8) {
@@ -969,7 +934,7 @@ colours$pairwise %>%
 
 `r if (length(dsa_params)) "### Heatmap Gradient"`
 
-```{r plot-gradient, fig.height=5, fig.width=8, eval = length(dsa_params) > 0, echo = length(dsa_params) > 0}
+```{r plot-gradient, fig.height = 5, fig.width = 8, eval = length(dsa_params) > 0, echo = length(dsa_params) > 0}
 heat_cols %>% 
   lapply(\(x) colorRampPalette(x)(11)) %>% 
   as_tibble() %>% 

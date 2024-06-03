@@ -39,7 +39,6 @@ cat_time <- function(...){
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
-
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 config <- slot(snakemake, "config")
@@ -63,16 +62,31 @@ library(extraChIPs)
 params <- read_yaml(all_input$yaml)
 
 #### Seqinfo ####
-sq <- all_input$bam %>%
-  BamFileList() %>%
-  seqinfo() %>%
-  sortSeqlevels() %>%
-  as.data.frame() %>%
-  .[rownames(.) %in% paste0("chr", c(1:22, "X", "Y")),] %>%  # This covers mouse & rat
+sq_df <- all_input$bam %>%
+  BamFileList() %>% 
+  as.list() %>% 
+  lapply(seqinfo) %>% 
+  lapply(keepStandardChromosomes) %>% 
+  lapply(dropSeqlevels, "chrM") %>% 
+  lapply(sortSeqlevels) %>% 
+  lapply(as_tibble) %>% 
+  bind_rows(.id = 'bam') %>%
+  distinct(seqnames, seqlengths, .keep_all = TRUE)
+## Catch any references where sequences don't match. 
+## By removing the MT earlier, this sidesteps a known issue
+if (any(duplicated(sq_df$seqnames))) {
+  cat("References are not identicial between all bam files\n")
+  cat("Possible problems may be in\n", glue_collapse(unique(sq_df$bam), sep = ", ", last = " & "), "\n")
+  stop()
+}
+sq <- sq_df %>%
+  dplyr::select(seqnames, seqlengths) %>%
   mutate(
     isCircular = FALSE,
     genome = config$genome$build
   ) %>%
+  as.data.frame() %>%
+  column_to_rownames("seqnames") %>%
   as("Seqinfo")
 write_rds(sq, all_output$seqinfo)
 cat_time("Seqinfo exported...\n")

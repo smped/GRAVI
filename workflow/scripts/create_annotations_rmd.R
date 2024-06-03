@@ -40,7 +40,6 @@ cat_time <- function(...){
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
-
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")

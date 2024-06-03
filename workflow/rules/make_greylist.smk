@@ -10,6 +10,7 @@ rule make_greylist:
     conda: "../envs/rmarkdown.yml"
     log: os.path.join(log_path, "greylist", "{ip_sample}_make_greylist.log")
     threads: 2
+    retries: 1    
     resources:
         mem_mb = 16384,
         run_time = "30m"
@@ -30,6 +31,7 @@ rule combine_greylists:
     conda: "../envs/rmarkdown.yml"
     log: os.path.join(log_path, "greylist", "combine_greylists.log")
     threads: 2
+    retries: 1    
     resources:
         mem_mb = 16000,
         run_time = "20m"
