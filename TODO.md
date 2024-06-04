@@ -96,3 +96,34 @@
 
 - The package simplifyEnrichment also looks useful for comparing across targets. Examples here: https://jokergoo.github.io/rGREAT_suppl/compare_online_and_local.html
 
+
+## Minor Tweaks
+
+- [ ] Check all outputs in the `results` folder? What's missing or needed?
+
+### Annotations
+
+- [ ] Barcode plots not showing correct png for RNA-Seq
+
+### NFR
+
+- [ ] Split localz targets into individual targets & run all in parallel
+
+### Shared
+
+- [ ] Filtering of significant results in tables
+- [ ] Add better explanation of shared peaks
+
+### Signal Summary
+
+- [ ] Upset plot looks weird when comparing treatments (make wider)
+- [ ] Add test for equality of peak widths?
+
+### DSA
+
+- [ ] Add numbers for feature summary plots
+- [ ] RNA names appear duplicated in plotHFGC captions
+
+### Pairwise
+
+- [ ] Centre RNA plots around entire gene? Same for DSA?

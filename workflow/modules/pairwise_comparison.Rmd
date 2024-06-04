@@ -839,7 +839,7 @@ combined_results %>%
   setNames(unlist(short_names)) %>% 
   plotSplitDonut(
     inner = !!sym(short_names$comp1), outer = !!sym(short_names$comp2), 
-    inner_palette = full_palette, outer_palette = full_palette,
+    inner_palette = direction_colours, outer_palette = direction_colours,
     inner_glue = "{inner}\n{.data[[inner]]}\n{comma(n, 1)}\n({percent(p, 0.1)})",
     inner_label_alpha = 0.7,
     outer_glue = "{outer} {.data[[outer]]}\n{comma(n, 1)} ({percent(p, 0.1)})",
@@ -2627,48 +2627,53 @@ if (any_motif_enrich) {
           dplyr::select(-seq) %>% 
           dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
           cor(method = "spearman")
-        hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
-        dend <- ggdendro::dendro_data(as.dendrogram(hc))
-        levels <- dend$labels$label
-        ym <- max(dend$segments$xend)
-        dend_aes <- aes(yend, xend, xend = y, yend = x)
-        dend_plot <- ggplot(dend$segments) +
-          geom_segment(dend_aes) + 
-          scale_x_reverse(expand = expansion(0)) + 
-          scale_y_reverse(limits = c(ym, 0) + 0.5, expand = expansion(0)) +
-          labs(x = "", y = c()) + 
-          theme_minimal() + 
-          theme(
-            panel.grid = element_blank(), 
-            axis.text = element_blank(), axis.ticks = element_blank(), 
-            plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
-          )
-        p <- cor_mat %>% 
-          as_tibble(rownames = "m1") %>% 
-          pivot_longer(cols = all_of(.$m1), names_to = "m2", values_to = "cor") %>% 
-          mutate(across(starts_with("m"), \(x) factor(x, levels = levels))) %>% 
-          dplyr::filter(m1 != m2) %>% 
-          ggplot(aes(m1, fct_rev(m2))) +
-          geom_point(aes(size = abs(cor), colour = cor, alpha = abs(cor))) +
-          geom_text(
-            aes(label = round(cor*100, 0), alpha = abs(cor)), show.legend = FALSE
-          ) +
-          scale_size(range = c(0, 10), guide = "none") +
-          scale_alpha(range = c(0, 1), guide = "none") +
-          scale_colour_gradient2(
-            low = direction_colours[["Decreased"]], 
-            high = direction_colours[["Increased"]],
-            limits = c(-1, 1), labels = percent_format(suffix = "")
-          ) +
-          scale_x_discrete(position = "top") +
-          labs(x = NULL, y = NULL, colour = expr(paste(rho))) +
-          theme(
-            panel.grid = element_blank(), 
-            axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5)
-          )
-        dend_plot + p + plot_layout(widths = c(0.1, 0.9), axes = "collect")
+        if (prod(dim(cor_mat)) > 1) {
+          hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
+          dend <- ggdendro::dendro_data(as.dendrogram(hc))
+          levels <- dend$labels$label
+          ym <- max(dend$segments$xend)
+          dend_aes <- aes(yend, xend, xend = y, yend = x)
+          dend_plot <- ggplot(dend$segments) +
+            geom_segment(dend_aes) + 
+            scale_x_reverse(expand = expansion(0)) + 
+            scale_y_reverse(limits = c(ym, 0) + 0.5, expand = expansion(0)) +
+            labs(x = "", y = c()) + 
+            theme_minimal() + 
+            theme(
+              panel.grid = element_blank(), 
+              axis.text = element_blank(), axis.ticks = element_blank(), 
+              plot.margin = unit(c(5.5, 0, 5.5, 5.5), "points")
+            )
+          p <- cor_mat %>% 
+            as_tibble(rownames = "m1") %>% 
+            pivot_longer(cols = all_of(.$m1), names_to = "m2", values_to = "cor") %>% 
+            mutate(across(starts_with("m"), \(x) factor(x, levels = levels))) %>% 
+            dplyr::filter(m1 != m2) %>% 
+            ggplot(aes(m1, fct_rev(m2))) +
+            geom_point(aes(size = abs(cor), colour = cor, alpha = abs(cor))) +
+            geom_text(
+              aes(label = round(cor*100, 0), alpha = abs(cor)), show.legend = FALSE
+            ) +
+            scale_size(range = c(0, 10), guide = "none") +
+            scale_alpha(range = c(0, 1), guide = "none") +
+            scale_colour_gradient2(
+              low = direction_colours[["Decreased"]], 
+              high = direction_colours[["Increased"]],
+              limits = c(-1, 1), labels = percent_format(suffix = "")
+            ) +
+            scale_x_discrete(position = "top") +
+            labs(x = NULL, y = NULL, colour = expr(paste(rho))) +
+            theme(
+              panel.grid = element_blank(), 
+              axis.text.x.top = element_text(angle = 90, hjust = 0, vjust = 0.5)
+            )
+          dend_plot + p + plot_layout(widths = c(0.1, 0.9), axes = "collect")
+        } else {
+          NULL
+        }
       }
     )
+  motif_corplot <- motif_corplot[!map_lgl(motif_corplot, is.null)]
 }  
 ```
 
