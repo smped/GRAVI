@@ -207,8 +207,15 @@ rule nfr_localz_targets:
     retries: 1
     resources:
         mem_mb = 65536,
-        run_time = "2h",
+        runtime = lambda wildcards, attempt: 120 * attempt,
     log: os.path.join(log_path, "regioner", "{target}_nfr_targets_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/regioner_localz_targets.R"
+
+# It should be possible to use the output of shared_targets_localz so that
+# targets are only compared to the NFR loci, not to each other, as that's 
+# already been done. The above script may need a quick rewrite though.
+# A good option may be to write the script so that only the first (i.e. NFR)
+# set of peaks is compared to the other peaks, although that might not work
+# for multiple targets with NFRs. This will save quite a few CPU hours on an HPC

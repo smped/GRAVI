@@ -75,7 +75,7 @@ rule localz_regions_pairwise:
     resources:
         mem_mb = 32000,
         run_time = "1h",
-    log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}_{pw_dir}_localz.log")
+    log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}", "{pw_dir}_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/regioner_localz_pairwise.R"
@@ -101,7 +101,7 @@ rule merge_localz_pairwise:
     resources:
         mem_mb = 32000,
         run_time = "1h",
-    log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}_merge_localz.log")
+    log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}", "merge_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/merge_localz_pairwise.R"        

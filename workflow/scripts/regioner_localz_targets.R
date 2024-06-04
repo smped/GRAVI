@@ -45,18 +45,21 @@ cat_time <- function(...){
 # config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
 #   peaks = c(
-#             "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
-#             "output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
-#             "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
+#             "output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
+#             "output/peak_analysis/AR/AR_consensus_peaks.bed.gz"
 #           ),
 #   sq = "output/annotations/seqinfo.rds"
 # )
-# all_output <- list(rds = "output/peak_analysis/shared/all_consensus_localz.rds")
+# all_output <- list(
+#   rds = "output/nfr/H3K27ac/H3K27ac_nfr_AR_localz.rds"
+# )
+# all_params <- yaml::read_yaml("config/params.yml")[['regioner']]
 
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
+threads <- slot(snakemake, "threads")[[1]] - 1
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
@@ -69,7 +72,6 @@ cat_list(regioner_params, "regioner params")
 ## Solidify file paths
 all_input <- lapply(all_input, here::here)
 all_output <- lapply(all_output, here::here)
-
 
 cat_time("Loading packages...")
 library(regioneReloaded)
@@ -99,7 +101,6 @@ if (length(all_input$peaks) < 2) {
   names(peaks) <- gsub("_consensus.+", "", names(peaks))
   cat_time(" done\n")
 
-  threads <- slot(snakemake, "threads")[[1]] - 1
   cat_time("Running multiLocalZscore with", threads, "threads...\n")
   mlz_params <- list(
     sampling = FALSE, ranFUN = "resampleGenome", evFUN = "numOverlaps",

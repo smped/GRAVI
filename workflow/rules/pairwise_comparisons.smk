@@ -63,11 +63,11 @@ rule motif_analysis_pairwise:
         ),        
     params:
         motif_params = motif_param['pairwise']
-    retries: 1
+    retries: 2
     threads: lambda wildcards, attempt: attempt * 8
     conda: "../envs/rmarkdown.yml"
     resources:
-        disk_mb = 10000,
+        disk_mb = lambda wildcards, attempt: attempt * 8000,
         mem_mb = lambda wildcards, attempt: attempt * 64000,
         runtime = lambda wildcards, attempt: attempt * 30,
     log: os.path.join(log_path, "pairwise_motif_analysis", "{tgt1}_{comp1}-{tgt2}_{comp2}.log")
