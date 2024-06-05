@@ -131,7 +131,11 @@ exclude_ranges <- c(bl, gl)
 #### Similarity Between Black & Grey Lists
 
 ```{r plot-excluded-ranges, fig.width=7, fig.height=7, fig.cap = "Number of regions identified as blacklisted"}
-plotOverlaps(exclude_ranges, set_col = seq_along(exclude_ranges))
+exclude_ranges %>% 
+  plotOverlaps(
+    type = ifelse(length(.) > 2, "upset", "venn"),
+    set_col = seq_along(exclude_ranges)
+  )
 ```
 
 
@@ -193,7 +197,7 @@ id2gene <- setNames(gtf$gene$gene_name, gtf$gene$gene_id) %>%
   .[!duplicated(names(.))]
 ```
 
-- The complete set of genes, transcripts and exons was loaded from the supplied `gtf`, excluding mitochondrial features.
+- The complete set of genes, transcripts and exons was loaded from the supplied `gtf` (`r metadata(gtf)$source`), excluding mitochondrial features.
 - The previously generated `Seqinfo` was also placed as the foundation of this annotation object, ensuring this propagates through all subsequent objects
 - Version numbers were removed from all gene, transcript and exon identifiers for convenience, with the minimal set of columns (`r pander(colnames(mcols(gtf$gene)))`) retained.
 - Visualisation using the Bioconductor package `Gviz` requires a specific `GRanges` structure for gene and transcript models to be displayed.
@@ -333,7 +337,7 @@ id <- sort(gtf$gene$gene_id)[[1]]
 ```
 
 
-```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf$gene, gene_id == id)$gene_name), "showing all annotated regions.*")}
+```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf$gene, gene_id == id)$gene_name), "showing all annotated regions. Given the multiple possible TSS much of the region around thse has been merged into a single region which has the capacity to function as a promoter, along with aany upstream promoters.*")}
 gr <- subset(gtf$gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
@@ -618,7 +622,10 @@ if (has_features) {
     summarise(
       n = dplyr::n(), width = sum(width), .by = c(source, region, feature)
     ) %>% 
-    ggplot(aes(width, fct_rev(feature), fill = region)) +
+    mutate(feat_width = sum(width), .by = feature) %>% 
+    arrange(feat_width) %>% 
+    mutate(feature = fct_inorder(feature)) %>% 
+    ggplot(aes(width, feature, fill = region)) +
     geom_col() +
     facet_grid(rows =  vars(source), scales = "free", space = "free") +
     scale_fill_manual(values = region_cols) +
@@ -708,55 +715,47 @@ hic <- read_rds(all_out$hic)
 has_hic <- length(hic) > 0
 ```
 
-```{r load-hic, eval = has_hic, echo = has_hic}
-reg_combs <- expand.grid(regions, regions) %>% 
-  as.matrix() %>% 
-  apply(
-    MARGIN = 1, 
-    function(x) {
-      x <- sort(factor(x, levels = regions))
-      paste(as.character(x), collapse = " - ")
-    }
-  ) %>% 
-  unique()
-hic$regions <- anchors(hic) %>%
-  vapply(
-    bestOverlap,
-    y = GRangesList(lapply(gene_regions, granges)),
-    character(length(hic))
-  ) %>%
-  apply(MARGIN = 2, function(x) regions[x]) %>%
-  apply(
-    MARGIN = 1,
-    function(x) {
-      x <- sort(factor(x, levels = regions))
-      paste(as.character(x), collapse = " - ")
-    }
-  ) %>%
-  factor(levels = reg_combs) %>%
-  fct_relabel(
-    str_replace_all,
-    pattern = "Promoter \\([0-9kbp/\\+-]+\\)", replacement = "Promoter"
-  )
-```
-
 `r ifelse(has_hic, glue("HiC data with {comma(length(hic), 1)} interaction pairs was provided and loaded."), "No HiC Data was supplied as an input.")`
 
 `r if (has_hic) "## Genomic Distribution of Interaction Pairs"`
 
-```{r plot-pie-hic, eval = has_hic, echo = has_hic, fig.cap = "*Distribution of interaction pairs using pre-defined genomic regions. Region pairs with an interaction frequency < 5% were grouped into the 'Other' category*"}
+```{r plot-hic, eval = has_hic, echo = has_hic, fig.cap = "*Distribution of interaction pairs using pre-defined genomic regions.*"}
 hic %>% 
-  as_tibble() %>% 
+  anchors() %>% 
+  vapply(
+    bestOverlap,
+    y = GRangesList(lapply(gene_regions, granges)),
+    character(length(hic))
+  ) %>% 
+  as_tibble() %>%
+  as.matrix() %>% 
+  apply(1, \(x) paste(sort(x), collapse = ":")) %>% 
+  as.character() %>% 
+  as_tibble_col("pair") %>% 
+  summarise(n = dplyr::n(), .by = pair) %>% 
+  separate(pair, c("anchor1", "anchor2"), sep = ":", remove = FALSE) %>% 
   mutate(
-    regions = fct_lump_prop(regions, prop = 0.05)
-  ) %>%
-  plotPie(
-    fill = "regions", min_p = 0.075, category_width = 20, label_size = 3.5,
-    cat_glue = "{.data[[fill]]}\n{comma(n, 1)} ({percent(p, 0.1)})",
-    cat_adj = 0.1, cat_alpha = 0.7, total_size = 4
-  ) +
-  labs(fill = "Interacting\n Regions") +
-  scale_fill_viridis_d(direction = -1)
+    across(
+      starts_with("anchor"), \(x) factor(regions[x], levels = unname(regions))
+      )
+  ) %>% 
+  bind_rows(
+    dplyr::filter(., anchor1 != anchor2) %>% setNames(c("pair", "anchor2", "anchor1", "n"))
+  ) %>% 
+  arrange(anchor1, anchor2) %>% 
+  distinct(pair, .keep_all = TRUE) %>% 
+  ggplot(aes(anchor1, fct_rev(anchor2), fill = n / sum(n))) +
+  geom_raster() +
+  geom_label(aes(label = percent(n / sum(n), 0.1)), fill = "white", alpha = 0.7) +
+  scale_fill_viridis_c(name = "Percent", labels = scales::percent, option = "B") +
+  scale_x_discrete(expand = rep_len(0, 4), labels = label_wrap(12)) +
+  scale_y_discrete(expand = rep_len(0, 4), labels = label_wrap(12)) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    panel.border = element_blank(),
+    legend.position = "inside", legend.position.inside = c(0.85, 0.85)
+  )
 ```
 
 

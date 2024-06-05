@@ -75,11 +75,11 @@ rna %>%
 
 `r if (length(rna) > 1) "#### Detected Genes"`
 
-```{r plot-overlaps, echo = length(rna) > 1, fig.cap = "Comparisons of detected genes within each transcriptomic dataset."}
+```{r plot-overlaps, echo = length(rna) > 1, fig.width = ifelse(length(rna) > 2, fw, fh), fig.cap = "Comparisons of detected genes within each transcriptomic dataset."}
 if (length(rna) > 1) {
   rna %>% 
     lapply(pull, "gene_id") %>% 
-    plotOverlaps()
+    plotOverlaps(type = ifelse(length(rna) > 2, "upset", "venn"))
 }
 ```
 
@@ -193,8 +193,8 @@ if (length(rna) > 1) {
 
 ### Directional GSEA 
 
-GSEA was run on each transcriptomic dataset using the direction of change to ascertain association between up and down-regulated genes and any specific pathway.
-Only significant associations are given below.
+GSEA was run on each transcriptomic dataset using the *direction of change* to ascertain association between up- and down-regulated genes and any specific pathway.
+Only significant associations are shown below.
 
 #### Results {.tabset}
 
@@ -324,8 +324,8 @@ htmltools::tagList(
 
 ### Non-Directional GSEA 
 
-During preparation GSEA was also performed on all transcriptomic datasets using significance only to determine any pathways may be perturbed by any changed genes, regardless of the direction of change.
-Only significant results are shown below.
+During preparation GSEA was also performed on all transcriptomic datasets using *significance only* to determine any pathways may be perturbed by any changed genes, regardless of the direction of change.
+Only significant results are shown in the table below.
 
 #### Results {.tabset}
 
@@ -437,7 +437,7 @@ htmltools::tagList(
         id <- x %>% 
           str_to_lower() %>% 
           str_replace_all("_", "-") %>% 
-          paste("barcode-gsea-dir", sep = "-")
+          paste("barcode-gsea-sig", sep = "-")
         tagList(
           htmltools::div(
             id = id,  class = "section level5", htmltools::h5(x),

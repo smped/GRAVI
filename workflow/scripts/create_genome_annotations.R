@@ -63,16 +63,16 @@ params <- read_yaml(all_input$yaml)
 
 #### Seqinfo ####
 sq_df <- all_input$bam %>%
-  BamFileList() %>% 
-  as.list() %>% 
-  lapply(seqinfo) %>% 
-  lapply(keepStandardChromosomes) %>% 
-  lapply(dropSeqlevels, "chrM") %>% 
-  lapply(sortSeqlevels) %>% 
-  lapply(as_tibble) %>% 
+  BamFileList() %>%
+  as.list() %>%
+  lapply(seqinfo) %>%
+  lapply(keepStandardChromosomes) %>%
+  lapply(dropSeqlevels, "chrM") %>%
+  lapply(sortSeqlevels) %>%
+  lapply(as_tibble) %>%
   bind_rows(.id = 'bam') %>%
   distinct(seqnames, seqlengths, .keep_all = TRUE)
-## Catch any references where sequences don't match. 
+## Catch any references where sequences don't match.
 ## By removing the MT earlier, this sidesteps a known issue
 if (any(duplicated(sq_df$seqnames))) {
   cat("References are not identicial between all bam files\n")
@@ -123,6 +123,7 @@ all_gtf <- gtf %>%
   sort() %>%
   subset(seqnames %in% seqlevels(sq)) %>%
   splitAsList(f = .$type)
+metadata(gtf) <- list(source = basename(all_input$gtf))
 gtf_lens <- map_int(all_gtf[c("gene", "transcript", "exon")], length)
 if (any(gtf_lens == 0)) {
 	cat("Zero length categories found for", names(all_gtf)[gtf_lens == 0])
