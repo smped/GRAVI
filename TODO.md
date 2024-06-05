@@ -101,18 +101,11 @@
 
 - [ ] Check all outputs in the `results` folder? What's missing or needed?
 
-### Annotations
-
-- [ ] Barcode plots not showing correct png for RNA-Seq
 
 ### NFR
 
 - [ ] Split localz targets into individual targets & run all in parallel
 
-### Shared
-
-- [ ] Filtering of significant results in tables
-- [ ] Add better explanation of shared peaks
 
 ### Signal Summary
 

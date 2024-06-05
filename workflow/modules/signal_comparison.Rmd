@@ -156,8 +156,11 @@ After performing individual analyses on the provided targets, this analysis perf
 Comparisons were performed in a treatment-agnostic manner, using the sets of consensus peaks defined across all conditions, making this approach an analysis of the larger universe of regulation and pathways present within the cell type of interest,
 
 In addition, the set of *shared peaks* was defined as the genomic regions with detected signal in *m = max(n - 1, 2)* targets, where *n* represents the total number of targets.
+During preparation of the shared peaks, any regions which were smaller than 
 
 ## Peak Comparisons {.tabset}
+
+Before the inspection of shared peaks, a summary of the individual targets is given below.
 
 ```{r load-peaks}
 consensus_peaks <- all_paths$peaks %>% 
@@ -171,12 +174,10 @@ shared_peaks <- file.path(all_paths$peaks, "shared", "shared_peaks.rds") %>%
   read_rds()
 ```
 
-Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of common regions found.
-Given that `r n_targets` were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across all targets, but where signal was detected in at least `r n_targets - 1` targets.
-This ensures any individual targets with broader peaks do not lead to unrealistically broad shared regions.
 
 ```{r tbl-peak-summary}
-consensus_peaks %>% 
+consensus_peaks %>%
+  as.list() %>% 
   lapply(
     \(x) tibble(
       `Consensus Peaks` = length(x),
@@ -192,14 +193,14 @@ consensus_peaks %>%
   dplyr::select(-starts_with("Q")) %>% 
   pander(
     justify = "lrrrrr", 
-    caption = "Summary of consensus peaks obtained within each target."
+    caption = "Summary of consensus peaks obtained within each target"
   )
 ```
 
 
 ### Overlapping Regions
 
-```{r plot-overlaps, fig.width = ifelse(n_targets > 2, fw, fh), fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown below*")}
+```{r plot-overlaps, fig.width = ifelse(n_targets > 2, fw, fh), fig.cap = glue("*Taking the combined overlap between any targets as the set of regions, the number of regions with each target overlapping these regions is shown. Consensus regions were taken as the union ranges, without considering coverage and may appear as different numbers to the shared peaks in the table above.*")}
 plotType <- ifelse(n_targets > 2, "upset", "venn")
 plotOverlaps(
   consensus_peaks, type = plotType, set_col = colours$target, exp_sets = 0.3
@@ -229,10 +230,8 @@ consensus_peaks %>%
 
 ### Distance to TSS 
 
-```{r plot-shared-dist-to-tss-hist, fig.height = 0.75 * fh, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. Shared peaks were removed from each set of consensus peaks to highlight any potential differences, and so that each peak is only included in one category.*")}
+```{r plot-shared-dist-to-tss-hist, fig.height = 0.75 * fh, fig.cap = glue("*Distances from the centre of each set of consensus peaks to the nearest transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line in B indicates the range considered to be a promoter during annotation preparation.*")}
 df <- consensus_peaks %>% 
-  endoapply(filter_by_non_overlaps, shared_peaks) %>% 
-  c(GRangesList(Shared = shared_peaks)) %>% 
   endoapply(granges) %>% 
   lapply(
     \(x){
@@ -247,7 +246,7 @@ df <- consensus_peaks %>%
     q = seq_along(d) / dplyr::n(), .by = all_of("target")
   )
 A <- df %>% 
-  ggplot(aes(d / 1e3, colour = target, linetype = target != "Shared")) +
+  ggplot(aes(d / 1e3, colour = target)) +
   geom_density() +
   coord_cartesian(xlim = c(-50, 50)) +
   scale_colour_manual(values = colours$target) +
@@ -257,7 +256,7 @@ A <- df %>%
   ) + 
   theme(legend.position = "none")
 B <- df %>% 
-  ggplot(aes(abs(d) / 1e3, q, colour = target, linetype = target != "Shared")) +
+  ggplot(aes(abs(d) / 1e3, q, colour = target)) +
   geom_line() +
   geom_vline(
     xintercept = max(unlist(region_params$promoters)) / 1e3, 
@@ -274,6 +273,30 @@ B <- df %>%
   guides(linetype = "none")
 A + B + plot_annotation(tag_levels = "A")
 ```
+
+## Shared Peaks
+
+Consensus peaks from all targets (`r pander(targets)`) were loaded, and a set of common regions found.
+Given that `r n_targets` targets were included in the dataset, the common regions were defined as the `r comma(length(shared_peaks))` overlapping regions across *all targets*, but choosing the overlapping ranges where signal was detected in at least `r n_targets - 1` of the `r n_targets` targets.
+This ensures any individual targets with broader peaks do not lead to unrealistically broad shared regions.
+
+```{r tbl-shared}
+tibble(
+  `Shared Peaks` = length(shared_peaks),
+  `Median Width` = median(width(shared_peaks)),
+  Q25 = quantile(width(shared_peaks), 0.25),
+  Q75 = quantile(width(shared_peaks), 0.75),
+  `Smallest Peak` = min(width(shared_peaks)),
+  `Broadest Peak` = max(width(shared_peaks))
+) %>% 
+  mutate(IQR = glue("[{comma(Q25)}, {comma(Q75)}]")) %>% 
+  dplyr::select(-starts_with("Q")) %>% 
+  pander(
+    justify = "rrrrr", 
+    caption = "Summary of shared peaks obtained across all targets"
+  )
+```
+
 
 ### Gene-Centric Regions
 
@@ -704,22 +727,23 @@ if (has_rna) {
               prop = detected / total,
               .by = any_of(c("feature", "region"))
             ) %>% 
-            mutate(p = map_dbl(
-              seq_len(nrow(.)), 
-              \(i) fisher.test(
-                bind_rows(.[i,], no_peak)[c("detected", "undetected")],
-                alternative = "greater"
-              )$p.value
-            ),
-            adj_p = p.adjust(p, "fdr")
+            mutate(
+              p = map_dbl(
+                seq_len(nrow(.)), 
+                \(i) fisher.test(
+                  bind_rows(.[i,], no_peak)[c("detected", "undetected")],
+                  alternative = "greater"
+                )$p.value
+              ),
+              adj_p = p.adjust(p, "fdr"),
+              Sig = adj_p < 0.05
             ) %>% 
             arrange(p) %>% 
             mutate(
               source = str_extract(feature, ".+: ") %>% 
                 str_remove_all(": ") %>% 
                 str_replace_na(""),
-              feature = str_remove_all(feature, ".+: "),
-              sig = adj_p < 0.05
+              feature = str_remove_all(feature, ".+: ")
             ) %>% 
             dplyr::select(source, feature, region, everything()) %>% 
             dplyr::select(where(\(x) !all(x == ""))) %>% 
@@ -783,7 +807,19 @@ if (has_rna) {
                   "P<sub>adj</adj>", html = TRUE, 
                   cell = \(value) sprint_pval(value),
                   filterMethod = js_less
-                )
+                ),
+                Sig = colDef(
+                  show = FALSE,
+                  filterMethod = JS("function(rows, columnId, filterValue) {
+                      if (filterValue === true) {
+                        return rows.filter(function(row) {
+                          const OnlySignificant = row.values[columnId]
+                          return OnlySignificant
+                        })
+                      }
+                      return rows
+                   }")
+                )      
               )[colnames(.)],
               columnGroups = list(
                 colGroup("Gene Expression", str_subset(names(.), "detected"))
@@ -832,7 +868,7 @@ if (has_rna) {
                 tags$input(
                   type = "checkbox", 
                   onclick = glue(
-                    "Reactable.setFilter('{tbl_id}', 'sig', event.target.checked)"
+                    "Reactable.setFilter('{tbl_id}', 'Sig', event.target.checked)"
                   )
                 ),
                 "Only show significant associations"
