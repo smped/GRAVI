@@ -107,11 +107,6 @@
 - [ ] Split localz targets into individual targets & run all in parallel
 
 
-### Signal Summary
-
-- [ ] Upset plot looks weird when comparing treatments (make wider)
-- [ ] Add test for equality of peak widths?
-
 ### DSA
 
 - [ ] Add numbers for feature summary plots
