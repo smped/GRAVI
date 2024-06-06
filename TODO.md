@@ -92,10 +92,6 @@
 - [x] Cleanup handling of detected genes, particularly in the setup of annotations
 - [x] Place all gtf objects back into a single GRangesList...
 
-## Additional Notes
-
-- The package simplifyEnrichment also looks useful for comparing across targets. Examples here: https://jokergoo.github.io/rGREAT_suppl/compare_online_and_local.html
-
 
 ## Minor Tweaks
 
@@ -106,11 +102,3 @@
 
 - [ ] Split localz targets into individual targets & run all in parallel
 
-
-### DSA
-
-- [ ] RNA names appear duplicated in plotHFGC captions
-
-### Pairwise
-
-- [ ] Centre RNA plots around entire gene? Same for DSA?

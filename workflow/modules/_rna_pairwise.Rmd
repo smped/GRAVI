@@ -957,20 +957,18 @@ tagList(
 
 
 ```{r rna-grl-to-plot}
-grl_to_plot <- rna %>%
+ids_to_plot <- rna %>%
   lapply(inner_join, results_tbl, by = 'gene_id') %>% 
   bind_rows(.id = "dataset") %>% 
   arrange(PValue) %>% 
   dplyr::filter(grepl("(In|De)creased", status.y)) %>% 
-  dplyr::slice(1:4, .by = status.y) %>% 
-  dplyr::select(
-    range, starts_with("gene"), starts_with("status"),
-    any_of(c("region", "feature"))
-  ) %>% 
-  distinct(gene_id, .keep_all = TRUE) %>% 
-  dplyr::slice(1, .by = status.y) %>% 
-  colToRanges("range", seqinfo = sq) %>% 
-  splitAsList(.$gene_id)
+  dplyr::filter(!grepl("Undetected", status.y)) %>% 
+  distinct(gene_id) %>% 
+  dplyr::slice(1:10) %>% 
+  pull("gene_id")
+grl_to_plot <-gtf$gene %>% 
+  subset(gene_id %in% ids_to_plot) %>% 
+  split(.$gene_id)
 ```
 
 The most highly ranked gene for differential expression was chosen within each pairwise grouping, and in the case of a gene being allocated to multiple groups, the next-most significant was chosen.
@@ -982,30 +980,23 @@ This set of `r length(grl_to_plot)` loci is shown below, noting that for some ge
 .makeCaption <- function(.gr) {
   if (is.null(.gr)) return(NULL)
   id <- unique(.gr$gene_id)
-  gn <- .gr$gene_name
-  reg <- glue_collapse(.gr$region, sep = ", ", last = " & ")
-  reg <- ifelse(
-    grepl("^[AEIOUaeiou]", reg), paste("an", reg), paste("a", reg)
+  gn <- unique(id2gene[id])
+  ds <- bind_rows(rna, .id = 'dataset') %>% 
+    subset(gene_id == id) %>% 
+    pull("dataset") %>% 
+    unique()
+  cp <- glue(
+    "The region associated with {gn}, showing all changed peaks within a ", "
+    small distance of the transcribed region that were annotated to {gn}. ", 
+    "This was highly-ranked DE gene in ", 
+    glue_collapse(ds, sep = ", ", last = " and "),
+    ", with at least one significantly changed DSA region for ",
+    glue_collapse(unname(targets), last = " or "), ". ",
+    "Any loci associated with differential signal are annotated by colour."
   )
-  reg <- ifelse(grepl("on$", reg), paste0(reg, "ic"), reg)
-  feat <- c()
-  if (has_features) {
-    feat <- glue_collapse(unique(unlist(.gr$feature)), sep = ", ", last = " & ")
-    feat <- ifelse(
-      grepl("^[AEIOUaeiou]", feat), paste("an", feat), paste("a", feat)
-    )
-    feat <- glue(
-      "When comparing to external features, this locus was most associated with those designated as {feat}. "
-    )
-  }
-  glue(
-    "This {width(range(.gr))}bp region ({as.character(.gr)}) was considered ",
-    "as {pw_relabel(.gr$status.y)}, overlapping {reg} region, and with the ", 
-    "associated gene, {gn}, being considered as {.gr$status.x}. ",
-    feat, 
-    "Loci associated with differential signal in either dataset are annotated by colour."
-  )
+  cp
 }
+hfgc_genes <- hfgc_genes[names(hfgc_genes) != "Undetected"]
 htmltools::tagList(
   lapply(
     seq_along(grl_to_plot),
@@ -1015,9 +1006,17 @@ htmltools::tagList(
       id <- unique(grl_to_plot[[i]]$gene_id)
       img_out <- file.path(fig_path, glue("{nm}.{fig_type}"))
       fig_fun(filename = img_out, width = fw, height = fh)
+      gr <- c(
+        granges(grl_to_plot[[i]]), 
+        combined_results %>% 
+          subset(grepl("(In|De)creased", status)) %>% 
+          subset(map_lgl(gene_id, \(x) id %in% x)) %>% 
+          granges()
+      ) %>% 
+        unstrand() %>% 
+        range()
       plotHFGC(
-        grl_to_plot[[i]],
-        hic = hic,
+        gr, hic = hic,
         features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
         featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
         genes = hfgc_genes, genecol = gene_col, 
@@ -1026,10 +1025,10 @@ htmltools::tagList(
         annotation = annot, annotcol = direction_colours,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 30, max = max(1e4, 1.1 * width(range(grl_to_plot[[i]]))), 
+        zoom = 1.2, max = 4 * width(grl_to_plot[[i]]),
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10,
-        highlight = rgb(0, 0, 1, 0.3)
+        highlight = NULL
       )
       dev.off()
       ## Create html tags
