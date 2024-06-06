@@ -109,7 +109,6 @@
 
 ### DSA
 
-- [ ] Add numbers for feature summary plots
 - [ ] RNA names appear duplicated in plotHFGC captions
 
 ### Pairwise

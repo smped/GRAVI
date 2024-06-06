@@ -178,94 +178,6 @@ donut_plots <- names(donuts) %>%
   setNames(names(donuts))
 ```
 
-```{r ma-plots}
-ma_plots <- names(rna) %>% 
-  lapply(
-    \(i) {
-      p <- rna[[i]] %>% 
-        left_join(dsa_status, by = "gene_id") %>% 
-        mutate(
-          status.y = fct_na_value_to_level(status.y, "Undetected") %>% 
-            fct_relabel(\(x) paste(target, x)),
-          gene_name = id2gene[gene_id]
-        ) %>% 
-        droplevels() %>% 
-        arrange(1 / PValue) %>% 
-        ggplot(aes(logCPM, logFC)) +
-        geom_point(aes(colour = status.x), alpha = 0.7) +
-        geom_xsideboxplot(
-          aes(logCPM, fct_rev(status.y), fill = status.y), orientation = "y",
-          show.legend = FALSE
-        ) +
-        geom_ysideboxplot(
-          aes(fct_rev(status.y), logFC, fill = status.y), orientation = "x"
-        ) +
-        geom_label_repel(
-          aes(label = gene_name, colour = status.x),
-          data = . %>% 
-            dplyr::filter(grepl("(In|De)creased", status.x)) %>% 
-            arrange(desc(abs(logFC))) %>% 
-            dplyr::slice(1:5, .by = status.x),
-          size = 3, show.legend = FALSE
-        ) +
-        annotate(
-          "text", label = "logFC", angle = 90,
-          x = min(rna[[i]]$logCPM) - 0.1 * diff(range(rna[[i]]$logCPM)),
-          y = mean(range(rna[[i]]$logFC))
-        ) +
-        scale_xsidey_discrete(position = "right") +
-        scale_y_continuous(position = "left") +
-        scale_ysidex_discrete(labels = NULL) +
-        scale_colour_manual(values = direction_colours) +
-        scale_fill_manual(
-          values = setNames(
-            direction_colours, paste(target, names(direction_colours))
-          )
-        ) +
-        coord_cartesian(xlim = range(rna[[i]]$logCPM), clip = 'off') +
-        labs(colour = "DE Status", fill = paste(target, "Status"), y = NULL) +
-        theme(
-          axis.title.x = element_text(hjust = 0.4, vjust = 1),
-          axis.title.y = element_text(hjust = 0.6, vjust = 1),
-          ggside.panel.scale = 0.2, 
-          ggside.axis.ticks.x = element_blank(),
-          plot.margin = unit(c(1, 1, 1, 2), "lines")
-        ) 
-      
-        ## Export the image
-        img_out <- file.path(fig_path, glue("{i}_MA.{fig_type}"))
-        fig_fun(filename = img_out, width = fw, height = fh)
-        print(p)
-        dev.off()
-        
-        ## Create html tags
-        fig_link <- str_extract(img_out, "assets.+")
-        cp <- htmltools::tags$em(
-          glue(
-            "MA Plot for {i} with outer boxplots showing the distribution of ",
-            "values for overall expression (logCPM) and logFC by {target} status"
-          )
-        )
-        htmltools::div(
-          htmltools::div(
-            id = img_out %>% 
-              basename() %>% 
-              str_remove_all(glue(".{fig_type}$")) %>% 
-              str_to_lower() %>% 
-              str_replace_all("_", "-"),
-            class = "section level5",
-            htmltools::h5("MA Plot"),
-            htmltools::div(
-              class = "figure", style = "text-align: center",
-              htmltools::img(src = fig_link, width = "100%"),
-              htmltools::tags$caption(cp)
-            )
-          )
-        )
-    }
-  ) %>% 
-  setNames(names(rna))
-```
 
 
 ```{r lfc-by-region}
@@ -280,6 +192,110 @@ pw_pl <- colours$pairwise %>%
   unite("pair", all_of(c("p1", "p2")), sep = "\n") %>% 
   mutate(value = setNames(value, pair)) %>% 
   pull("value")
+pw_lfc <- names(rna) %>% 
+  lapply(
+    \(i) {
+      x <- rna[[i]]
+      p <- results_tbl %>% 
+        inner_join(x, by = "gene_id") %>% 
+        mutate(
+          status.x = fct_relabel(status.x, \(x) paste(target, x)), 
+          status.y = fct_relabel(status.y, \(x) paste("RNA", x)), 
+          status = fct_cross(status.x, status.y, sep = "\n") %>% fct_rev()
+        ) %>% 
+        rename_with(
+          \(x) str_replace_all(x, "\\.x$", paste0(" ", target))
+        ) %>% 
+        rename_with(
+          \(x) str_replace_all(x, "\\.y$", " RNA")
+        ) %>% 
+        arrange(desc(`logFC RNA`), !!sym(glue("PValue {target}"))) %>% 
+        distinct(gene_id, .keep_all = TRUE) %>%
+        ggplot(aes(!!sym(glue("logFC {target}")), `logFC RNA`)) +
+        geom_hline(yintercept = 0) +
+        geom_vline(xintercept = 0) +
+        geom_point(
+          data = . %>% dplyr::filter(grepl("Unchanged.+Unchanged", status)),
+          colour = direction_colours[["Unchanged"]], alpha = 0.5
+        ) +
+        geom_point(
+          aes(colour = status),
+          data = . %>% dplyr::filter(!grepl("Unchanged.+Unchanged", status)),
+          alpha = 0.7
+        ) +
+        geom_smooth(se = FALSE, method = MASS::rlm, colour = "grey20") +
+        geom_text(
+          aes(label = lab),
+          data = . %>% 
+            dplyr::summarise(
+              cor = cor(!!sym(glue("logFC {target}")), `logFC RNA`),
+              "logFC {target}" := max(!!sym(glue("logFC {target}"))),
+              `logFC RNA` = min(`logFC RNA`),
+              lab = glue("rho == {round(cor, 3)}"),
+            ) %>% 
+            mutate(
+              "logFC {target}" := max(!!sym(glue("logFC {target}"))),
+              `logFC RNA` = min(`logFC RNA`)
+            ),
+          hjust = 1, vjust = 0, parse = TRUE
+        ) +
+        geom_label_repel(
+          aes(label = gene_name, colour = status),
+          data = . %>% 
+            dplyr::filter(!grepl("Unchanged.+Unchanged", status)) %>% 
+            dplyr::filter(
+              (!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2 > 1
+            ) %>% 
+            dplyr::arrange(
+              desc((!!sym(glue("logFC {target}")))^2 + `logFC RNA`^2)
+            ) %>% 
+            dplyr::slice(1:2, .by = all_of(c("status"))),
+          show.legend = FALSE, size = 3, fontface = "italic"
+        ) +
+        scale_colour_manual(values = pw_pl) +
+        labs(
+          x = glue("logFC ({target})", y = "logFC (RNA)"), 
+          colour = "Combined\nStatus"
+        ) +
+        theme(legend.position = "bottom")
+      
+      ## Export the image
+      img_out <- file.path(fig_path, glue("pw_lfc_{i}.{fig_type}"))
+      fig_fun(filename = img_out, width = fw, height = fh)
+      print(p)
+      dev.off()
+      
+      ## Create html tags
+      fig_link <- str_extract(img_out, "assets.+")
+      cp <- htmltools::tags$em(
+        glue(
+          "All detected genes within the {i} dataset were compared to {target}",
+          "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
+          "Genes which were unchanged in {i} and with no changed DSA regions ",
+          "are shown in grey. Robust linear regression lines are shown in ", 
+          "black along with correlations in the bottom right corner of each panel."
+        )
+      )
+      htmltools::div(
+        htmltools::div(
+          id = img_out %>% 
+            basename() %>% 
+            str_remove_all(glue(".{fig_type}$")) %>% 
+            str_to_lower() %>% 
+            str_replace_all("_", "-"),
+          class = "section level5",
+          htmltools::h5("Combined logFC"),
+          htmltools::div(
+            class = "figure", style = "text-align: center",
+            htmltools::img(src = fig_link, width = "100%"),
+            htmltools::tags$caption(cp)
+          )
+        )
+      )
+      
+    }
+  ) %>% 
+  setNames(names(rna))
 lfc_by_region <- names(rna) %>% 
   lapply(
     \(i) {
@@ -361,7 +377,7 @@ lfc_by_region <- names(rna) %>%
         glue(
           "All detected genes within the {i} dataset were compared to {target}",
           "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
-          "Where multiple signal regions wre mapped to a given gene, the most ",
+          "Where multiple signal regions were mapped to a given gene, the most ",
           "highly-ranked by p-value was selected for visualisation. ",
           "Points are shown grouped by which genomic region the DSA result ", 
           "was mapped to. ",
@@ -378,7 +394,7 @@ lfc_by_region <- names(rna) %>%
             str_to_lower() %>% 
             str_replace_all("_", "-"),
           class = "section level5",
-          htmltools::h5("Combined logFC"),
+          htmltools::h5("logFC By Region"),
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = "100%"),
@@ -868,7 +884,6 @@ tagList(
               htmltools::h4(x, class = "tabset"),
               summary_tables[[x]],
               donut_plots[[x]],
-              ma_plots[[x]],
               lfc_by_region[[x]],
               lfc_by_feature[[x]],
               volcano_plots[[x]],
@@ -1703,20 +1718,19 @@ tagList(
 
 
 ```{r rna-grl-to-plot}
-grl_to_plot <- rna %>% 
+# grl_to_plot <- 
+ids_to_plot <- rna %>% 
   lapply(inner_join, results_tbl, by = 'gene_id') %>% 
   bind_rows(.id = "dataset") %>% 
   dplyr::filter(grepl("(In|De)creased", status.y)) %>% 
-  mutate(
-    rank = rank(PValue.x) + rank(PValue.y)
-  ) %>% 
+  mutate(rank = rank(PValue.x) + rank(PValue.y)) %>% 
   arrange(rank) %>% 
-  dplyr::filter(
-    gene_id %in% unique(gene_id)[1:5]
-  ) %>% 
-  split(.$gene_id) %>% 
-  lapply(colToRanges, "range", seqinfo = seqinfo(results)) %>% 
-  GRangesList()
+  distinct(gene_id) %>% 
+  dplyr::slice(1:5) %>% 
+  pull("gene_id")
+grl_to_plot <- gtf$gene %>% 
+  subset(gene_id %in% ids_to_plot) %>% 
+  split(.$gene_id)
 y_lim <- bwfl[[target]] %>%
   lapply(import.bw, which = unlist(range(grl_to_plot))) %>%
   lapply(\(x) c(0, max(x$score))) %>% 
@@ -1732,16 +1746,22 @@ By choosing the 5 genes highly ranked for both differential expression in any of
 .makeCaption <- function(.gr) {
   if (is.null(.gr)) return(NULL)
   id <- unique(.gr$gene_id)
-  gn <- id2gene[id]
+  gn <- unique(id2gene[id])
+  ds <- bind_rows(rna, .id = 'dataset') %>% 
+    subset(gene_id == id) %>% 
+    pull("dataset") %>% 
+    unique()
   cp <- glue(
-    "The {width(range(.gr))}bp region with all changed peaks mapped to {gn}, ", 
-    "as a highly-ranked DE gene in ",
-    glue_collapse(.gr$dataset, sep = ", ", last = " & "),
-    ", and with at least significantly changed DSA region for {target}. ",
-    "Regions associated with differential signal are annotated by colour."
+    "The region associated with {gn}, showing all changed peaks within a ", "
+    small distance of the transcribed region that were annotated to {gn}.", 
+    "This was highly-ranked DE gene in ", 
+    glue_collapse(ds, sep = ", ", last = " and "),
+    ", with at least one significantly changed DSA region for {target}. ",
+    "{target} loci associated with differential signal are annotated by colour."
   )
   cp
 }
+hfgc_genes <- hfgc_genes[names(hfgc_genes) != "Undetected"]
 htmltools::tagList(
   lapply(
     seq_along(grl_to_plot),
@@ -1751,9 +1771,17 @@ htmltools::tagList(
       id <- unique(grl_to_plot[[i]]$gene_id)
       img_out <- file.path(fig_path, glue("{nm}.{fig_type}"))
       fig_fun(filename = img_out, width = fw, height = fh)
+      gr <- c(
+        granges(grl_to_plot[[i]]), 
+        results %>% 
+          subset(grepl("(In|De)creased", status)) %>% 
+          subset(map_lgl(gene_id, \(x) id %in% x)) %>% 
+          granges()
+      ) %>% 
+        unstrand() %>% 
+        range()
       plotHFGC(
-        grl_to_plot[[i]],
-        hic = hic,
+        gr, hic = hic,
         features = feat_gr, featcol = hfgc_feat_col, featname = featnames,
         featsize = max(1, 0.8 * length(feat_gr)), featstack = "dense",
         genes = hfgc_genes, genecol = gene_col, 
@@ -1762,10 +1790,10 @@ htmltools::tagList(
         annotation = annot, annotcol = direction_colours,
         cytobands = bands_df,
         collapseTranscripts = collapseTrans, maxTrans = 15,
-        zoom = 20, max = max(1e4, 1.1 * width(range(grl_to_plot[[i]]))), 
+        zoom = 1.2, max = 2 * width(grl_to_plot[[i]]),
         col.title = "black", background.title = "white", 
         rotation.title = 90, showAxis = FALSE, fontsize = 10,
-        highlight = rgb(0, 0, 1, 0.3)
+        highlight = NULL
       )
       dev.off()
       ## Create html tags
