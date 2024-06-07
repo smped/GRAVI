@@ -173,23 +173,23 @@ rule compile_differential_signal_html:
             os.path.join("docs", "assets", "{target}_{ref}_{treat}")
         ),
         html = "docs/{target}_{ref}_{treat}_differential_signal.html",
-        # enrichment = expand(
-        #     os.path.join(
-        #         diff_path, "{{target}}",
-        #         "{{target}}_{{ref}}_{{treat}}-{f}-enrichment.csv"
-        #     ),
-        #     f = ['changed', 'increased', 'decreased']
-        # ),
+        exports = expand(
+            os.path.join(
+                "results", "differential_signal", "{{target}}",
+                "{{ref}}_{{treat}}-{f}"
+            ),
+            f = [
+                'differential_signal.csv.gz', 'changed-enrichment.csv',
+                'decreased-enrichment.csv', 'increased-enrichment.csv',
+                'localz.csv'
+                ]
+        ),
         fig_path = directory(
             os.path.join(
                 "docs", "{target}_{ref}_{treat}_differential_signal_files",
                 "figure-html"
             )
         ),
-        # results = os.path.join(
-        #     diff_path, "{{target}}",
-        #     "{{target}}_{{ref}}_{{treat}}-differential_signal.csv.gz"
-        # ),
         renv = temp(
             os.path.join(
                 "output", "envs",
@@ -220,8 +220,13 @@ rule compile_pairwise_comparison_html:
             rmd_path, "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.Rmd"
         ),
     output:
-        html = os.path.join(
-            "docs", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.html"
+        exports = expand(
+            os.path.join(
+                "results", "pairwise_comparisons", 
+                "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}",
+                "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}-{f}"
+            ),
+            f = ['pairwise_comparison.csv.gz', 'enrichment.csv', 'localz.csv']
         ),
         fig_path = directory(
             os.path.join(
@@ -230,6 +235,15 @@ rule compile_pairwise_comparison_html:
                 "figure-html"
             )
         )
+        html = os.path.join(
+            "docs", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.html"
+        ),
+        renv = temp(
+            os.path.join(
+                "output", "envs",
+                "{tgt1}_{comp1}-{tgt2}_{comp2}-pairwise_comparison.RData"
+            )
+        ),
     conda: "../envs/rmarkdown.yml"
     threads: 4
     resources:

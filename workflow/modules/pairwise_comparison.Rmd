@@ -299,43 +299,6 @@ if (length(features)) {
 ```
 
 
-
-```{r define-outputs}
-# out_path <- here::here(
-#   "output", "pairwise_comparisons", paste(targets, collapse = "_")
-# )
-# if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
-# all_out <- list(
-#   csv = file.path(
-#     out_path, glue(comp_name, "-pairwise_comparison.csv.gz"
-#     )
-#   ),
-#   de_genes = file.path(
-#     out_path, 
-#     glue("{comp_name}-de_genes.csv")
-#   ),
-#   goseq = file.path(
-#     out_path,
-#     glue("{comp_name}-enrichment.csv")
-#   ),
-#   results = file.path(
-#     out_path, glue(comp_name, "-all_windows.rds")
-#   ),
-#   rna_enrichment = file.path(
-#     out_path,
-#     glue("{comp_name}-rnaseq_enrichment.csv")
-#   ),
-#   renv = here::here(
-#     "output", "envs",
-#     glue(comp_name, "-pairwise_comparison.RData")
-#   )
-# )
-# ## Empty objects for when RNA-Seq is absent
-# de_genes_both_comps <- tibble()
-# cmn_res <- list(tibble(gs_name = character(), leadingEdge = list()))
-```
-
-
 ## Outline
 
 This stage of the GRAVI workflow presents the combined results from two individual differential signal analyses (DSA), integrating the results by finding regions which directly overlap and considering the joint behaviour.
@@ -2978,7 +2941,33 @@ if (any_motif_pos) {
 ```{r add-rna, eval = length(rna) > 0, child = here::here('workflow/modules/_rna_pairwise.Rmd')}
 ```
 
+## Data Export
 
+```{r define-outputs}
+out_path <- here::here("results", "pairwise_comparisons", full_comp)
+if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
+all_out <- list(
+  results = file.path(out_path, glue(full_comp, "-pairwise_comparison.csv.gz")),
+  enrichment = file.path(out_path, glue("{full_comp}-enrichment.csv")),
+  localz = file.path(out_path, glue("{full_comp}-localz.csv")),
+  renv = here::here(
+    "output", "envs", glue(full_comp, "-pairwise_comparison.RData")
+  )
+)
+```
+
+
+```{r data-export, results = 'hide'}
+combined_results %>% as_tibble() %>% write_csv(all_out$results)
+enrich_by_status %>% bind_rows(.id = "status") %>% write_csv(all_out$enrichment)
+localz_df %>% write_csv(all_out$localz)
+save.image(all_out$renv)
+```
+
+
+Existing results obtained during previous steps in the workflow and presented here are:
+
+`r pander(params[c("motif_enrichment", "motif_position")])`
 
 ## References
 

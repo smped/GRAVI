@@ -2297,6 +2297,22 @@ Files exported during preparation of this document are:
 
 `r pander(all_out)`
 
+```{r existing_in, echo = FALSE}
+existing_in <- list(
+  motif_pos_res = file.path(
+    all_paths$peaks, "{target}", "{target}_motif_position.tsv.gz"
+  ),
+  motif_enrich_res = file.path(
+    all_paths$peaks, "{target}", "{target}_motif_enrichment.tsv.gz"
+  )
+)
+```
+
+
+Existing results obtained during previous steps in the workflow and presented here are:
+
+`r pander(existing_in)`
+
 ## References
 
 <div id="refs"></div>

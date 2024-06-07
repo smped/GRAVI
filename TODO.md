@@ -93,10 +93,6 @@
 - [x] Place all gtf objects back into a single GRangesList...
 
 
-## Minor Tweaks
-
-- [ ] Check all outputs in the `results` folder? What's missing or needed?
-
 
 ### NFR
 

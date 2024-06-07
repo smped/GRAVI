@@ -2330,12 +2330,13 @@ if (n_pos_res > 0) {
 ## Data Export
 
 ```{r define-outputs}
-out_path <- file.path(all_paths$diff_signal, target)
+out_path <- file.path("results", "diferential_signal", target)
 all_out <- list(
   csv = file.path(out_path, glue("{comp}-differential_signal.csv.gz")),
   changed = file.path(out_path, glue("{comp}-changed-enrichment.csv")),
   decreased = file.path(out_path, glue("{comp}-decreased-enrichment.csv")),
   increased = file.path(out_path, glue("{comp}-increased-enrichment.csv")),
+  localz = file.path(out_path, glue("{comp}-localz.csv")),
   renv = here::here("output/envs", glue("{comp}-differential_signal.RData"))
 )
 ```
@@ -2355,23 +2356,30 @@ results %>%
       setNames(gtf$gene, gtf$gene$gene_id)[gene_id]
     )
   ) %>% 
-  write_csv(all_out$csv)
+  write_csv(here::here(all_out$csv))
 ## Enrichment results need a bit of tweaking to match the tables
 changed_enrich_df %>% 
   dplyr::select(-gene_id) %>% 
-  write_csv(all_out$changed)
+  write_csv(here::here(all_out$changed))
 increased_enrich_df %>% 
   dplyr::select(-gene_id) %>% 
-  write_csv(all_out$increased)
+  write_csv(here::here(all_out$increased))
 decreased_enrich_df %>% 
   dplyr::select(-gene_id) %>% 
-  write_csv(all_out$decreased)
-save.image(all_out$renv)
+  write_csv(here::here(all_out$decreased))
+## LocalZ
+localz_df %>% write.csv(here::here(all_out$localz))
+save.image(here::here(all_out$renv))
 ```
 
 During this workflow, the following files were exported:
 
 `r pander(lapply(all_out, str_extract, "output.+"))`
+
+
+Existing results obtained during previous steps in the workflow and presented here are:
+
+`r pander(params[c("motif_enrichment", "motif_position")])`
 
 ## References
 
