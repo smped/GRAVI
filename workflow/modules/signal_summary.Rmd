@@ -2271,26 +2271,20 @@ if (n_pos > 0) {
 ## Data Export
 
 ```{r export, results='hide', echo=FALSE}
+out_path <- file.path("output", "results", "signal_summary", target)
+if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
 all_out <- list(
-  enrichment = here::here(
-    "output", "results", target, glue("{target}_enrichment.tsv")
-  ),
-  localz = here::here(
-    "output", "results", target, glue("{target}_localz.tsv")
-  ),
+  enrichment = file.path(out_path, glue("{target}_enrichment.csv")),
+  localz = file.path(out_path, glue("{target}_localz.csv")),
   renv = file.path(
-    here::here("output/envs"), glue("{target}_signal_summary.RData")
+    "output", "envs", glue("{target}_signal_summary.RData")
   )
 )
-out_paths <- vapply(all_out, dirname, character(1)) %>% unique()
-for (p in out_paths) {
-  if (!dir.exists(p)) dir.create(p, recursive = TRUE)
-}
 enrich_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
-  write_tsv(all_out$enrichment)
-write_tsv(localz_df, all_out$localz)
-save.image(all_out$renv)
+  write_csv(here::here(all_out$enrichment))
+write_csv(localz_df, here::here(all_out$localz))
+save.image(here::here(all_out$renv))
 ```
 
 Files exported during preparation of this document are:

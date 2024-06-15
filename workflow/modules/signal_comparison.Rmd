@@ -2078,28 +2078,22 @@ motif_list %>%
 ## Data Export 
 
 ```{r all-out}
+out_path <- file.path("output", "results", "signal_summary", "shared")
+if (!dir.exists(out_path)) dir.create(here::here(out_path), recursive = TRUE)
 all_out <- list(
-  enrich_genomic_bg = here::here(
-    "output", "results", "shared", "shared_enrichment_genomic_bg.tsv"
-  ),
-  enrich_targets_bg = here::here(
-    "output", "results", "shared", "shared_enrichment_targets_bg.tsv"
-  ),
-  localz_shared_regions = here::here(
-    "output", "results", "shared", "shared_regions_localz.tsv"
-  ),
-  localz_pairwise_targets = here::here(
-    "output", "results", "shared", "pairwise_localz.tsv"
-  )
+  enrich_genomic_bg = file.path(out_path, "shared_enrichment_genomic_bg.csv"),
+  enrich_targets_bg = file.path(out_path, "shared_enrichment_targets_bg.csv"),
+  localz_shared_regions = file.path(out_path, "shared_regions_localz.csv"),
+  localz_pairwise_targets = file.path(out_path, "pairwise_localz.csv")
 )
 enrich_genomic_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
-  write_tsv(all_out$enrich_genomic_bg)
+  write_csv(here::here(all_out$enrich_genomic_bg))
 enrich_targets_df %>% 
   mutate(gene_id = map_chr(gene_id, paste, collapse = "; ")) %>% 
-  write_tsv(all_out$enrich_targets_bg)
-localz_df %>% write_tsv(all_out$localz_shared_regions)
-pairwise_df %>% write_tsv(all_out$localz_pairwise_targets)
+  write_csv(here::here(all_out$enrich_targets_bg))
+localz_df %>% write_csv(here::here(all_out$localz_shared_regions))
+pairwise_df %>% write_csv(here::here(all_out$localz_pairwise_targets))
 ```
 
 

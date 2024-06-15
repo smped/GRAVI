@@ -2330,9 +2330,10 @@ if (n_pos_res > 0) {
 ## Data Export
 
 ```{r define-outputs}
-out_path <- file.path("results", "diferential_signal", target)
+out_path <- file.path("output", "results", "differential_signal", target)
+if (!dir.exists(out_path)) dir.create(here::here(out_path), recursive = TRUE)
 all_out <- list(
-  csv = file.path(out_path, glue("{comp}-differential_signal.csv.gz")),
+  csv = file.path(out_path, glue("{comp}-differential_signal.csv")),
   changed = file.path(out_path, glue("{comp}-changed-enrichment.csv")),
   decreased = file.path(out_path, glue("{comp}-decreased-enrichment.csv")),
   increased = file.path(out_path, glue("{comp}-increased-enrichment.csv")),

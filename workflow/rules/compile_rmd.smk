@@ -55,22 +55,23 @@ rule compile_signal_summary_html:
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
     output:
-        html = os.path.join("docs", "{target}_signal_summary.html"),
+        csv = expand(
+            os.path.join(
+                "output", "results", "signal_summary", "{{target}}", 
+                "{{target}}_{f}.csv"
+            ),
+            f = ['enrichment', 'localz']
+        ),
         fig_path = directory(
             os.path.join("docs", "{target}_signal_summary_files", "figure-html")
         ),
-        great = os.path.join(
-            "output", "results", "{target}", "{target}_enrichment.tsv"
-        ),
-        localz = os.path.join(
-            "output", "results", "{target}", "{target}_localz.tsv"
-        ),
+        html = os.path.join("docs", "{target}_signal_summary.html"),
         renv = temp(
             os.path.join("output", "envs", "{target}_signal_summary.RData")
         ),
     conda: "../envs/rmarkdown.yml"
     threads: 6
-    retries: 0
+    retries: 1
     resources:
         mem_mb = 16384,
         runtime = "30m",
@@ -110,20 +111,23 @@ rule compile_signal_comparison_html:
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
     output:
-        rmd = os.path.join(rmd_path, "signal_comparison.Rmd"),
+        csv = expand(
+            os.path.join(
+                "output", "results", "signal_summary", "shared", "{f}.csv"
+            ),
+            f = [
+                'shared_enrichment_genomic_bg', 'shared_enrichment_targets_bg',
+                'shared_regions_localz', 'pairwise_localz'
+            ]
+        ),
         fig_path = directory(
             os.path.join("docs", "signal_comparison_files", "figure-html")
         ),        
         html = os.path.join("docs", "signal_comparison.html"),
-        tsv = expand(
-            os.path.join("output", "results", "shared", "{f}"),
-            f = ['shared_enrichment_genomic_bg.tsv',
-            'shared_enrichment_targets_bg.tsv',
-            'shared_regions_localz.tsv', 'pairwise_localz.tsv']
-        )
+        rmd = os.path.join(rmd_path, "signal_comparison.Rmd"),
     conda: "../envs/rmarkdown.yml"
     threads: 6
-    retries: 1
+    retries: 0
     resources:
         mem_mb = 16384,
         runtime = "30m",
@@ -141,6 +145,13 @@ rule compile_nfr_html:
         setup = rules.create_setup_chunk.output,
         yaml = rules.create_site_yaml.output
     output:
+        csv = expand(
+            os.path.join(
+                "output", "results", "nfr", "{{target}}", 
+                "{{target}}_nfr_{f}_localz.csv"
+            ),
+            f = ['regions', 'pairwise']
+        ),
         html = os.path.join("docs", "{target}_nfr.html"),
         fig_path = directory(
             os.path.join("docs", "{target}_nfr_files", "figure-html")
@@ -175,13 +186,12 @@ rule compile_differential_signal_html:
         html = "docs/{target}_{ref}_{treat}_differential_signal.html",
         exports = expand(
             os.path.join(
-                "results", "differential_signal", "{{target}}",
-                "{{ref}}_{{treat}}-{f}"
+                "output", "results", "differential_signal", "{{target}}",
+                "{{target}}_{{ref}}_{{treat}}-{f}.csv"
             ),
             f = [
-                'differential_signal.csv.gz', 'changed-enrichment.csv',
-                'decreased-enrichment.csv', 'increased-enrichment.csv',
-                'localz.csv'
+                'differential_signal', 'changed-enrichment', 'localz',
+                'decreased-enrichment', 'increased-enrichment',
                 ]
         ),
         fig_path = directory(
@@ -222,11 +232,11 @@ rule compile_pairwise_comparison_html:
     output:
         exports = expand(
             os.path.join(
-                "results", "pairwise_comparisons", 
+                "output", "results", "pairwise_comparisons", 
                 "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}",
-                "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}-{f}"
+                "{{tgt1}}_{{comp1}}-{{tgt2}}_{{comp2}}-{f}.csv"
             ),
-            f = ['pairwise_comparison.csv.gz', 'enrichment.csv', 'localz.csv']
+            f = ['pairwise_comparison', 'enrichment', 'localz']
         ),
         fig_path = directory(
             os.path.join(
@@ -234,7 +244,7 @@ rule compile_pairwise_comparison_html:
                 "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison_files",
                 "figure-html"
             )
-        )
+        ),
         html = os.path.join(
             "docs", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.html"
         ),
@@ -245,10 +255,11 @@ rule compile_pairwise_comparison_html:
             )
         ),
     conda: "../envs/rmarkdown.yml"
-    threads: 4
+    retries: 1
+    threads: lambda wildcards, attempt: 4 * attempt
     resources:
-        mem_mb = 32000,
-        runtime = "30m"
+        mem_mb = lambda wildcards, attempt: 32000 * attempt,
+        runtime = lambda wildcards, attempt: 30 * attempt,
     log: os.path.join(log_path, "compile_rmd", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.log")
     shell:
         """

@@ -2944,30 +2944,38 @@ if (any_motif_pos) {
 ## Data Export
 
 ```{r define-outputs}
-out_path <- here::here("results", "pairwise_comparisons", full_comp)
-if (!dir.exists(out_path)) dir.create(out_path, recursive = TRUE)
+out_path <- file.path("output", "results", "pairwise_comparisons", params$full_comp)
+if (!dir.exists(out_path)) dir.create(here::here(out_path), recursive = TRUE)
 all_out <- list(
-  results = file.path(out_path, glue(full_comp, "-pairwise_comparison.csv.gz")),
-  enrichment = file.path(out_path, glue("{full_comp}-enrichment.csv")),
-  localz = file.path(out_path, glue("{full_comp}-localz.csv")),
+  results = file.path(out_path, glue(params$full_comp, "-pairwise_comparison.csv")),
+  enrichment = file.path(out_path, glue("{params$full_comp}-enrichment.csv")),
+  localz = file.path(out_path, glue("{params$full_comp}-localz.csv")),
   renv = here::here(
-    "output", "envs", glue(full_comp, "-pairwise_comparison.RData")
+    "output", "envs", glue(params$full_comp, "-pairwise_comparison.RData")
   )
 )
 ```
 
 
 ```{r data-export, results = 'hide'}
-combined_results %>% as_tibble() %>% write_csv(all_out$results)
-enrich_by_status %>% bind_rows(.id = "status") %>% write_csv(all_out$enrichment)
-localz_df %>% write_csv(all_out$localz)
-save.image(all_out$renv)
+combined_results %>% 
+  as_tibble() %>% 
+  write_csv(here::here(all_out$results))
+enrich_by_status %>% 
+  bind_rows(.id = "status") %>% 
+  write_csv(here::here(all_out$enrichment))
+localz_df %>% write_csv(here::here(all_out$localz))
+save.image(here::here(all_out$renv))
 ```
 
 
 Existing results obtained during previous steps in the workflow and presented here are:
 
 `r pander(params[c("motif_enrichment", "motif_position")])`
+
+Full results generated here were also saved to:
+
+`r pander(all_out)`
 
 ## References
 

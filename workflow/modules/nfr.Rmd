@@ -1405,7 +1405,22 @@ htmltools::tagList(
 )
 ```
 
+## Data Export 
 
+```{r all-out}
+out_path <- file.path("output", "results", "nfr", target)
+if (!dir.exists(out_path)) dir.create(here::here(out_path), recursive = TRUE)
+all_out <- list(
+  localz_regions = file.path(out_path, glue("{target}_nfr_regions_localz.csv")),
+  localz_targets = file.path(out_path, glue("{target}_nfr_pairwise_localz.csv"))
+)
+localz_df %>% write_csv(here::here(all_out$localz_regions))
+pairwise_df %>% write_csv(here::here(all_out$localz_targets))
+```
+
+Files exported during preparation of this document are:
+
+`r pander(all_out)`
 
 ## References
 

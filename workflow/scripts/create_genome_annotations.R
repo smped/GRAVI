@@ -123,7 +123,6 @@ all_gtf <- gtf %>%
   sort() %>%
   subset(seqnames %in% seqlevels(sq)) %>%
   splitAsList(f = .$type)
-metadata(gtf) <- list(source = basename(all_input$gtf))
 gtf_lens <- map_int(all_gtf[c("gene", "transcript", "exon")], length)
 if (any(gtf_lens == 0)) {
 	cat("Zero length categories found for", names(all_gtf)[gtf_lens == 0])
@@ -132,6 +131,7 @@ if (any(gtf_lens == 0)) {
 cat_time("GTF imported successfully...\n")
 seqlevels(all_gtf) <- seqlevels(sq)
 seqinfo(all_gtf) <- sq
+metadata(all_gtf) <- list(source = basename(all_input$gtf))
 
 cat_time("Exporting gene, transcript and exon-level objects\n")
 write_rds(all_gtf, all_output$gtf, compress = "gz")
