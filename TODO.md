@@ -91,6 +91,8 @@
 - [x] Find & fix all hacks related to name errors in `plyranges/extraChIPs` coercion & old package versions
 - [x] Cleanup handling of detected genes, particularly in the setup of annotations
 - [x] Place all gtf objects back into a single GRangesList...
+- [ ] Pairwise YAML doesn't match Rmd names. (sometimes)
+- [ ] Check downregulated enrichment in DSA Rmd
 
 
 
