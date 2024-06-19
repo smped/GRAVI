@@ -127,7 +127,7 @@ rule compile_signal_comparison_html:
         rmd = os.path.join(rmd_path, "signal_comparison.Rmd"),
     conda: "../envs/rmarkdown.yml"
     threads: 6
-    retries: 0
+    retries: 1
     resources:
         mem_mb = 16384,
         runtime = "30m",

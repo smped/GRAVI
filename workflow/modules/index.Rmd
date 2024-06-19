@@ -45,7 +45,7 @@ Additional parameters for analytics steps are specified in `config/params.yml`, 
 
 ## Workflow
 
-```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Modified snakemake DAG showing the entire data processing workflow. Whilst considerable overlap is common between sub-workflows, all preparatory steps are shown in green, peak-calling steps are shown in red, comparisons bvetween peaks are shown in light-brown, differential signal analysis is shown in orange, NFRs are shown in blue with any pairwise comparisons shown in purple.*"}
+```{r plot-workflow, fig.height = 10, fig.width = 10, fig.cap = "*Modified snakemake DAG showing the entire data processing workflow. Whilst considerable overlap is common between sub-workflows, all preparatory steps are shown in green, peak-calling steps are shown in red, comparisons between peaks are shown in light-brown, differential signal analysis is shown in orange, NFRs are shown in blue with any pairwise comparisons shown in purple.*"}
 here::here("workflow", "rules", "rulegraph.dot") %>%
   readLines() %>%
   rm_dot_node(node = "\"all\"") %>%
@@ -58,6 +58,7 @@ here::here("workflow", "rules", "rulegraph.dot") %>%
   change_node_colour("(nfr|strip|nearby)", "navyblue") %>% 
   change_node_colour("(count|differential|dsa)", "darkorange") %>% 
   change_node_colour("(pairwise)", "purple3") %>% 
+  change_node_colour("(index)", "green") %>% 
   str_replace_all("_", "\n") %>%
   str_replace_all("snakemake\ndag", "snakemake_dag") %>%
   str_replace_all("fontsize=[0-9]+", "fontsize=48") %>% 
@@ -150,11 +151,11 @@ dsa_param %>%
     treat = contrasts[,2]
   ) %>% 
   dplyr::select(
-    target, baseline, treat, alpha, fc, ihw,
+    target, baseline, treat, nesting, alpha, fc, ihw,
     method, norm, window_type, window_size, window_step, min_win, filter_q
   ) %>% 
   pander(
-    justify = "lllrrllllrrrr",
+    justify = "lllrrrllllrrrr",
     caption = "
     Summary of all comparisons performed during the analysis.
     Parameters specific to sliding windows (`window_step`, `filter_q`, `min_win`)

@@ -149,6 +149,8 @@ mapping_params <- all_input$yaml %>%
 
 cat_time("Loading counts")
 counts <- read_rds(all_input$counts)
+counts <- counts[,counts$treat %in% unlist(all_wildcards[c("ref", "treat")])]
+colData(counts) <- droplevels(colData(counts))
 
 # cat_time("Adding logCPM assay")
 assay_name <- ifelse(!method == "lt", "counts", "logCPM")
@@ -161,11 +163,13 @@ if (!"logCPM" %in% assayNames(counts)) {
   assay(counts, "logCPM") <- lcpm
 }
 
-cat_time("Checking count distributions using quantro")
+cat_time("Checking logCPM distributions using quantro")
 quantro_p <- NULL
 if (norm != "none") {
   registerDoParallel(threads)
-  qtest <- quantro(assay(counts, "counts"), counts$treat, B = 1e3)
+  #' In general, abundance testing uses some form of log transformation
+  #' Testing using log-transformed data seems the most prudent
+  qtest <- quantro(assay(counts, "logCPM"), counts$treat, B = 1e3)
   quantro_p <- c(
     perm = quantroPvalPerm(qtest),
     anova = anova(qtest)[["Pr(>F)"]][[1]]
@@ -174,10 +178,11 @@ if (norm != "none") {
 } else {
   cat_time("Q-test not required (norm = 'none')")
 }
-if (any(quantro_p < 0.05) & norm != "sq") {
-  cat_time("Q-test failed. Setting normalisation to none")
+if (any(quantro_p < diff_sig_params$quantro_alpha) & norm != "sq") {
+  cat_time("Quantro-test rejected H0. Setting normalisation to none")
   norm <- "none"
 }
+
 
 qs <- NULL
 if (norm == "sq") {
@@ -207,6 +212,7 @@ if (!is.null(nesting) & method == "lt") {
   ## ignored
   cat_time("Calculating correlations")
   block <- colData(counts)[[nesting]]
+  n_max <- min(1e4, nrow(counts))
   set.seed(1e6)
   ind <- sample.int(nrow(counts), n_max, replace = FALSE)
   paired_cors <- duplicateCorrelation(
@@ -460,26 +466,32 @@ metadata(results) <- c(
   )
 ) %>%
   .[sort(names(.))]
+metadata(results)$quantro_p <- quantro_p
 metadata(results)$description <- glue(
     "Differential Signal for {all_wildcards$target} was assessed using {win_type} windows of {diff_sig_params$window_size}bp ",
+
     ifelse(
         win_type == "sliding",
         "with a step-size of {diff_sig_params$window_step}. Windows within {peak_params$merge_within}bp were merged after testing using the
         harmonic-mean p-value [@Wilson2019-ln] to obtain a representative p-value for merged regions. ",
         "centred at the estimated peak-centres returned by `macs2 callpeak` [@Zhang18798982]. "
     ),
+
     ifelse(
         !is.null(quantro_p),
         glue(
             "Distributions of counts between treatment groups were first checked using quantro [@HicksQuantro2015] and ",
             ifelse(
                 any(quantro_p < 0.05),
-                "counts were found to be from different distributions. ",
-                "no difference in the underlying distributions of counts was found. "
-            )
+                "counts were found to be from different distributions ",
+                "no difference in the underlying distributions of counts was found "
+            ),
+            "(p~perm~ = {round(quantro_p[['perm']], 3)}; p~anova~ = ",
+            "{round(quantro_p[['anova']], 3)})"
         ),
         ""
     ),
+
     ifelse(norm == "none", "No normalisation was applied. ", "{str_to_upper(norm)}-normalisation was applied "),
     case_when(
         norm == "sq" ~ "[@HicksSQN2017]. ",
@@ -487,7 +499,9 @@ metadata(results)$description <- glue(
         str_detect(norm, "TMM") ~ "[@Robinson2010-qp]. ",
         TRUE ~ ""
     ),
+    
     "Read totals across the complete genome were always taken as the representative library size for each sample. ",
+
     ifelse(is.null(nesting), "", "Samples were nested within {nesting}. "),
     "\n\nStatistical analysis was performed using ",
     case_when(
@@ -495,12 +509,15 @@ metadata(results)$description <- glue(
         method == "lt" ~ "Limma-Trend [@LawVoom2014] on normalised logCPM values ",
         method == "wald" ~ "the negative binomial Wald Test on counts [@Love2014Wald] "
     ),
+
     ifelse(
         diff_sig_params$fc > 0,
         "and a range-based H~0~, setting changed signal within the range [-{round(log2(diff_sig_params$fc), 3)}, {round(log2(diff_sig_params$fc), 3)}] as not being of interest [@McCarthyTreat2009]. ",
         "and a conventional H~0~, testing whether any change in signal is zero or non-zero. "
     ),
+
     "The analysis tested the treatment {all_wildcards$treat} against the baseline condition of {all_wildcards$ref}. ",
+
     ifelse(
         ihw_method == "none", "",
         sprintf(
@@ -540,4 +557,4 @@ cat_time("Exporting IHW results")
 write_rds(ihw, all_output$ihw)
 
 
-
+cat_time("Done")

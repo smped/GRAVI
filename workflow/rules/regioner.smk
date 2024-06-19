@@ -64,9 +64,11 @@ rule localz_regions_pairwise:
             "workflow", "scripts", "regioner_localz_pairwise.R"
         ),
     output:
-        rds = os.path.join(
-            pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
-            "{tgt1}_{comp1}-{tgt2}_{comp2}-{pw_dir}_localz.rds"
+        rds = temp(
+            os.path.join(
+                pairs_path, "{tgt1}_{comp1}-{tgt2}_{comp2}", 
+                "{tgt1}_{comp1}-{tgt2}_{comp2}-{pw_dir}_localz.rds"
+            )
         )
     params:
         regioner_params = extra_params['regioner']

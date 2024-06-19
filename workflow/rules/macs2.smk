@@ -85,6 +85,7 @@ rule peak_qc:
         outlier_threshold = lambda wildcards: peak_calling_param[wildcards.target]['outlier_threshold']
     conda: "../envs/rmarkdown.yml"
     threads: lambda wildcards: len(df[df['target'] == wildcards.target])
+    retries: 1
     resources:
         mem_mb = 16384,
     log: os.path.join(log_path, "peak_qc", "{target}_peak_qc.log")

@@ -47,6 +47,17 @@ enrich_cols$n_cmn$name <- "Nbr Common"
 enrich_cols$genes <- enrich_cols$genes_with_hits
 enrich_cols$genes$name <- "Common Genes"
 enrich_cols$cmn_ids <- enrich_cols$gene_id
+pw_pl <- colours$pairwise %>% 
+  unlist() %>% 
+  as_tibble(rownames = "pair") %>% 
+  separate(pair, into = c("p1", "p2")) %>% 
+  mutate(
+    p1 = paste(target, str_to_title(p1)),
+    p2 = paste("RNA", str_to_title(p2))
+  ) %>% 
+  unite("pair", all_of(c("p1", "p2")), sep = "\n") %>% 
+  mutate(value = setNames(value, pair)) %>% 
+  pull("value")
 ```
 
 In order to compare DSA results for `r target`, gene-to-range mappings were summarised such that if a gene was mapped to any DSA results showing increased or decreased binding, they were given this status.
@@ -115,7 +126,7 @@ summary_tables <- names(rna) %>%
   setNames(names(rna))
 ```
 
-```{r donut-plots}
+```{r donut-plots, echo = FALSE, eval = FALSE}
 donuts <- rna %>% 
   lapply(left_join, dsa_status, by = "gene_id") %>% 
   lapply(
@@ -179,19 +190,7 @@ donut_plots <- names(donuts) %>%
 ```
 
 
-
 ```{r lfc-by-region}
-pw_pl <- colours$pairwise %>% 
-  unlist() %>% 
-  as_tibble(rownames = "pair") %>% 
-  separate(pair, into = c("p1", "p2")) %>% 
-  mutate(
-    p1 = paste(target, str_to_title(p1)),
-    p2 = paste("RNA", str_to_title(p2))
-  ) %>% 
-  unite("pair", all_of(c("p1", "p2")), sep = "\n") %>% 
-  mutate(value = setNames(value, pair)) %>% 
-  pull("value")
 pw_lfc <- names(rna) %>% 
   lapply(
     \(i) {
@@ -273,7 +272,7 @@ pw_lfc <- names(rna) %>%
           "DSA results for {treat_levels[[2]]} Vs {treat_levels[[1]]}. ",
           "Genes which were unchanged in {i} and with no changed DSA regions ",
           "are shown in grey. Robust linear regression lines are shown in ", 
-          "black along with correlations in the bottom right corner of each panel."
+          "black along with correlations in the bottom right corner."
         )
       )
       htmltools::div(
@@ -883,10 +882,10 @@ tagList(
               id = x, class = "section level4 tabset",
               htmltools::h4(x, class = "tabset"),
               summary_tables[[x]],
-              donut_plots[[x]],
+              volcano_plots[[x]],
+              pw_lfc[[x]],
               lfc_by_region[[x]],
               lfc_by_feature[[x]],
-              volcano_plots[[x]],
               pval_hist[[x]],
               dsa_deg_tables[[x]]
             )

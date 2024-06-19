@@ -130,7 +130,7 @@ exclude_ranges <- c(bl, gl)
 
 #### Similarity Between Black & Grey Lists
 
-```{r plot-excluded-ranges, fig.width=7, fig.height=7, fig.cap = "Number of regions identified as blacklisted"}
+```{r plot-excluded-ranges, fig.width = ifelse(length(exclude_ranges) > 2, fw, fh), fig.cap = "Number of regions identified as blacklisted"}
 exclude_ranges %>% 
   plotOverlaps(
     type = ifelse(length(.) > 2, "upset", "venn"),

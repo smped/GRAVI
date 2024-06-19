@@ -1560,11 +1560,12 @@ if (length(rna)) {
 ```
 
 
-An initial set of ranges is shown below, based on the respective p-values from the original comparison where only one target was detected, or using the merged p-values from Wilkinson's method where both targets were detected.
+An initial set of ranges is shown below, based on merged p-values from Wilkinson's method where both targets were detected.
 
 ```{r grl_most_sig}
 grl_most_sig <- combined_results %>%
   subset(str_detect(status, "(In|De)creased")) %>% 
+  subset(!str_detect(status, "Undetected")) %>% 
   arrange(merged_fdr) %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) > 0] %>% 
@@ -1690,6 +1691,7 @@ For all plots in this subsection, significant change was detected in at least of
 grl_to_plot <- combined_results %>% 
   filter_by_non_overlaps(grl_most_sig) %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
+  subset(!str_detect(status, "Undetected")) %>% 
   arrange(
     (-1) * case_when(
       !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ !!sym(paste0(comp_names$comp2, "_logCPM")),
@@ -1793,6 +1795,7 @@ By taking the two set of visualisations in this context, judgements can be made 
 grl_to_plot <- combined_results %>% 
   filter_by_non_overlaps(grl_most_sig) %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
+  subset(!str_detect(status, "Undetected")) %>% 
   plyranges::arrange(
     (-1) * case_when(
       !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ (!!sym(paste0(comp_names$comp2, "_logFC")))^2,

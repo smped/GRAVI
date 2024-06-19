@@ -95,7 +95,7 @@ rule differential_signal_analysis:
     conda: "../envs/rmarkdown.yml"
     log: os.path.join(log_path, "differential_signal", "{target}_{ref}_{treat}.log")
     resources:
-        runtime = "1h",
+        runtime = "30m",
         mem_mb = 64000,
     script:
         "../scripts/differential_signal.R"
