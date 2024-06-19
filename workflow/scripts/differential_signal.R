@@ -487,7 +487,7 @@ metadata(results)$description <- glue(
                 "no difference in the underlying distributions of counts was found "
             ),
             "(p~perm~ = {round(quantro_p[['perm']], 3)}; p~anova~ = ",
-            "{round(quantro_p[['anova']], 3)})"
+            "{round(quantro_p[['anova']], 3)}). "
         ),
         ""
     ),
