@@ -134,6 +134,7 @@ if (length(comparisons) > 1) {
     menu = comparisons %>%
       bind_rows() %>%
       pull("rmd") %>%
+      sort() %>%
       combn(2) %>%
       t() %>%
       set_colnames(c("rmd1", "rmd2")) %>%

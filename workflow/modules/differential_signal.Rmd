@@ -1629,9 +1629,9 @@ if (n_increased_enrich > min(network_params$size)) {
 
 ### All Decreased Sites {.tabset}
 
-```{r enrich-decreased, echo = n_increased > 0 & n_increased != n_sig}
+```{r enrich-decreased, echo = n_decreased > 0 & n_decreased != n_sig}
 decreased_enrich_df <- tibble(gene_id = character())
-if (n_increased > 0 & n_increased != n_sig) {
+if (n_decreased > 0 & n_decreased != n_sig) {
   enrich_args <- list(
     test_ranges = filter(results, status == "Decreased"),
     db = msigdb, gtf = gtf$gene, bg = results, genome = ucsc$build,
@@ -1661,7 +1661,7 @@ if (n_increased > 0 & n_increased != n_sig) {
 
 ```{r update-decreased-desc, echo = FALSE}
 desc <- glue(
-  "When testing for enrichment in the {comma(n_decreased)} sites ({percent(n_decreased / n_ranges, 0.1)}) showing evidence of any *decreased* signal, { comma(n_increased_enrich)} pathways were considered to be enriched using an adjusted p-value < {enrich_params$alpha} as the criteria for considering a pathway as enriched."
+  "When testing for enrichment in the {comma(n_decreased)} sites ({percent(n_decreased / n_ranges, 0.1)}) showing evidence of any *decreased* signal, { comma(n_decreased_enrich)} pathways were considered to be enriched using an adjusted p-value < {enrich_params$alpha} as the criteria for considering a pathway as enriched."
 )
 ```
 
