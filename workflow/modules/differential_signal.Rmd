@@ -434,12 +434,8 @@ cp <- htmltools::em(
     "
   )
 )
-tl <- tagList(tbl, cp)
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+tl <- tagList(htmltools::tags$caption(cp), tbl)
+htmltools::browsable(tl)
 ```
 
 
@@ -483,12 +479,8 @@ tbl <- df %>%
     columns = tbl_cols[names(tbl_cols) %in% colnames(df)],
     fullWidth = TRUE, elementId = tbl_id 
   )
-tl <- tagList(tbl, cp)
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+tl <- tagList(htmltools::tags$caption(cp), tbl)
+htmltools::browsable(tl)
 ```
 
 `r ifelse(has_features, "#### Summary By Feature", "")`
@@ -536,6 +528,7 @@ if (has_features) {
       fullWidth = TRUE, elementId = tbl_id
     )
   tl <- tagList(
+    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -546,13 +539,9 @@ if (has_features) {
       "Clear All Filters",
       onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
     ),
-    tbl, cp
+    tbl
   )
-  if (interactive()) {
-    htmltools::browsable(tl)
-  } else {
-    tl
-  }
+  htmltools::browsable(tl)
 }
 ```
 
@@ -686,7 +675,7 @@ buttons <- list(
     onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   )
 )
-tl <- tagList(buttons, tbl, htmltools::tags$caption(cp))
+tl <- tagList(htmltools::tags$caption(cp), buttons, tbl)
 htmltools::browsable(tl)
 ```
 
@@ -1412,6 +1401,7 @@ if (n_changed_enrich > 0) {
     )
   )
   tl <- tagList(
+    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -1427,14 +1417,9 @@ if (n_changed_enrich > 0) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('changed-enrich-res-table', [])"
     ),
-    tbl,
-    cp
+    tbl
   )
-  if (interactive()) {
-    htmltools::browsable(tl)
-  } else {
-    tl
-  }
+  htmltools::browsable(tl)
 }
 ```
 
@@ -1563,6 +1548,7 @@ if (n_increased_enrich > 0) {
     )
   )
   tl <- tagList(
+    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -1578,14 +1564,9 @@ if (n_increased_enrich > 0) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('increased-enrich-res-table', [])"
     ),
-    tbl,
-    cp
+    tbl
   )
-  if (interactive()) {
-    htmltools::browsable(tl)
-  } else {
-    tl
-  }
+  htmltools::browsable(tl)
 }
 ```
 
@@ -1714,6 +1695,7 @@ if (n_decreased_enrich > 0) {
     )
   )
   tl <- tagList(
+    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -1729,14 +1711,9 @@ if (n_decreased_enrich > 0) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('decreased-enrich-res-table', [])"
     ),
-    tbl,
-    cp
+    tbl
   )
-  if (interactive()) {
-    htmltools::browsable(tl)
-  } else {
-    tl
-  }
+  htmltools::browsable(tl)
 }
 ```
 
@@ -1930,6 +1907,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1947,7 +1925,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl, cp
+  tbl
 )
 htmltools::browsable(tl)
 ```
@@ -2060,6 +2038,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -2074,7 +2053,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-enrich-table', [])"
   ),
-  tbl,htmltools::tags$caption(cp)
+  tbl
 )
 htmltools::browsable(tl)
 ```
@@ -2222,6 +2201,7 @@ if (n_pos_res) {
     )
   )
   tl <- tagList(
+    htmltools::tags$caption(cp),
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -2236,14 +2216,9 @@ if (n_pos_res) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('motif-pos-table', [])"
     ),
-    tbl,
-    cp
+    tbl
   )
-  if (interactive()) {
-    htmltools::browsable(tl)
-  } else {
-    tl
-  }
+  htmltools::browsable(tl)
 }
 ```
 

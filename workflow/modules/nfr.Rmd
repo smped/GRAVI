@@ -447,6 +447,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -461,8 +462,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-enrich-table', [])"
   ),
-  tbl,
-  cp
+  tbl
 )
 if (interactive()) {
   htmltools::browsable(tl)
@@ -669,6 +669,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -683,8 +684,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-pos-table', [])"
   ),
-  tbl,
-  cp
+  tbl
 )
 if (interactive()) {
   htmltools::browsable(tl)
@@ -942,6 +942,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -961,7 +962,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl, htmltools::tags$caption(cp)
+  tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1135,6 +1136,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),,
   tags$button(
     "Clear All Filters", 
     onclick = glue("Reactable.setAllFilters('{tbl_id}', []);")
@@ -1148,7 +1150,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ), 
-  tbl, htmltools::tags$caption(cp)
+  tbl
 )
 htmltools::browsable(tl)
 ```

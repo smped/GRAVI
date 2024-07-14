@@ -526,7 +526,7 @@ htmltools::tagList(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = 960),
             htmltools::p(
-              class = "caption", htmltools::tags$em(cp)
+              class = "caption", htmltools::tags$caption(cp)
             )
           )
         )
@@ -613,7 +613,7 @@ htmltools::tagList(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = 960),
             htmltools::p(
-              class = "caption", htmltools::tags$em(cp)
+              class = "caption", htmltools::tags$caption(cp)
             )
           )
         )
@@ -850,6 +850,7 @@ if (has_rna) {
             class = "section level4",
             htmltools::h4(i),
             tagList(
+              htmltools::tags$caption(cp),
               tags$button(
                 tagList(fontawesome::fa("download"), "Download as CSV"),
                 onclick = glue(
@@ -873,7 +874,7 @@ if (has_rna) {
                 ),
                 "Only show significant associations"
               ),
-              tbl, htmltools::p(class = "caption", cp)
+              tbl
             )
           )
         }
@@ -972,6 +973,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -986,14 +988,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-genomic-res-table', [])"
   ),
-  tbl,
-  cp
+  tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 `r if (n_enrich_genomic >= min(network_params$size)) "#### Enrichment Network"`
@@ -1110,6 +1107,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1124,14 +1122,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-targets-res-table', [])"
   ),
-  tbl,
-  cp
+  tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 `r if (n_enrich_targets >= min(network_params$size)) "#### Enrichment Network"`
@@ -1406,6 +1399,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1423,14 +1417,9 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl,
-  cp
+  tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 ### Comparison Between Peaks {.tabset}
@@ -1635,6 +1624,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('pairwise-res-table', [])"
@@ -1646,13 +1636,9 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ), 
-  tbl, cp
+  tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 ## Motif Analysis
@@ -1763,6 +1749,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1777,14 +1764,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-res-table', [])"
   ),
-  tbl,
-  cp
+  tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
@@ -1981,6 +1963,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1995,14 +1978,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('pos-res-table', [])"
   ),
-  tbl,
-  cp
+  tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 

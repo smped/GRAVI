@@ -120,9 +120,8 @@ summary_tables <- names(rna) %>%
           id = id,
           class = "section level5",
           htmltools::h5("Summary Table"),
-          htmltools::div(
-            class = "table", tbl, htmltools::tags$caption(cp)
-          )
+          htmltools::tags$caption(cp),
+          htmltools::div(class = "table", tbl)
         )
       )
     }
@@ -441,6 +440,7 @@ if (any(has_de)) {
           id = id, class = "section level5", 
           htmltools::h5("DEGs with Differential Signal"), 
           tagList(
+            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -455,7 +455,7 @@ if (any(has_de)) {
               "Clear All Filters",
               onclick = glue("Reactable.setAllFilters('{id}', [])")
             ),
-            tbl, tags$caption(cp)
+            tbl
           )
         )
       }
@@ -609,6 +609,7 @@ if (any(any_gsea_sig)) {
             )
           )
           tl <- tagList(
+            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -620,11 +621,10 @@ if (any(any_gsea_sig)) {
               "Clear All Filters", 
               onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
             ),
-            tbl, htmltools::tags$caption(cp)
+            tbl
           )
           htmltools::div(
-            id = tbl_id,
-            class = "section level5",
+            id = tbl_id, class = "section level5",
             htmltools::h5(i),
             htmltools::div(class = "table", tl)
           )
@@ -734,6 +734,7 @@ if (any(any_gsea_dir)) {
             )
           )
           tl <- tagList(
+            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -745,11 +746,10 @@ if (any(any_gsea_dir)) {
               "Clear All Filters", 
               onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
             ),
-            tbl, htmltools::tags$caption(cp)
+            tbl
           )
           htmltools::div(
-            id = tbl_id,
-            class = "section level5",
+            id = tbl_id, class = "section level5",
             htmltools::h5(i),
             htmltools::div(class = "table", tl)
           )
@@ -831,7 +831,7 @@ tbl_changed_rna_enrich <- names(changed_rna_enrich) %>%
       )
       htmltools::div(
         id = id, class = "section level4", h4(x),
-        tbl, tags$caption(cp)
+        htmltools::tags$caption(cp), tbl
       )
     }
   ) %>% 

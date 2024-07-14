@@ -107,18 +107,15 @@ summary_tables <- names(rna) %>%
           )
         )
       cp <- htmltools::em(
-        glue(
-          "Comparison between {target} status and gene expression in {i}."
-        )
+        glue("Comparison between {target} status and gene expression in {i}.")
       )
       htmltools::div(
         htmltools::div(
           id = id,
           class = "section level5",
           htmltools::h5("Summary Table"),
-          htmltools::div(
-            class = "table", tbl, htmltools::tags$caption(cp)
-          )
+          htmltools::tags$caption(cp),
+          htmltools::div(class = "table", tbl)
         )
       )
     }
@@ -663,9 +660,7 @@ pval_hist <- names(rna) %>%
       ## Create html tags
       fig_link <- str_extract(img_out, "assets.+")
       cp <- htmltools::tags$em(
-        glue(
-          "P-values for {i} separated by {target} status."
-        )
+        glue("P-values for {i} separated by {target} status.")
       )
       htmltools::div(
         htmltools::div(
@@ -846,6 +841,7 @@ if (any(has_de) & has_ds) {
         htmltools::div(
           id = id, class = "section level5", 
           htmltools::h5("DEGs with Differential Signal"), 
+          htmltools::tags$caption(cp),
           tags$button(
             tagList(fontawesome::fa("download"), "Download as CSV"),
             onclick = glue(
@@ -860,7 +856,7 @@ if (any(has_de) & has_ds) {
             "Clear All Filters",
             onclick = glue("Reactable.setAllFilters('{id}', [])")
           ),
-          tbl, tags$caption(cp)
+          tbl
         )
       }
     ) %>% 
@@ -1069,9 +1065,8 @@ if (any(any_gsea_sig)) {
             id = tbl_id,
             class = "section level5",
             htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            htmltools::tags$caption(cp),
+            htmltools::div(class = "table", tbl)
           )
         }
       )
@@ -1218,9 +1213,8 @@ if (any(any_gsea_dir)) {
             id = tbl_id,
             class = "section level5",
             htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            htmltools::tags$caption(cp),
+            htmltools::div(class = "table", tbl)
           )
         }
       )
@@ -1285,7 +1279,7 @@ tbl_changed_rna_enrich <- names(changed_rna_enrich) %>%
       htmltools::div(
         id = id, class = "section level5",
         h5("Combined Enrichment: DSA Changed"),
-        tbl, tags$caption(cp)
+        htmltools::tags$caption(cp), tbl
       )
     }
   ) %>% 
@@ -1428,7 +1422,7 @@ if (nrow(increased_enrich_df) > 0) {
         htmltools::div(
           id = id, class = "section level5",
           h5("Combined Enrichment: DSA increased"),
-          tbl, tags$caption(cp)
+          htmltools::tags$caption(cp), tbl
         )
       }
     ) %>% 
@@ -1572,7 +1566,7 @@ if (nrow(decreased_enrich_df) > 0) {
         htmltools::div(
           id = id, class = "section level5",
           h5("Combined Enrichment: DSA Decreased"),
-          tbl, tags$caption(cp)
+          htmltools::tags$caption(cp), tbl
         )
       }
     ) %>% 

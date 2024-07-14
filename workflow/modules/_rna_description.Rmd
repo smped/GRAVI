@@ -236,7 +236,7 @@ htmltools::tagList(
             ),
             elementId = id
           )
-        cp = htmltools::tags$em(
+        cp <- htmltools::tags$em(
           paste(
             "Taking genes ranked by significance and incorporating direction,",
             "the following gene sets were returned as significant using GSEA.",
@@ -250,9 +250,8 @@ htmltools::tagList(
             id = id,
             class = "section level5",
             htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            htmltools::tags$caption(cp),
+            htmltools::div(class = "table", tbl)
           )
         )
       }
@@ -381,9 +380,8 @@ htmltools::tagList(
             id = id,
             class = "section level5",
             htmltools::h5(x),
-            htmltools::div(
-              class = "table", tbl, htmltools::tags$caption(cp)
-            )
+            htmltools::tags$caption(cp),
+            htmltools::div(class = "table", tbl)
           )
         )
       }

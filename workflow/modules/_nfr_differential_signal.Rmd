@@ -102,6 +102,7 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
+  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -116,7 +117,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   ),
-  tbl,htmltools::tags$caption(cp)
+  tbl
 )
 htmltools::browsable(tl)
 ```
@@ -269,6 +270,7 @@ if (n_pos_nfr) {
     )
   )
   tl <- tagList(
+    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -283,8 +285,7 @@ if (n_pos_nfr) {
       "Clear All Filters",
       onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
     ),
-    tbl,
-    cp
+    tbl
   )
   htmltools::browsable(tl)
 }
