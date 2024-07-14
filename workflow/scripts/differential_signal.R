@@ -154,7 +154,8 @@ colData(counts) <- droplevels(colData(counts))
 
 # cat_time("Adding logCPM assay")
 assay_name <- ifelse(!method == "lt", "counts", "logCPM")
-## Sliding windows (i.e. sq-lt) will already have a logCPM assay
+## Sliding windows (i.e. sq-lt) will already have a logCPM assay which avoids
+## any concerns about double normalisation here
 if (!"logCPM" %in% assayNames(counts)) {
   dge <- calcNormFactors(counts, method = norm)
   dge$samples$lib.size <- counts$totals
@@ -166,10 +167,7 @@ if (!"logCPM" %in% assayNames(counts)) {
 cat_time("Checking logCPM distributions using quantro")
 quantro_p <- NULL
 if (norm != "none") {
-  registerDoParallel(threads)
-  #' In general, abundance testing uses some form of log transformation
-  #' Testing using log-transformed data seems the most prudent
-  qtest <- quantro(assay(counts, "logCPM"), counts$treat, B = 1e3)
+  qtest <- metadata(counts)$quantro
   quantro_p <- c(
     perm = quantroPvalPerm(qtest),
     anova = anova(qtest)[["Pr(>F)"]][[1]]
@@ -182,7 +180,6 @@ if (any(quantro_p < diff_sig_params$quantro_alpha) & norm != "sq") {
   cat_time("Quantro-test rejected H0. Setting normalisation to none")
   norm <- "none"
 }
-
 
 qs <- NULL
 if (norm == "sq") {
@@ -251,50 +248,6 @@ if (win_type == "sliding") {
       FDR = PValue_fdr
     ) %>%
     addDiffStatus(alpha = fdr_alpha)
-
-  #' As an experimental step, moved the keyval_range to the core ranges,
-  #' slice out any ranges which are not within the keyval range, and re-analyse
-  #' The nett effect is that ranges outside the keyval_range which were
-  #' originally significant can still remain significant, but can also switch
-  #' to unchanged. This gives more precise ranges which are changed & decreases
-  #' the total width of changed ranges. In the test H3K27ac dataset, 267KB of
-  #' previously changed BP are switched to unchanged, which 16KB are switched
-  #' from unchanged to changed. The total loss in changed BP is 251KB, but
-  #' hopefully results retain far greater precision as to actual changed regions
-  #' Importantly, the keyval_range will now be **absent** from the results
-  #'
-  #' Testing on real data didn't really work that well as the DSA regions tended
-  #' to be too small & overlapping with other targets ended up being poor
-  #'
-  # results <- mergeByHMP(
-  #   fit, pval = pcols,
-  #   merge_within = floor(1 + 2 * diff_sig_params$window_step / 3),
-  #   hm_pre = "", keyval = "merged", min_win = diff_sig_params$min_win
-  # ) %>%
-  #   plyranges::select(
-  #     starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
-  #     FDR = PValue_fdr
-  #   )
-  # results <- rowRanges(fit) %>%
-  #   .[!overlapsAny(., results$keyval_range)] %>%
-  #   mergeByHMP(
-  #     pval = pcols,
-  #     merge_within = floor(1 + 2 * diff_sig_params$window_step / 3),
-  #     hm_pre = "", keyval = "merged"
-  #   ) %>%
-  #   plyranges::select(
-  #     starts_with("n_"), starts_with("log"), any_of(pcols),
-  #     FDR = PValue_fdr
-  #   ) %>%
-  #   c(
-  #     colToRanges(results, "keyval_range")
-  #   ) %>%
-  #   sort() %>%
-  #   ## Now readjust PValues & add status
-  #   mutate(FDR = p.adjust(PValue, "fdr")) %>%
-  #   addDiffStatus(alpha = fdr_alpha) %>%
-  #   subset(n_windows >= diff_sig_params$min_win)
-
 
   ## Map genes, features & regions, which are otherwise propagated through
   cat_time("Mapping merged windows to regions")
@@ -499,7 +452,7 @@ metadata(results)$description <- glue(
         str_detect(norm, "TMM") ~ "[@Robinson2010-qp]. ",
         TRUE ~ ""
     ),
-    
+
     "Read totals across the complete genome were always taken as the representative library size for each sample. ",
 
     ifelse(is.null(nesting), "", "Samples were nested within {nesting}. "),

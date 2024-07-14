@@ -121,6 +121,9 @@ library(ngsReports)
 library(BiocParallel)
 library(plyranges)
 library(scales)
+library(quantro)
+library(doParallel)
+library(edgeR)
 cat_time("Configuring for", threads, "threads")
 register(MulticoreParam(workers = threads))
 
@@ -258,8 +261,6 @@ if (win_type == "fixed") {
     as.data.frame() %>%
     DataFrame(row.names = .$sample)
 
-  cat_time("Writing counts to ", all_output$rds)
-  write_rds(se, all_output$rds, compress = "gz")
 }
 
 if (win_type == "sliding") {
@@ -296,7 +297,7 @@ if (win_type == "sliding") {
   #' Run the filter
   #'
   cat_time("Filtering counts...")
-  filtered_counts <- dualFilter(
+  se <- dualFilter(
     x = window_counts[, samples$sample],
     bg = window_counts[, samples$input],
     ref = peaks,
@@ -304,16 +305,30 @@ if (win_type == "sliding") {
     q = all_params$filter_q
   )
   cat_time("Updating metadata")
-  colData(filtered_counts) <- droplevels(colData(filtered_counts))
+  colData(se) <- droplevels(colData(se))
   cat_time(
     "Reduced inital ", comma(nrow(window_counts)), " windows to ",
-    comma(nrow(filtered_counts)), "filtered windows"
+    comma(nrow(se)), "filtered windows"
   )
-  ## NB: These counts will not be mapped to genes, regeions, features etc
+  ## NB: These counts will not be mapped to genes, regions, features etc
 
-  cat_time("Writing filtered counts to ", all_output$rds)
-  write_rds(filtered_counts, all_output$rds, compress = "gz")
 
 }
 cat_time("Done counting")
 
+cat_time("Running Quantro...")
+lcpm <- assay(se, "counts") |> cpm(log = TRUE, lib.size = se$totals)
+cl <- makeCluster(threads)
+registerDoParallel(cl)
+qtest <- quantro(lcpm, groupFactor = se$treat, B = 1e3)
+stopCluster(cl)
+## Small sample numbers profoundly limit the possible n_perm
+## This section determines the effective n_perm & calculates an exact p
+n_eff <- length(unique(qtest@quantroStatPerm)) + 1
+b <- sum(unique(qtest@quantroStatPerm) > qtest@quantroStat) + 1
+qtest@B <- n_eff
+qtest@quantroPvalPerm <- b/n_eff
+metadata(se)$quantro <- qtest
+
+cat_time("Writing counts to ", all_output$rds)
+write_rds(se, all_output$rds, compress = "gz")
