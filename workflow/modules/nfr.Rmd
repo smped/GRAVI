@@ -123,7 +123,7 @@ has_rna <- length(rna) > 0
 Nucleosome Free Regions (NFRs) were identified for `r target` using the set of filtered peaks obtained for each treatment (`r pander(treat_levels)`).
 Peaks within `r nfr_params$merge_peaks_within`bp of each other were merged into a single peak, with this distance approximating the distance occupied by 2 nucleosomes, and approximating broader peaks that may have been otherwise called by `macs2` [@Zhang18798982].
 NFRs within merged peaks were called using Histrader [@Yan2020-nz] for each treatment group with the settings described below.
-Importantly, this approach can identify multiple NFRs within a braoder peak, unlike [`homer`](http://homer.ucsd.edu/homer/ngs/peaks.html) which at the time of GRAVI development, is only able to identify a single NFR within a peak.
+Importantly, this approach can identify multiple NFRs within a broader peak, unlike [`homer`](http://homer.ucsd.edu/homer/ngs/peaks.html) which at the time of GRAVI development, is only able to identify a single NFR within a peak.
 
 - Any merged peaks <`r nfr_params$min_peak_width`bp were excluded as being too narrow to identify NFRs
 - Any NFRs beyond `r max(nfr_params$nfr_width)/1e3`kb were discarded as not being viable NFRs
@@ -473,7 +473,7 @@ if (interactive()) {
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
 
-```{r enrich-corrplot, echo = n_enrich > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selction and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
+```{r enrich-corrplot, echo = n_enrich > 1, fig.cap = glue("*The top {length(top_enrich)} motifs ranked for enrichment were compared to each other using correlations derived from simple presence/absence calls. Highly correlated motifs may indicate similarity between TFBMs and the same sequence match being identified. Motifs detected in all sequences were excluded after the initial selection and as such, fewer than the selected {length(top_enrich)} motifs may be shown*")}
 if (n_enrich > 1) {
   top_enrich <- motif_enrich_res %>%
     dplyr::filter(Z > 0, adj_p < motif_params$alpha) %>% 
@@ -1204,8 +1204,6 @@ pairwise_df %>%
 ```
 
 
-
-
 ## Example NFRs {.tabset}
 
 ```{r grl_to_plot}
@@ -1407,7 +1405,7 @@ htmltools::tagList(
 )
 ```
 
-## Data Export 
+## Data Export
 
 ```{r all-out}
 out_path <- file.path("output", "results", "nfr", target)

@@ -246,7 +246,7 @@ Any peak which was not found in >`r percent(peak_calling_params$min_prop_reps)` 
 Peaks within `r peak_calling_params$merge_within`bp of each other were merged into a single peak.
 Peaks detected within merged samples were only retained with an FDR < `r peak_calling_params$merge_fdr`
 
-Peaks which overlapped any blacklisted or greylisted regions were discarded.
+Peaks which overlapped any blacklisted or grey-listed regions were discarded.
 
 #### Consensus Peaks
 
@@ -345,7 +345,6 @@ macs2_logs %>%
   ggtitle(glue("{target}: Library Sizes"))
 ```
 
-
 ### Peaks Detected
 
 ```{r plot-macs2-peaks-individual, fig.height = 0.75 * fh, fig.cap = glue("*Peaks identified for each {target} sample. The number of peaks passing the inclusion criteria for `macs2 callpeak` (FDR < {peak_calling_params$merge_fdr}) are provided. Any samples marked for exclusion are coloured as indicated in the figure legend.*")}
@@ -374,7 +373,6 @@ suppressWarnings(
 )
 ```
 
-
 ### FRIP
 
 ```{r plot-frip, fig.height = 0.75 * fh, fig.cap = glue("*Fraction of Reads In Peaks for each sample. Higher values indicate more reads specifically associated with the ChIP target ({target}). The common-use minimum value for an acceptable sample (1%) is shown as a dashed horizontal line*")}
@@ -402,7 +400,6 @@ samples$sample %>%
   labs(x = "Sample", y = "Fraction of Reads In Peaks", fill = "QC") +
   ggtitle(glue("{target}: Fraction Of Reads In Peaks"))
 ```
-
 
 ### Cross Correlations
 
@@ -478,9 +475,7 @@ bfl %>%
   ggtitle(glue("{target}: GC Content"))
 ```
 
-
-
-## Results 
+## Results
 
 ### Individual Replicates {.tabset}
 
@@ -807,7 +802,6 @@ individual_peaks %>%
   labs(x = "Sample", y = "Peak Width (bp)", fill = "Treatment")
 ```
 
-
 ### Filtered Peaks 
 
 A set of treatment-specific `r target` peaks was defined for each of `r pander(treat_levels)` by comparing the peaks detected when merging all treatment-specific samples, against those detected within each replicate.
@@ -844,7 +838,6 @@ treat_levels %>%
   )
 ```
 
-
 ### Consensus Peaks {.tabset}
 
 After filtering peaks, a set of `r comma(length(consensus_peaks))` treatment-agnostic `r target` **consensus peaks** were defined.
@@ -863,8 +856,7 @@ plotOverlaps(
 )
 ```
 
-
-#### Distance to TSS 
+#### Distance to TSS
 
 ```{r plot-union-dist-to-tss-hist, fig.height = 0.75 * fh, fig.cap = glue("*Distances from the centre of the {target} consensus peak to the transcription start-site shown as A) a histogram, and B) as a cumulative distribution. The vertical dashed line indicates the range considered to be a promoter during annotation preparation. {comma(sum(overlapsAny(consensus_peaks, tss)))} of the {comma(length(consensus_peaks))} {target} consensus peaks ({percent(mean(overlapsAny(consensus_peaks, tss)), 0.1)}) directly overlapped a TSS.*")}
 a <- consensus_peaks %>% 
@@ -904,8 +896,6 @@ b <- consensus_peaks %>%
   scale_x_continuous(breaks = seq(0, 100, by = 20))
 a + b + plot_annotation(tag_levels = "A")
 ```
-
-
 
 #### Gene-Centric Regions
 
@@ -974,7 +964,6 @@ if (has_features) {
     )
 }
 ```
-
 
 ## Peak Visualisation
 
@@ -1045,7 +1034,6 @@ if (!is.null(config$external$coverage)) {
 }
 ```
 
-
 ### Highly Ranked Peaks {.tabset}
 
 ```{r select-highly-ranked}
@@ -1075,10 +1063,8 @@ y_lim <- bwfl %>%
   )
 ```
 
-
 Coverage for a small set of highly ranked peaks are shown below.
 These are the most highly ranked Consensus Peak (by `score`) and the most highly ranked peak for each of `r pander(treat_levels)` which was unique to that set of filtered peaks, without being identified in any other treatment group.
-
 
 ```{r plot-highly-ranked}
 htmltools::tagList(
@@ -1165,7 +1151,6 @@ htmltools::tagList(
 )  
 ```
 
-
 ### Low Ranked Peaks {.tabset}
 
 ```{r select-low-ranked}
@@ -1187,7 +1172,6 @@ for (i in treat_levels) {
 As a counter to the highly ranked peaks, coverage for a small set of *low ranking peaks* are shown below as representative of the low confidence calls.
 These are the most low-ranked consensus peak (by `score`) and the most low-ranked peak for each of `r pander(treat_levels)` which was unique to that set of filtered peaks, without being identified in any other treatment group.
 These effectively represent the *low-probability peak calls*, and it may be assumed that, from a quality assessment perspective, the majority of peaks will lie **somewhere between the highly-ranked and low-ranked peaks**.
-
 
 ```{r plot-low-ranked}
 htmltools::tagList(
@@ -1272,7 +1256,6 @@ htmltools::tagList(
   )
 )  
 ```
-
 
 `r if (has_rna) "## Relationship to Transcriptomic Data"`
 
@@ -1519,9 +1502,7 @@ gs_url <- msigdb$gs_url[!duplicated(names(msigdb$gs_url))]
 For this specific analysis, the background ranges were set to be the whole genome.
 `r if (enrich_method == "gene_id") "Widths of the genomic regions spanned by a gene were taken as a bias offset term with testing [@YoungGoseq2010]."`
 
-
 ### Results {.tabset}
-
 
 ```{r run-enrichment}
 enrich_arg_list <- list(
@@ -1551,7 +1532,6 @@ tg_enrich <- enrich_df %>%
 
 Pathways will be considered as enriched relative to background if returned an adjusted p-value (`r enrich_params$adj`) below `r enrich_params$alpha`.
 sing this strategy `r n_enrich` pathways were considered to be enriched within the set of `r target` consensus peaks.
-
 
 `r if (n_enrich > 0) "#### Results Table"`
 
@@ -1648,7 +1628,6 @@ tg_enrich %>%
   labs(size = "Mapped\nGenes", fill = expr(paste("-", log[10], "p"))) +
   theme_void() 
 ```
-
 
 ## Region Analysis {.tabset}
 
@@ -1816,7 +1795,6 @@ tl <- tagList(
 )
 htmltools::browsable(tl)
 ```
-
 
 ### Z-Score Heatmap
 
@@ -2044,8 +2022,6 @@ if (n_enrich > 1) {
 }
 ```
 
-
-
 ### Positional Bias {.tabset}
 
 ```{r get-top-pos, eval = n_pos > 0, echo = n_pos > 0}
@@ -2074,7 +2050,6 @@ Any motifs which matched fewer than `r percent(motif_params$ignore_below)` of se
 Using an adjusted p-value (`r motif_adj`) less than `r motif_params$alpha` to be considered as significant, `r n_pos` motifs were considered as showing any type of positional bias.
 
 It should also be noted that this type of analysis is agnostic to the number of matches found for a TFBM, and only assesses any bias within the distribution of matches.
-
 
 `r if (n_pos > 0) "#### Results Table"`
 
@@ -2192,7 +2167,6 @@ tl <- tagList(
 htmltools::browsable(tl)
 ```
 
-
 `r if (n_pos > 0) "#### Total Matches"`
 
 ```{r plot-total-pos-matches, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
@@ -2262,7 +2236,6 @@ if (n_pos > 0) {
 }
 ```
 
-
 ## Data Export
 
 ```{r export, results='hide', echo=FALSE}
@@ -2296,7 +2269,6 @@ existing_in <- list(
   )
 )
 ```
-
 
 Existing results obtained during previous steps in the workflow and presented here are:
 

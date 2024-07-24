@@ -46,7 +46,7 @@ enrich_cols$cmn_ids <- enrich_cols$gene_id
 
 In order to compare pairwise results across both `r pander(unname(unlist(short_names)))`, gene-to-range mappings were prepared by selecting the category showing the greatest change with either comparison.
 Pairwise status was scored based on the presence of an Increased/Decreased status (score = 1) in either comparison, with a lower score assigned to an Unchanged status (score = 0.5).
-The most higly ranked pairwise status was assigned to each gene, allowing for ties, giving `r comma(length(unique(pw_gene_status$gene_id)))` unique genes with `r comma(nrow(pw_gene_status))` mapped pairwise status levels.
+The most highly ranked pairwise status was assigned to each gene, allowing for ties, giving `r comma(length(unique(pw_gene_status$gene_id)))` unique genes with `r comma(nrow(pw_gene_status))` mapped pairwise status levels.
 
 These results were applied where summarised results were able to be presented, however, when comparing actual estimates for logFC etc, *all ranges mapped to a gene* were retained.
 

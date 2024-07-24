@@ -320,25 +320,9 @@ The insistence on the more stringent initial inclusion criteria still protects a
 For *classification steps within each window*, each target is given the status 1) Increased, 2) Decreased, 3) Unchanged, or 4) Undetected.
 Across two comparisons, this gives 15 possible classifications for each region found with signal from at least one comparison (e.g. Increased-Increased, Increased-Decreased, Increased-Unchanged, Increased-Undetected etc.), given that any potential Undetected-Undetected windows will not be included for obvious reasons.
 
-<!-- ## Enrichment Testing -->
-
-<!-- After direct comparison of signal patterns, enrichment analysis is performed in a similar manner to for individual analyses. -->
-<!-- If RNA-Seq data is provided, genes will be restricted to those present within the RNA-Seq dataset, as representative of detected genes. -->
-<!-- Enrichment testing is performed on: -->
-
-<!-- 1. All genes mapped to any region with detected signal against those not mapped to detected signal -->
-<!-- 2. All genes mapped to both targets against genes not mapped  -->
-
-<!-- ## Comparison To RNA-Seq -->
-
-<!-- If RNA-Seq data is supplied, the sets of genes associated with all signal patterns (e.g. Up-Up, Up-Down etc) were treated as gene-sets and Gene Set Enrichment Analysis (GSEA) [@SubramanianGsea2005] was used to determine enrichment and leading-edge genes associated with altered expression. -->
-<!-- Genes will be ranked to incorporate direction of change (i.e. Directional GSEA) or significance only (i.e Non-Directional GSEA). -->
-<!-- The results from enrichment analysis across ChIP target and RNA-Seq data will also be combined to reveal pathways under the regulatory influence in either comparison, for which we also have evidence of changed gene expression. -->
-
 ## General Comparison
 
 Data was loaded for the initially-identified peaks to show the general level of similarity between signal regions from either dataset.
-
 
 ### Summary Figures {.tabset}
 
@@ -358,8 +342,7 @@ filtered_peaks %>%
 ```{r compare-targets, eval = n_targets > 1, child = here::here('workflow/modules/_compare_targets.Rmd')}
 ```
 
-
-## Combined Differential Signal Results 
+## Combined Differential Signal Results
 
 `r metadata(combined_results)$description`
 
@@ -374,7 +357,7 @@ cp <- htmltools::tags$caption(
       "Summary of combined results for ",
       glue_collapse(short_names, sep = " and "),
       ". Ranges were classified as described above. ",
-      "Where signal was deteted in both comparisons, the median distance ",
+      "Where signal was detected in both comparisons, the median distance ",
       "between peak centres is given.",
       "The number of loci showing each combined pattern are given summarised ",
       "across all overlapping gene-centric regions, with these able to be ",
@@ -595,7 +578,7 @@ if (has_features) {
         "Summary of combined results for ",
         glue_collapse(short_names, sep = " and "),
         "grouping results by feature. Ranges were classified as described above. ",
-        "Where signal was deteted in both comparisons, the median distance ",
+        "Where signal was detected in both comparisons, the median distance ",
         "between peak centres is given.",
         "The number of loci showing each combined pattern are given summarised ",
         "across all overlapping gene-centric regions, with these able to be ",
@@ -1125,8 +1108,6 @@ if (has_features) {
 }
 ```
 
-
-
 #### Distribution By Region
 
 ```{r status-by-region, fig.cap = glue("*Distribution of signal patterns by genomic regions as defined in earlier sections. Windows are only shown if signal was detected in both datasets. Segments where changes were detected in both comparisons are exploded.*")}
@@ -1177,7 +1158,6 @@ if (has_features) {
     labs(x = "Loci Mapped to Feature", y = "Feature", fill = "Combined Status")
 }
 ```
-
 
 ## Combined Signal Visualisation
 
@@ -1553,7 +1533,6 @@ if (length(rna)) {
 }
 ```
 
-
 An initial set of ranges is shown below, based on merged p-values from Wilkinson's method where both targets were detected.
 
 ```{r grl_most_sig}
@@ -1678,8 +1657,6 @@ Loci found with differential signal tend to show the most extreme change where s
 For the following set of plots, the locus with the highest average signal across each group (e.g. Both Increased, Both Decreased etc) is shown.
 It is anticipated that change will appear less visually striking, whilst the actual signal should appear relatively strong.
 For all plots in this subsection, significant change was detected in at least of comparison.
-
-
 
 ```{r grl-to-plot-avexpr}
 grl_to_plot <- combined_results %>% 
@@ -2347,8 +2324,6 @@ tl <- tagList(
 htmltools::browsable(tl)
 ```
 
-
-
 ### Z-Score Heatmap
 
 ```{r zscore-heatmap, fig.width = 1.1 * fw, fig.cap = glue("*Normalised Z-scores for each group, showing the effect of shifting ranges within a $\\pm$ {regioner_params$window/1e3}kb window around the existing peaks.*")}
@@ -2555,8 +2530,6 @@ tagList(
     ) 
 )
 ```
-
-
 
 `r if (any_motif_enrich) "#### Motif Co-Ocurrence {.tabset}"`
 
@@ -2787,9 +2760,7 @@ if (any_motif_enrich) {
 }
 ```
   
-
-
-### Motifs With Positional Bias 
+### Motifs With Positional Bias
 
 `r ifelse(any_motif_pos, "#### Result Tables {.tabset}", "*No groups were found to show positional bias for any motifs.*")`
 
@@ -2968,7 +2939,6 @@ enrich_by_status %>%
 localz_df %>% write_csv(here::here(all_out$localz))
 save.image(here::here(all_out$renv))
 ```
-
 
 Existing results obtained during previous steps in the workflow and presented here are:
 

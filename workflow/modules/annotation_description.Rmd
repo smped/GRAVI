@@ -337,7 +337,7 @@ id <- sort(gtf$gene$gene_id)[[1]]
 ```
 
 
-```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf$gene, gene_id == id)$gene_name), "showing all annotated regions. Given the multiple possible TSS much of the region around thse has been merged into a single region which has the capacity to function as a promoter, along with aany upstream promoters.*")}
+```{r plot-example, fig.height=7, fig.cap = paste("*12kb region surrounding", collapseGenes(subset(gtf$gene, gene_id == id)$gene_name), "showing all annotated regions. Given the multiple possible TSS much of the region around these has been merged into a single region which has the capacity to function as a promoter, along with any upstream promoters.*")}
 gr <- subset(gtf$gene, gene_id == id) %>% 
   resize(width = width(.) + 2.4e4, fix = 'center') %>% 
   unstrand()
@@ -488,7 +488,7 @@ msigdb %>%
       str_detect(`Sub-Category`, "MIR") ~ str_replace_all(`Sub-Category`, "MIR:(.+)", "microRNA Target Gene-Sets: \\1"),
       str_detect(`Sub-Category`, "CGN") ~ "Cancer Gene Neighbourhoods",
       str_detect(`Sub-Category`, "CM") ~ "Cancer Modules",
-      str_detect(`Sub-Category`, "GO:BP") ~ "Gene Ontology: Bological Process",
+      str_detect(`Sub-Category`, "GO:BP") ~ "Gene Ontology: Biological Process",
       str_detect(`Sub-Category`, "GO:MF") ~ "Gene Ontology: Molecular Function",
       str_detect(`Sub-Category`, "GO:CC") ~ "Gene Ontology: Cellular Component",
       str_detect(`Sub-Category`, "HPO") ~ "Human Phenotype Ontology",

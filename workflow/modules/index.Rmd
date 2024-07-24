@@ -118,7 +118,7 @@ peak_param_df %>%
   dplyr::select(target, allow_zero, outlier_threshold) %>% 
   pander(
     justify = "llr",
-    caption = "QC parameters set for each target. Setting `allow_zero` as `TRUE` allows for the possibility of a sample returning no peaks without being discarded, as may be observed during a transcription factor shifting from cytoplasmic to nuclear. If a given sample contains an excessive number of peaks when compared to the remaining samples within the same treatment group, (`outlier_threshold`), this sample will be marked as an outlier and removed from all subsquent steps. This allows for identification of possible sample mislabelling."
+    caption = "QC parameters set for each target. Setting `allow_zero` as `TRUE` allows for the possibility of a sample returning no peaks without being discarded, as may be observed during a transcription factor shifting from cytoplasmic to nuclear. If a given sample contains an excessive number of peaks when compared to the remaining samples within the same treatment group, (`outlier_threshold`), this sample will be marked as an outlier and removed from all subsequent steps. This allows for identification of possible sample mislabelling."
   )
 ```
 
@@ -129,7 +129,7 @@ peak_param_df %>%
   dplyr::select(target, starts_with("min"), starts_with("merge")) %>% 
   pander(
     caption = "Parameters used when merging peaks within treatment groups, then forming consensus peaks. Despite the fdr passed to `macs2 callpeak` only peaks detected in the merged sample below the `merge_fdr` given here will be retained as representative of peaks within a treatment group. 
-    After passing this threshold, each peak detected in merged sampeles will be required to overlap a peak in > `min_prop_reps` individual samples and must be wider than the values passed to `min_width`.
+    After passing this threshold, each peak detected in merged samples will be required to overlap a peak in > `min_prop_reps` individual samples and must be wider than the values passed to `min_width`.
     Any merged peaks within `merge_within`bp of each other will also be merged into a single peak."
   )
 ```
@@ -209,8 +209,8 @@ pw_param %>%
     Values for alpha are used when reclassifying overlapping ranges using 
     Wilkinson's maximump method [@wilkinson51].
     The `width_ratio` is used to determine whether one particular comparison
-    contains noticeably braoder peaks than the other, with the pairwise 
-    peak-mapping strategy switching from the union of directly overlappng loci 
+    contains noticeably broader peaks than the other, with the pairwise 
+    peak-mapping strategy switching from the union of directly overlapping loci 
     to the broader dataset being scaffolded onto the narrower dataset
     "
   )
@@ -241,7 +241,7 @@ Using the pathways and databases specified in `params.yml`, the same key paramet
 
 `r pander(params$enrichment)`
 
-Background genesets are drawn from the whole genome for every section, however where comparisons are being performed, analysis are performed comparing genes mapped to loci showing changed signal against other loci with detected signal.
+Background gene-sets are drawn from the whole genome for every section, however where comparisons are being performed, analysis are performed comparing genes mapped to loci showing changed signal against other loci with detected signal.
 Details regarding the exact databases used for enrichment testing are given in the [description of annotations](annotation_description.html).
 
 ### Region Analysis
@@ -257,7 +257,7 @@ Key parameters are
 ### Motif Analysis
 
 Using a similar strategy to enrichment testing, motifs are tested for enrichment against a genomic background, except where a subset of loci are changed, with others being unchanged.
-When using a genomic background, motif enrichment uses the `r config$motif_analysis$default$model` model provided in the Biocondctor package `motifTestR`, whilst when comparing between changed and unchanged sites, the *hypergeometric* model is always used.
+When using a genomic background, motif enrichment uses the `r config$motif_analysis$default$model` model provided in the Bioconductor package `motifTestR`, whilst when comparing between changed and unchanged sites, the *hypergeometric* model is always used.
 
 In addition to enrichment testing, motifs are also tested for positional bias.
 This analysis requires no control or background set of sequences and simply tests for an even distribution of matches across the sequences, or for any specific positional bias, which may the centre of the tested sequences or any other location within the sequences.
