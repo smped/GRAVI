@@ -34,8 +34,6 @@ rule check_r_packages:
     resources:
         runtime = "30m",
         mem_mb = 2048,
-    params:
-        min_extrachips = "1.8.2"
     log: os.path.join(log_path, "initial_checks", "check_r_packages.log")
     conda: "../envs/rmarkdown.yml"
     localrule: True

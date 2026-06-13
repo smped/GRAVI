@@ -21,13 +21,6 @@ config <- slot(snakemake, "config")
 
 all_params <- slot(snakemake, "params")
 
-## Include motifTestR at the start as this cannot be installed using conda
-cat_time("Installing motifTestR")
-BiocManager::install(
-  "smped/motifTestR", ref = "devel", update = FALSE, force = FALSE
-)
-cat_time("Done")
-
 ## All installed packages
 all_inst <- rownames(installed.packages())
 stopifnot(length(system2('which', 'egrep', stdout = TRUE)) > 0)
@@ -56,6 +49,9 @@ ucsc <- get_ucsc(config$genome$build)
 bs_pkg <- paste(c("BSgenome", ucsc$sp, "UCSC", ucsc$build), collapse = ".")
 all_reqd <- c(all_reqd, bs_pkg)
 
+## SimpleUpset is required for this version of extraChIPs & it's only on CRAN
+all_reqd <- c(all_reqd, "SimpleUpset")
+
 ## Any missing packages
 not_installed <- setdiff(all_reqd, all_inst)
 cat_time(length(all_reqd), " packages are required")
@@ -74,15 +70,7 @@ if (length(not_installable))
 	stop("unable to install:\n", paste(not_installable, collapse = "\n"))
 cat_time("All required packages have been installed")
 
-## Set the minimum version for extraChIPs
-updateEC <- packageVersion("extraChIPs") < all_params$min_extrachips
-if (updateEC) {
-  cat_time("Updating extraChIPs to a suitable version")
-  BiocManager::install(
-    "smped/extraChIPs", ref = "devel", update = FALSE, force = FALSE
-  )
-  stopifnot(packageVersion("extraChIPs") >= all_params$min_extrachips)
-}
+
 
 cat_time("Writing check file")
 outfile <- slot(snakemake, "output")[[1]]
