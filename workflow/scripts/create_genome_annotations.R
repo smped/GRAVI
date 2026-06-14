@@ -59,6 +59,7 @@ library(plyranges)
 library(yaml)
 library(Rsamtools)
 library(extraChIPs)
+library(GenomeInfoDb)
 params <- read_yaml(all_input$yaml)
 
 #### Seqinfo ####

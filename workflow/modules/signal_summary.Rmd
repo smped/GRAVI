@@ -18,7 +18,7 @@ library(scales)
 library(plyranges)
 library(yaml)
 library(ngsReports)
-library(ComplexUpset)
+library(SimpleUpset)
 library(VennDiagram)
 library(rlang)
 library(BiocParallel)
@@ -511,6 +511,19 @@ valid_sets <- makeConsensus(individual_peaks) %>%
   pull(samples) %>% 
   setNames(map_chr(., \(x) names(which(sets == x)))) %>% 
   lapply(function(x) str_split(x, "; ")[[1]])
+lb <- setNames(samples$label, samples$sample)
+individual_peaks %>%
+  setNames(lb[names(.)]) |>
+  makeConsensus(var = "qValue") |>
+  as_tibble() |>
+  mutate(qValue = map_dbl(qValue, median)) |>
+  simpleUpSet(
+    sets = unname(lb)
+  )
+
+
+
+
 ## Use upset_query objects to fill key intersections and sets
 ql <- samples$label %>% 
   lapply(

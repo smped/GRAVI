@@ -66,7 +66,7 @@ cat_time("Preparaing MSigDB using msigdbr...")
 msigdb_params <- params$msigdb
 msigdb <- msigdbr(msigdb_params$species) %>%
   dplyr::filter(
-    gs_cat %in% msigdb_params$gs_cat | gs_subcat %in% msigdb_params$gs_subcat,
+    gs_collection %in% msigdb_params$gs_collection | gs_subcollection %in% msigdb_params$gs_subcollection,
     ensembl_gene %in% gtf$gene$gene_id
   ) %>%
   dplyr::filter(
@@ -78,12 +78,10 @@ cat_time("Loaded", length(unique(msigdb$gs_name)), "gene-sets")
 
 cat_time("Updating Gene-Set URLs...")
 gs_url <- msigdb %>%
-  distinct(gs_cat, gs_subcat, gs_name, gs_url, gs_exact_source) %>%
+  distinct(gs_collection, gs_subcollection, gs_name, gs_url, gs_exact_source) %>%
   mutate(
     gs_url = case_when(
-      gs_subcat == "CP:REACTOME" ~ str_remove_all(gs_url, "\\|.+"),
-      gs_subcat == "CP:KEGG" ~ paste0("https://www.genome.jp/pathway/", gs_exact_source),
-      gs_subcat == "CP:WIKIPATHWAYS" ~ paste0(
+      gs_subcollection == "CP:WIKIPATHWAYS" ~ paste0(
         "https://www.wikipathways.org/pathways/", gs_exact_source, ".html"
       ),
       gs_url == "" ~ "http://www.gsea-msigdb.org/gsea/msigdb/collections.jsp",

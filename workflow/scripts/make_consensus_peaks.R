@@ -36,11 +36,11 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-## For testing
+# # For testing
 # all_input <- list(
 #     peaks = c(
-#         "output/peak_analysis/H3K27ac/H3K27ac_E2_filtered_peaks.narrowPeak",
-#         "output/peak_analysis/H3K27ac/H3K27ac_E2DHT_filtered_peaks.narrowPeak"
+#         "output/peak_analysis/ER/ER_E2_filtered_peaks.narrowPeak"#,
+#         # "output/peak_analysis/ER/ER_E2DHT_filtered_peaks.narrowPeak"
 #     ),
 #     sq = "output/annotations/seqinfo.rds",
 #     blacklist = "output/annotations/blacklist.rds",
@@ -48,15 +48,15 @@ cat_time <- function(...){
 #     greylist = "output/greylist/greylists.rds",
 #     gtf = "output/annotations/gtf.rds",
 #     hic = "output/annotations/hic.rds",
-#     qc = "output/macs2/H3K27ac/H3K27ac_qc_samples.tsv",
+#     qc = "output/macs2/ER/ER_qc_samples.tsv",
 #     regions = "output/annotations/gene_regions.rds",
 #     yaml = "config/params.yml"
 # )
 # all_output <- list(
-#     bed = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
-#     rds = "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.rds"
+#     bed = "output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
+#     rds = "output/peak_analysis/ER/ER_consensus_peaks.rds"
 # )
-# all_wildcards <- list(target = "H3K27ac")
+# all_wildcards <- list(target = "ER")
 # all_params <- list(
 #   method = 'union',
 #   min_width = 0,
@@ -64,7 +64,7 @@ cat_time <- function(...){
 #   p = 0,
 #   merge_within = 300
 # )
-# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+# config <- yaml::read_yaml("config/config.yml")
 
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
@@ -89,6 +89,7 @@ library(tidyverse)
 library(extraChIPs)
 library(plyranges)
 library(yaml)
+library(GenomicInteractions)
 
 cat_time("Loading samples")
 samples <- all_input$qc %>% read_tsv() %>% dplyr::filter(qc == 'pass')
@@ -138,12 +139,12 @@ if ("score" %in% vars) {
   cat_time("Taking the maximum score for each peak")
   cons_peaks$score <- map_dbl(cons_peaks$score, max)
 }
-cons_peaks <- plyranges::select(cons_peaks, any_of(vars))
+cons_peaks <- select(cons_peaks, any_of(vars))
 
 cat_time("Writing", length(cons_peaks), "ranges to", all_output$bed, "\n")
 if ("score" %in% colnames(mcols(cons_peaks))) {
   cons_peaks %>%
-    plyranges::select(any_of("score")) %>%
+    select(any_of("score")) %>%
     write_bed(all_output$bed)
 } else {
     write_bed(granges(cons_peaks), all_output$bed)

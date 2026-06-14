@@ -127,11 +127,12 @@ rule prep_msigdb:
     output:
         msigdb = os.path.join(annotation_path, "msigdb.rds"),
     conda: "../envs/rmarkdown.yml"
+    localrule: True
     threads: 1
     retries: 1    
     resources:
-        mem_mb = 8192,
-        run_time = "10m"
+        mem_mb = 4096,
+        run_time = "5m"
     log: os.path.join(log_path, "annotations", "msigdb.log")
     script:
         "../scripts/prep_msigdb.R"

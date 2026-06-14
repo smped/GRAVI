@@ -40,6 +40,7 @@ all_output <- lapply(all_output, here::here)
 cat_time("Loading packages...\n")
 library(tidyverse)
 library(GenomicInteractions)
+library(GenomeInfoDb)
 samples <- here::here(config$samples$file) %>%
   read_tsv()
 
