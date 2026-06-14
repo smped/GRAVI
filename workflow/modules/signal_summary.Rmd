@@ -487,7 +487,7 @@ In the case of four or more replicates, the package `ComplexUpset` was used to c
 
 #### All Samples
 
-```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. Intersections are only included if 10 or more sites are present. The top panel shows a boxplot of the median $q$-values produced by `macs2 callpeak` for each peak in the intersection. The y-axis for this panel is truncated at the 99^th^ percentile of values. Only intersections with 10 or more peaks are shown.*"}
+```{r all-reps-upset, fig.cap = "*UpSet plot showing all samples including those which failed prior QC steps. Any potential sample mislabelling will show up clearly here as samples from each group should show a preference to overlap other samples within the same treatment group. Intersections are only included if 10 or more sites are present. The top panel shows a boxplot of the median $q$-values produced by `macs2 callpeak` for each peak in the intersection, excluding outliers. Only intersections with 10 or more peaks are shown, to a maximum of 30 intersections.*"}
 sets <- list(all = paste(samples$label, collapse = "; ")) %>% 
   c(
     samples %>% 
@@ -513,99 +513,42 @@ valid_sets <- makeConsensus(individual_peaks) %>%
   lapply(function(x) str_split(x, "; ")[[1]])
 lb <- setNames(samples$label, samples$sample)
 individual_peaks %>%
-  setNames(lb[names(.)]) |>
-  makeConsensus(var = "qValue") |>
-  as_tibble() |>
-  mutate(qValue = map_dbl(qValue, median)) |>
-  simpleUpSet(
-    sets = unname(lb)
-  )
-
-
-
-
-## Use upset_query objects to fill key intersections and sets
-ql <- samples$label %>% 
-  lapply(
-    function(x) upset_query(
-      set = x, 
-      fill = colours$treat[as.character(dplyr::filter(samples, label == x)$treat)]
+  setNames(lb[names(.)]) %>% 
+  makeConsensus(var = "qValue") %>% 
+  as_tibble() %>% 
+  mutate(qValue = map_dbl(qValue, median)) %>% 
+  bind_cols(
+    imap(
+      valid_sets, 
+      \(cols, name) transmute(., "{name}" := if_all(all_of(cols)))
     )
-  )
-if (length(valid_sets) > 0) {
-  ql <- c(
-    ql,
-    names(valid_sets) %>% 
-      lapply(
-        function(x) {
-          col <- ifelse(x == "all", "darkorange", colours$treat[[x]])
-          upset_query(
-            intersect = valid_sets[[x]], 
-            only_components = "intersections_matrix", 
-            color = col, fill = col
-          )
-        }
-      )
-  )
-}
-lb <- rev(arrange(samples, treat)$label)
-size <- get_size_mode('exclusive_intersection')
-individual_peaks %>% 
-  setNames(sample2label[names(.)]) %>% 
-  .[lb] %>% 
-  plotOverlaps(
-    var = "qValue", f = "median", type = "upset",
-    .sort_sets = FALSE, queries = ql,
-    base_annotations = list(
-      `Peaks in Intersection` = intersection_size(
-        text_mapping = aes(label = comma(!!size)),
-        bar_number_threshold = 1, text_colors = "black", 
-        text = list(size = 3.5, angle = 90, vjust = 0.5, hjust = -0.1)
-      ) +
-        scale_y_continuous(expand = expansion(c(0, 0.25)), label = comma) +
-        theme(
-          panel.grid = element_blank(), 
-          axis.line = element_line(colour = "grey20"),
-          panel.border = element_rect(colour = "grey20", fill =  NA)
-        )
+  ) %>% 
+  mutate(
+    highlight = if_all(names(valid_sets))
+  ) %>% 
+  simpleUpSet(
+    sets = unname(lb), n_intersect = 30, sort_sets = NULL, min_size = 10,
+    set_layers = default_set_layers(
+      fill = "set", expand = c(0.25, 0),
+      scale_fill_manual(
+        values = colours$treat[as.character(samples$treat)] |> setNames(lb)
+      ),
+      guides(fill = guide_none()),
+      name = "Peaks Overlapping Consensus"
+    ),
+    intersect_layers = default_intersect_layers(
+      name = "Peaks in Intersection\n",
+      expand = c(0, 0.1)
+    ),
+    grid_layers = default_grid_layers(
+      colour = "highlight", name = "Intersection",
+      scale_colour_manual(values = c("grey23", "darkorange"))
     ),
     annotations = list(
-      qValue = ggplot(mapping = aes(y = qValue)) +
-        geom_boxplot(na.rm = TRUE, outlier.colour = rgb(0, 0, 0, 0.2)) +
-        coord_cartesian(
-          ylim = c(0, quantile(unlist(individual_peaks)$qValue, 0.99))
-        ) +
-        scale_y_continuous(expand = expansion(c(0, 0.05))) +
-        ylab(expr(paste("Macs2 ", q[med]))) +
-        theme(
-          panel.grid = element_blank(), 
-          axis.line = element_line(colour = "grey20"),
-          panel.border = element_rect(colour = "grey20", fill =  NA)
-        )
-    ),
-    set_sizes = (
-      upset_set_size() +
-        geom_text(
-          aes(label = comma(after_stat(count))), 
-          hjust = 1.1, stat = 'count', size = 3.5
-        ) +
-        scale_y_reverse(expand = expansion(c(0.3, 0)), label = comma) +
-        ylab(glue("Macs2 Peaks (FDR < {peak_calling_params$fdr})")) +
-        theme(
-          panel.grid = element_blank(), 
-          axis.line = element_line(colour = "grey20"),
-          panel.border = element_rect(colour = "grey20", fill =  NA)
-        )
-    ),
-    n_intersections = 30
-  ) +
-  theme(
-    panel.grid = element_blank(), 
-    panel.border = element_rect(colour = "grey20", fill =  NA),
-    axis.line = element_line(colour = "grey20")
-  ) +
-  labs(x = "Intersection") +
-  plot_layout(heights = c(2, 3, 2))
+      geom_boxplot(aes(y = qValue), outliers = FALSE),
+      scale_y_continuous(name = "Median qValue\n")
+    )
+  )
 ```
 
 
