@@ -516,15 +516,11 @@ individual_peaks %>%
   setNames(lb[names(.)]) %>% 
   makeConsensus(var = "qValue") %>% 
   as_tibble() %>% 
-  mutate(qValue = map_dbl(qValue, median)) %>% 
-  bind_cols(
-    imap(
-      valid_sets, 
-      \(cols, name) transmute(., "{name}" := if_all(all_of(cols)))
-    )
-  ) %>% 
   mutate(
-    highlight = if_all(names(valid_sets))
+    qValue = map_dbl(qValue, median),
+    highlight = case_when(
+      !!!imap(valid_sets, \(cols, name) if_all(all_of(cols)) ~ name)
+    )
   ) %>% 
   simpleUpSet(
     sets = unname(lb), n_intersect = 30, sort_sets = NULL, min_size = 10,
@@ -542,7 +538,9 @@ individual_peaks %>%
     ),
     grid_layers = default_grid_layers(
       colour = "highlight", name = "Intersection",
-      scale_colour_manual(values = c("grey23", "darkorange"))
+      scale_colour_manual(
+        values = c(all = "darkorange", colours$treat), na.value = "grey23"
+      )
     ),
     annotations = list(
       geom_boxplot(aes(y = qValue), outliers = FALSE),
