@@ -241,7 +241,7 @@ dsa_results <- params[c("dsa1", "dsa2")] %>%
 
 ```{r reclass-df}
 reclass_by_region <- combined_results %>% 
-  plyranges::select(region, ends_with("logFC"), ends_with("FDR")) %>% 
+  select(region, ends_with("logFC"), ends_with("FDR")) %>% 
   addDiffStatus(
     fc_col = paste0(comp_names$comp1, "_logFC"),
     sig_col = paste0(comp_names$comp1, "_FDR"),
@@ -268,7 +268,7 @@ reclass_by_region <- combined_results %>%
   )
 if (length(features)) {
   reclass_by_feature <- combined_results %>% 
-    plyranges::select(feature, ends_with("logFC"), ends_with("FDR")) %>% 
+    select(feature, ends_with("logFC"), ends_with("FDR")) %>% 
     addDiffStatus(
       fc_col = paste0(comp_names$comp1, "_logFC"),
       sig_col = paste0(comp_names$comp1, "_FDR"),
@@ -1132,7 +1132,7 @@ combined_results %>%
 ```{r status-by-feature, echo = has_features, fig.cap = glue("*Distribution of signal patterns by external features as defined in earlier sections, noting again that features may be overlapping and loci may be mapped to multiple features. Features are grouped to capture 99% of mappings.*")}
 if (has_features) {
   combined_results %>% 
-    plyranges::select(feature, status) %>% 
+    select(feature, status) %>% 
     plyranges::filter(!grepl("Undetected", status)) %>% 
     as_tibble() %>% 
     unnest(feature, keep_empty = TRUE) %>% 
@@ -1472,7 +1472,7 @@ max_ranges <- comp_names %>%
     \(x) {
       cols <- paste0(x, "_log", c("CPM", "FC"))
       combined_results %>% 
-        plyranges::select(all_of(cols)) %>% 
+        select(all_of(cols)) %>% 
         mutate(
           max = !!sym(cols[[1]]) + !!sym(cols[[2]])
         ) %>% 
@@ -1873,7 +1873,7 @@ ranges_by_status <- combined_results %>%
   mutate(status = fct_rev(status)) %>% 
   split(.$status) %>%  
   endoapply(unique) %>% 
-  endoapply(plyranges::select, gene_id) %>% 
+  endoapply(select, gene_id) %>% 
   .[map_int(., length) > 0] %>% 
   setNames(pw_relabel(names(.))) 
 ```

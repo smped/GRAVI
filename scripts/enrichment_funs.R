@@ -145,7 +145,7 @@
 
   ## Define the TSS
   id2gene <- setNames(gtf$gene_name, gtf$gene_id)
-  gtf <- plyranges::select(gtf, gene_id)
+  gtf <- select(gtf, gene_id)
   genome(gtf) <- genome
   tss <- extendTSS(
     gtf, genome = genome, gene_id_type = 'ENSEMBL',

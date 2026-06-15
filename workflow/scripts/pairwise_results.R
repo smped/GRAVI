@@ -295,7 +295,7 @@ if (p < 0.05 & width_ratio > log10(pw_params$width_ratio)) {
     GRangesList() %>%
     mapGrlCols(var = c("centre", grl_cols))
   combined_results$centre <- combined_results %>%
-    plyranges::select(ends_with("centre")) %>%
+    select(ends_with("centre")) %>%
     mcols() %>%
     as.data.frame() %>%
     as.matrix() %>%

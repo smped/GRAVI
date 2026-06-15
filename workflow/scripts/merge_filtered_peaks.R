@@ -65,7 +65,7 @@ peaks <- all_input$peaks |>
 
 cat_time("Merging peaks with", all_params$within, "bp")
 merged <- peaks |>
-  plyranges::select(score) |>
+  select(score) |>
   reduceMC(min.gapwidth = all_params$within) |>
   plyranges::mutate(score = vapply(score, max, numeric(1)))
 cat_time("Reduced", length(peaks), "peaks to", length(merged), "peaks")

@@ -580,7 +580,7 @@ df <- results %>%
   mutate(w = width) %>% 
   arrange(!!sym(fdr_column)) %>% 
   plyranges::slice(seq_len(show_n)) %>% 
-  plyranges::select(
+  select(
     w, starts_with("log"), !!sym(fdr_column), status,
     Region = region, any_of("feature"), Genes = gene_name
   ) %>% 

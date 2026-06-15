@@ -243,7 +243,7 @@ if (win_type == "sliding") {
     merge_within = peak_params$merge_within,
     hm_pre = "", keyval = "merged", min_win = diff_sig_params$min_win
   ) %>%
-    plyranges::select(
+    select(
       starts_with("n_"), keyval_range, starts_with("log"), any_of(pcols),
       FDR = PValue_fdr
     ) %>%
