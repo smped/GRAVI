@@ -533,8 +533,11 @@ individual_peaks %>%
       name = "Peaks Overlapping Consensus"
     ),
     intersect_layers = default_intersect_layers(
-      name = "Peaks in Intersection\n",
-      expand = c(0, 0.1)
+      fill = "highlight", name = "Peaks in Intersection\n", expand = c(0, 0.1),
+      scale_fill_manual(
+        values = c(all = "darkorange", colours$treat), na.value = "grey23"
+      ),
+      guides(fill = guide_none())
     ),
     grid_layers = default_grid_layers(
       colour = "highlight", name = "Intersection",
