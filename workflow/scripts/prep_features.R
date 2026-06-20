@@ -124,19 +124,20 @@ if (is.null(all_files)) {
       lapply(select, any_of(c("name", "feature")))
     for (i in names(gtf_features)) {
       if ("feature" %in% names(mcols(gtf_features[[i]]))) {
-        gtf_features[[i]] <- dplyr::select(gtf_features[[i]], feature)
+        gtf_features[[i]] <- select(gtf_features[[i]], feature)
       } else {
         if ("type" %in% names(mcols(gtf_features[[i]]))) {
           cat("Setting the feature to be 'type' for ", i)
-          gtf_features[[i]] <- dplyr::select(gtf_features[[i]], feature = type)
+          gtf_features[[i]] <- select(gtf_features[[i]], feature = type)
         } else {
           cat("Couldn't find feature names. Setting the file name as feature for", i)
           gtf_features[[i]] <- granges(gtf_features[[i]])
-          bed_fgtf_featureseatures[[i]]$feature <- i
+          gtf_features[[i]]$feature <- i
         }
       }
     }
     gtf_features <- GRangesList(gtf_features)
+    seqlevels(gtf_features) <- seqlevels(sq)
     seqinfo(gtf_features) <- sq
   }
   all_features <- unlist(c(bed_features, gtf_features))

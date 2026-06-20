@@ -58,7 +58,7 @@ rule prep_features:
     resources:
         mem_mb = 8192,
         run_time = "20m"
-    log: os.path.join(log_path, "annotations", "features.log")
+    log: os.path.join(log_path, "annotations", "prep_features.log")
     conda: "../envs/rmarkdown.yml"
     script:
         "../scripts/prep_features.R"
@@ -77,7 +77,7 @@ rule prep_blacklist:
     resources:
         mem_mb = 8192,
         run_time = "10m"
-    log: os.path.join(log_path, "annotations", "blacklist.log")
+    log: os.path.join(log_path, "annotations", "prep_blacklist.log")
     script:
         "../scripts/prep_blacklist.R"
 
@@ -96,7 +96,7 @@ rule prep_hic:
     resources:
         mem_mb = 16000,
         run_time = "10m"
-    log: os.path.join(log_path, "annotations", "hic.log")
+    log: os.path.join(log_path, "annotations", "prep_hic.log")
     script:
         "../scripts/prep_hic.R"
 
@@ -133,7 +133,7 @@ rule prep_msigdb:
     resources:
         mem_mb = 4096,
         run_time = "5m"
-    log: os.path.join(log_path, "annotations", "msigdb.log")
+    log: os.path.join(log_path, "annotations", "prep_msigdb.log")
     script:
         "../scripts/prep_msigdb.R"
 
@@ -162,7 +162,7 @@ rule prep_rna:
     resources:
         mem_mb = 16384,
         run_time = "30m"
-    log: os.path.join(log_path, "annotations", "rna.log")
+    log: os.path.join(log_path, "annotations", "prep_rna.log")
     script:
         "../scripts/prep_rna.R"
 

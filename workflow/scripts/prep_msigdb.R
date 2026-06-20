@@ -37,6 +37,14 @@ cat_time <- function(...){
 }
 
 
+# all_input <- list(
+#   gtf = "output/annotations/gtf.rds",
+#   yaml = "config/params.yml"
+# )
+# all_output <- list(
+#   msigdb = "output/annotations/msigdb.rds"
+# )
+
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
