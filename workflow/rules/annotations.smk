@@ -184,3 +184,19 @@ rule make_chrom_sizes:
           egrep -v 'M' |\
           sort -V > {output}
         """
+
+rule make_n_masked_ranges:
+    input:
+        seqinfo = os.path.join("output", "annotations", "seqinfo.rds"),
+        script = os.path.join("workflow", "scripts", "get_ucsc.R")
+    output:
+        rds = os.path.join(annotation_path, "n_masked_ranges.rds")
+    conda: "../envs/rmarkdown.yml"
+    log: os.path.join(log_path, "annotations", "make_n_masked_ranges.log")
+    threads: 1
+    retries: 1
+    resources:
+        mem_mb = 32000,
+        run_time = "15m"
+    script:
+        "../scripts/make_n_masked_ranges.R"

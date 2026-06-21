@@ -44,7 +44,15 @@ motifdb:
     - "HOCOMOCOv11-core-C"
   organism:
     - "Hsapiens"
-  cluster_above: 0.9
+
+motif_clustering:
+  agglom: "single"
+  type: "PPM"
+  method: "EUCL"
+  min_overlap: 0.9
+  thresh: 0.08
+  normalise_scores: true
+  min_position_ic: 0.1
 
 enrichment:
   adj: "fdr"

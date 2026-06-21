@@ -44,18 +44,18 @@ sink(log, split = TRUE)
 #   hic = "output/annotations/hic.rds",
 #   regions = "output/annotations/gene_regions.rds",
 #   peaks = c(
-#     "../GRAVI_testing/output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
-#     "../GRAVI_testing/output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
-#     "../GRAVI_testing/output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
+#     "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#     "output/peak_analysis/ER/ER_consensus_peaks.bed.gz",
+#     "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz"
 #   ),
-#   sq = "../GRAVI_testing/output/annotations/seqinfo.rds",
-#   yaml = "../GRAVI_testing/config/params.yml"
+#   sq = "output/annotations/seqinfo.rds",
+#   yaml = "config/params.yml"
 # )
 # all_output <- list(
-#   bed = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.bed.gz",
-#   rds = "../GRAVI_testing/output/peak_analysis/shared/shared_consensus_peaks.rds"
+#   bed = "output/peak_analysis/shared/shared_consensus_peaks.bed.gz",
+#   rds = "output/peak_analysis/shared/shared_consensus_peaks.rds"
 # )
-# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
+# config <- yaml::read_yaml("config/config.yml")
 
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
@@ -71,6 +71,7 @@ library(extraChIPs)
 library(plyranges)
 library(tidyverse)
 library(yaml)
+library(GenomicInteractions)
 
 cat_time("Loading seqinfo and defining ranges to exclude...\n")
 sq <- read_rds(all_input$sq)

@@ -58,6 +58,7 @@ cat_time <- function(...){
 #   exclude_ranges = "output/annotations/exclude_ranges.rds",
 #   gene_regions = "output/annotations/gene_regions.rds",
 #   motifs = "output/annotations/motif_list.rds",
+#   n_masked_ranges = "output/annotations/n_masked_ranges.rds",
 #   packages = "output/checks/r-packages.chk",
 #   params = "config/params.yml",
 #   peaks = "output/peak_analysis/ER/ER_consensus_peaks.rds"
@@ -191,14 +192,20 @@ gc()
 
 cat_time("Writing", all_output$pos)
 pos_res |>
-  as_tibble(rownames = "altname") |>
-  left_join(to_df(motif_list), by = "altname") |>
+  as_tibble(rownames = "name") |>
+  left_join(to_df(motif_list), by = "name") |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(pos_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$pos)
 
-cat_time("Importing exclude_ranges")
+cat_time("Defining ranges to exclude when selecting control sequences")
 exclude_ranges <- read_rds(all_input$exclude_ranges)
+n_mask <- read_rds(all_input$n_masked_ranges)
+genome(n_mask) <- genome(exclude_ranges)
+exclude_ranges <- c(exclude_ranges, n_mask) |>
+  GenomicRanges::reduce() |>
+  sort()
+
 
 cat_time("Generating RMRanges based on provided gene_regions")
 rm_ranges <- makeRMRanges(
@@ -216,15 +223,14 @@ cat_time("done")
 cat_time("Testing for motif enrichment")
 enrich_res <- testMotifEnrich(
   motif_list, test_seq, rm_seq, model = motif_params$model,
-  ## This should be ignored as motifTestR hasn't implemented this being parsed yet
   min_score = motif_params$min_score, mc.cores = threads
 )
 cat_time("Done")
 
 cat_time("Writing", all_output$enrich)
 enrich_res |>
-  as_tibble(rownames = "altname") |>
-  left_join(to_df(motif_list), by = "altname") |>
+  as_tibble(rownames = "name") |>
+  left_join(to_df(motif_list), by = "name") |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(enrich_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$enrich)

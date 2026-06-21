@@ -22,13 +22,27 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
+if ("snakemake" %in% ls()) {
+  log <- slot(snakemake, "log")[[1]]
+  message("Setting stdout to ", log, "\n")
+  sink(log, split = TRUE)
+  all_input <- slot(snakemake, "input")
+  all_output <- slot(snakemake, "output")
+  config <- slot(snakemake, "config")
+} else {
+  os.path.join <- here::here
+  annotation_path = os.path.join("output", "annotations")
+  all_input <- list(
+    script = os.path.join("workflow", "scripts", "prep_motifs.R"),
+    yaml = os.path.join("config", "params.yml")
+  )
+  all_output <- list(
+    motifs = os.path.join(annotation_path, "motif_list.rds"),
+    motif_uri = os.path.join(annotation_path, "motif_uri.rds")
+  )
+  config <- here::here("config", "config.yml") |> yaml::read_yaml()
+}
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-config <- slot(snakemake, "config")
 
 cat_list(all_input, "input:")
 cat_list(all_output, "output:")
@@ -44,6 +58,7 @@ library(glue)
 library(yaml)
 library(MotifDb)
 library(universalmotif)
+library(motifTestR)
 params <- read_yaml(all_input$yaml)
 
 
@@ -90,26 +105,24 @@ if (is.null(db)) {
   db <- subset(db, dataSource %in% motif_params$data_source)
   if (!is.null(motif_params$organism))
     db <- subset(db, organism %in% motif_params$organism)
+  
   cat_time("Database has been subset to", nrow(db), "motifs\n")
 
 }
 
-cat_time("Calculating correlations between motifs...")
-cormat <- db |>
-  to_list() |>
-  compare_motifs(method = "PCC", use.type = "ICM")
-cormat[cormat < motif_params$cluster_above] <- 0
-cormat[is.na(cormat)] <- 0
-cat_time("done\n")
-cat_time("Clustering motifs...\n")
-cl <- as.dist(1 - cormat) %>%
-  hclust() %>%
-  cutree(h = 0.9)
-cat_time(max(cl), "clusters formed\n")
+cat_time("Clustering motifs\n")
+cluster_params <- list(
+  motifs = to_list(db), plot = FALSE, return_d = TRUE, nthreads = 1
+) %>% 
+  c(
+    params$motif_clustering %>% setNames(str_replace_all(names(.), "_", "."))
+  ) 
+cluster_ids <- do.call("clusterMotifs", cluster_params)
+db$cluster <- cluster_ids$cl
+cat_time("Motifs clustered into", length(unique(cluster_ids$cl)), "clusters\n")
 
 cat_time("Exporting to:", all_output$motifs, "\n")
 db |>
-  mutate(cluster = cl[name]) |>
   to_list() |>
   write_rds(all_output$motifs, compress = "gz")
 cat_time("done\n")

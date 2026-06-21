@@ -4,6 +4,7 @@ rule motif_analysis_peaks:
         exclude_ranges = rules.make_exclude_ranges.output.rds,
         gene_regions = rules.create_genome_annotations.output.regions, 
         motifs = rules.prep_motifs.output.motifs,
+        n_masked_ranges = rules.make_n_masked_ranges.output.rds,
         packages = rules.check_r_packages.output,
         peaks = os.path.join(
             peak_path, "{target}", "{target}_consensus_peaks.rds"

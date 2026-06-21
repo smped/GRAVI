@@ -33,6 +33,7 @@ rule motif_analysis_shared:
         exclude_ranges = rules.make_exclude_ranges.output.rds,
         gene_regions = rules.create_genome_annotations.output.regions, 
         motifs = rules.prep_motifs.output.motifs,
+        n_masked_ranges = rules.make_n_masked_ranges.output.rds,
         packages = rules.check_r_packages.output,
         peaks = os.path.join(peak_path, "shared", "shared_peaks.rds"),
         script = os.path.join("workflow", "scripts", "motif_analysis.R"),
@@ -98,11 +99,11 @@ rule localz_targets:
         rds = os.path.join(peak_path, "shared", "shared_targets_localz.rds")
     params:
         regioner_params = extra_params['regioner']           
-    threads: 16
+    threads: 8
     retries: 1
     resources:
         mem_mb = 65536,
-        run_time = "2h",
+        run_time = "4h",
     log: os.path.join(log_path, "regioner", "shared_targets_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:

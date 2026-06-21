@@ -45,21 +45,25 @@ cat_time <- function(...){
 # config <- yaml::read_yaml("config/config.yml")
 # all_input <- list(
 #   peaks = c(
-#             "output/nfr/H3K27ac/H3K27ac_consensus_nfr.bed.gz",
-#             "output/peak_analysis/AR/AR_consensus_peaks.bed.gz"
-#           ),
+#       "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+#       "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
+#       "output/peak_analysis/GATA3/GATA3_consensus_peaks.bed.gz",
+#       "output/peak_analysis/ER/ER_consensus_peaks.bed.gz"
+#    ),
 #   sq = "output/annotations/seqinfo.rds"
 # )
 # all_output <- list(
-#   rds = "output/nfr/H3K27ac/H3K27ac_nfr_AR_localz.rds"
+#   rds = "output/peak_analysis/shared/shared_targets_localz.rds"
 # )
 # all_params <- yaml::read_yaml("config/params.yml")[['regioner']]
+# threads <- 1
 
 config <- slot(snakemake, "config")
 all_input <- slot(snakemake, "input")
 all_output <- slot(snakemake, "output")
 all_params <- slot(snakemake, "params")
 threads <- slot(snakemake, "threads")[[1]] - 1
+# threads <- 1
 log <- slot(snakemake, "log")[[1]]
 message("Setting stdout to ", log, "\n")
 sink(log, split = TRUE)
@@ -79,6 +83,7 @@ library(extraChIPs)
 library(plyranges)
 library(readr)
 library(yaml)
+library(GenomicRanges)
 cat_time("done\n")
 
 mlz_list <- list()

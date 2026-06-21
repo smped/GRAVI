@@ -1785,6 +1785,9 @@ fw_peaks <- resize(
 )
 genome(fw_peaks) <- ucsc$build
 fw_seq <- getSeq(bs_genome, fw_peaks)
+i <- letterFrequency(fw_seq, "N") == 0
+fw_seq <- fw_seq[i]
+fw_peaks <- fw_peaks[i]
 motif_adj <- match.arg(motif_params$adj, p.adjust.methods)
 motif_list <- file.path(all_paths$annotation, "motif_list.rds") %>% 
   read_rds() %>% 
@@ -1994,11 +1997,11 @@ clust_names <- motif_pos_res %>%
   ) %>% 
   arrange(desc(matches_in_region)) %>% 
   summarise(
-    altname = altname[[1]], .by = cluster,
-    name = paste(unique(name), collapse = "/")
+    cl_name = paste(unique(name), collapse = "/"),
+    name = name[[1]], .by = cluster,
   ) %>% 
-  mutate(name = setNames(name, altname)) %>% 
-  pull(name)
+  mutate(cl_name = setNames(cl_name, name)) %>% 
+  pull(cl_name)
 ```
 
 Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$binwidth`bp and testing `r ifelse(motif_params$abs, "distance from sequence centres", "position either side of the sequence centres")`.
