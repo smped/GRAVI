@@ -18,7 +18,7 @@ rule create_genome_annotations:
     retries: 1
     resources:
         mem_mb = 16384,
-        run_time = "30m"
+        runtime = "30m"
     log: os.path.join(log_path, "annotations", "genome_annotations.log")
     script:
         "../scripts/create_genome_annotations.R"
@@ -57,7 +57,7 @@ rule prep_features:
     retries: 1    
     resources:
         mem_mb = 8192,
-        run_time = "20m"
+        runtime = "20m"
     log: os.path.join(log_path, "annotations", "prep_features.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -76,7 +76,7 @@ rule prep_blacklist:
     retries: 1    
     resources:
         mem_mb = 8192,
-        run_time = "10m"
+        runtime = "10m"
     log: os.path.join(log_path, "annotations", "prep_blacklist.log")
     script:
         "../scripts/prep_blacklist.R"
@@ -95,7 +95,7 @@ rule prep_hic:
     retries: 1    
     resources:
         mem_mb = 16000,
-        run_time = "10m"
+        runtime = "10m"
     log: os.path.join(log_path, "annotations", "prep_hic.log")
     script:
         "../scripts/prep_hic.R"
@@ -113,7 +113,7 @@ rule prep_motifs:
     retries: 1    
     resources:
         mem_mb = 8192,
-        run_time = "10m"
+        runtime = "10m"
     log: os.path.join(log_path, "annotations", "prep_motifs.log")
     script:
         "../scripts/prep_motifs.R"
@@ -132,7 +132,7 @@ rule prep_msigdb:
     retries: 1    
     resources:
         mem_mb = 4096,
-        run_time = "5m"
+        runtime = "5m"
     log: os.path.join(log_path, "annotations", "prep_msigdb.log")
     script:
         "../scripts/prep_msigdb.R"
@@ -161,7 +161,7 @@ rule prep_rna:
     retries: 1    
     resources:
         mem_mb = 16384,
-        run_time = "30m"
+        runtime = "30m"
     log: os.path.join(log_path, "annotations", "prep_rna.log")
     script:
         "../scripts/prep_rna.R"
@@ -173,7 +173,7 @@ rule make_chrom_sizes:
     threads: 1
     retries: 1    
     resources:
-        run_time = "5m"
+        runtime = "5m"
     shell:
         """
         samtools view -H {input} | \
@@ -197,6 +197,6 @@ rule make_n_masked_ranges:
     retries: 1
     resources:
         mem_mb = 32000,
-        run_time = "15m"
+        runtime = "15m"
     script:
         "../scripts/make_n_masked_ranges.R"

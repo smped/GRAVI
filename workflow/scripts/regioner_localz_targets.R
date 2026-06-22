@@ -39,34 +39,34 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-
-
-## Manual lists for testing. Will be overwritten by snakemake objects...
-# config <- yaml::read_yaml("config/config.yml")
-# all_input <- list(
-#   peaks = c(
-#       "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
-#       "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
-#       "output/peak_analysis/GATA3/GATA3_consensus_peaks.bed.gz",
-#       "output/peak_analysis/ER/ER_consensus_peaks.bed.gz"
-#    ),
-#   sq = "output/annotations/seqinfo.rds"
-# )
-# all_output <- list(
-#   rds = "output/peak_analysis/shared/shared_targets_localz.rds"
-# )
-# all_params <- yaml::read_yaml("config/params.yml")[['regioner']]
-# threads <- 1
-
-config <- slot(snakemake, "config")
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-all_params <- slot(snakemake, "params")
-threads <- slot(snakemake, "threads")[[1]] - 1
-# threads <- 1
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
+if ("snakemake" %in% ls()) {
+  config <- slot(snakemake, "config")
+  all_input <- slot(snakemake, "input")
+  all_output <- slot(snakemake, "output")
+  all_params <- slot(snakemake, "params")
+  threads <- slot(snakemake, "threads")[[1]] - 1
+  # threads <- 1
+  log <- slot(snakemake, "log")[[1]]
+  message("Setting stdout to ", log, "\n")
+  sink(log, split = TRUE)
+} else {
+  # Manual lists for testing. Will be overwritten by snakemake objects...
+  config <- yaml::read_yaml("config/config.yml")
+  all_input <- list(
+    peaks = c(
+        "output/peak_analysis/AR/AR_consensus_peaks.bed.gz",
+        "output/peak_analysis/H3K27ac/H3K27ac_consensus_peaks.bed.gz",
+        "output/peak_analysis/GATA3/GATA3_consensus_peaks.bed.gz",
+        "output/peak_analysis/ER/ER_consensus_peaks.bed.gz"
+    ),
+    sq = "output/annotations/seqinfo.rds"
+  )
+  all_output <- list(
+    rds = "output/peak_analysis/shared/shared_targets_localz.rds"
+  )
+  all_params <- yaml::read_yaml("config/params.yml")
+  threads <- 1
+}
 
 regioner_params <- all_params$regioner
 cat_list(all_input, "input")
@@ -84,6 +84,7 @@ library(plyranges)
 library(readr)
 library(yaml)
 library(GenomicRanges)
+library(parallel)
 cat_time("done\n")
 
 mlz_list <- list()
@@ -109,20 +110,19 @@ if (length(all_input$peaks) < 2) {
   cat_time("Running multiLocalZscore with", threads, "threads...\n")
   mlz_params <- list(
     sampling = FALSE, ranFUN = "resampleGenome", evFUN = "numOverlaps",
-    max_pv = 1, genome = ucsc$build, mc.cores = threads
+    max_pv = 1, genome = ucsc$build, mc.cores = 1
   )
   mlz_params <- c(mlz_params, regioner_params[c("ntimes", "step", "window")])
   mlz_list <- names(peaks) %>%
-    lapply(
+    mclapply(
       \(i) {
-        params <- c(
-          list(
-            A = peaks[[i]], Blist = peaks[setdiff(names(peaks), i)]
-          ),
-          mlz_params
-        )
+        # cat_time("Calculating local Z-scores for target ", i, "\n")
+        x <- peaks[[i]]
+        y <- peaks[setdiff(names(peaks), i)]
+        params <- c(list(A = x, Blist = y), mlz_params)
         do.call("multiLocalZscore", params)
-      }
+      },
+      mc.cores = min(threads, length(.))
     ) %>%
     setNames(names(peaks))
   cat_time("Done")

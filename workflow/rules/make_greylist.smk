@@ -13,7 +13,7 @@ rule make_greylist:
     retries: 1    
     resources:
         mem_mb = 16384,
-        run_time = "30m"
+        runtime = "30m"
     script:
         "../scripts/make_greylist.R"
 
@@ -34,6 +34,6 @@ rule combine_greylists:
     retries: 1    
     resources:
         mem_mb = 16000,
-        run_time = "20m"
+        runtime = "20m"
     script:
         "../scripts/combine_greylists.R"    

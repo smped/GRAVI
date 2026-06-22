@@ -75,7 +75,7 @@ rule localz_regions_shared:
     retries: 1
     resources:
         mem_mb = 32768,
-        run_time = "60m",
+        runtime = int(extra_params['regioner']['ntimes'] / 25),
     log: os.path.join(log_path, "regioner", "shared_regions_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -99,11 +99,11 @@ rule localz_targets:
         rds = os.path.join(peak_path, "shared", "shared_targets_localz.rds")
     params:
         regioner_params = extra_params['regioner']           
-    threads: 8
+    threads: n_targets + 1
     retries: 1
     resources:
         mem_mb = 65536,
-        run_time = "4h",
+        runtime = int(extra_params['regioner']['ntimes'] / 15),
     log: os.path.join(log_path, "regioner", "shared_targets_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:

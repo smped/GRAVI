@@ -164,7 +164,7 @@ rule nfr_localz_regions:
     retries: 1
     resources:
         mem_mb = 32768,
-        run_time = "60m",
+        runtime = "60m",
     log: os.path.join(log_path, "regioner", "{target}_nfr_regions_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:

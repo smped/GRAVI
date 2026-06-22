@@ -41,7 +41,7 @@ rule compile_annotations_html:
     resources:
         mem_mb = 4096,
         disk_mb = 4000,
-        run_time = "10m",
+        runtime = "10m",
     shell:
         """
         R -e "rmarkdown::render_site('{input.rmd}')" &>> {log}

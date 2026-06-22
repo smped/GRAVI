@@ -15,7 +15,7 @@ rule localz_regions:
     retries: 1
     resources:
         mem_mb = 32768,
-        run_time = "30m",
+        runtime = "30m",
     log: os.path.join(log_path, "regioner", "{target}_regions_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -44,7 +44,7 @@ rule localz_regions_dsa:
     retries: 1
     resources:
         mem_mb = 32000,
-        run_time = "30m",
+        runtime = "30m",
     log: os.path.join(log_path, "regioner", "{target}_{ref}_{treat}_regions_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -76,7 +76,7 @@ rule localz_regions_pairwise:
     retries: 1
     resources:
         mem_mb = 32000,
-        run_time = "1h",
+        runtime = "1h",
     log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}", "{pw_dir}_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:
@@ -102,7 +102,7 @@ rule merge_localz_pairwise:
     retries: 1
     resources:
         mem_mb = 32000,
-        run_time = "1h",
+        runtime = "1h",
     log: os.path.join(log_path, "regioner_pairwise", "{tgt1}_{comp1}-{tgt2}_{comp2}", "merge_localz.log")
     conda: "../envs/rmarkdown.yml"
     script:

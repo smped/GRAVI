@@ -1774,10 +1774,10 @@ if (n_enrich > 1) {
     to_list() %>% 
     getPwmMatches(fw_seq, mc.cores = threads) %>% 
     lapply(\(x) tibble(seq = unique(x$seq))) %>% 
-    bind_rows(.id = "altname") %>%
-    distinct(altname, seq) %>% 
+    bind_rows(.id = "name") %>%
+    distinct(name, seq) %>% 
     left_join(
-      dplyr::select(enrich_res, altname, name), by = "altname"
+      dplyr::select(enrich_res, altname, name), by = "name"
     ) %>% 
     mutate(detected = TRUE) %>% 
     dplyr::select(seq, name, detected) %>% 
@@ -1837,18 +1837,6 @@ top_pos <- pos_res %>%
   dplyr::filter(matches_in_region == max(matches_in_region), .by = cluster) %>% 
   dplyr::slice(1:9) %>% 
   dplyr::select(altname, name, cluster)
-clust_names <- pos_res %>% 
-  dplyr::filter(
-    adj_p < motif_params$alpha,
-    cluster %in% top_pos$cluster
-  ) %>% 
-  arrange(desc(matches_in_region)) %>% 
-  summarise(
-    altname = altname[[1]], .by = cluster,
-    name = paste(name, collapse = "/")
-  ) %>% 
-  mutate(name = setNames(name, altname)) %>% 
-  pull(name)
 ```
 
 Positional bias was tested using the package `motifTestR`, bin-sizes of `r motif_params$binwidth`bp and testing `r ifelse(motif_params$abs, "distance from sequence centres", "position either side of the sequence centres")`.
@@ -1977,6 +1965,18 @@ htmltools::browsable(tl)
 `r if (n_pos > 0) "#### Total Matches"`
 
 ```{r plot-total-pos-matches, eval = n_pos > 0, echo = n_pos > 0, fig.cap = glue("*All best matches by their distance from the sequence centre, without binning by position. Black lines represent the loess curve through all matches. The motif with the most matches within the enriched region is shown for each cluster, with the other motifs within the cluster indicated below in brackets.*")}
+clust_names <- pos_res %>% 
+  dplyr::filter(
+    adj_p < motif_params$alpha,
+    cluster %in% top_pos$cluster
+  ) %>% 
+  arrange(desc(matches_in_region)) %>% 
+  summarise(
+    cl_name = paste(name, collapse = "/"),
+    name = name[[1]], .by = cluster
+  ) %>% 
+  mutate(name = setNames(cl_name, name)) %>% 
+  pull(name)
 lb <- glue("{names(clust_names)}\n({clust_names})") %>% 
   setNames(names(clust_names))
 top_matches <- motif_list %>% 
@@ -2035,7 +2035,7 @@ motif_list %>%
     fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   ) %>% 
   plotMatchPos(
-    abs = motif_params$abs, type = "heatmap", cluster = TRUE,
+    abs = motif_params$abs, type = "heatmap", cluster = length(top_pos) > 1,
     use_totals = TRUE,
     # binwidth = floor(motif_params$binwidth / 2)
     binwidth = motif_params$binwidth 
