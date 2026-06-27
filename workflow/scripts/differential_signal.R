@@ -45,51 +45,59 @@ cat_time <- function(...){
   cat(tm, ..., "\n")
 }
 
-## For testing
-# target <- "H3K27ac"
-# all_input <- list(
-#   counts = "output/differential_signal/{target}/{target}_counts.rds",
-#   gtf = "output/annotations/gtf.rds",
-#   hic = "output/annotations/hic.rds",
-#   features = "output/annotations/features.rds",
-#   regions = "output/annotations/gene_regions.rds",
-#   sq = "output/annotations/seqinfo.rds",
-#   yaml = "config/params.yml"
-# )
-# all_input <- lapply(all_input, glue::glue)
-# all_input$peaks <- vapply(
-#   c("AR", "ER", "H3K27ac"),
-#   \(x) file.path(
-#     "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
-#   ),
-#   character(1)
-# )
-# all_output <- list(
-#   changed = "output/differential_signal/{target}/{target}_E2_E2DHT-changed.bed.gz",
-#   decreased = "output/differential_signal/{target}/{target}_E2_E2DHT-decreased.bed.gz",
-#   increased = "output/differential_signal/{target}/{target}_E2_E2DHT-increased.bed.gz",
-#   ihw = "output/differential_signal/{target}/{target}_E2_E2DHT-ihw.rds",
-#   rds = "output/differential_signal/{target}/{target}_E2_E2DHT-differential-signal.rds"
-# ) |>
-#   lapply(glue::glue)
-# all_params <- list(
-#   diff_sig_params = jsonlite::fromJSON("config/json/differential_signal_param.json")[[target]],
-#   peak_calling_params = jsonlite::fromJSON("config/json/peak_calling_param.json")[[target]]
-# )
-# all_wildcards <- list(target = target, ref = "E2", treat = "E2DHT")
-# rm(target)
-# config <- yaml::read_yaml("../GRAVI_testing/config/config.yml")
-# threads <- 4
 
-log <- slot(snakemake, "log")[[1]]
-message("Setting stdout to ", log, "\n")
-sink(log, split = TRUE)
-all_input <- slot(snakemake, "input")
-all_output <- slot(snakemake, "output")
-config <- slot(snakemake, "config")
-all_wildcards <- slot(snakemake, "wildcards")
-all_params <- slot(snakemake, "params")
-threads <- slot(snakemake, "threads")
+
+if ("snakemake" %in% ls()) {
+
+  log <- slot(snakemake, "log")[[1]]
+  message("Setting stdout to ", log, "\n")
+  sink(log, split = TRUE)
+  all_input <- slot(snakemake, "input")
+  all_output <- slot(snakemake, "output")
+  config <- slot(snakemake, "config")
+  all_wildcards <- slot(snakemake, "wildcards")
+  all_params <- slot(snakemake, "params")
+  threads <- slot(snakemake, "threads")
+
+} else {
+  
+  ## For testing
+  target <- "H3K27ac"
+  all_input <- list(
+    counts = "output/differential_signal/{target}/{target}_counts.rds",
+    gtf = "output/annotations/gtf.rds",
+    hic = "output/annotations/hic.rds",
+    features = "output/annotations/features.rds",
+    regions = "output/annotations/gene_regions.rds",
+    sq = "output/annotations/seqinfo.rds",
+    yaml = "config/params.yml"
+  )
+  all_input <- lapply(all_input, glue::glue)
+  all_input$peaks <- vapply(
+    c("AR", "ER", "GATA3", "H3K27ac"),
+    \(x) file.path(
+      "output", "peak_analysis", x, paste0(x, "_consensus_peaks.bed.gz")
+    ),
+    character(1)
+  )
+  all_output <- list(
+    changed = "output/differential_signal/{target}/{target}_E2_E2DHT-changed.bed.gz",
+    decreased = "output/differential_signal/{target}/{target}_E2_E2DHT-decreased.bed.gz",
+    increased = "output/differential_signal/{target}/{target}_E2_E2DHT-increased.bed.gz",
+    ihw = "output/differential_signal/{target}/{target}_E2_E2DHT-ihw.rds",
+    rds = "output/differential_signal/{target}/{target}_E2_E2DHT-differential-signal.rds"
+  ) |>
+    lapply(glue::glue)
+  all_params <- list(
+    diff_sig_params = jsonlite::fromJSON("config/json/differential_signal_param.json")[[target]],
+    peak_calling_params = jsonlite::fromJSON("config/json/peak_calling_param.json")[[target]]
+  )
+  all_wildcards <- list(target = target, ref = "E2", treat = "E2DHT")
+  rm(target)
+  config <- here::here("config/config.yml") |> yaml::read_yaml()
+  threads <- 4
+
+}
 
 diff_sig_params <- all_params$diff_sig_params
 peak_params <- all_params$peak_calling_params
@@ -116,6 +124,7 @@ library(BiocParallel)
 library(IHW)
 library(glue)
 library(plyranges)
+library(GenomicInteractions)
 cat_time("Setting to run using", threads, "threads")
 register(MulticoreParam(workers = threads))
 
@@ -433,7 +442,7 @@ metadata(results)$description <- glue(
     ifelse(
         !is.null(quantro_p),
         glue(
-            "Distributions of counts between treatment groups were first checked using quantro [@HicksQuantro2015] and ",
+            "Distributions of counts between treatment groups were first checked using `quantro` [@HicksQuantro2015] and ",
             ifelse(
                 any(quantro_p < 0.05),
                 "counts were found to be from different distributions ",
@@ -459,7 +468,7 @@ metadata(results)$description <- glue(
     "\n\nStatistical analysis was performed using ",
     case_when(
         method == "qlf" ~ "Quasi-Likelihood fits [@LunSmythGLMQL2017] on counts ",
-        method == "lt" ~ "Limma-Trend [@LawVoom2014] on normalised logCPM values ",
+        method == "lt" ~ "*limma-trend* [@LawVoom2014] on normalised logCPM values ",
         method == "wald" ~ "the negative binomial Wald Test on counts [@Love2014Wald] "
     ),
 
