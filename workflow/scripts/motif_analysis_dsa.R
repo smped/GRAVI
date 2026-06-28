@@ -168,11 +168,12 @@ gc()
 
 cat_time("Writing", all_output$pos)
 pos_res |>
-  as_tibble(rownames = "altname") |>
-  left_join(to_df(motif_list), by = "altname") |>
+  as_tibble(rownames = "name") |>
+  left_join(to_df(motif_list), by = "name") |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(pos_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$pos)
+
 
 cat_time("Testing for motif enrichment")
 enrich_res <- testMotifEnrich(
@@ -183,8 +184,8 @@ cat_time("Done")
 
 cat_time("Writing", all_output$enrich)
 enrich_res |>
-  as_tibble(rownames = "altname") |>
-  left_join(to_df(motif_list), by = "altname") |>
+  as_tibble(rownames = "name") |>
+  left_join(to_df(motif_list), by = "name") |>
   dplyr::select(ends_with("name"), cluster, all_of(colnames(enrich_res))) |>
   dplyr::select(-contains("consensus")) |>
   write_tsv(all_output$enrich)

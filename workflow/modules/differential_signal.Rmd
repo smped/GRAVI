@@ -5,14 +5,14 @@
 
 ```{r dummy-params, eval = FALSE, echo = FALSE}
 params <- list(
-  target = "H3K27ac",
+  target = "ER",
   treat_levels = c("E2", "E2DHT"),
-  results = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
-  counts = "output/differential_signal/H3K27ac/H3K27ac_counts.rds",
-  ihw = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-ihw.rds",
-  localz = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-regions_localz.rds",
-  motif_enrichment = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT_motif_enrichment.tsv.gz",
-  motif_position = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT_motif_position.tsv.gz"
+  results = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+  counts = "output/differential_signal/ER/ER_counts.rds",
+  ihw = "output/differential_signal/ER/ER_E2_E2DHT-ihw.rds",
+  localz = "output/differential_signal/ER/ER_E2_E2DHT-regions_localz.rds",
+  motif_enrichment = "output/differential_signal/ER/ER_E2_E2DHT_motif_enrichment.tsv.gz",
+  motif_position = "output/differential_signal/ER/ER_E2_E2DHT_motif_position.tsv.gz"
 )
 ```
 
@@ -46,8 +46,7 @@ panderOptions("big.mark", ",")
 panderOptions("missing", "")
 panderOptions("table.split.table", Inf)
 theme_set(
-  theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5))
 )
 threads <- parallel::detectCores() - 1
 if (interactive()) threads <- 4
@@ -225,8 +224,7 @@ if (diff_sig_params$norm == "sq") {
 n_assays <- length(assayNames(counts))
 ```
 
-
-`r if (norm == "sq") "### QSmooth Weights"` 
+`r if (norm == "sq") "### QSmooth Weights"`
 
 ```{r plot-sq-weights, echo = norm == "sq", fig.height = 6, fig.cap = "*Quantile-specific weights used by the Smooth-Quantile normalisation. Low weights indicate signal quantiles which appear to be more specific within a group, whilst higher weights indicate similarity between groups.*"}
 if (norm == "sq")
@@ -234,7 +232,6 @@ if (norm == "sq")
     qs, xLab = "Quantiles", yLab = "Weights", mainLab = "QSmooth Weights"
   )
 ```
-
 
 ### Densities
 
@@ -579,14 +576,12 @@ tbl_id <- 'tbl-top-ranked'
 df <- results %>%
   mutate(w = width) %>% 
   arrange(!!sym(fdr_column)) %>% 
-  plyranges::slice(seq_len(show_n)) %>% 
   select(
     w, starts_with("log"), !!sym(fdr_column), status,
     Region = region, any_of("feature"), Genes = gene_name
   ) %>% 
   as_tibble() %>% 
-  dplyr::rename(Range = range, `Width (bp)` = w) %>% 
-  rename_with(\(x) str_replace_all(x, "feature", "Feature")) %>% 
+  dplyr::slice(seq_len(show_n)) %>% 
   mutate(
     other_genes = lapply(Genes, setdiff, prot_genes), 
     Genes = lapply(Genes, intersect, prot_genes)
@@ -597,11 +592,12 @@ tbl <- df %>%
     pageSizeOptions = c(10, 20, 50, show_n), defaultPageSize = 10,
     borderless  = TRUE,
     columns = list2(
-      Range = colDef(
-        minWidth = 10 * fs,
+      range = colDef(
+        "Range", minWidth = 10 * fs,
         cell = \(value) str_replace_all(value, ":", ": ")
       ),
-      `Width (bp)` = colDef(
+      w = colDef(
+        "Width (bp)", maxWidth = 5 * fs,
         style = \(value) {
           x <- value / scaling_vals$Width
           colour <- expr_col(x)
@@ -609,8 +605,7 @@ tbl <- df %>%
             background = colour, 
             borderRight = "1px solid rgba(0, 0, 0, 0.1)"
           )
-        },
-        maxWidth = 5 * fs
+        }
       ),
       logCPM = colDef(
         cell = \(value) round(value, 2),
@@ -653,8 +648,8 @@ tbl <- df %>%
         maxWidth = 150, 
         filterInput = \(values, name) drop_filter(values, name, tbl_id)
       ),
-      Feature = colDef(
-        maxWidth = 150, 
+      feature = colDef(
+        "Feature", maxWidth = 150, 
         filterInput = \(values, name) drop_filter(unlist(values), name, tbl_id)
       ),
       Genes = colDef("Protein Coding Genes", minWidth = 11 * fs),
@@ -1967,7 +1962,7 @@ fw_seq <- results %>%
   resize(width = motif_params$peak_width, fix = 'center') %>% 
   splitAsList(.$status == "Unchanged") %>% 
   setNames(c("changed", "unchanged")) %>% 
-  mclapply(\(x) getSeq(bs_genome, x), mc.cores = 2) %>% 
+  lapply(\(x) getSeq(bs_genome, x)) %>% 
   lapply(
     \(x) x[letterFrequency(x, "N")[,1] == 0]
   )
@@ -2071,10 +2066,10 @@ if (n_enrich_res > 1) {
     to_list() %>% 
     getPwmMatches(fw_seq$changed, mc.cores = threads) %>% 
     lapply(\(x) tibble(seq = unique(x$seq))) %>% 
-    bind_rows(.id = "altname") %>%
-    distinct(altname, seq) %>% 
+    bind_rows(.id = "name") %>%
+    distinct(name, seq) %>% 
     left_join(
-      dplyr::select(motif_enrich_res, altname, name), by = "altname"
+      dplyr::select(motif_enrich_res, altname, name), by = "name"
     ) %>% 
     mutate(detected = TRUE) %>% 
     dplyr::select(seq, name, detected) %>% 
@@ -2144,11 +2139,11 @@ if (n_pos_res) {
     ) %>% 
     arrange(desc(matches_in_region)) %>% 
     summarise(
-      altname = altname[[1]], .by = cluster,
-      name = paste(name, collapse = "/")
+      cl_name = paste(unique(name), collapse = "/"),
+      name = name[[1]], .by = cluster,
     ) %>% 
-    mutate(name = setNames(name, altname)) %>% 
-    pull(name)
+    mutate(cl_name = setNames(cl_name, name)) %>% 
+    pull(cl_name)
 }
 ```
 
@@ -2235,7 +2230,8 @@ if (n_pos_res > 1) {
     to_list() %>% 
     getPwmMatches(
       fw_seq$changed, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
-    )
+    ) %>%
+    .[map_int(., nrow) > 0]
   top_matches %>% 
     plotMatchPos(
       geom = "point", abs = motif_params$abs, use_totals = TRUE,
@@ -2283,7 +2279,8 @@ if (n_pos_res > 0) {
     to_list() %>% 
     getPwmMatches(
       fw_seq$changed, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
-    ) %>% 
+    ) %>%
+    .[map_int(., nrow) > 0] %>%
     plotMatchPos(
       abs = motif_params$abs, type = "heatmap", cluster = n_pos_res > 2,
       use_totals = TRUE,
