@@ -124,6 +124,7 @@ library(rlang)
 library(plyranges)
 library(parallel)
 library(metap)
+library(GenomicInteractions)
 
 cat_time("Setting comparison names")
 both_comps <- all_wildcards[c("tgt1", "comp1", "tgt2", "comp2")] |>

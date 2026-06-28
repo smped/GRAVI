@@ -164,10 +164,10 @@ gc()
 
 cat_time("Writing", all_output$position_tsv)
 pos_res %>%
-  lapply(as_tibble, rownames = "altname") %>%
+  lapply(as_tibble, rownames = "name") %>%
   lapply(dplyr::select, -contains("consensus")) %>%
   bind_rows(.id = "comparison") %>%
-  left_join(motif_df, by = "altname") %>%
+  left_join(motif_df, by = "name") %>%
   dplyr::select(
     comparison, ends_with("name"), cluster, any_of(colnames(pos_res[[1]]))
   ) %>%
@@ -195,9 +195,9 @@ cat_time("Done")
 
 cat_time("Writing", all_output$enrich_tsv)
 enrich_res %>%
-  lapply(as_tibble, rownames = "altname") %>%
+  lapply(as_tibble, rownames = "name") %>%
   bind_rows(.id = "comparison") %>%
-  left_join(motif_df, by = "altname") %>%
+  left_join(motif_df, by = "name") %>%
   dplyr::select(
     comparison, ends_with("name"), cluster, all_of(colnames(enrich_res[[1]]))
   ) %>%

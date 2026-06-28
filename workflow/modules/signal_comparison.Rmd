@@ -454,7 +454,8 @@ It is assumed that all remaining peaks will fall somewhere between these peaks, 
 grl_to_plot <- consensus_peaks %>% 
   endoapply(subsetByOverlaps, shared_peaks) %>% 
   endoapply(filter, score == max(score)) %>% 
-  endoapply(\(x) subsetByOverlaps(shared_peaks, x)[1])
+  endoapply(\(x) subsetByOverlaps(shared_peaks, x)[1]) %>%
+  endoapply(granges)
 y_lim <- bwfl %>%
   lapply(
     function(x) {

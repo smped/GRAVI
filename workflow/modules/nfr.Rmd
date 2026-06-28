@@ -1210,6 +1210,7 @@ pairwise_df %>%
 grl_to_plot <- consensus_peaks[all_targets] %>% 
   endoapply(subsetByOverlaps, nfr_consensus) %>% 
   endoapply(filter, score == max(score)) %>% 
+  endoapply(\(x) granges(x[1])) %>% 
   .[!duplicated(unlist(.))]
 ```
 

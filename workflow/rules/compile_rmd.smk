@@ -255,7 +255,7 @@ rule compile_pairwise_comparison_html:
             )
         ),
     conda: "../envs/rmarkdown.yml"
-    retries: 1
+    # retries: 1
     threads: lambda wildcards, attempt: 4 * attempt
     resources:
         mem_mb = lambda wildcards, attempt: 32000 * attempt,

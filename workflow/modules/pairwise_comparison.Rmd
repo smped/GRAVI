@@ -4,17 +4,17 @@
 
 ```{r dummy-params, eval = FALSE, echo = FALSE}
 params <- list(
- tgt1 = "AR",
- tgt2 = "H3K27ac",
+ tgt1 = "ER",
+ tgt2 = "GATA3",
  comp1 = "E2_E2DHT",
- comp2 = "E2_E2DHT",
- full_comp = "AR_E2_E2DHT-H3K27ac_E2_E2DHT",
- results = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_results.rds",
- dsa1 = "output/differential_signal/AR/AR_E2_E2DHT-differential-signal.rds",
- dsa2 = "output/differential_signal/H3K27ac/H3K27ac_E2_E2DHT-differential-signal.rds",
- localz = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-pairwise_localz.rds",
- motif_enrichment = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_enrichment.tsv.gz",
- motif_position = "output/pairwise_comparisons/AR_E2_E2DHT-H3K27ac_E2_E2DHT/AR_E2_E2DHT-H3K27ac_E2_E2DHT-motif_position.tsv.gz"
+ comp2 = "Veh_DHT",
+ full_comp = "ER_E2_E2DHT-GATA3_Veh_DHT",
+ results = "output/pairwise_comparisons/ER_E2_E2DHT-GATA3_Veh_DHT/ER_E2_E2DHT-GATA3_Veh_DHT-pairwise-results.rds",
+ dsa1 = "output/differential_signal/ER/ER_E2_E2DHT-differential-signal.rds",
+ dsa2 = "output/differential_signal/GATA3/GATA3_Veh_DHT-differential-signal.rds",
+ localz = "output/pairwise_comparisons/ER_E2_E2DHT-GATA3_Veh_DHT/ER_E2_E2DHT-GATA3_Veh_DHT-pairwise_localz.rds",
+ motif_enrichment = "output/pairwise_comparisons/ER_E2_E2DHT-GATA3_Veh_DHT/ER_E2_E2DHT-GATA3_Veh_DHT-motif_enrichment.tsv.gz",
+ motif_position = "output/pairwise_comparisons/ER_E2_E2DHT-GATA3_Veh_DHT/ER_E2_E2DHT-GATA3_Veh_DHT-motif_position.tsv.gz"
 )
 ```
 
@@ -42,7 +42,7 @@ library(ggraph)
 library(tidygraph)
 library(universalmotif)
 library(motifTestR)
-# library(GenomicInteractions)
+library(GenomicInteractions)
 source(here::here("scripts", "custom_functions.R"))
 source(here::here("scripts", "enrichment_funs.R"))
 threads <- detectCores() - 1
@@ -224,7 +224,6 @@ filtered_peaks <- list(
   unlist() %>% 
   paste0("_filtered_peaks.narrowPeak") %>% 
   unique() %>% 
-  here::here() %>% 
   importPeaks(seqinfo = sq) %>% 
   setNames(str_remove_all(names(.), "_filtered.+"))
 combined_results <- here::here(params$results) %>% read_rds()
@@ -1133,7 +1132,7 @@ combined_results %>%
 if (has_features) {
   combined_results %>% 
     select(feature, status) %>% 
-    plyranges::filter(!grepl("Undetected", status)) %>% 
+    filter(!grepl("Undetected", status)) %>% 
     as_tibble() %>% 
     unnest(feature, keep_empty = TRUE) %>% 
     mutate(
@@ -1675,7 +1674,7 @@ grl_to_plot <- combined_results %>%
   ) %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) > 0] %>% 
-  endoapply(\(x) x[1]) %>% 
+  endoapply(\(x) granges(x[1])) %>% 
   setNames(
     names(.) %>% 
       str_replace_all("Increased - Increased", "Both Increased") %>% 
@@ -1767,7 +1766,7 @@ grl_to_plot <- combined_results %>%
   filter_by_non_overlaps(grl_most_sig) %>% 
   subset(str_detect(status, "(In|De)creased")) %>% 
   subset(!str_detect(status, "Undetected")) %>% 
-  plyranges::arrange(
+  arrange(
     (-1) * case_when(
       !!sym(paste0(comp_names$comp1, "_status")) == "Undetected" ~ (!!sym(paste0(comp_names$comp2, "_logFC")))^2,
       !!sym(paste0(comp_names$comp2, "_status")) == "Undetected" ~ (!!sym(paste0(comp_names$comp1, "_logFC")))^2,
@@ -1779,7 +1778,7 @@ grl_to_plot <- combined_results %>%
   ) %>% 
   splitAsList(.$status) %>% 
   .[map_int(., length) > 0] %>% 
-  endoapply(\(x) x[1]) %>% 
+  endoapply(\(x) granges(x[1])) %>% 
   setNames(
     names(.) %>% 
       str_replace_all("Increased - Increased", "Both Increased") %>% 
@@ -2533,7 +2532,7 @@ tagList(
 
 `r if (any_motif_enrich) "#### Motif Co-Ocurrence {.tabset}"`
 
-```{r motif-corplot, echo = any_motif_enrich}
+```{r motif-corrplot, echo = any_motif_enrich}
 if (any_motif_enrich) {
   motif_corplot <- motif_enrich_res %>% 
     dplyr::filter(adj_p < motif_params$alpha) %>%
@@ -2547,23 +2546,23 @@ if (any_motif_enrich) {
           dplyr::filter(enrichment > 1, adj_p < motif_params$alpha) %>% 
           dplyr::slice(1:20) %>% 
           pull("altname")
-        cor_mat <- motif_db %>% 
+        mat <- motif_db %>% 
           dplyr::filter(altname %in% top_enrich) %>% 
           to_list() %>% 
           getPwmMatches(fw_seq[[comp]], mc.cores = threads) %>% 
           lapply(\(x) tibble(seq = unique(x$seq))) %>% 
-          bind_rows(.id = "altname") %>%
-          distinct(altname, seq) %>% 
-          left_join(dplyr::select(x, altname, name), by = "altname") %>% 
+          bind_rows(.id = "name") %>%
+          distinct(name, seq) %>% 
+          left_join(dplyr::select(x, name), by = "name") %>% 
           mutate(detected = TRUE) %>% 
-          dplyr::select(seq, name, detected) %>% 
           pivot_wider(
             names_from = "name", values_from = "detected", values_fill = FALSE
           ) %>% 
           dplyr::select(-seq) %>% 
           dplyr::select(where(\(x) mean(x) < 1 & mean(x) > 0)) %>%
-          cor(method = "spearman")
-        if (prod(dim(cor_mat)) > 1) {
+          as.matrix()
+        if (length(diag(mat)) > 1) {
+          cor_mat <- cor(mat, method = "spearman")
           hc <- hclust(dist(1 - cor_mat), method = "ward.D2")
           dend <- ggdendro::dendro_data(as.dendrogram(hc))
           levels <- dend$labels$label
@@ -2854,9 +2853,9 @@ if (any_motif_pos) {
             arrange(desc(enrichment)) %>% 
             distinct(cluster, .keep_all = TRUE) %>% 
             dplyr::slice(1:8) %>% 
-            pull("altname")
+            pull("name")
           matches <- motif_db %>% 
-            dplyr::filter(altname %in% motifs) %>% 
+            dplyr::filter(name %in% motifs) %>% 
             to_list() %>% 
             getPwmMatches(
               seq, min_score = motif_params$min_score, best_only = TRUE,

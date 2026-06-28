@@ -1091,7 +1091,7 @@ grl_to_plot <- GRangesList(
   .[!duplicated(.)] %>%
   splitAsList(names(.)) %>% 
   endoapply(setNames, c()) %>% 
-  endoapply(\(x) x[1]) %>% 
+  endoapply(\(x) granges(x[1])) %>% 
   .[sort(names(.), decreasing = TRUE)]
 ```
 

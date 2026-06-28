@@ -108,7 +108,7 @@ However, where one comparison represent a broad mark, with the other being narro
 
 ```{r distances-by-status, fig.height = 6, fig.cap = "*Distances between loci where signal was detected for each target. Groups are only shown if 10 or more paired sites were found, with the CDF for all paired sites shown as the black dashed line. The x-axis is truncated at a maximum of 1kb*"}
 combined_results %>% 
-  plyranges::filter(!is.na(d)) %>% 
+  filter(!is.na(d)) %>% 
   as_tibble() %>% 
   arrange(status, d) %>% 
   mutate(
@@ -142,7 +142,7 @@ combined_results %>%
 
 ```{r distance-by-region, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by genomic region. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
 combined_results %>% 
-  plyranges::filter(!is.na(d)) %>% 
+  filter(!is.na(d)) %>% 
   as_tibble() %>% 
   arrange(region, d) %>% 
   mutate(
@@ -170,7 +170,7 @@ combined_results %>%
 ```{r distance-by-feature, echo = has_features, fig.height = 6, fig.width = 8, fig.cap = "*Distribution of distances between peaks separated by external feature. All sites are included regardless of changed signal. The x-axis is truncated 1kb.*"}
 if (has_features) {
   combined_results %>% 
-    plyranges::filter(!is.na(d)) %>% 
+    filter(!is.na(d)) %>% 
     as_tibble() %>% 
     unnest(feature, keep_empty = TRUE) %>% 
     mutate(

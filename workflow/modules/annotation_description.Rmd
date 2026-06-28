@@ -477,7 +477,7 @@ This left the following breakdown of gene-sets and pathways tested for enrichmen
 msigdb <- here::here(all_paths$annotation, "msigdb.rds") %>% read_rds()
 msigdb %>% 
   distinct(gs_collection, gs_subcollection, gs_name) %>%
-  summarise(`Gene Sets` = dplyr::n(), .by = ends_with("cat")) %>% 
+  summarise(`Gene Sets` = dplyr::n(), .by = ends_with("collection")) %>% 
   dplyr::rename(Category = gs_collection, `Sub-Category` = gs_subcollection) %>% 
   mutate(
     Description = case_when(
