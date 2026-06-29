@@ -2064,7 +2064,10 @@ if (n_enrich_res > 1) {
   cor_mat <- motif_db %>% 
     dplyr::filter(altname %in% top_enrich) %>% 
     to_list() %>% 
-    getPwmMatches(fw_seq$changed, mc.cores = threads) %>% 
+    getPwmMatches(
+      fw_seq$changed, min_score = motif_params$min_score, 
+      mc.cores = threads
+    ) %>% 
     lapply(\(x) tibble(seq = unique(x$seq))) %>% 
     bind_rows(.id = "name") %>%
     distinct(name, seq) %>% 
@@ -2229,7 +2232,8 @@ if (n_pos_res > 1) {
     arrange(fct) %>% 
     to_list() %>% 
     getPwmMatches(
-      fw_seq$changed, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
+      fw_seq$changed, min_score = motif_params$min_score,
+      abs = motif_params$abs, best_only = TRUE, mc.cores = threads
     ) %>%
     .[map_int(., nrow) > 0]
   top_matches %>% 
@@ -2278,7 +2282,8 @@ if (n_pos_res > 0) {
     dplyr::filter(altname %in% top_pos) %>% 
     to_list() %>% 
     getPwmMatches(
-      fw_seq$changed, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
+      fw_seq$changed, min_score = motif_params$min_score,
+      abs = motif_params$abs, best_only = TRUE, mc.cores = threads
     ) %>%
     .[map_int(., nrow) > 0] %>%
     plotMatchPos(

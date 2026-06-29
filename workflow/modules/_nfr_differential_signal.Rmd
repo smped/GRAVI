@@ -21,14 +21,16 @@ nfr_seq <- nfr_by_status %>%
   lapply(\(x) x[letterFrequency(x, "N")[,1] == 0]) %>% 
   as("DNAStringSetList")
 nfr_motif_counts <- countPwmMatches(
-  to_list(motif_db), unlist(nfr_seq), mc.cores = threads
+  to_list(motif_db), unlist(nfr_seq), min_score = motif_params$min_score,
+  mc.cores = threads
 )
 nfr_motif_keep <- nfr_motif_counts > (
   nfr_motif_params$ignore_below * length(unlist(nfr_seq))
 )
 nfr_motif_enrich <- testMotifEnrich(
   pwm = to_list(motif_db)[nfr_motif_keep], stringset = nfr_seq$Changed,
-  bg = nfr_seq$Unchanged, model = "hypergeometric", mc.cores = threads
+  bg = nfr_seq$Unchanged, min_score = motif_params$min_score,
+  model = "hypergeometric", mc.cores = threads
 ) %>% 
   as_tibble(rownames = "altname") %>% 
   dplyr::rename(adj_p = fdr) %>% 
@@ -39,6 +41,7 @@ nfr_motif_enrich <- testMotifEnrich(
   dplyr::select(cluster, ends_with("name"), everything())
 nfr_motif_pos <- testMotifPos(
   to_list(motif_db)[nfr_motif_keep], stringset = nfr_seq$Changed, 
+  min_score = motif_params$min_score,
   binwidth = nfr_motif_params$binwidth, abs = nfr_motif_params$abs, 
   min_score =  nfr_motif_params$min_score, 
   break_ties = nfr_motif_params$break_ties, mc.cores = threads
@@ -135,7 +138,10 @@ if (n_enrich_res > 1) {
   cor_mat <- motif_db %>% 
     dplyr::filter(altname %in% top_enrich) %>% 
     to_list() %>% 
-    getPwmMatches(nfr_seq$Changed, mc.cores = threads) %>% 
+    getPwmMatches(
+      nfr_seq$Changed, min_score = motif_params$min_score, 
+      mc.cores = threads
+    ) %>% 
     lapply(\(x) tibble(seq = unique(x$seq))) %>% 
     bind_rows(.id = "altname") %>%
     distinct(altname, seq) %>% 
@@ -303,7 +309,8 @@ if (n_pos_nfr > 1) {
     arrange(fct) %>% 
     to_list() %>% 
     getPwmMatches(
-      nfr_seq$Changed, abs = nfr_motif_params$abs, best_only = TRUE, 
+      nfr_seq$Changed, min_score = motif_params$min_score, 
+      abs = nfr_motif_params$abs, best_only = TRUE, 
       mc.cores = threads
     )
   top_matches %>% 
@@ -355,7 +362,8 @@ if (n_pos_nfr > 0) {
     dplyr::filter(altname %in% top_pos) %>% 
     to_list() %>% 
     getPwmMatches(
-      nfr_seq$Changed, abs = nfr_motif_params$abs, best_only = TRUE, mc.cores = threads
+      nfr_seq$Changed, min_score = motif_params$min_score, 
+      abs = nfr_motif_params$abs, best_only = TRUE, mc.cores = threads
     ) %>% 
     plotMatchPos(
       abs = nfr_motif_params$abs, type = "heatmap", cluster = n_pos_nfr > 2,

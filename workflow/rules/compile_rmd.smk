@@ -255,10 +255,10 @@ rule compile_pairwise_comparison_html:
             )
         ),
     conda: "../envs/rmarkdown.yml"
-    # retries: 1
-    threads: lambda wildcards, attempt: 4 * attempt
+    retries: 1
+    threads: 8
     resources:
-        mem_mb = lambda wildcards, attempt: 32000 * attempt,
+        mem_mb = lambda wildcards, attempt: 64000 * attempt,
         runtime = lambda wildcards, attempt: 30 * attempt,
     log: os.path.join(log_path, "compile_rmd", "{tgt1}_{comp1}-{tgt2}_{comp2}_pairwise_comparison.log")
     shell:

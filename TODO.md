@@ -2,6 +2,8 @@
 
 - [ ] Streamline setting species into one locations
 - [ ] Separate `regioner_localz_targets.R` so that it only runs one target against the others, then add a new script to merge into the single rds. This should give a 1-2hr speed up in run times
+- [ ] Fix bug in labels for Donut plots
+- [ ] Improve profile heatmaps
   
 ## Annotation Setup
 

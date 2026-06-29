@@ -1773,7 +1773,9 @@ if (n_enrich > 1) {
   cor_mat <- motif_list %>% 
     dplyr::filter(altname %in% top_enrich) %>% 
     to_list() %>% 
-    getPwmMatches(fw_seq, mc.cores = threads) %>% 
+    getPwmMatches(
+      fw_seq, min_score = motif_params$min_score, mc.cores = threads
+    ) %>% 
     lapply(\(x) tibble(seq = unique(x$seq))) %>% 
     bind_rows(.id = "name") %>%
     distinct(name, seq) %>% 
@@ -1984,7 +1986,8 @@ top_matches <- motif_list %>%
   dplyr::filter(altname %in% top_pos$altname) %>% 
   to_list() %>% 
   getPwmMatches(
-    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
+    fw_seq, min_score = motif_params$min_score, 
+    abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   )
 top_matches %>% 
   plotMatchPos(
@@ -2033,7 +2036,8 @@ motif_list %>%
   dplyr::filter(altname %in% top_pos) %>% 
   to_list() %>% 
   getPwmMatches(
-    fw_seq, abs = motif_params$abs, best_only = TRUE, mc.cores = threads
+    fw_seq, min_score = motif_params$min_score,
+    abs = motif_params$abs, best_only = TRUE, mc.cores = threads
   ) %>% 
   plotMatchPos(
     abs = motif_params$abs, type = "heatmap", cluster = length(top_pos) > 1,
