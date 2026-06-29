@@ -61,6 +61,51 @@ library(universalmotif)
 library(motifTestR)
 params <- read_yaml(all_input$yaml)
 
+#' Add a function for clustering which handles any NA values in the distance
+#' matrix. This has been updated in later versions of motifTestR
+clusterMotifs <- function(
+        motifs, type = c("PPM", "ICM"),
+        method = c("PCC", "EUCL", "SW", "KL", "ALLR", "BHAT", "HELL", "SEUCL", "MAN", "ALLR_LL", "WEUCL", "WPCC"),
+        power = 1, agglom = "complete", thresh = 0.2, return_d = FALSE,
+        plot = FALSE, labels = FALSE, cex = 1, main = "Motif Cluster Dendrogram",
+        sub = NULL, xlab = NULL, ylab = "Height", linecol = "red", ...
+){
+    # Convert to universal motif, if a list is passed
+    if (all(vapply(motifs, is, logical(1), class2 = "matrix"))) {
+        motifs <- lapply(
+            names(motifs), \(x) create_motif(motifs[[x]], name = x)
+        )
+    }
+    stopifnot(all(vapply(motifs, is, logical(1), class2 = "universalmotif")))
+    method <- match.arg(method)
+    type <- match.arg(type)
+    if (type == "ICM" & method %in% c("ALLR", "ALLR_LL"))
+        stop("Cannot use ICM with ALLR or ALLR_LL")
+    is_dist <- method %in% c("EUCL", "KL", "HELL", "SEUCL", "MAN", "WEUCL")
+    mat <- compare_motifs(motifs, use.type = type, method = method, ...)
+    ## This is really only useful for correlations
+    if (power != 1 & method %in% c("PCC", "WPCC")) mat <- mat^power
+    ## Make a distance/dissimilarity matrix
+    mat <- abs(mat) / max(abs(mat), na.rm = TRUE) # Scale to be in [0,1]
+    mat[is.na(mat)] <- 1 # Set NA to be the maximum distance
+    if (!is_dist) mat <- 1 - abs(mat)
+    d <- as.dist(mat)
+    cl <- hclust(d, method = agglom)
+    if (plot) {
+        plot(
+            cl, labels = labels, cex = cex, main = main, sub = sub, xlab = xlab,
+            ylab = ylab
+        )
+        abline(a = thresh, b = 0, col = linecol)
+    }
+    cl <- cutree(cl, h = thresh)
+    if (return_d) {
+        nm <- lapply(split(cl, cl), names)
+        d_split <- lapply(nm, \(x) as.matrix(d)[x, x])
+        return(list(cl = cl, d = d_split))
+    }
+    cl
+}
 
 #### Motifs ####
 ## If provided in external, ignore all settings in params.yml & use that
@@ -110,12 +155,17 @@ if (is.null(db)) {
 
 }
 
+cat_time("Ensuring no duplicated names")
+db <- distinct(db, name, .keep_all = TRUE)
+cat_time("Database has been subset to", nrow(db), "motifs\n")
+
 cat_time("Clustering motifs\n")
 cluster_params <- list(
   motifs = to_list(db), plot = FALSE, return_d = TRUE, nthreads = 1
 ) %>% 
   c(
-    params$motif_clustering %>% setNames(str_replace_all(names(.), "_", "."))
+    params$motif_clustering %>% 
+      setNames(str_replace_all(names(.), "_", "."))
   ) 
 cluster_ids <- do.call("clusterMotifs", cluster_params)
 db$cluster <- cluster_ids$cl
