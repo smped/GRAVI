@@ -886,7 +886,8 @@ if (n_sig > 0) {
       inner = !!sym(target), outer = "Region", min_p = 0.02,
       inner_glue = "{.data[[inner]]}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
       outer_glue = "{str_wrap(.data[[outer]], 12)}\nn = {comma(n, 1)}\n{percent(p, 0.1)}",
-      inner_palette = direction_colours, outer_palette = region_colours
+      inner_palette = direction_colours, outer_palette = region_colours,
+      label_alpha = 0, inner_label_colour = "white"
     )
 }
 ```
@@ -1396,7 +1397,6 @@ if (n_changed_enrich > 0) {
     )
   )
   tl <- tagList(
-    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -1412,7 +1412,7 @@ if (n_changed_enrich > 0) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('changed-enrich-res-table', [])"
     ),
-    tbl
+    tags$br(), tags$caption(cp), tbl
   )
   htmltools::browsable(tl)
 }
@@ -1543,7 +1543,6 @@ if (n_increased_enrich > 0) {
     )
   )
   tl <- tagList(
-    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -1559,7 +1558,7 @@ if (n_increased_enrich > 0) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('increased-enrich-res-table', [])"
     ),
-    tbl
+    tags$br(), tags$caption(cp), tbl
   )
   htmltools::browsable(tl)
 }
@@ -1690,7 +1689,6 @@ if (n_decreased_enrich > 0) {
     )
   )
   tl <- tagList(
-    htmltools::tags$caption(cp),    
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -1706,9 +1704,9 @@ if (n_decreased_enrich > 0) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('decreased-enrich-res-table', [])"
     ),
-    tbl
+    tags$br(), tags$caption(cp), tbl
   )
-  htmltools::browsable(tl)
+  browsable(tl)
 }
 ```
 
@@ -1902,7 +1900,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1920,7 +1917,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -2033,7 +2030,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -2048,9 +2044,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-enrich-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
-htmltools::browsable(tl)
+browsable(tl)
 ```
 
 `r if (n_enrich_res > 1) "#### Motif Co-Occurrence"`
@@ -2199,7 +2195,6 @@ if (n_pos_res) {
     )
   )
   tl <- tagList(
-    htmltools::tags$caption(cp),
     tags$button(
       tagList(fontawesome::fa("download"), "Download as CSV"),
       onclick = glue(
@@ -2214,7 +2209,7 @@ if (n_pos_res) {
       "Clear All Filters",
       onclick = "Reactable.setAllFilters('motif-pos-table', [])"
     ),
-    tbl
+    tags$br(), tags$caption(cp), tbl
   )
   htmltools::browsable(tl)
 }

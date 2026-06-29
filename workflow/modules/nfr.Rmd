@@ -447,7 +447,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -462,13 +461,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-enrich-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 `r if (n_enrich > 1) "#### Comparison of Motif Co-Occurrence"`
@@ -671,7 +666,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -686,13 +680,9 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-pos-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
-if (interactive()) {
-  htmltools::browsable(tl)
-} else {
-  tl
-}
+htmltools::browsable(tl)
 ```
 
 
@@ -946,7 +936,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -966,7 +955,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1140,7 +1129,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),,
   tags$button(
     "Clear All Filters", 
     onclick = glue("Reactable.setAllFilters('{tbl_id}', []);")
@@ -1154,7 +1142,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ), 
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1387,7 +1375,7 @@ htmltools::tagList(
       dev.off()
       ## Create html tags
       fig_link <- str_extract(img_out, "assets.+")
-      cp <- htmltools::tags$em(.makeCaption(grl_to_plot[[i]], i))
+      cp <- tags$em(.makeCaption(grl_to_plot[[i]], i))
       tag <- glue("{i} Peak")
       htmltools::div(
         htmltools::div(
@@ -1401,7 +1389,7 @@ htmltools::tagList(
           htmltools::div(
             class = "figure", style = "text-align: center",
             htmltools::img(src = fig_link, width = "100%"),
-            htmltools::tags$caption(cp)
+            tags$caption(cp)
           )
         )
       )

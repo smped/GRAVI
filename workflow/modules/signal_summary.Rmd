@@ -72,6 +72,9 @@ motif_params <- here::here("config", "json", "motif_analysis_param.json") %>%
 peak_calling_params <- here::here("config", "json", "peak_calling_param.json") %>%
   jsonlite::fromJSON() %>%
   pluck(target)
+diff_signal_params <- here::here("config", "json", "differential_signal_param.json") %>%
+  jsonlite::fromJSON() %>%
+  pluck(target)
 knitr_params <- here::here("config", "rmarkdown.yml") %>% 
   read_yaml() %>% 
   pluck("knitr_opts")
@@ -85,21 +88,21 @@ samples <- all_paths$macs2 %>%
   read_tsv()
 treat_levels <- unique(samples$treat)
 sample2label <- setNames(samples$label, samples$sample)
-if (!is.null(config$comparisons$contrasts)) {
+if (!is.null(diff_signal_params$contrasts)) {
   ## Ensure levels respect those provided in contrasts
-  treat_levels <- config$comparisons$contrasts %>%
-    unlist() %>%
-    intersect(samples$treat) %>% 
+  treat_levels <- diff_signal_params$contrasts |> 
+    as.character() |> 
     unique()
 }
-rep_col <- setdiff(
+replicate_col <- setdiff(
   colnames(samples), c("sample", "treat", "target", "input", "label", "qc")
 )
 samples <- samples %>%
   mutate(
     treat = factor(treat, levels = treat_levels)
   ) %>% 
-  dplyr::filter(treat %in% treat_levels)
+  dplyr::filter(treat %in% treat_levels) %>%
+  arrange(treat, !!sym(replicate_col))
 stopifnot(nrow(samples) > 0)
 ip <- unique(samples$input)
 ```
@@ -519,13 +522,16 @@ individual_peaks %>%
   mutate(
     qValue = map_dbl(qValue, median),
     highlight = case_when(
-      !!!imap(valid_sets, \(cols, name) if_all(all_of(cols)) ~ name)
+      !!!imap(
+        valid_sets, 
+        \(cols, name) (if_all(all_of(cols)) & !if_any(all_of(setdiff(lb, cols)))) ~ name
+      )
     )
   ) %>% 
   simpleUpSet(
-    sets = unname(lb), n_intersect = 30, sort_sets = NULL, min_size = 10,
+    sets = unname(lb), n_intersect = 20, sort_sets = NULL, min_size = 10,
     set_layers = default_set_layers(
-      fill = "set", expand = c(0.25, 0),
+      fill = "set", expand = c(0.3, 0),
       scale_fill_manual(
         values = colours$treat[as.character(samples$treat)] |> setNames(lb)
       ),
@@ -1417,7 +1423,6 @@ if (has_rna) {
             class = "section level4",
             htmltools::h4(i),
             tagList(
-              htmltools::tags$caption(cp),
               tags$button(
                 tagList(fontawesome::fa("download"), "Download as CSV"),
                 onclick = glue(
@@ -1432,7 +1437,7 @@ if (has_rna) {
                 "Clear All Filters",
                 onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
               ),
-              tbl
+              tags$br(), tags$caption(cp), tbl
             )
           )
         }
@@ -1530,7 +1535,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1545,7 +1549,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1730,7 +1734,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1748,7 +1751,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1893,7 +1896,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1908,7 +1910,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-enrich-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -2109,7 +2111,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -2124,7 +2125,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('motif-pos-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```

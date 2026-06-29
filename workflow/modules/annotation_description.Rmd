@@ -525,8 +525,7 @@ if (!is.null(config$external$motifdb))
 
 Transcription factor binding motifs (TFBMs) were prepared from `r ifelse(is.null(config$external$motifdb), collapseGenes(motif_params$data_source), basename(config$external$motifdb))` with `r nrow(tf_db)` motifs prepared for downstream analysis.
 Whilst *all motifs will be retained for testing*, highly similar motifs were clustered to enable clearer reporting and interpretation.
-Pairwise correlations between motifs were found during preparation and those where $\rho \geq$ `r motif_params$cluster_above` were clustered, giving a final set of `r max(as.integer(tf_db$cluster))` clusters.
-`r sum(table(tf_db$cluster) == 1)` TFBMs remained un-clustered.
+
 
 The largest motif clusters were:
 
@@ -550,7 +549,9 @@ As a check on the clustering strategy described above, the Information Content M
 
 #### Cluster 1
 
-```{r tf-cl1, fig.cap = glue("*Information Content logos for all TFBMs within the largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
+`r if (nrow(dplyr::filter(tf_db, cluster %in% top3[[1]])) >= 20) "The largest cluster was too big to visualise all motifs"`
+
+```{r tf-cl1, eval = nrow(dplyr::filter(tf_db, cluster %in% top3[[1]])) < 20, fig.cap = glue("*Information Content logos for all TFBMs within the largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
 tf_db %>% 
   dplyr::filter(cluster == top3[[1]]) %>% 
   to_list() %>% 
@@ -559,7 +560,9 @@ tf_db %>%
 
 #### Cluster 2
 
-```{r tf-cl2, fig.cap = glue("*Information Content logos for all TFBMs within the second largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
+`r if (nrow(dplyr::filter(tf_db, cluster %in% top3[[2]])) >= 20) "The second largest cluster was too big to visualise all motifs"`
+
+```{r tf-cl2, eval = nrow(dplyr::filter(tf_db, cluster %in% top3[[2]])) < 20,  fig.cap = glue("*Information Content logos for all TFBMs within the second largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
 tf_db %>% 
   dplyr::filter(cluster == top3[[2]]) %>% 
   to_list() %>% 
@@ -568,7 +571,9 @@ tf_db %>%
 
 #### Cluster 3
 
-```{r tf-cl3, fig.cap = glue("*Information Content logos for all TFBMs within the third largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
+`r if (nrow(dplyr::filter(tf_db, cluster %in% top3[[3]])) >= 20) "The third largest cluster was too big to visualise all motifs"`
+
+```{r tf-cl3, eval = nrow(dplyr::filter(tf_db, cluster %in% top3[[3]])) < 20, fig.cap = glue("*Information Content logos for all TFBMs within the third largest cluster. Reverse complement sequences from the defined matrix are annotated with RC.*")}
 tf_db %>% 
   dplyr::filter(cluster == top3[[3]]) %>% 
   to_list() %>% 

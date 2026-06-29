@@ -851,7 +851,6 @@ if (has_rna) {
             class = "section level4",
             htmltools::h4(i),
             tagList(
-              htmltools::tags$caption(cp),
               tags$button(
                 tagList(fontawesome::fa("download"), "Download as CSV"),
                 onclick = glue(
@@ -875,7 +874,7 @@ if (has_rna) {
                 ),
                 "Only show significant associations"
               ),
-              tbl
+              tags$br(), tags$caption(cp), tbl
             )
           )
         }
@@ -970,7 +969,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -985,7 +983,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-genomic-res-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1102,7 +1100,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1117,7 +1114,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-targets-res-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1393,7 +1390,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1411,7 +1407,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1617,7 +1613,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('pairwise-res-table', [])"
@@ -1629,7 +1624,7 @@ tl <- tagList(
     ),
     "Only show significant associations"
   ), 
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1742,7 +1737,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1757,7 +1751,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('enrich-res-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```
@@ -1945,7 +1939,6 @@ cp <- htmltools::em(
   )
 )
 tl <- tagList(
-  htmltools::tags$caption(cp),  
   tags$button(
     tagList(fontawesome::fa("download"), "Download as CSV"),
     onclick = glue(
@@ -1960,7 +1953,7 @@ tl <- tagList(
     "Clear All Filters",
     onclick = "Reactable.setAllFilters('pos-res-table', [])"
   ),
-  tbl
+  tags$br(), tags$caption(cp), tbl
 )
 htmltools::browsable(tl)
 ```

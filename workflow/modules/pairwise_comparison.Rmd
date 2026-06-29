@@ -780,7 +780,7 @@ combined_results %>%
     inner = !!sym(short_names$comp1), outer = !!sym(short_names$comp2), 
     inner_palette = direction_colours, outer_palette = direction_colours,
     inner_glue = "{inner}\n{.data[[inner]]}\n{comma(n, 1)}\n({percent(p, 0.1)})",
-    inner_label_alpha = 0.7,
+    inner_label_alpha = 0, inner_label_colour = "white",
     outer_glue = "{outer} {.data[[outer]]}\n{comma(n, 1)} ({percent(p, 0.1)})",
     outer_min_p = 0.02, outer_label = "text", outer_rotate = TRUE,
     outer_label_colour = "palette",
@@ -1120,7 +1120,7 @@ combined_results %>%
     inner_palette = region_colours, outer_palette = pw_cols,
     inner_glue = "{str_wrap(.data[[inner]], 12)}\nn = {comma(n, 1)}\n({percent(p,0.1)})",
     outer_glue = "{str_wrap(.data[[outer]], 15)}\nn = {comma(n, 1)}\n({percent(p,0.1)})",
-    min_p = 0.03, label_alpha = 0.8,
+    min_p = 0.03, label_alpha = 0, inner_label_colour = "white",
     explode_outer = "Both (In|De)creased", explode_r = 0.15
   ) %>% 
   .[[1]]
@@ -2505,7 +2505,6 @@ tagList(
           )
         )
         tl <- tagList(
-          htmltools::tags$caption(cp),
           tags$button(
             tagList(fontawesome::fa("download"), "Download as CSV"),
             onclick = glue(
@@ -2520,7 +2519,7 @@ tagList(
           tags$button(
             "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
           ),
-          tbl
+          tags$br(), tags$caption(cp), tbl
         )
         htmltools::div(
           id = id, class = "section level5", htmltools::h5(nm), tl
@@ -2808,7 +2807,6 @@ if (any_motif_pos) {
             )
           )
           tl <- tagList(
-            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -2823,7 +2821,7 @@ if (any_motif_pos) {
             tags$button(
               "Clear All Filters", onclick = glue("Reactable.setAllFilters('{id}', [])")
             ),
-            tbl
+            tags$br(), tags$caption(cp), tbl
           )
           htmltools::div(
             id = id, class = "section level5", htmltools::h5(nm), tl

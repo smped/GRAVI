@@ -155,6 +155,9 @@ if (is.null(db)) {
 
 }
 
+## A better thing to do here would be to run an md5sum on the motif matrices 
+## and remove duplicates based on that, but for now just remove duplicates 
+## based on the name column
 cat_time("Ensuring no duplicated names")
 db <- distinct(db, name, .keep_all = TRUE)
 cat_time("Database has been subset to", nrow(db), "motifs\n")

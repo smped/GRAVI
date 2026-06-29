@@ -841,7 +841,6 @@ if (any(has_de) & has_ds) {
         htmltools::div(
           id = id, class = "section level5", 
           htmltools::h5("DEGs with Differential Signal"), 
-          htmltools::tags$caption(cp),
           tags$button(
             tagList(fontawesome::fa("download"), "Download as CSV"),
             onclick = glue(
@@ -856,7 +855,7 @@ if (any(has_de) & has_ds) {
             "Clear All Filters",
             onclick = glue("Reactable.setAllFilters('{id}', [])")
           ),
-          tbl
+          tags$br(), tags$caption(cp), tbl
         )
       }
     ) %>% 

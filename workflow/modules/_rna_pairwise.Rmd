@@ -440,7 +440,6 @@ if (any(has_de)) {
           id = id, class = "section level5", 
           htmltools::h5("DEGs with Differential Signal"), 
           tagList(
-            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -455,7 +454,7 @@ if (any(has_de)) {
               "Clear All Filters",
               onclick = glue("Reactable.setAllFilters('{id}', [])")
             ),
-            tbl
+            tags$br(), tags$caption(cp), tbl
           )
         )
       }
@@ -609,7 +608,6 @@ if (any(any_gsea_sig)) {
             )
           )
           tl <- tagList(
-            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -621,7 +619,7 @@ if (any(any_gsea_sig)) {
               "Clear All Filters", 
               onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
             ),
-            tbl
+            tags$br(), tags$caption(cp),  tbl
           )
           htmltools::div(
             id = tbl_id, class = "section level5",
@@ -734,7 +732,6 @@ if (any(any_gsea_dir)) {
             )
           )
           tl <- tagList(
-            htmltools::tags$caption(cp),
             tags$button(
               tagList(fontawesome::fa("download"), "Download as CSV"),
               onclick = glue(
@@ -746,7 +743,7 @@ if (any(any_gsea_dir)) {
               "Clear All Filters", 
               onclick = glue("Reactable.setAllFilters('{tbl_id}', [])")
             ),
-            tbl
+            tags$br(), tags$caption(cp), tbl
           )
           htmltools::div(
             id = tbl_id, class = "section level5",

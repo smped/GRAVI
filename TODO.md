@@ -17,6 +17,8 @@
 
 - [ ] Add capacity for analysis by cluster
 - [ ] Make sure Z-scores are documented as preferred
+- [ ] Use both `name` and `altname` columns in modules to ensure all motifs are viable
+- [ ] Perform clustering in a standalone Rmd in order to check clustering params in a preliminary run
 
 
 ## Enrichment Testing
